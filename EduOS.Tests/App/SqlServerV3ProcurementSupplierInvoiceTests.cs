@@ -31,6 +31,20 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         public string? IpAddress => null;
         public string? UserAgent => null;
     }
+    private sealed class CampusAccountantActor(long tenantId, long userId) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public long TenantId => tenantId;
+        public long UserId => userId;
+        public string? FullName => null;
+        public string? Email => null;
+        public bool IsSuperAdmin => false;
+        public bool IsTenantAdmin => false;
+        public IReadOnlyList<string> Roles => ["Accountant"];
+        public bool IsInRole(string role) => role == "Accountant";
+        public string? IpAddress => null;
+        public string? UserAgent => null;
+    }
     private sealed class FrozenClock(DateTimeOffset instant) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => instant;
@@ -893,6 +907,15 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 var category=new AssetCategory {TenantId=tenantId,Code="SI-AC-"+suffix,
                     Name="Serialized equipment from paid supplier"};
                 assetSetup.AssetCategories.Add(category);
+                // This campus-scoped Accountant has access to a different campus,
+                // not the source campus of the serialized fixed asset.
+                var otherCampus = new Campus { TenantId=tenantId,
+                    Code="SI-OTHER-"+suffix, Name="Other campus", IsActive=true };
+                assetSetup.Campuses.Add(otherCampus);
+                await assetSetup.SaveChangesAsync();
+                assetSetup.UserCampusAccesses.Add(new UserCampusAccess {
+                    TenantId=tenantId, UserId=makerId, CampusId=otherCampus.Id,
+                    IsActive=true, IsDefault=true });
                 await assetSetup.SaveChangesAsync();
                 var asset=new Asset {TenantId=tenantId,CampusId=campusId,
                     AssetCategoryId=category.Id,InventoryItemId=receiptLine.InventoryItemId,
@@ -946,6 +969,20 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(10m,submitted.Data!.ProposedCostBasis);
                 capitalizationReference=submitted.Data.Reference;
                 capitalizationVersion=submitted.Data.RowVersion;
+                Assert.Equal(capitalizationReference,(await finance.RequestCapitalizationAsync(
+                    assetReference,request)).Data!.Reference);
+                var limitedActor=new CampusAccountantActor(tenantId,makerId);
+                var limitedFinance=new AssetAccountingService(assetMaker,limitedActor,TimeProvider.System,
+                    new InventoryMovementService(assetMaker,limitedActor,TimeProvider.System,
+                        NullLogger<InventoryMovementService>.Instance),
+                    new AssetLifecycleService(assetMaker,limitedActor,TimeProvider.System,
+                        NullLogger<AssetLifecycleService>.Instance),
+                    NullLogger<AssetAccountingService>.Instance);
+                Assert.Equal(404,(await limitedFinance.GetCapitalizationAsync(assetReference)).StatusCode);
+                Assert.Equal(404,(await limitedFinance.RequestCapitalizationAsync(
+                    assetReference,request)).StatusCode);
+                Assert.Single(await assetMaker.AssetCapitalizationCommands.AsNoTracking()
+                    .Where(x=>x.PublicId==capitalizationReference).ToListAsync());
                 Assert.Equal(403,(await finance.ReviewCapitalizationAsync(capitalizationReference,
                     new ReviewAssetCapitalizationRequest {RowVersion=capitalizationVersion,
                         Approve=true,Reason="Maker must not capitalize own supplier equipment"})).StatusCode);
@@ -1039,6 +1076,21 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             }
             long disposalId;
             string disposalVersion;
+            await using (var locked=Open(options,tenantId,makerId))
+            {
+                await locked.AccountingPeriods.Where(x=>x.Id==periodId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(p=>p.IsClosed,true));
+                var denied=await AssetFinanceAt(locked,tenantId,makerId,valuationClock)
+                    .RequestDisposalAsync(assetReference,new AssetValuationRequest {
+                        ClientRequestId=Guid.NewGuid(),AccountingPeriodId=periodId,
+                        EffectiveDate=valuationDate,ValuationMode="ManualFinal",Amount=5m,
+                        ProceedsClearingAccountId=capitalizationAccounts[7],
+                        Reason="Closed period must block source-linked disposal"});
+                Assert.Equal(409,denied.StatusCode);
+                Assert.Empty(await locked.AssetDisposals.AsNoTracking().ToListAsync());
+                await locked.AccountingPeriods.Where(x=>x.Id==periodId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(p=>p.IsClosed,false));
+            }
             await using (var maker=Open(options,tenantId,makerId))
             {
                 var finance=AssetFinanceAt(maker,tenantId,makerId,valuationClock);
@@ -1057,6 +1109,20 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             await using (var checker=Open(options,tenantId,checkerId))
             {
                 var finance=AssetFinanceAt(checker,tenantId,checkerId,valuationClock);
+                await checker.AccountingPeriods.Where(x=>x.Id==periodId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(p=>p.IsClosed,true));
+                var blocked=await finance.ReviewDisposalAsync(disposalId,
+                    new AssetReviewRequest {RowVersion=disposalVersion,Approve=true,
+                        Reason="Closed period must prevent approval and GL posting"});
+                Assert.Equal(409,blocked.StatusCode);
+                Assert.Empty(await checker.Journals.AsNoTracking()
+                    .Where(x=>x.SourceType=="AssetDisposal").ToListAsync());
+                Assert.Equal("Submitted",await checker.AssetDisposals.AsNoTracking()
+                    .Where(x=>x.Id==disposalId).Select(x=>x.StateCode).SingleAsync());
+                Assert.True(Assert.Single(await checker.AssetBooks.AsNoTracking()
+                    .ToListAsync()).IsActive);
+                await checker.AccountingPeriods.Where(x=>x.Id==periodId)
+                    .ExecuteUpdateAsync(x=>x.SetProperty(p=>p.IsClosed,false));
                 var posted=await finance.ReviewDisposalAsync(disposalId,
                     new AssetReviewRequest {RowVersion=disposalVersion,Approve=true,
                         Reason="Independent source-linked disposal and GL clearance"});

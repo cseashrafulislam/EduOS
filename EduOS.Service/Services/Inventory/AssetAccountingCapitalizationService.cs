@@ -215,6 +215,10 @@ public sealed partial class AssetAccountingService
                 x.TenantId==user.TenantId && x.ClientRequestId==request.ClientRequestId,ct);
             if(prior!=null)
             {
+                // A request key is not a campus capability. Validate current campus
+                // membership before returning any persisted command or approval metadata.
+                if (!await CampusAllowedAsync(prior.CampusId, ct))
+                    return Conflict<AssetCapitalizationRecordDto>("Asset command not found.", 404);
                 var sameAsset = await db.Assets.AsNoTracking().AnyAsync(x =>
                     x.TenantId == user.TenantId && x.Id == prior.AssetId &&
                     x.PublicId == assetReference, ct);
