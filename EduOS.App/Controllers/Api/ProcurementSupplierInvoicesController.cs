@@ -20,7 +20,7 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> List(long? purchaseOrderId, string? state, int page=1, int pageSize=25,
         CancellationToken ct=default) => Reply(await service.ListAsync(purchaseOrderId,state,page,pageSize,ct));
 
-    [HttpGet("options"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    [HttpGet("options"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Options(CancellationToken ct) => Reply(await service.PostingOptionsAsync(ct));
 
     [HttpGet("{reference:guid}"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
@@ -34,15 +34,15 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> Submit(Guid reference,[FromBody] SubmitProcurementSupplierInvoiceRequest request,
         CancellationToken ct) => Reply(await service.SubmitAsync(reference,request,ct));
 
-    [HttpPost("{reference:guid}/review"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    [HttpPost("{reference:guid}/review"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Review(Guid reference,[FromBody] ReviewProcurementSupplierInvoiceRequest request,
         CancellationToken ct) => Reply(await service.ReviewAsync(reference,request,ct));
 
-    [HttpPost("{reference:guid}/reversal"), Authorize(Roles="TenantAdmin,Accountant")]
+    [HttpPost("{reference:guid}/reversal"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Accountant")]
     public async Task<IActionResult> Reverse(Guid reference,[FromBody] RequestProcurementSupplierInvoiceReversal request,
         CancellationToken ct) => Reply(await service.RequestReversalAsync(reference,request,ct));
 
-    [HttpPost("{reference:guid}/reversal/review"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    [HttpPost("{reference:guid}/reversal/review"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> ReviewReversal(Guid reference,[FromBody] ReviewProcurementSupplierInvoiceReversal request,
         CancellationToken ct) => Reply(await service.ReviewReversalAsync(reference,request,ct));
 
@@ -100,74 +100,102 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         [FromBody] ReviewSupplierSettlementReversal request, CancellationToken ct)
         => Reply(await service.ReviewSettlementReversalAsync(reference, instruction, reversal, request, ct));
 
-    [HttpGet("aging"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    // Reject duplicate/missing rows or changed visibility while a bounded CSV is
+    // assembled across requests. This detects paging drift; it is not a SQL
+    // snapshot-isolation guarantee against same-count replacement.
+    private static bool AppendStablePage<T>(PagedResult<T> page, int expectedPage,
+        int expectedTotal, List<T> output, HashSet<Guid> seen, Func<T, Guid> key)
+    {
+        if (page.TotalCount != expectedTotal || page.Page != expectedPage ||
+            page.PageSize != 100 || page.Items == null ||
+            page.Items.Count != Math.Min(100, expectedTotal - output.Count))
+            return false;
+        foreach (var item in page.Items)
+        {
+            if (item is null || !seen.Add(key(item)) || key(item) == Guid.Empty)
+                return false;
+        }
+        output.AddRange(page.Items);
+        return true;
+    }
+
+    private static string CsvCell(object? value)
+    {
+        var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+        // One logical CSV record per line. Keep quotes escaped and neutralize
+        // spreadsheet formulas even after leading whitespace.
+        s = s.Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
+        var trimmed = s.TrimStart();
+        if (trimmed.Length > 0 && "=+-@".Contains(trimmed[0])) s = "'" + s;
+        return "\"" + s.Replace("\"", "\"\"") + "\"";
+    }
+
+    [HttpGet("aging"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Aging(DateOnly? dueDateReference,long? supplierId,bool overdueOnly=false,
         int page=1,int pageSize=25,CancellationToken ct=default)
         => Reply(await service.AgingAsync(dueDateReference,supplierId,overdueOnly,page,pageSize,ct));
 
-    [HttpGet("aging/export"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    [HttpGet("aging/export"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> AgingExport(DateOnly? dueDateReference,long? supplierId,
         bool overdueOnly=false,CancellationToken ct=default)
     {
         var first=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,1,100,ct);
         if(!first.Success || first.Data==null)return Reply(first);
         if(first.Data.TotalCount>500)return StatusCode(413,new{message="Filter to 500 or fewer supplier payables."});
-        var rows=new List<ProcurementSupplierPayableAgingRowDto>(first.Data.Items);
+        var rows=new List<ProcurementSupplierPayableAgingRowDto>();
+        var seen=new HashSet<Guid>();
+        var total=first.Data.TotalCount;
+        if (!AppendStablePage(first.Data,1,total,rows,seen,x=>x.InvoiceReference))
+            return StatusCode(409,new{message="Supplier payable export changed; retry with fresh authorization."});
         for(var p=2;p<=first.Data.TotalPages;p++)
         {
             var next=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,p,100,ct);
             if(!next.Success || next.Data==null)return Reply(next);
-            rows.AddRange(next.Data.Items);
-        }
-        static string Csv(object? v)
-        {
-            var s=Convert.ToString(v,System.Globalization.CultureInfo.InvariantCulture)??"";
-            if(s.TrimStart().Length>0 && "=+-@".Contains(s.TrimStart()[0]))s="'"+s;
-            return "\"" + s.Replace("\"","\"\"") + "\"";
+            if (!AppendStablePage(next.Data,p,total,rows,seen,x=>x.InvoiceReference))
+                return StatusCode(409,new{message="Supplier payable export changed; retry with fresh authorization."});
         }
         var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,PostedSettlement_BDT,PostedReturnCredit_BDT,PendingReturnCredit_BDT,SupplierRefundReceivable_BDT,UnpostedReservation_BDT,SourceLinkedNet_BDT,SettlementEvidence,ReversalPending,Journal\r\n");
         foreach(var x in rows)
-            csv.AppendJoin(',',Csv(x.SupplierInvoiceNumber),Csv(x.OrderNumber),Csv(x.SupplierId),
-                Csv(x.CampusId),Csv(x.DueDate),Csv(x.DaysOverdue),Csv(x.AgingBucket),
-                Csv(x.GrossPostedAmount),Csv(x.PostedSettlementAmount),
-                Csv(x.PostedSupplierCreditAmount),Csv(x.PendingSupplierCreditAmount),
-                Csv(x.SupplierRefundReceivableAmount),Csv(x.ReservedUnpostedAmount),
-                Csv(x.SourceLinkedOutstandingAmount),Csv(x.SettlementIntegrityStatus),
-                Csv(x.ReversalPending),Csv(x.JournalReference))
+            csv.AppendJoin(',',CsvCell(x.SupplierInvoiceNumber),CsvCell(x.OrderNumber),CsvCell(x.SupplierId),
+                CsvCell(x.CampusId),CsvCell(x.DueDate),CsvCell(x.DaysOverdue),CsvCell(x.AgingBucket),
+                CsvCell(x.GrossPostedAmount),CsvCell(x.PostedSettlementAmount),
+                CsvCell(x.PostedSupplierCreditAmount),CsvCell(x.PendingSupplierCreditAmount),
+                CsvCell(x.SupplierRefundReceivableAmount),CsvCell(x.ReservedUnpostedAmount),
+                CsvCell(x.SourceLinkedOutstandingAmount),CsvCell(x.SettlementIntegrityStatus),
+                CsvCell(x.ReversalPending),CsvCell(x.JournalReference))
                 .Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()),"text/csv; charset=utf-8",
             "supplier-source-linked-payable-aging.csv");
     }
 
-    [HttpGet("export"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
+    [HttpGet("export"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct)
     {
         var first = await service.ListAsync(purchaseOrderId,state,1,100,ct);
         if (!first.Success || first.Data == null) return Reply(first);
         if (first.Data.TotalCount > 500) return StatusCode(413,new{message="Filter to 500 or fewer supplier invoices."});
-        var data = new List<ProcurementSupplierInvoiceDto>(first.Data.Items);
+        var data = new List<ProcurementSupplierInvoiceDto>();
+        var seen = new HashSet<Guid>();
+        var total = first.Data.TotalCount;
+        if (!AppendStablePage(first.Data,1,total,data,seen,x=>x.Reference))
+            return StatusCode(409,new{message="Supplier invoice export changed; retry with fresh authorization."});
         for (var page=2; page<=first.Data.TotalPages;page++)
         {
             var next = await service.ListAsync(purchaseOrderId,state,page,100,ct);
             if (!next.Success || next.Data == null) return Reply(next);
-            data.AddRange(next.Data.Items);
-        }
-        static string Csv(object? value)
-        {
-            var s = Convert.ToString(value,System.Globalization.CultureInfo.InvariantCulture)??"";
-            if (s.TrimStart().Length>0 && "=+-@".Contains(s.TrimStart()[0])) s="'"+s;
-            return "\""+s.Replace("\"","\"\"")+"\"";
+            if (!AppendStablePage(next.Data,page,total,data,seen,x=>x.Reference))
+                return StatusCode(409,new{message="Supplier invoice export changed; retry with fresh authorization."});
         }
         var csv = new StringBuilder("Invoice,PO,Campus,Supplier,Date,DueDate,State,PriceMode,TotalBDT,StockValue,Variance,Maker,FinanceReviewer,Journal,Reversal,Item,Lot,Qty,ReceiptLine,POPrice,StockUnitCost,InvoiceUnitPrice,LineAmount,Reason\r\n");
         foreach (var x in data)
             foreach (var line in x.Lines)
-                csv.AppendJoin(',',Csv(x.SupplierInvoiceNumber),Csv(x.OrderNumber),Csv(x.CampusId),Csv(x.SupplierId),
-                    Csv(x.InvoiceDate),Csv(x.DueDate),Csv(x.StateCode),Csv(x.PriceMode),Csv(x.TotalAmount),
-                    Csv(x.StockValue),Csv(x.PriceVariance),Csv(x.CreatedByUserId),Csv(x.ReviewedByUserId),
-                    Csv(x.JournalReference),Csv(x.ReversalJournalReference),Csv(line.InventoryItemId),
-                    Csv(line.LotOrBatchNo),Csv(line.Quantity),Csv(line.GoodsReceiptLineId),
-                    Csv(line.PoUnitPrice),Csv(line.StockUnitCost),Csv(line.InvoiceUnitPrice),
-                    Csv(line.InvoiceAmount),Csv(line.VarianceReason)).Append("\r\n");
+                csv.AppendJoin(',',CsvCell(x.SupplierInvoiceNumber),CsvCell(x.OrderNumber),CsvCell(x.CampusId),CsvCell(x.SupplierId),
+                    CsvCell(x.InvoiceDate),CsvCell(x.DueDate),CsvCell(x.StateCode),CsvCell(x.PriceMode),CsvCell(x.TotalAmount),
+                    CsvCell(x.StockValue),CsvCell(x.PriceVariance),CsvCell(x.CreatedByUserId),CsvCell(x.ReviewedByUserId),
+                    CsvCell(x.JournalReference),CsvCell(x.ReversalJournalReference),CsvCell(line.InventoryItemId),
+                    CsvCell(line.LotOrBatchNo),CsvCell(line.Quantity),CsvCell(line.GoodsReceiptLineId),
+                    CsvCell(line.PoUnitPrice),CsvCell(line.StockUnitCost),CsvCell(line.InvoiceUnitPrice),
+                    CsvCell(line.InvoiceAmount),CsvCell(line.VarianceReason)).Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()),"text/csv; charset=utf-8",
             "procurement-supplier-invoices.csv");
     }
