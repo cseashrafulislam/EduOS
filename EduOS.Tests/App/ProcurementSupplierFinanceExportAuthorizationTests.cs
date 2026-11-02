@@ -60,10 +60,15 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
     {
         Reference = Guid.Parse($"00000000-0000-4000-8000-{id:D12}"),
         SupplierInvoiceNumber = id == 1 ? "=HYPERLINK(\"unsafe\")" : $"INV-{id}",
+        PurchaseOrderId = 7, CampusId = 3, SupplierId = 9,
+        TotalAmount = 10m, StockValue = 10m, PriceVariance = 0m,
         Lines = [new ProcurementSupplierInvoiceLineDto
         {
-            LineNo = 1, LotOrBatchNo = "+SUM(1,1)\r\nINJECTED", Quantity = 1m,
-            InvoiceAmount = 10m
+            Id = 1, LineNo = 1, InventoryItemId = 11, PurchaseOrderLineId = 12,
+            GoodsReceiptLineId = 13, LotOrBatchNo = "+SUM(1,1)\r\nINJECTED",
+            Quantity = 1m, ReceivedQuantity = 1m, PoUnitPrice = 10m,
+            StockUnitCost = 10m, InvoiceUnitPrice = 10m,
+            InvoiceAmount = 10m, StockValue = 10m
         }]
     };
 
@@ -215,6 +220,9 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
             .ReturnsAsync(Ok(1, 1, Aging(1)));
         var invoiceRow = Invoice(1);
         invoiceRow.PriceVariance = -5m;
+        invoiceRow.StockValue = 15m;
+        invoiceRow.Lines[0].StockUnitCost = 15m;
+        invoiceRow.Lines[0].StockValue = 15m;
         var agingRow = Aging(1);
         agingRow.SourceLinkedOutstandingAmount = -2m;
         service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
@@ -377,6 +385,9 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         invoice.OrderNumber = "বাংলা\u200Dনাম";
         invoice.Lines[0].LotOrBatchNo = "\u202E+SUM(1,1)\u2028EXTRA";
         invoice.PriceVariance = -5m;
+        invoice.StockValue = 15m;
+        invoice.Lines[0].StockUnitCost = 15m;
+        invoice.Lines[0].StockValue = 15m;
         var aging = Aging(1);
         aging.SupplierInvoiceNumber = "\u2060@SUM(1,1)";
         aging.SourceLinkedOutstandingAmount = -2m;
@@ -542,4 +553,75 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         service.VerifyNoOtherCalls();
     }
 
+
+    [Theory]
+    [InlineData("missing-po")]
+    [InlineData("missing-campus")]
+    [InlineData("missing-supplier")]
+    [InlineData("missing-item")]
+    [InlineData("missing-receipt")]
+    [InlineData("over-received")]
+    [InlineData("invalid-price")]
+    [InlineData("bad-invoice-line-amount")]
+    [InlineData("bad-stock-line-amount")]
+    [InlineData("bad-header-total")]
+    [InlineData("bad-header-variance")]
+    [InlineData("posted-without-journal")]
+    public async Task Supplier_invoice_export_rejects_unreconciled_source_and_GL_evidence(string defect)
+    {
+        var invoice = Invoice(1);
+        var line = invoice.Lines[0];
+        switch (defect)
+        {
+            case "missing-po": invoice.PurchaseOrderId = 0; break;
+            case "missing-campus": invoice.CampusId = 0; break;
+            case "missing-supplier": invoice.SupplierId = 0; break;
+            case "missing-item": line.InventoryItemId = 0; break;
+            case "missing-receipt": line.GoodsReceiptLineId = 0; break;
+            case "over-received": line.Quantity = 2m; break;
+            case "invalid-price": line.InvoiceUnitPrice = 0m; break;
+            case "bad-invoice-line-amount": line.InvoiceAmount = 11m; break;
+            case "bad-stock-line-amount": line.StockValue = 11m; break;
+            case "bad-header-total": invoice.TotalAmount = 11m; invoice.PriceVariance = 1m; break;
+            case "bad-header-variance": invoice.PriceVariance = 1m; break;
+            case "posted-without-journal": invoice.StateCode = "Posted"; break;
+        }
+        var service = new Mock<IProcurementSupplierInvoiceService>();
+        service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, invoice));
+        var response = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(service.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(409, response.StatusCode);
+        Assert.IsNotType<FileContentResult>(response);
+    }
+
+    [Fact]
+    public async Task Posted_supplier_invoice_export_keeps_fractional_prices_and_negative_variance()
+    {
+        var invoice = Invoice(1);
+        invoice.StateCode = "Posted";
+        invoice.JournalReference = Guid.NewGuid();
+        invoice.TotalAmount = 10m;
+        invoice.StockValue = 15m;
+        invoice.PriceVariance = -5m;
+        var line = invoice.Lines[0];
+        line.Quantity = 8m;
+        line.ReceivedQuantity = 8m;
+        line.PoUnitPrice = 1.125m;
+        line.InvoiceUnitPrice = 1.25m;
+        line.StockUnitCost = 1.875m;
+        line.InvoiceAmount = 10m;
+        line.StockValue = 15m;
+        var service = new Mock<IProcurementSupplierInvoiceService>();
+        service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, invoice));
+        var file = Assert.IsType<FileContentResult>(
+            await new ProcurementSupplierInvoicesController(service.Object)
+                .Export(null, null, CancellationToken.None));
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.Contains(invoice.JournalReference.Value.ToString(), csv);
+        Assert.Contains("\"1.875\"", csv);
+        Assert.Contains("\"-5\"", csv);
+    }
 }

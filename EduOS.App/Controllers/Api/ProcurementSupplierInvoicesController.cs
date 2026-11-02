@@ -133,14 +133,45 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
 
     // A missing, duplicated or incomplete invoice source-line projection must
     // never be silently omitted from a financial CSV, even for a draft invoice.
+    private static bool ValidMoney(decimal value) =>
+        value >= 0m && value <= 999999999999.99m && decimal.Round(value, 2) == value;
+
+    // Validate source-linked CSV evidence without changing canonical posting.
     private static bool HasCompleteInvoiceLines(ProcurementSupplierInvoiceDto invoice)
     {
-        if (invoice.Lines is not { Count: >= 1 and <= 100 }) return false;
-        var seen = new HashSet<int>();
+        if (invoice.PurchaseOrderId <= 0 || invoice.CampusId <= 0 || invoice.SupplierId <= 0 ||
+            invoice.Lines is not { Count: >= 1 and <= 100 } ||
+            !ValidMoney(invoice.TotalAmount) || !ValidMoney(invoice.StockValue) ||
+            invoice.PriceVariance != invoice.TotalAmount - invoice.StockValue ||
+            (invoice.StateCode == "Posted" &&
+             (invoice.JournalReference is null || invoice.JournalReference == Guid.Empty)))
+            return false;
+        var numbers = new HashSet<int>();
+        var receipts = new HashSet<long>();
+        decimal billed = 0m, stock = 0m;
         foreach (var line in invoice.Lines)
-            if (line == null || line.LineNo <= 0 || !seen.Add(line.LineNo))
+        {
+            if (line == null || line.Id <= 0 || line.LineNo <= 0 ||
+                !numbers.Add(line.LineNo) || line.InventoryItemId <= 0 ||
+                line.PurchaseOrderLineId <= 0 || line.GoodsReceiptLineId <= 0 ||
+                !receipts.Add(line.GoodsReceiptLineId) ||
+                line.Quantity <= 0m || line.Quantity > 999999999999m ||
+                decimal.Round(line.Quantity, 6) != line.Quantity ||
+                line.ReceivedQuantity < line.Quantity || line.ReceivedQuantity > 999999999999m ||
+                decimal.Round(line.ReceivedQuantity, 6) != line.ReceivedQuantity ||
+                line.PoUnitPrice < 0m || line.StockUnitCost < 0m ||
+                line.InvoiceUnitPrice <= 0m ||
+                line.PoUnitPrice > 999999999999.99m ||
+                line.StockUnitCost > 999999999999.99m ||
+                line.InvoiceUnitPrice > 999999999999.99m ||
+                !ValidMoney(line.InvoiceAmount) || !ValidMoney(line.StockValue) ||
+                decimal.Round(line.Quantity * line.InvoiceUnitPrice, 2, MidpointRounding.AwayFromZero) != line.InvoiceAmount ||
+                decimal.Round(line.Quantity * line.StockUnitCost, 2, MidpointRounding.AwayFromZero) != line.StockValue)
                 return false;
-        return true;
+            billed += line.InvoiceAmount;
+            stock += line.StockValue;
+        }
+        return billed == invoice.TotalAmount && stock == invoice.StockValue;
     }
 
     // Freeze the first authorized read BEFORE rechecking. Services or caches
