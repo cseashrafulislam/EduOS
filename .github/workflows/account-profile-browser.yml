@@ -8,6 +8,8 @@ on:
       - 'EduOS.App/Controllers/AccountController.cs'
       - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
       - 'EduOS.Tests/JavaScript/account-profile-ui.test.cjs'
+      - 'EduOS.Tests/JavaScript/account-session-readback-isolation.test.cjs'
+      - 'EduOS.Tests/JavaScript/task-focused-operations-library-learning.test.cjs'
       - 'tests/browser/account-profile.cjs'
       - '.github/workflows/account-profile-browser.yml'
   workflow_dispatch:
