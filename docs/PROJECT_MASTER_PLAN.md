@@ -274,6 +274,10 @@ At baseline Ashraful `567d15894d4ea597f62fa6063736dc5f1315af9f`, the repository 
 
 Task schedules and enablement live in the automation service, not this file; preserve the owner's existing five staggered hourly runs.
 
+### Facilities worker lifecycle live authorization and revocation guard
+
+Issue [#107](https://github.com/cseashrafulislam/EduOS/issues/107): the existing assigned-technician role claim is no longer enough for Pause, Resume, Complete or an exact command replay. All worker transitions recheck the canonical active account, tenant membership, campus grant and scoped FacilitiesTechnician role. On SQL Server the mutation holds update/serializable locks on the matching canonical identity rows through work-order and append-only event commit; revocation or contention fails closed, without a new Facilities role table, stock movement or Finance journal. Disposable SQL acceptance exercises revoked membership after Start, denied Pause/Complete/old Start replay, revoked campus grant while Paused, denied Resume, unchanged rowversion/audit and authorized recovery. Exact-final-SHA CI and disposable SQL must pass before this slice is accepted; a real concurrent administrator-revocation race, authenticated SQL-backed Chromium and institute UAT are not asserted.
+
 ### Facilities scheduling idempotency integrity (2026-11-01)
 
 Issue [#107](https://github.com/cseashrafulislam/EduOS/issues/107): a replay of a previously accepted scheduling command must match the original technician, UTC start/end window and optional reason. Altered payload with the same command ID returns 409 without a new work-order event. Existing audit history is the immutable source of the original assignment, so no new table, stock ledger, Finance journal, migration, or page is needed. Disposable SQL regression checks exact replay, changed technician/window/reason and exactly one schedule event. CI/SQL acceptance for the new SHA must be recorded after the workflows finish; no production/UAT claim.

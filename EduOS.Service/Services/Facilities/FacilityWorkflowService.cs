@@ -267,6 +267,52 @@ public sealed class FacilityWorkflowService(
                           other.UserId == candidate.Id && other.TenantId != user.TenantId &&
                           !other.IsDeleted && other.Status != MembershipStatus.Left))))));
 
+    // Lock the exact identity, tenant membership, campus grant and scoped role
+    // through the worker transition's SQL transaction. A stale cookie role claim
+    // is never sufficient for Pause, Resume or Complete after a revocation.
+    // These are existing canonical identity tables, not a Facilities role cache.
+    private async Task<bool> LockLiveTechnicianAsync(long technicianId, long campusId, CancellationToken ct)
+    {
+        if (!db.Database.IsSqlServer())
+            return await EligibleTechnicians(campusId).AnyAsync(x => x.Id == technicianId, ct);
+        try
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM dbo.AspNetUsers AS u WITH (UPDLOCK, HOLDLOCK)
+                    INNER JOIN dbo.TenantMemberships AS m WITH (UPDLOCK, HOLDLOCK)
+                        ON m.UserId = u.Id AND m.TenantId = {user.TenantId}
+                    INNER JOIN dbo.UserCampusAccesses AS g WITH (UPDLOCK, HOLDLOCK)
+                        ON g.UserId = u.Id AND g.TenantId = {user.TenantId} AND g.CampusId = {campusId}
+                    INNER JOIN dbo.AspNetUserRoles AS ur WITH (UPDLOCK, HOLDLOCK)
+                        ON ur.UserId = u.Id
+                    INNER JOIN dbo.AspNetRoles AS r WITH (UPDLOCK, HOLDLOCK)
+                        ON r.Id = ur.RoleId
+                    WHERE u.Id = {technicianId} AND u.IsActive = 1 AND u.IsDeleted = 0
+                        AND m.IsDeleted = 0 AND m.Status = {(int)MembershipStatus.Active}
+                        AND g.IsActive = 1 AND g.IsDeleted = 0
+                        AND r.IsActive = 1 AND r.IsDeleted = 0
+                        AND r.NormalizedName = N'FACILITIESTECHNICIAN'
+                        AND (r.TenantId = {user.TenantId} OR
+                            (r.TenantId IS NULL AND r.IsSystemRole = 0
+                             AND NOT EXISTS (
+                                 SELECT 1 FROM dbo.TenantMemberships AS other WITH (UPDLOCK, HOLDLOCK)
+                                 WHERE other.UserId = u.Id AND other.TenantId <> {user.TenantId}
+                                     AND other.IsDeleted = 0 AND other.Status <> {(int)MembershipStatus.Left}
+                             )))
+                ) THROW 51002, 'Facility technician authorization revoked', 1;
+                """, ct);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 51002 or 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Facility technician authorization conflict for tenant {TenantId}", user.TenantId);
+            return false;
+        }
+        // Retain the canonical EF predicate as the final parity check.
+        return await EligibleTechnicians(campusId).AnyAsync(x => x.Id == technicianId, ct);
+    }
+
     public async Task<ApiResponse<PagedResult<FacilityTechnicianOptionDto>>> TechniciansAsync(
         long campusId, string? search, int page, int pageSize, CancellationToken ct = default,
         DateTime? startUtc = null, DateTime? endUtc = null, long? workOrderId = null)
@@ -561,6 +607,12 @@ public sealed class FacilityWorkflowService(
             _ => false
         };
         if (!allowed) return Denied<FacilityRequestDto>();
+        var workerMutation = action is "start" or "pause" or "resume" or "complete";
+        // Replay acknowledgement is also an authorized read. A technician who
+        // lost their current membership/grant/role must not receive an old success.
+        if (workerMutation && !await EligibleTechnicians(request.CampusId)
+            .AnyAsync(candidate => candidate.Id == user.UserId, ct))
+            return Denied<FacilityRequestDto>();
 
         var replay = await db.Set<FacilityWorkflowEvent>().AsNoTracking().FirstOrDefaultAsync(
             x => x.TenantId == user.TenantId && x.ClientCommandId == command.ClientCommandId, ct);
@@ -591,8 +643,16 @@ public sealed class FacilityWorkflowService(
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Record changed; reload.", 409);
         // SQL Server application lock serializes scheduling for the same tenant/technician.
         // It is held through the work-order update and audit SaveChanges/commit.
-        await using var scheduleTransaction = (action is "schedule" or "vendorapprove" or "start") && db.Database.IsSqlServer()
-            ? await db.Database.BeginTransactionAsync(ct) : null;
+        await using var scheduleTransaction = (action is "schedule" or "vendorapprove" or
+            "start" or "pause" or "resume" or "complete") && db.Database.IsSqlServer()
+            ? await db.Database.BeginTransactionAsync(
+                workerMutation ? System.Data.IsolationLevel.Serializable : System.Data.IsolationLevel.ReadCommitted, ct)
+            : null;
+        // Lock live authorization until the projection and immutable event commit.
+        // Without this, role/membership revocation could race a previously valid
+        // Pause/Resume/Complete command after the first authorization read.
+        if (workerMutation && !await LockLiveTechnicianAsync(user.UserId, request.CampusId, ct))
+            return Denied<FacilityRequestDto>();
         var before = requestAction ? request.StateCode : order?.StateCode ?? "None";
         var note = command.Note?.Trim();
         string? auditNote = note;
@@ -936,6 +996,10 @@ public sealed class FacilityWorkflowService(
             if (action == "start") order!.StartedAtUtc = commitNow;
             now = commitNow;
         }
+
+        if (workerMutation && !await EligibleTechnicians(request.CampusId)
+            .AnyAsync(candidate => candidate.Id == user.UserId, ct))
+            return Denied<FacilityRequestDto>();
 
         if (requestAction) { request.UpdatedAt = now; request.UpdatedBy = user.UserId; }
         else if (order != null) { order.UpdatedAt = now; order.UpdatedBy = user.UserId; }

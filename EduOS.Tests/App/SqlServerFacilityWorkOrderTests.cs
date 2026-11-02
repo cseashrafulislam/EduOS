@@ -1182,6 +1182,70 @@ public sealed class SqlServerFacilityWorkOrderTests
             Assert.InRange(persisted.StartedAtUtc!.Value, competingVendorStart, competingVendorEnd);
             Assert.True(persisted.StartedAtUtc >= scheduled.ScheduledStartUtc);
         }
+        // A worker who loses live authorization after Start cannot Pause,
+        // Complete, Resume or acknowledge an old Start retry using stale claims.
+        async Task AssertRevokedWorkerAsync(string action, string version, string? note = null)
+        {
+            await using var deniedDb = Db(options, tenantId, techId, "FacilitiesTechnician");
+            var beforeOrder = await deniedDb.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id);
+            var beforeCount = await deniedDb.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id);
+            var denied = await Service(deniedDb, tenantId, techId, "FacilitiesTechnician",
+                new ShiftedClock(TimeSpan.FromMinutes(55)))
+                .TransitionAsync(submitted.Id, action, new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = version, Note = note });
+            Assert.Equal(403, denied.StatusCode);
+            var afterOrder = await deniedDb.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(x => x.FacilityServiceRequestId == submitted.Id);
+            Assert.Equal(beforeOrder.StateCode, afterOrder.StateCode);
+            Assert.Equal(beforeOrder.RowVersion, afterOrder.RowVersion);
+            Assert.Equal(beforeCount, await deniedDb.FacilityWorkflowEvents.CountAsync(x =>
+                x.FacilityServiceRequestId == submitted.Id));
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.TenantMemberships.Where(x =>
+                x.TenantId == tenantId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MembershipStatus.Suspended)));
+        await AssertRevokedWorkerAsync("pause", started.WorkOrderRowVersion!, "Safety pause");
+        await AssertRevokedWorkerAsync("complete", started.WorkOrderRowVersion!,
+            "Repaired the hallway circuit and checked all fittings.");
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+            Assert.Equal(403, (await Service(db, tenantId, techId, "FacilitiesTechnician")
+                .TransitionAsync(submitted.Id, "start", new FacilityTransitionDto
+                { ClientCommandId = revokedStartId, RowVersion = scheduled.WorkOrderRowVersion! })).StatusCode);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.TenantMemberships.Where(x =>
+                x.TenantId == tenantId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MembershipStatus.Active)));
+
+        FacilityRequestDto paused;
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var response = await Service(db, tenantId, techId, "FacilitiesTechnician")
+                .TransitionAsync(submitted.Id, "pause", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = started.WorkOrderRowVersion!,
+                  Note = "Pause for electrical safety" });
+            Assert.True(response.Success, response.Message);
+            paused = response.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(x => x.TenantId == tenantId &&
+                x.CampusId == campusId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, false)));
+        await AssertRevokedWorkerAsync("resume", paused.WorkOrderRowVersion!);
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+            Assert.Equal(1, await db.UserCampusAccesses.Where(x => x.TenantId == tenantId &&
+                x.CampusId == campusId && x.UserId == techId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, true)));
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var response = await Service(db, tenantId, techId, "FacilitiesTechnician")
+                .TransitionAsync(submitted.Id, "resume", new FacilityTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = paused.WorkOrderRowVersion! });
+            Assert.True(response.Success, response.Message);
+            started = response.Data!;
+        }
         FacilityRequestDto completed;
         await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
         {
@@ -1284,7 +1348,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             var dashboard = await service.DashboardAsync(campusId);
             Assert.Equal(1, dashboard.Data!.ClosedLate);
             var history = await service.HistoryAsync(submitted.Id, 1, 25);
-            Assert.Equal(18, history.Data!.TotalCount); // Includes five audited vendor decisions.
+            Assert.Equal(20, history.Data!.TotalCount); // Includes five vendor decisions and worker pause/resume.
             var overdue = await Service(db, tenantId, approverId, "FacilitiesApprover",
                 new ShiftedClock(TimeSpan.FromHours(6)))
                 .ListAsync(campusId, null, 1, 25, default, true);
