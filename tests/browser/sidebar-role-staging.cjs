@@ -2,6 +2,7 @@
 // Opt-in read-only authenticated disposable STAGING browser acceptance; never real UAT.
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
+const {isAllowedRequest, assertNoStore, assertDeniedHtml}=require('./sidebar-staging-guards.cjs');
 const base=(process.env.EDUOS_BASE_URL||'').trim().replace(/\/$/,'');
 const host=(process.env.EDUOS_E2E_STAGING_HOST||'').trim().toLowerCase();
 const users=[
@@ -53,15 +54,30 @@ async function verify(browser,user,mobile){
     serviceWorkers:'block',ignoreHTTPSErrors:false,acceptDownloads:false});
   const page=await context.newPage(),blocked=[];
   await context.route('**/*',route=>{
-    const request=route.request(),u=new URL(request.url()),method=request.method().toUpperCase();
-    if(u.origin!==origin){blocked.push('off-origin');return route.abort('blockedbyclient');}
-    if(['GET','HEAD','OPTIONS'].includes(method))return route.continue();
-    if(method==='POST'&&u.pathname.toLowerCase()==='/api/auth/login')return route.continue();
-    blocked.push('write');return route.abort('blockedbyclient');
+    const request=route.request();
+    if(isAllowedRequest(request.url(),request.method(),origin))return route.continue();
+    let sameOrigin=false;
+    try{sameOrigin=new URL(request.url()).origin===origin;}catch{}
+    blocked.push(sameOrigin?'write':'off-origin');
+    return route.abort('blockedbyclient');
   });
   try{
+    // An unauthenticated context must not render any privileged page before login.
+    for(const [name,path] of Object.entries(routes)){
+      const response=await page.goto(base+path,{waitUntil:'domcontentloaded'});
+      assert(response,'Anonymous route did not respond: '+name);
+      const target=new URL(page.url());
+      assert.equal(target.origin,origin,'Anonymous redirect escaped staging origin');
+      assert([401,403,404].includes(response.status())||
+        /^\/(?:account\/login|account\/accessdenied|error\/accessdenied)\/?$/i.test(target.pathname),
+        'Anonymous route exposed: '+name);
+      assertDeniedHtml(await response.text(),user.role==='viewer'?users[0].tenant:null);
+      if(/^\/account\/login\/?$/i.test(target.pathname))assertNoStore(response.headers(),'Anonymous login');
+    }
     const session=await login(page,user);
     assert.equal(await page.locator('meta[name="request-verification-token"]').count(),1,'CSRF shell metadata missing');
+    const csrf=await page.locator('meta[name="request-verification-token"]').getAttribute('content');
+    assert(csrf&&csrf.length>20,'CSRF request token empty');
     const links=await page.locator('#sidebarMenu a.nav-link').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('href')));
     assert.equal(new Set(links.map(x=>x.toLowerCase())).size,links.length,'Duplicate authorized link');
     for(const [name,path] of Object.entries(routes)){
@@ -76,13 +92,15 @@ async function verify(browser,user,mobile){
         assert.equal(response.status(),200,'Expected authorized '+name);
         assert.equal(target.pathname.toLowerCase(),path.toLowerCase(),'Unexpected authorized redirect');
         assert.equal(await page.locator('body').getAttribute('data-auth-tenant-id'),user.tenant);
-        if(name!=='users')assert(/\bno-store\b/i.test(response.headers()['cache-control']||''),
-          'Finance page must be no-store');
+        assert.equal(await page.locator('body').getAttribute('data-auth-session-reference'),session,
+          'Session changed during authorized navigation');
+        assertNoStore(response.headers(),'Authorized '+name);
       }else{
         assert([403,404].includes(response.status())||
           /^\/(?:account|error)\/accessdenied\/?$/i.test(target.pathname),
           'Unauthorized page exposed or redirected: '+name);
         assert.equal(await page.locator('#feeAgingApp').count(),0,'Unauthorized finance DOM exposed');
+        assertDeniedHtml(await response.text(),user.role==='viewer'?users[0].tenant:null);
       }
     }
     await page.goto(base+'/workspace',{waitUntil:'domcontentloaded'});
@@ -99,6 +117,6 @@ async function verify(browser,user,mobile){
     const sessions=[];
     for(let i=0;i<users.length;i++)sessions.push(await verify(browser,users[i],i===1));
     assert.equal(new Set(sessions).size,3,'Separate authenticated sessions required');
-    console.log('Authenticated disposable staging sidebar PASS: three synthetic roles, real menu, direct denial, tenant/session, CSRF and mobile.');
+    console.log('Authenticated disposable staging sidebar PASS: anonymous denial, three synthetic roles, scoped pages, no-store, denied-body privacy, CSRF and mobile.');
   }finally{await browser.close();}
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

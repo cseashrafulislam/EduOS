@@ -9,6 +9,7 @@ namespace EduOS.App.Controllers;
 public sealed class TenantUsersController : Controller
 {
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
 
     [HttpGet]
