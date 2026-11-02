@@ -76,6 +76,8 @@ public sealed class FacilityVisitorOccupancyDto
 {
     public long CampusId { get; set; }
     public int CheckedInCount { get; set; }
+    // PII-free count of checked-in appointments beyond their approved end.
+    public int OverdueCount { get; set; }
     public int? MaxConcurrent { get; set; }
     public DateTime AsOfUtc { get; set; }
 }

@@ -50,7 +50,11 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /ActiveHosts\(visit\.CampusId\)/);
     assert.match(service, /IsolationLevel\.Serializable/);
     assert.match(service, /ClientCommandId/);
-    assert.match(service, /VisitStartUtc\.AddMinutes\(-30\)/);
+    assert.match(service, /VisitStartUtc\.AddMinutes\(-earlyPolicy\.Minutes\)/);
+    assert.match(service, /VisitMinutesPolicyAsync/);
+    assert.match(service, /MaxVisitMinutes/);
+    assert.match(service, /EarlyCheckInMinutes/);
+    assert.match(service, /OverdueCount = overdue/);
     assert.match(service, /Badge is already checked in/);
     assert.match(service, /OccupancyLimitAsync/);
     assert.match(service, /Facilities\.Visitor\.MaxConcurrent\./);

@@ -91,6 +91,30 @@ public sealed class SqlServerFacilityVisitorTests
         }
         var first = await PreregisterAsync("Guest One");
         var second = await PreregisterAsync("Guest Two");
+        // New appointments must obey campus duration policy; rejected writes leave no event.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var duration = new TenantSetting
+            {
+                TenantId = tenantId, Key = "Facilities.Visitor.MaxVisitMinutes." + campusId,
+                Value = "90", Category = "Facilities", CreatedAt = DateTime.UtcNow,
+                CreatedBy = managerId
+            };
+            db.TenantSettings.Add(duration);
+            await db.SaveChangesAsync();
+            var blocked = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .CreateAsync(new CreateFacilityVisitorDto
+                {
+                    ClientRequestId = Guid.NewGuid(), CampusId = campusId, HostUserId = hostId,
+                    VisitorName = "Long Appointment", Purpose = "Extended campus meeting",
+                    VisitStartUtc = start, VisitEndUtc = end
+                });
+            Assert.Equal(409, blocked.StatusCode);
+            Assert.Equal(2, await db.Set<FacilityVisitorVisit>().CountAsync(v => v.CampusId == campusId));
+            Assert.Equal(2, await db.Set<FacilityVisitorEvent>().CountAsync(e => e.ActionCode == "preregister"));
+            duration.Value = "180";
+            await db.SaveChangesAsync();
+        }
         // A late retry of the same immutable preregistration is acknowledged,
         // but a NEW preregistration with an elapsed window is never accepted.
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
@@ -263,6 +287,21 @@ public sealed class SqlServerFacilityVisitorTests
         {
             var service = Service(db, tenantId, managerId, "FacilitiesManager",
                 new ShiftedClock(TimeSpan.FromMinutes(50)));
+            var early = new TenantSetting
+            {
+                TenantId = tenantId, Key = "Facilities.Visitor.EarlyCheckInMinutes." + campusId,
+                Value = "5", Category = "Facilities", CreatedAt = DateTime.UtcNow,
+                CreatedBy = managerId
+            };
+            db.TenantSettings.Add(early);
+            await db.SaveChangesAsync();
+            var tooEarly = await service.TransitionAsync(first.Id, "checkin",
+                new FacilityVisitorTransitionDto
+                { ClientCommandId = Guid.NewGuid(), RowVersion = first.RowVersion, BadgeCode = "GUEST-01" });
+            Assert.Equal(409, tooEarly.StatusCode);
+            Assert.Equal(0, await db.Set<FacilityVisitorEvent>().CountAsync(e => e.ActionCode == "checkin"));
+            early.Value = "15";
+            await db.SaveChangesAsync();
             var denied = await service.TransitionAsync(first.Id, "checkin",
                 new FacilityVisitorTransitionDto
                 { ClientCommandId = Guid.NewGuid(), RowVersion = "stale", BadgeCode = "GUEST-01" });
@@ -358,6 +397,12 @@ public sealed class SqlServerFacilityVisitorTests
                 x.CampusId == campusId && x.StateCode == "CheckedIn" && x.BadgeCode == "GUEST-01"));
             Assert.Equal(1, await db.Set<FacilityVisitorEvent>().CountAsync(x =>
                 x.FacilityVisitorVisitId == first.Id && x.ActionCode == "checkout"));
+            var overdue = await Service(db, tenantId, managerId, "FacilitiesManager",
+                new ShiftedClock(TimeSpan.FromHours(4))).OccupancyAsync(campusId);
+            Assert.True(overdue.Success, overdue.Message);
+            Assert.Equal(1, overdue.Data!.CheckedInCount);
+            Assert.Equal(1, overdue.Data.OverdueCount);
+            Assert.Equal(0, (await service.OccupancyAsync(campusId)).Data!.OverdueCount);
             var late = await Service(db, tenantId, managerId, "FacilitiesManager",
                 new ShiftedClock(TimeSpan.FromHours(26))).TransitionAsync(first.Id, "incident",
                 new FacilityVisitorTransitionDto

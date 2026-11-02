@@ -189,7 +189,8 @@
             if (epoch !== occupancyEpoch) return;
             result.textContent = label('Checked in: ', 'উপস্থিত: ') + snapshot.checkedInCount +
                 ' / ' + (snapshot.maxConcurrent == null
-                    ? label('No configured ceiling', 'সীমা কনফিগার করা নেই') : snapshot.maxConcurrent);
+                    ? label('No configured ceiling', 'সীমা কনফিগার করা নেই') : snapshot.maxConcurrent) +
+                ' · ' + label('Overdue: ', 'নির্ধারিত সময় পার: ') + snapshot.overdueCount;
         } catch (error) { if (epoch === occupancyEpoch) result.textContent = error.message; }
     });
 

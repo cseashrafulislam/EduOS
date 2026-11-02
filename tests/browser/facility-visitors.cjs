@@ -47,7 +47,7 @@ async function run(browser, bn, manager, mobile) {
             return route.fulfill({ contentType: 'text/csv; charset=utf-8',
                 body: 'VisitId,CampusId,State,VisitStartUtc,VisitEndUtc,CheckedInUtc,CheckedOutUtc,IncidentCount\r\n17,12,CheckedIn,,,,,1\r\n' });
         if (url.pathname.endsWith('/occupancy')) return respond({
-            campusId: 12, checkedInCount: 1, maxConcurrent: 2,
+            campusId: 12, checkedInCount: 1, overdueCount: 1, maxConcurrent: 2,
             asOfUtc: new Date().toISOString()
         });
         if (url.pathname.endsWith('/hosts')) return respond({ items: [{ userId: 3, displayName: 'Staff Host' }] });
@@ -111,6 +111,8 @@ async function run(browser, bn, manager, mobile) {
             await page.locator('#fvOccupancy button[type="submit"]').click();
             await occupancyResponse;
             assert.match(await page.locator('#fvOccupancyResult').innerText(), /1\s*\/\s*2/);
+            assert.match(await page.locator('#fvOccupancyResult').innerText(),
+                bn ? /নির্ধারিত সময় পার:\s*1/ : /Overdue:\s*1/);
             assert.ok(calls.some(c => c.url.endsWith('/occupancy') && c.method === 'GET'));
             await page.locator('#fvExportCampus').fill('12');
             await page.locator('#fvExportFrom').fill('2026-11-01T00:00');

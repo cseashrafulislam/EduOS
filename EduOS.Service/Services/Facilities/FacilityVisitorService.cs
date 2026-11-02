@@ -111,6 +111,25 @@ public sealed class FacilityVisitorService(
     }
 
 
+    // Campus-scoped time policy: missing values retain historical defaults.
+    // Invalid/sensitive settings fail closed inside the serializable command.
+    // Independent policy-change approval remains outstanding.
+    private async Task<(bool Valid, int Minutes)> VisitMinutesPolicyAsync(
+        string policy, long campusId, int fallback, int minimum, int maximum, CancellationToken ct)
+    {
+        var key = "Facilities.Visitor." + policy + "." +
+            campusId.ToString(CultureInfo.InvariantCulture);
+        var setting = await db.TenantSettings.AsNoTracking()
+            .Where(s => s.TenantId == user.TenantId && s.Key == key && !s.IsDeleted)
+            .Select(s => new { s.Value, s.IsSensitive }).SingleOrDefaultAsync(ct);
+        if (setting == null) return (true, fallback);
+        if (setting.IsSensitive ||
+            !int.TryParse(setting.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var minutes) ||
+            minutes < minimum || minutes > maximum)
+            return (false, 0);
+        return (true, minutes);
+    }
+
     // Hold canonical identity and campus authorization locks through the caller's
     // SERIALIZABLE visit/event/audit transaction. Revoked cookies are insufficient.
     private async Task<bool> LockLiveVisitorIdentityAsync(
@@ -257,13 +276,17 @@ public sealed class FacilityVisitorService(
             if (!policy.Valid)
                 return ApiResponse<FacilityVisitorOccupancyDto>.ErrorResponse(
                     "Invalid campus visitor occupancy policy; contact an administrator.", 409);
-            var count = await db.Set<FacilityVisitorVisit>().AsNoTracking().CountAsync(v =>
+            var snapshotAt = Now;
+            var active = db.Set<FacilityVisitorVisit>().AsNoTracking().Where(v =>
                 v.TenantId == user.TenantId && v.CampusId == campusId &&
-                v.StateCode == "CheckedIn" && !v.IsDeleted, ct);
+                v.StateCode == "CheckedIn" && !v.IsDeleted);
+            var count = await active.CountAsync(ct);
+            // A warning only: never silently check out an overdue visitor.
+            var overdue = await active.CountAsync(v => v.VisitEndUtc < snapshotAt, ct);
             var snapshot = new FacilityVisitorOccupancyDto
             {
-                CampusId = campusId, CheckedInCount = count,
-                MaxConcurrent = policy.MaxConcurrent, AsOfUtc = Now
+                CampusId = campusId, CheckedInCount = count, OverdueCount = overdue,
+                MaxConcurrent = policy.MaxConcurrent, AsOfUtc = snapshotAt
             };
             if (tx != null) await tx.CommitAsync(ct);
             return ApiResponse<FacilityVisitorOccupancyDto>.SuccessResponse(snapshot);
@@ -311,6 +334,15 @@ public sealed class FacilityVisitorService(
                        prior.VisitEndUtc == input.VisitEndUtc
                     ? ApiResponse<FacilityVisitorDto>.SuccessResponse(Map(prior), "Already preregistered.")
                     : ApiResponse<FacilityVisitorDto>.ErrorResponse("Visitor command ID reused.", 409);
+            // Check immutable replay first: policy changes must not duplicate past commands.
+            var maxDuration = await VisitMinutesPolicyAsync(
+                "MaxVisitMinutes", input.CampusId, 10080, 15, 10080, ct);
+            if (!maxDuration.Valid)
+                return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                    "Invalid campus visitor duration policy; contact an administrator.", 409);
+            if (input.VisitEndUtc - input.VisitStartUtc > TimeSpan.FromMinutes(maxDuration.Minutes))
+                return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                    "Visit exceeds the configured campus duration limit.", 409);
             // Exact source-linked retries remain idempotent even after the original
             // visit window begins. Only a NEW preregistration needs a future start.
             if (input.VisitStartUtc <= Now)
@@ -416,8 +448,13 @@ public sealed class FacilityVisitorService(
             }
             else if (action == "checkin")
             {
+                var earlyPolicy = await VisitMinutesPolicyAsync(
+                    "EarlyCheckInMinutes", visit.CampusId, 30, 0, 60, ct);
+                if (!earlyPolicy.Valid)
+                    return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                        "Invalid campus visitor early-entry policy; contact an administrator.", 409);
                 if (visit.StateCode != "Approved" || visit.ApprovedByUserId != visit.HostUserId ||
-                    now < visit.VisitStartUtc.AddMinutes(-30) || now >= visit.VisitEndUtc ||
+                    now < visit.VisitStartUtc.AddMinutes(-earlyPolicy.Minutes) || now >= visit.VisitEndUtc ||
                     !await ActiveHosts(visit.CampusId).ContainsAsync(visit.HostUserId, ct))
                     return ApiResponse<FacilityVisitorDto>.ErrorResponse("Approved active host and visit window required.", 409);
                 // Serializable range reads on the campus/state index prevent two
