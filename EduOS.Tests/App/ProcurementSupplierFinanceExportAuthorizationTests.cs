@@ -140,6 +140,7 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
     [Theory]
     [InlineData("conflicted-status")]
     [InlineData("missing-net")]
+    [InlineData("negative-net")]
     [InlineData("missing-journal")]
     [InlineData("missing-campus")]
     [InlineData("missing-supplier")]
@@ -156,6 +157,7 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         {
             case "conflicted-status": row.SettlementIntegrityStatus = "EvidenceConflict"; row.SourceLinkedOutstandingAmount = null; break;
             case "missing-net": row.SourceLinkedOutstandingAmount = null; break;
+            case "negative-net": row.SourceLinkedOutstandingAmount = -2m; break;
             case "missing-journal": row.JournalReference = Guid.Empty; break;
             case "missing-campus": row.CampusId = 0; break;
             case "missing-supplier": row.SupplierId = 0; break;
@@ -432,7 +434,8 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         invoice.Lines[0].StockValue = 15m;
         var aging = Aging(1);
         aging.SupplierInvoiceNumber = "\u2060@SUM(1,1)";
-        aging.SourceLinkedOutstandingAmount = -2m;
+        aging.PostedSettlementAmount = 2m;
+        aging.SourceLinkedOutstandingAmount = 8m;
         var service = new Mock<IProcurementSupplierInvoiceService>();
         service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Ok(1, 1, invoice));
@@ -453,8 +456,8 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
             await controller.AgingExport(null, null, false, CancellationToken.None));
         var agingCsv = Encoding.UTF8.GetString(agingFile.FileContents);
         Assert.Contains("\"' @SUM(1,1)\"", agingCsv);
-        Assert.Contains("\"-2\"", agingCsv);
-        Assert.DoesNotContain("\"'-2\"", agingCsv);
+        Assert.Contains("\"8\"", agingCsv);
+        Assert.DoesNotContain("\"'8\"", agingCsv);
     }
 
     [Fact]
