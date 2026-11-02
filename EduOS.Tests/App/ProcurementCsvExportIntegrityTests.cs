@@ -118,4 +118,23 @@ public sealed class ProcurementCsvExportIntegrityTests
         Assert.DoesNotContain("\r\nEXTRA", csv);
         Assert.Contains("\"3\"", csv);
     }
+    [Fact]
+    public async Task Supplier_confirmation_export_neutralizes_invisible_formula_prefix_without_corrupting_Bangla()
+    {
+        var supplier = new Mock<IProcurementSupplierAcknowledgementService>();
+        supplier.Setup(x => x.ListAsync(1, 100, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, new ProcurementSupplierAcknowledgementDto
+            {
+                Id = 1, SupplierId = 3,
+                SupplierReference = "\u200B=HYPERLINK(\"unsafe\")\u2028NEXT বাংলা\u200Dনাম"
+            }));
+        var file = Assert.IsType<FileContentResult>(
+            await new ProcurementSupplierAcknowledgementsController(supplier.Object).Export(ct: CancellationToken.None));
+        var csv = Encoding.UTF8.GetString(file.FileContents);
+        Assert.Contains("\"' =HYPERLINK(\"\"unsafe\"\") NEXT বাংলা\u200Dনাম\"", csv);
+        Assert.DoesNotContain("\u200B", csv);
+        Assert.DoesNotContain("\u2028", csv);
+        Assert.Contains("\"3\"", csv);
+    }
+
 }

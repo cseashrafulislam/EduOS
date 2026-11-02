@@ -120,18 +120,15 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         return true;
     }
 
-    private static string CsvCell(object? value)
+    // Shared sanitization keeps Procurement and Supplier Finance CSV behavior identical.
+    private static string CsvCell(object? value) => ProcurementCsvExportGuard.Cell(value);
+
+    private IActionResult ExportFailure<T>(ApiResponse<T> response)
     {
-        var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
-        // Numeric financial values (including legitimate negative variances) must
-        // remain numbers in spreadsheets. Untrusted TEXT beginning with a formula
-        // operator is neutralized, including after leading whitespace.
-        var numeric = value is sbyte or byte or short or ushort or int or uint or long or ulong
-            or float or double or decimal;
-        s = s.Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
-        var trimmed = s.TrimStart();
-        if (!numeric && trimmed.Length > 0 && "=+-@".Contains(trimmed[0])) s = "'" + s;
-        return "\"" + s.Replace("\"", "\"\"") + "\"";
+        // Never echo service exception, bank evidence or private campus details
+        // after an export read fails or its authorization is revoked.
+        var status = response.StatusCode is >= 400 and <= 599 ? response.StatusCode : 409;
+        return StatusCode(status, new { message = "Supplier finance export unavailable or access changed; retry with current authorization." });
     }
 
     // A bounded second authorized read detects same-count replacements and
@@ -146,7 +143,7 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         for (var page = 1; page <= Math.Max(1, (total + 99) / 100); page++)
         {
             var response = await readPage(page);
-            if (!response.Success) return Reply(response);
+            if (!response.Success) return ExportFailure(response);
             if (response.Data == null ||
                 !AppendStablePage(response.Data, page, total, checkedRows, seen, key))
                 return StatusCode(409, new { message = "Supplier finance export changed; retry with fresh authorization." });
@@ -167,7 +164,7 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         bool overdueOnly=false,CancellationToken ct=default)
     {
         var first=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,1,100,ct);
-        if (!first.Success) return Reply(first);
+        if (!first.Success) return ExportFailure(first);
         if (first.Data == null) return StatusCode(409, new { message = "Supplier payable export changed; retry." });
         if(first.Data.TotalCount>500)return StatusCode(413,new{message="Filter to 500 or fewer supplier payables."});
         var rows=new List<ProcurementSupplierPayableAgingRowDto>();
@@ -178,7 +175,7 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         for(var p=2;p<=first.Data.TotalPages;p++)
         {
             var next=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,p,100,ct);
-            if (!next.Success) return Reply(next);
+            if (!next.Success) return ExportFailure(next);
             if (next.Data == null) return StatusCode(409, new { message = "Supplier payable export changed; retry." });
             if (!AppendStablePage(next.Data,p,total,rows,seen,x=>x.InvoiceReference))
                 return StatusCode(409,new{message="Supplier payable export changed; retry with fresh authorization."});
@@ -205,7 +202,7 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct)
     {
         var first = await service.ListAsync(purchaseOrderId,state,1,100,ct);
-        if (!first.Success) return Reply(first);
+        if (!first.Success) return ExportFailure(first);
         if (first.Data == null) return StatusCode(409, new { message = "Supplier invoice export changed; retry." });
         if (first.Data.TotalCount > 500) return StatusCode(413,new{message="Filter to 500 or fewer supplier invoices."});
         var data = new List<ProcurementSupplierInvoiceDto>();
@@ -216,7 +213,7 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         for (var page=2; page<=first.Data.TotalPages;page++)
         {
             var next = await service.ListAsync(purchaseOrderId,state,page,100,ct);
-            if (!next.Success) return Reply(next);
+            if (!next.Success) return ExportFailure(next);
             if (next.Data == null) return StatusCode(409, new { message = "Supplier invoice export changed; retry." });
             if (!AppendStablePage(next.Data,page,total,data,seen,x=>x.Reference))
                 return StatusCode(409,new{message="Supplier invoice export changed; retry with fresh authorization."});

@@ -58,9 +58,24 @@ internal static class ProcurementCsvExportGuard
         var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
         var numeric = value is sbyte or byte or short or ushort or int or uint or long or ulong
             or float or double or decimal;
-        s = new string(s.Select(c => char.IsControl(c) || c is '\u2028' or '\u2029' ? ' ' : c).ToArray());
-        var trimmed = s.TrimStart();
-        if (!numeric && trimmed.Length > 0 && "=+-@".Contains(trimmed[0])) s = "'" + s;
+
+        // Spreadsheet imports may ignore invisible Unicode prefixes before =,+,-,@.
+        // Remove controls, line separators and bidi/zero-width spoofing characters;
+        // preserve ordinary Bengali text and interior ZWJ/ZWNJ used by Indic scripts.
+        s = new string(s.Select(c =>
+            char.IsControl(c) || c == '\u2028' || c == '\u2029' ||
+            c == '\u200B' || c == '\uFEFF' || c == '\u2060' ||
+            c == '\u200E' || c == '\u200F' || c == '\u061C' ||
+            (c >= '\u202A' && c <= '\u202E') ||
+            (c >= '\u2066' && c <= '\u2069') ? ' ' : c).ToArray());
+
+        var candidate = s.AsSpan();
+        while (candidate.Length > 0 &&
+            (char.IsWhiteSpace(candidate[0]) ||
+             char.GetUnicodeCategory(candidate[0]) == System.Globalization.UnicodeCategory.Format))
+            candidate = candidate[1..];
+
+        if (!numeric && candidate.Length > 0 && "=+-@".Contains(candidate[0]))
+            s = "'" + s;
         return "\"" + s.Replace("\"", "\"\"") + "\"";
-    }
-}
+    }}

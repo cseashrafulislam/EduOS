@@ -369,4 +369,103 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         service.Verify(x => x.GetAsync(reference, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task Supplier_finance_exports_share_unicode_formula_protection_and_keep_signed_amounts()
+    {
+        var invoice = Invoice(1);
+        invoice.SupplierInvoiceNumber = "\uFEFF\u200B=HYPERLINK(\"unsafe\")";
+        invoice.OrderNumber = "বাংলা\u200Dনাম";
+        invoice.Lines[0].LotOrBatchNo = "\u202E+SUM(1,1)\u2028EXTRA";
+        invoice.PriceVariance = -5m;
+        var aging = Aging(1);
+        aging.SupplierInvoiceNumber = "\u2060@SUM(1,1)";
+        aging.SourceLinkedOutstandingAmount = -2m;
+        var service = new Mock<IProcurementSupplierInvoiceService>();
+        service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, invoice));
+        service.Setup(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, aging));
+        var controller = new ProcurementSupplierInvoicesController(service.Object);
+        var invoiceFile = Assert.IsType<FileContentResult>(
+            await controller.Export(null, null, CancellationToken.None));
+        var invoiceCsv = Encoding.UTF8.GetString(invoiceFile.FileContents);
+        Assert.Contains("\"'  =HYPERLINK(\"\"unsafe\"\")\"", invoiceCsv);
+        Assert.Contains("\"' +SUM(1,1) EXTRA\"", invoiceCsv);
+        Assert.Contains("বাংলা\u200Dনাম", invoiceCsv);
+        Assert.Contains("\"-5\"", invoiceCsv);
+        Assert.DoesNotContain("\uFEFF\u200B", invoiceCsv);
+        Assert.DoesNotContain("\u202E", invoiceCsv);
+
+        var agingFile = Assert.IsType<FileContentResult>(
+            await controller.AgingExport(null, null, false, CancellationToken.None));
+        var agingCsv = Encoding.UTF8.GetString(agingFile.FileContents);
+        Assert.Contains("\"' @SUM(1,1)\"", agingCsv);
+        Assert.Contains("\"-2\"", agingCsv);
+        Assert.DoesNotContain("\"'-2\"", agingCsv);
+    }
+
+    [Fact]
+    public async Task Supplier_finance_export_failures_redact_private_service_messages_at_every_read_stage()
+    {
+        const string privateDetail = "BANK-EVIDENCE-SECRET: private campus settlement";
+        var firstDenied = new Mock<IProcurementSupplierInvoiceService>();
+        firstDenied.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<PagedResult<ProcurementSupplierInvoiceDto>>.ErrorResponse(privateDetail, 403));
+        var initial = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(firstDenied.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(403, initial.StatusCode);
+        Assert.DoesNotContain(privateDetail, System.Text.Json.JsonSerializer.Serialize(initial.Value));
+
+        var laterDenied = new Mock<IProcurementSupplierInvoiceService>();
+        laterDenied.Setup(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 101, Enumerable.Range(1, 100).Select(Aging).ToArray()));
+        laterDenied.Setup(x => x.AgingAsync(null, null, false, 2, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<PagedResult<ProcurementSupplierPayableAgingRowDto>>
+                .ErrorResponse(privateDetail, 403));
+        var pageDenied = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(laterDenied.Object)
+                .AgingExport(null, null, false, CancellationToken.None));
+        Assert.Equal(403, pageDenied.StatusCode);
+        Assert.DoesNotContain(privateDetail, System.Text.Json.JsonSerializer.Serialize(pageDenied.Value));
+
+        var recheckDenied = new Mock<IProcurementSupplierInvoiceService>();
+        recheckDenied.SetupSequence(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, Invoice(1)))
+            .ReturnsAsync(ApiResponse<PagedResult<ProcurementSupplierInvoiceDto>>
+                .ErrorResponse(privateDetail, 403));
+        var replayDenied = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(recheckDenied.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(403, replayDenied.StatusCode);
+        Assert.DoesNotContain(privateDetail, System.Text.Json.JsonSerializer.Serialize(replayDenied.Value));
+    }
+
+    [Fact]
+    public async Task Supplier_finance_mutations_without_antiforgery_token_are_rejected_before_service()
+    {
+        var service = new Mock<IProcurementSupplierInvoiceService>(MockBehavior.Strict);
+        using var server = Server(service);
+        using var client = server.CreateClient();
+        var reference = Guid.Parse("f1000000-0000-4000-8000-000000000001");
+        foreach (var path in new[]
+        {
+            "/api/procurement/supplier-invoices",
+            $"/api/procurement/supplier-invoices/{reference}/submit",
+            $"/api/procurement/supplier-invoices/{reference}/settlements"
+        })
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, path)
+            {
+                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+            };
+            request.Headers.TryAddWithoutValidation("X-Test-Role", "Accountant");
+            request.Headers.TryAddWithoutValidation("X-Test-INVENTORY", "true");
+            request.Headers.TryAddWithoutValidation("X-Test-FINANCE", "true");
+            using var denied = await client.SendAsync(request);
+            Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
+        }
+        service.VerifyNoOtherCalls();
+    }
+
 }
