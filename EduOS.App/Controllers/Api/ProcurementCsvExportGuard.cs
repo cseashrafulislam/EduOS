@@ -14,7 +14,6 @@ internal static class ProcurementCsvExportGuard
         Func<int, Task<ApiResponse<PagedResult<T>>>> fetch, Func<T, TKey> key)
         where T : class where TKey : notnull
     {
-        List<T>? original = null;
         string? signature = null;
         int originalCount = -1;
         for (int pass = 0; pass < 2; pass++)
@@ -47,10 +46,28 @@ internal static class ProcurementCsvExportGuard
             }
             if (rows.Count != total) return (null, 409);
             var current = JsonSerializer.Serialize(rows);
-            if (pass == 0) { original = rows; signature = current; originalCount = total; }
+            if (pass == 0) { signature = current; originalCount = total; }
             else if (!string.Equals(signature, current, StringComparison.Ordinal)) return (null, 409);
         }
-        return (original, 0);
+        // Service-owned DTOs can be mutated after validation and before CSV rendering.
+        // Return detached first-pass evidence, including nested financial/source lines.
+        var frozen = signature is null ? null : Freeze<T>(signature);
+        return frozen is not null && frozen.Count == originalCount
+            ? (frozen, 0) : (null, 409);
+    }
+
+    // Refuse non-roundtrippable projections rather than silently losing fields.
+    internal static List<T>? Freeze<T>(string signature) where T : class
+    {
+        try
+        {
+            var rows = JsonSerializer.Deserialize<List<T>>(signature);
+            return rows is not null &&
+                string.Equals(JsonSerializer.Serialize(rows), signature, StringComparison.Ordinal)
+                ? rows : null;
+        }
+        catch (JsonException) { return null; }
+        catch (NotSupportedException) { return null; }
     }
 
     internal static string Cell(object? value)

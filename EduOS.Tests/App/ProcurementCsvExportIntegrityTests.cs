@@ -26,6 +26,68 @@ public sealed class ProcurementCsvExportIntegrityTests
     };
 
     [Fact]
+    public async Task Shared_procurement_CSV_detaches_nested_source_evidence_after_authorized_recheck()
+    {
+        var guard = typeof(ProcurementGoodsReceiptsController).Assembly.GetType(
+            "EduOS.App.Controllers.Api.ProcurementCsvExportGuard", throwOnError: true)!;
+        var method = guard.GetMethod("ReadAsync",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var source = Receipt(1);
+        Func<int, Task<ApiResponse<PagedResult<ProcurementGoodsReceiptDto>>>> fetch =
+            page => Task.FromResult(Ok(page, 1, source));
+        Func<ProcurementGoodsReceiptDto, Guid> key = x => x.Reference;
+        var task = (Task<(List<ProcurementGoodsReceiptDto>? Rows, int ErrorStatus)>)
+            method.MakeGenericMethod(typeof(ProcurementGoodsReceiptDto), typeof(Guid))
+                .Invoke(null, new object[] { fetch, key })!;
+        var (rows, status) = await task;
+        Assert.Equal(0, status);
+        var frozen = Assert.Single(rows!);
+        Assert.NotSame(source, frozen);
+        Assert.NotSame(source.Lines[0], frozen.Lines[0]);
+        source.OrderNumber = "PO-CHANGED";
+        source.Lines[0].PostedUnitCost = 999m;
+        source.Lines[0].LotOrBatchNo = "=UNTRUSTED";
+        Assert.Equal("PO-1", frozen.OrderNumber);
+        Assert.Equal(10m, frozen.Lines[0].PostedUnitCost);
+        Assert.Contains("UNSAFE", frozen.Lines[0].LotOrBatchNo);
+    }
+
+    [Fact]
+    public void Supplier_finance_snapshot_detaches_nested_invoice_and_aging_amounts()
+    {
+        var guard = typeof(ProcurementGoodsReceiptsController).Assembly.GetType(
+            "EduOS.App.Controllers.Api.ProcurementCsvExportGuard", throwOnError: true)!;
+        var method = guard.GetMethod("Freeze",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var invoice = new ProcurementSupplierInvoiceDto
+        {
+            Reference = Guid.NewGuid(), TotalAmount = 12m,
+            Lines = [new ProcurementSupplierInvoiceLineDto { InvoiceAmount = 12m }]
+        };
+        var signature = System.Text.Json.JsonSerializer.Serialize(new[] { invoice });
+        var copy = (List<ProcurementSupplierInvoiceDto>?)method
+            .MakeGenericMethod(typeof(ProcurementSupplierInvoiceDto))
+            .Invoke(null, new object[] { signature });
+        var frozenInvoice = Assert.Single(copy!);
+        invoice.TotalAmount = 99m;
+        invoice.Lines[0].InvoiceAmount = 99m;
+        Assert.Equal(12m, frozenInvoice.TotalAmount);
+        Assert.Equal(12m, Assert.Single(frozenInvoice.Lines).InvoiceAmount);
+
+        var aging = new ProcurementSupplierPayableAgingRowDto
+        {
+            InvoiceReference = Guid.NewGuid(), GrossPostedAmount = 12m,
+            SourceLinkedOutstandingAmount = 7m
+        };
+        signature = System.Text.Json.JsonSerializer.Serialize(new[] { aging });
+        var frozenAging = (List<ProcurementSupplierPayableAgingRowDto>?)method
+            .MakeGenericMethod(typeof(ProcurementSupplierPayableAgingRowDto))
+            .Invoke(null, new object[] { signature });
+        aging.SourceLinkedOutstandingAmount = 0m;
+        Assert.Equal(7m, Assert.Single(frozenAging!).SourceLinkedOutstandingAmount);
+    }
+
+    [Fact]
     public async Task Receipt_export_rejects_duplicate_paging_and_same_count_valuation_drift()
     {
         var duplicate = new Mock<IInventoryMovementService>();

@@ -229,6 +229,11 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
             p => service.AgingAsync(dueDateReference, supplierId, overdueOnly, p, 100, ct),
             x => x.InvoiceReference);
         if (agingDrift != null) return agingDrift;
+        // Render detached first-pass evidence, never mutable cached service DTOs.
+        var frozenAging = ProcurementCsvExportGuard.Freeze<ProcurementSupplierPayableAgingRowDto>(agingSignature);
+        if (frozenAging is null || frozenAging.Count != total)
+            return StatusCode(409, new { message = "Supplier payable export changed; retry." });
+        rows = frozenAging;
         // Never publish a financially authoritative aging CSV when a linked
         // settlement/return journal is corrupt, a source reference is missing,
         // or the projected net no longer reconciles to posted source amounts.
@@ -286,6 +291,10 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
             p => service.ListAsync(purchaseOrderId, state, p, 100, ct),
             x => x.Reference);
         if (invoiceDrift != null) return invoiceDrift;
+        var frozenInvoices = ProcurementCsvExportGuard.Freeze<ProcurementSupplierInvoiceDto>(invoiceSignature);
+        if (frozenInvoices is null || frozenInvoices.Count != total)
+            return StatusCode(409, new { message = "Supplier invoice export changed; retry." });
+        data = frozenInvoices;
         var csv = new StringBuilder("Invoice,PO,Campus,Supplier,Date,DueDate,State,PriceMode,TotalBDT,StockValue,Variance,Maker,FinanceReviewer,Journal,Reversal,Item,Lot,Qty,ReceiptLine,POPrice,StockUnitCost,InvoiceUnitPrice,LineAmount,Reason\r\n");
         foreach (var x in data)
             foreach (var line in x.Lines)
