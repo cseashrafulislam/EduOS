@@ -61,3 +61,25 @@ test('profile write responses and denied security actions stay fail-closed', () 
         'mfaDisableBtn','mfaRegenerateBtn','sessionRevokeOthersBtn','sessionRevokeAllBtn',
         'PRIVATE_FOREIGN_TENANT_RECORD'])assert(browser.includes(check),check);
 });
+
+test('profile rejects a successful-looking response after JSON parsing or scope drift', () => {
+    assert.match(script,/const payload = await response\.json\(\);/);
+    assert.match(script,/if \(payload\?\.success !== true\)/);
+    const tail=script.slice(script.indexOf('const payload = await response.json();'));
+    assert.match(tail,/document\.body\?\.dataset\.authSessionReference !== expectedSession/);
+    assert.match(tail,/document\.body\?\.dataset\.authTenantId !== expectedTenant/);
+    assert.match(script,/typeof profile\.fullName !== 'string'/);
+    assert.match(script,/typeof profile\.email !== 'string'/);
+    const browser=read('tests/browser/account-profile.cjs');
+    assert.match(browser,/async function switchedWhileParsingJson/);
+    assert.match(browser,/async function falseSuccessRead/);
+});
+
+test('profile MFA and password actions are localized and toggles announce their state', () => {
+    assert.match(view,/MFA চালু করুন" : "Set Up MFA"/);
+    assert.match(view,/পাসওয়ার্ড পরিবর্তন" : "Change Password"\)/);
+    assert.equal((view.match(/aria-pressed="false"/g)||[]).length,3);
+    assert.equal((view.match(/data-hide-label=/g)||[]).length,3);
+    assert.match(script,/button\.setAttribute\('aria-pressed', String\(showPassword\)\)/);
+    assert.match(script,/button\.setAttribute\('aria-label', showPassword/);
+});

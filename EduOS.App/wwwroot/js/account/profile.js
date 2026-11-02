@@ -51,7 +51,9 @@ const profileTranslations = {
     "Save Changes": "পরিবর্তন সংরক্ষণ করুন",
     "Change Password": "পাসওয়ার্ড পরিবর্তন",
     "Close notification": "বিজ্ঞপ্তি বন্ধ করুন",
-    "Request failed. Please retry.": "অনুরোধ ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
+    "Request failed. Please retry.": "অনুরোধ ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+    "Show password": "পাসওয়ার্ড দেখান",
+    "Hide password": "পাসওয়ার্ড লুকান"
 };
 function profileText(english) { return profileBangla ? (profileTranslations[english] || english) : english; }
 const profileOriginalTenant = document.body?.dataset.authTenantId || '';
@@ -129,7 +131,7 @@ async function loadProfile() {
         if (profileLocked || generation !== profileReadGeneration) return;
         const profile = response?.data;
 
-        if (!profile) {
+        if (!profile || typeof profile.fullName !== 'string' || typeof profile.email !== 'string') {
             throw new Error(profileText("Profile information not found."));
         }
 
@@ -422,6 +424,10 @@ function initializePasswordToggle() {
                         ? 'bi bi-eye-slash'
                         : 'bi bi-eye';
                 }
+                button.setAttribute('aria-pressed', String(showPassword));
+                button.setAttribute('aria-label', showPassword
+                    ? (button.dataset.hideLabel || profileText('Hide password'))
+                    : (button.dataset.showLabel || profileText('Show password')));
             });
         });
 }
@@ -491,7 +497,18 @@ async function apiRequest(url, options = {}) {
     if (!response.ok) throw new Error(profileText('Request failed. Please retry.'));
     if (!(response.headers.get('content-type') || '').includes('application/json'))
         throw new Error(profileText('Request failed. Please retry.'));
-    return response.json();
+    // Parsing JSON is asynchronous: a tenant/session transition can occur after
+    // response headers were verified but before the private payload is available.
+    const payload = await response.json();
+    if (profileLocked || document.body?.dataset.authSessionReference !== expectedSession ||
+        document.body?.dataset.authTenantId !== expectedTenant ||
+        window.EduOSSessionTransitionPending?.() === true) {
+        lockProfile();
+        throw new Error(profileText('Account session changed. Reload to continue.'));
+    }
+    if (payload?.success !== true)
+        throw new Error(profileText('Request failed. Please retry.'));
+    return payload;
 }
 
 // ============================================================

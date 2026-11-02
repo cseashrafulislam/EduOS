@@ -203,7 +203,7 @@
                             <p class="mb-2">@(profileBn ? "অবস্থা:" : "Status:") <span id="mfaStatus" role="status" aria-live="polite">@(profileBn ? "যাচাই হচ্ছে..." : "Checking...")</span></p>
                             <p id="mfaStatusHelp" class="small text-muted mb-3">@(profileBn ? "MFA চালু না করা পর্যন্ত পাসওয়ার্ড দিয়েই লগইন করা যাবে।" : "Password login works normally until you enable MFA.")</p>
                             <a id="mfaSetupLink" class="btn btn-outline-primary d-none" href="/Account/MfaSetup">
-                                <i class="bi bi-shield-plus me-1" aria-hidden="true"></i> Set Up MFA
+                                <i class="bi bi-shield-plus me-1" aria-hidden="true"></i> @(profileBn ? "MFA চালু করুন" : "Set Up MFA")
                             </a>
                             <div id="mfaManagement" class="d-none mt-3">
                                 <p class="small text-muted">@(profileBn ? "নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড এবং অথেনটিকেটর বা রিকভারি কোড দিন।" : "For security, confirm your password and a current authenticator or recovery code.")</p>
@@ -307,7 +307,11 @@
 
                                             <button type="button"
                                                     class="btn btn-outline-secondary password-toggle"
-                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান বা লুকান" : "Show or hide password")"
+                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান" : "Show password")"
+                                            aria-pressed="false"
+                                            aria-controls="currentPassword"
+                                            data-show-label="@(profileBn ? "পাসওয়ার্ড দেখান" : "Show password")"
+                                            data-hide-label="@(profileBn ? "পাসওয়ার্ড লুকান" : "Hide password")"
                                             data-target="currentPassword">
                                                 <i class="bi bi-eye"></i>
                                             </button>
@@ -337,7 +341,11 @@
 
                                             <button type="button"
                                                     class="btn btn-outline-secondary password-toggle"
-                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান বা লুকান" : "Show or hide password")"
+                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান" : "Show password")"
+                                            aria-pressed="false"
+                                            aria-controls="newPassword"
+                                            data-show-label="@(profileBn ? "পাসওয়ার্ড দেখান" : "Show password")"
+                                            data-hide-label="@(profileBn ? "পাসওয়ার্ড লুকান" : "Hide password")"
                                             data-target="newPassword">
                                                 <i class="bi bi-eye"></i>
                                             </button>
@@ -369,7 +377,11 @@
 
                                             <button type="button"
                                                     class="btn btn-outline-secondary password-toggle"
-                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান বা লুকান" : "Show or hide password")"
+                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান" : "Show password")"
+                                            aria-pressed="false"
+                                            aria-controls="confirmPassword"
+                                            data-show-label="@(profileBn ? "পাসওয়ার্ড দেখান" : "Show password")"
+                                            data-hide-label="@(profileBn ? "পাসওয়ার্ড লুকান" : "Hide password")"
                                             data-target="confirmPassword">
                                                 <i class="bi bi-eye"></i>
                                             </button>
@@ -391,7 +403,7 @@
                                             class="btn btn-warning" disabled>
 
                                         <i class="bi bi-shield-check me-1"></i>
-                                        Change Password
+                                        @(profileBn ? "পাসওয়ার্ড পরিবর্তন" : "Change Password")
 
                                     </button>
 

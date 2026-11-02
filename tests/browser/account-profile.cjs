@@ -23,13 +23,17 @@ function fixture(bn) {
 <div id="sessionList" data-current="This device" data-other="Other session" data-revoke="Revoke"></div>
 <input id="sessionRevokePassword"><button id="sessionRevokeOthersBtn" disabled>Others</button>
 <button id="sessionRevokeAllBtn" disabled>All</button>
-<form id="passwordForm"><div class="input-group"><input id="currentPassword"><div class="invalid-feedback"></div></div>
+<form id="passwordForm"><div class="input-group"><input id="currentPassword" type="password">
+<button type="button" class="password-toggle" data-target="currentPassword"
+ data-show-label="${bn?'পাসওয়ার্ড দেখান':'Show password'}" data-hide-label="${bn?'পাসওয়ার্ড লুকান':'Hide password'}"
+ aria-controls="currentPassword" aria-pressed="false" aria-label="${bn?'পাসওয়ার্ড দেখান':'Show password'}"><i class="bi bi-eye"></i></button>
+<div class="invalid-feedback"></div></div>
 <input id="newPassword"><div id="newPasswordError"></div><input id="confirmPassword">
 <div id="confirmPasswordError"></div><button id="changePasswordBtn" disabled>Change</button></form>
 <script>window.EduOSVerifySessionContext=async()=>{};window.EduOSSessionTransitionPending=()=>false;<\/script>
 <script src="/js/account/profile.js"></script></body></html>`;
 }
-async function setup(browser,{bn=false,profileStatus=200,delay=false,syntheticWrite=null,writeGate=false,writeStatus=403}={}) {
+async function setup(browser,{bn=false,profileStatus=200,profileSuccess=true,delay=false,jsonGate=false,syntheticWrite=null,writeGate=false,writeStatus=403}={}) {
     if(syntheticWrite)assert(['/api/auth/profile','/api/auth/mfa/disable',
         '/api/auth/mfa/recovery-codes/regenerate','/api/auth/sessions/revoke-others',
         '/api/auth/sessions/revoke-all'].includes(syntheticWrite),'Unexpected synthetic write target');
@@ -41,6 +45,21 @@ async function setup(browser,{bn=false,profileStatus=200,delay=false,syntheticWr
     const writeLatch = new Promise(resolve=>{releaseWrite=resolve;});
     const writeStarted = new Promise(resolve=>{notifyWrite=resolve;});
     page.on('pageerror',error=>errors.push(error.message));
+    if(jsonGate)await page.addInitScript(() => {
+        const originalFetch=window.fetch.bind(window);
+        window.fetch=async (...args) => {
+            const response=await originalFetch(...args);
+            if(String(args[0])==='/api/auth/profile' && String(args[1]?.method||'GET').toUpperCase()==='GET'){
+                const originalJson=response.json.bind(response);
+                response.json=async () => {
+                    const payload=await originalJson();
+                    await new Promise(resolve=>{window.__releaseProfileJson=resolve;});
+                    return payload;
+                };
+            }
+            return response;
+        };
+    });
     await page.route('**/*',async route=>{
         const req=route.request(),url=new URL(req.url());
         if(url.origin==='http://eduos.test' && req.method()!=='GET' &&
@@ -65,7 +84,7 @@ async function setup(browser,{bn=false,profileStatus=200,delay=false,syntheticWr
         const headers={'X-EduOS-Session-Reference':session,'X-EduOS-Tenant-Id':'11','Cache-Control':'no-store'};
         if(url.pathname==='/api/auth/profile') return route.fulfill({status:profileStatus,headers,
             contentType:'application/json',body:JSON.stringify(profileStatus===200?
-            {success:true,data:{fullName:'Synthetic Account',email:'synthetic@example.test',
+            {success:profileSuccess,data:{fullName:'Synthetic Account',email:'synthetic@example.test',
                 phoneNumber:'0123456789',address:'Synthetic address',preferredLanguage:'bn-BD'}}:
             {success:false,message:'PRIVATE_FOREIGN_TENANT_RECORD'})});
         if(url.pathname==='/api/auth/mfa/status')return route.fulfill({status:200,headers,
@@ -90,6 +109,16 @@ async function success(browser,bn){
         assert.equal(await s.page.locator('#mfaStatus').innerText(),bn?'চালু':'Enabled');
         assert.equal(await s.page.locator('#mfaDisableBtn').isEnabled(),true);
         assert.equal(await s.page.locator('#sessionRevokeOthersBtn').isEnabled(),true);
+        const toggle=s.page.locator('.password-toggle[data-target="currentPassword"]');
+        assert.equal(await toggle.getAttribute('aria-pressed'),'false');
+        assert.equal(await toggle.getAttribute('aria-label'),bn?'পাসওয়ার্ড দেখান':'Show password');
+        await toggle.click();
+        assert.equal(await s.page.locator('#currentPassword').getAttribute('type'),'text');
+        assert.equal(await toggle.getAttribute('aria-pressed'),'true');
+        assert.equal(await toggle.getAttribute('aria-label'),bn?'পাসওয়ার্ড লুকান':'Hide password');
+        await toggle.click();
+        assert.equal(await s.page.locator('#currentPassword').getAttribute('type'),'password');
+        assert.equal(await toggle.getAttribute('aria-pressed'),'false');
         await s.page.locator('#currentPassword').fill('synthetic-only');
         await s.page.locator('#newPassword').fill('abc');
         await s.page.locator('#confirmPassword').fill('abc');
@@ -166,6 +195,32 @@ async function switchedDuringSuccessfulWrite(browser){
         assert.deepEqual(s.errors,[]);
     }finally{s.releaseWrite();await s.context.close();}
 }
+
+async function switchedWhileParsingJson(browser){
+    const s=await setup(browser,{jsonGate:true});
+    try{
+        await s.page.waitForFunction(()=>typeof window.__releaseProfileJson==='function');
+        await s.page.evaluate(()=>{document.body.dataset.authTenantId='22';window.__releaseProfileJson();});
+        await s.page.waitForFunction(()=>document.getElementById('saveProfileBtn').disabled &&
+            document.getElementById('profileDisplayName').textContent==='');
+        assert.equal(await s.page.locator('#profileDisplayEmail').innerText(),'');
+        assert.equal(await s.page.locator('#sessionList').innerText(),'');
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
+async function falseSuccessRead(browser){
+    const s=await setup(browser,{profileSuccess:false});
+    try{
+        await s.page.waitForTimeout(200);
+        assert.equal(await s.page.locator('#saveProfileBtn').isDisabled(),true);
+        assert.equal(await s.page.locator('#changePasswordBtn').isDisabled(),true);
+        assert.equal(await s.page.locator('#profileDisplayName').innerText(),'');
+        assert(!(await s.page.locator('body').innerText()).includes('PRIVATE_FOREIGN_TENANT_RECORD'));
+        assert.deepEqual(s.writes,[]);
+        assert.deepEqual(s.errors,[]);
+    }finally{await s.context.close();}
+}
 async function deniedSecurityWrite(browser,id,endpoint){
     const s=await setup(browser,{syntheticWrite:endpoint,writeStatus:403});
     try{
@@ -194,6 +249,7 @@ async function deniedSecurityWrite(browser,id,endpoint){
     try{
         await success(browser,false);await success(browser,true);
         await denied(browser);await stale(browser);await switchedAfterLoad(browser);
+        await switchedWhileParsingJson(browser);await falseSuccessRead(browser);
         await switchedDuringSuccessfulWrite(browser);
         for(const [id,endpoint] of [
             ['mfaDisableBtn','/api/auth/mfa/disable'],
@@ -201,6 +257,6 @@ async function deniedSecurityWrite(browser,id,endpoint){
             ['sessionRevokeOthersBtn','/api/auth/sessions/revoke-others'],
             ['sessionRevokeAllBtn','/api/auth/sessions/revoke-all']
         ])await deniedSecurityWrite(browser,id,endpoint);
-        console.log('Account Profile Chromium PASS: English/Bangla, desktop/mobile, verified read gating, validation, private denial stale tenant suppression, in-flight write isolation and denied security-action fail-closed (synthetic API).');
+        console.log('Account Profile Chromium PASS: English/Bangla, desktop/mobile, verified read gating, validation, private denial stale tenant suppression, in-flight write isolation, post-JSON tenant race, false-success denial, accessible password toggles and denied security-action fail-closed (synthetic API).');
     }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
