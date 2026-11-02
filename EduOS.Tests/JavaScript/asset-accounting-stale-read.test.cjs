@@ -71,3 +71,16 @@ test('failed same-asset refresh cannot retain old Finance evidence or actions',a
  assert.equal(h.el('aaCandidate').children.length,0);
  assert.equal(h.el('aaPolicyHistory').children.length,0);
 });
+
+test('editing asset GUID hides previous financial evidence before Load',async()=>{
+ const h=harness(),asset='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+ await h.load(asset);
+ assert.equal(h.el('aaResults').classList.contains('d-none'),false);
+ h.el('aaAsset').value='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+ h.el('aaAsset').listeners.input();
+ assert.equal(h.el('aaResults').classList.contains('d-none'),true);
+ assert.equal(h.el('aaBook').textContent,'');
+ assert.equal(h.el('aaEvents').children.length,0);
+ assert.equal(h.el('aaCapReview').children.length,0);
+ assert.match(h.el('aaStatus').textContent,/Asset changed/);
+});

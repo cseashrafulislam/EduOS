@@ -236,6 +236,14 @@ if (root) {
         }
         finally { busy = false; }
     }
+    // Editing the asset reference invalidates previously authorized Finance evidence
+    // immediately, including outstanding read responses from a former campus.
+    el('aaAsset').addEventListener('input', () => {
+        if (el('aaAsset').value.trim() === current) return;
+        clearEvidence(); current = '';
+        capKey = null; eventKey = null; capReverseKey = null; policyKey = null;
+        status('Asset changed: load fresh authorized Finance evidence. / নতুন সম্পদের অনুমোদিত হিসাব লোড করুন।');
+    });
     el('aaLoad').addEventListener('click', () => action(async () => {
         const asset = el('aaAsset').value.trim();
         if (!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(asset))
