@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using EduOS.App.Authorization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
@@ -122,12 +123,38 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     private static string CsvCell(object? value)
     {
         var s = Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
-        // One logical CSV record per line. Keep quotes escaped and neutralize
-        // spreadsheet formulas even after leading whitespace.
+        // Numeric financial values (including legitimate negative variances) must
+        // remain numbers in spreadsheets. Untrusted TEXT beginning with a formula
+        // operator is neutralized, including after leading whitespace.
+        var numeric = value is sbyte or byte or short or ushort or int or uint or long or ulong
+            or float or double or decimal;
         s = s.Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ');
         var trimmed = s.TrimStart();
-        if (trimmed.Length > 0 && "=+-@".Contains(trimmed[0])) s = "'" + s;
+        if (!numeric && trimmed.Length > 0 && "=+-@".Contains(trimmed[0])) s = "'" + s;
         return "\"" + s.Replace("\"", "\"\"") + "\"";
+    }
+
+    // A bounded second authorized read detects same-count replacements and
+    // financial evidence changes missed by offset-page/duplicate-ID checks.
+    // This is NOT a SQL snapshot guarantee: a later write can still race export.
+    private async Task<IActionResult?> RecheckExportAsync<T>(
+        IReadOnlyList<T> original, int total,
+        Func<int, Task<ApiResponse<PagedResult<T>>>> readPage, Func<T, Guid> key)
+    {
+        var checkedRows = new List<T>();
+        var seen = new HashSet<Guid>();
+        for (var page = 1; page <= Math.Max(1, (total + 99) / 100); page++)
+        {
+            var response = await readPage(page);
+            if (!response.Success) return Reply(response);
+            if (response.Data == null ||
+                !AppendStablePage(response.Data, page, total, checkedRows, seen, key))
+                return StatusCode(409, new { message = "Supplier finance export changed; retry with fresh authorization." });
+        }
+        return checkedRows.Count == original.Count &&
+            JsonSerializer.Serialize(checkedRows) == JsonSerializer.Serialize(original)
+            ? null
+            : StatusCode(409, new { message = "Supplier finance export changed; retry with fresh authorization." });
     }
 
     [HttpGet("aging"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
@@ -140,7 +167,8 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         bool overdueOnly=false,CancellationToken ct=default)
     {
         var first=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,1,100,ct);
-        if(!first.Success || first.Data==null)return Reply(first);
+        if (!first.Success) return Reply(first);
+        if (first.Data == null) return StatusCode(409, new { message = "Supplier payable export changed; retry." });
         if(first.Data.TotalCount>500)return StatusCode(413,new{message="Filter to 500 or fewer supplier payables."});
         var rows=new List<ProcurementSupplierPayableAgingRowDto>();
         var seen=new HashSet<Guid>();
@@ -150,10 +178,15 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         for(var p=2;p<=first.Data.TotalPages;p++)
         {
             var next=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,p,100,ct);
-            if(!next.Success || next.Data==null)return Reply(next);
+            if (!next.Success) return Reply(next);
+            if (next.Data == null) return StatusCode(409, new { message = "Supplier payable export changed; retry." });
             if (!AppendStablePage(next.Data,p,total,rows,seen,x=>x.InvoiceReference))
                 return StatusCode(409,new{message="Supplier payable export changed; retry with fresh authorization."});
         }
+        var agingDrift = await RecheckExportAsync(rows, total,
+            p => service.AgingAsync(dueDateReference, supplierId, overdueOnly, p, 100, ct),
+            x => x.InvoiceReference);
+        if (agingDrift != null) return agingDrift;
         var csv=new StringBuilder("Invoice,PO,Supplier,Campus,DueDate,DaysOverdue,Bucket,GrossPostedAP_BDT,PostedSettlement_BDT,PostedReturnCredit_BDT,PendingReturnCredit_BDT,SupplierRefundReceivable_BDT,UnpostedReservation_BDT,SourceLinkedNet_BDT,SettlementEvidence,ReversalPending,Journal\r\n");
         foreach(var x in rows)
             csv.AppendJoin(',',CsvCell(x.SupplierInvoiceNumber),CsvCell(x.OrderNumber),CsvCell(x.SupplierId),
@@ -172,7 +205,8 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     public async Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct)
     {
         var first = await service.ListAsync(purchaseOrderId,state,1,100,ct);
-        if (!first.Success || first.Data == null) return Reply(first);
+        if (!first.Success) return Reply(first);
+        if (first.Data == null) return StatusCode(409, new { message = "Supplier invoice export changed; retry." });
         if (first.Data.TotalCount > 500) return StatusCode(413,new{message="Filter to 500 or fewer supplier invoices."});
         var data = new List<ProcurementSupplierInvoiceDto>();
         var seen = new HashSet<Guid>();
@@ -182,10 +216,15 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         for (var page=2; page<=first.Data.TotalPages;page++)
         {
             var next = await service.ListAsync(purchaseOrderId,state,page,100,ct);
-            if (!next.Success || next.Data == null) return Reply(next);
+            if (!next.Success) return Reply(next);
+            if (next.Data == null) return StatusCode(409, new { message = "Supplier invoice export changed; retry." });
             if (!AppendStablePage(next.Data,page,total,data,seen,x=>x.Reference))
                 return StatusCode(409,new{message="Supplier invoice export changed; retry with fresh authorization."});
         }
+        var invoiceDrift = await RecheckExportAsync(data, total,
+            p => service.ListAsync(purchaseOrderId, state, p, 100, ct),
+            x => x.Reference);
+        if (invoiceDrift != null) return invoiceDrift;
         var csv = new StringBuilder("Invoice,PO,Campus,Supplier,Date,DueDate,State,PriceMode,TotalBDT,StockValue,Variance,Maker,FinanceReviewer,Journal,Reversal,Item,Lot,Qty,ReceiptLine,POPrice,StockUnitCost,InvoiceUnitPrice,LineAmount,Reason\r\n");
         foreach (var x in data)
             foreach (var line in x.Lines)

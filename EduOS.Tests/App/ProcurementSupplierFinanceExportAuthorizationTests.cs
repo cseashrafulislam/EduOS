@@ -163,8 +163,8 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
             using (var allowed = await Get(client, path, "Accountant", true, true))
                 Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
         }
-        service.Verify(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()), Times.Once);
-        service.Verify(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()), Times.Once);
+        service.Verify(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()), Times.Exactly(2));
+        service.Verify(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()), Times.Exactly(2));
         service.Verify(x => x.PostingOptionsAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -213,6 +213,14 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
             .ReturnsAsync(Ok(1, 1, Invoice(1)));
         service.Setup(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Ok(1, 1, Aging(1)));
+        var invoiceRow = Invoice(1);
+        invoiceRow.PriceVariance = -5m;
+        var agingRow = Aging(1);
+        agingRow.SourceLinkedOutstandingAmount = -2m;
+        service.Setup(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, invoiceRow));
+        service.Setup(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, agingRow));
         var controller = new ProcurementSupplierInvoicesController(service.Object);
         foreach (var action in new Func<Task<IActionResult>>[]
         {
@@ -230,6 +238,57 @@ public sealed class ProcurementSupplierFinanceExportAuthorizationTests
         var invoice = Assert.IsType<FileContentResult>(
             await controller.Export(null, null, CancellationToken.None));
         Assert.Contains("\"'+SUM(1,1)  INJECTED\"", Encoding.UTF8.GetString(invoice.FileContents));
+        Assert.Contains("\"-5\"", Encoding.UTF8.GetString(invoice.FileContents));
+        Assert.DoesNotContain("\"'-5\"", Encoding.UTF8.GetString(invoice.FileContents));
+        var agingFile = Assert.IsType<FileContentResult>(
+            await controller.AgingExport(null, null, false, CancellationToken.None));
+        Assert.Contains("\"-2\"", Encoding.UTF8.GetString(agingFile.FileContents));
+        Assert.DoesNotContain("\"'-2\"", Encoding.UTF8.GetString(agingFile.FileContents));
+    }
+
+    [Fact]
+    public async Task Supplier_finance_exports_reject_same_count_changed_amount_or_replaced_reference()
+    {
+        var invoiceBefore = Invoice(1);
+        invoiceBefore.TotalAmount = 10m;
+        var invoiceAfter = Invoice(1);
+        invoiceAfter.TotalAmount = 11m;
+        var invoiceService = new Mock<IProcurementSupplierInvoiceService>();
+        invoiceService.SetupSequence(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, invoiceBefore))
+            .ReturnsAsync(Ok(1, 1, invoiceAfter));
+        var invoiceResult = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(invoiceService.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(409, invoiceResult.StatusCode);
+
+        var agingBefore = Aging(1);
+        agingBefore.PostedSettlementAmount = 5m;
+        var agingAfter = Aging(2);
+        agingAfter.PostedSettlementAmount = 5m;
+        var agingService = new Mock<IProcurementSupplierInvoiceService>();
+        agingService.SetupSequence(x => x.AgingAsync(null, null, false, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, agingBefore))
+            .ReturnsAsync(Ok(1, 1, agingAfter));
+        var agingResult = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(agingService.Object)
+                .AgingExport(null, null, false, CancellationToken.None));
+        Assert.Equal(409, agingResult.StatusCode);
+    }
+
+    [Fact]
+    public async Task Supplier_export_rechecks_authorization_and_never_returns_csv_after_revocation()
+    {
+        var service = new Mock<IProcurementSupplierInvoiceService>();
+        service.SetupSequence(x => x.ListAsync(null, null, 1, 100, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Ok(1, 1, Invoice(1)))
+            .ReturnsAsync(ApiResponse<PagedResult<ProcurementSupplierInvoiceDto>>
+                .ErrorResponse("Campus access revoked.", 403));
+        var result = Assert.IsType<ObjectResult>(
+            await new ProcurementSupplierInvoicesController(service.Object)
+                .Export(null, null, CancellationToken.None));
+        Assert.Equal(403, result.StatusCode);
+        Assert.IsNotType<FileContentResult>(result);
     }
 
     [Fact]
