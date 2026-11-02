@@ -8,6 +8,7 @@ on:
       - 'EduOS.App/wwwroot/js/account/branding-setup.js'
       - 'EduOS.Tests/JavaScript/workspace-institute-branding.test.cjs'
       - 'EduOS.Tests/JavaScript/branding-setup-session-recovery.test.cjs'
+      - 'EduOS.Tests/JavaScript/page-context-help.test.cjs'
       - 'EduOS.App/wwwroot/js/site.js'
       - 'EduOS.App/Views/WorkspacePreferences/Index.cshtml'
       - 'tests/browser/workspace-appearance.cjs'
