@@ -434,7 +434,7 @@ async function apiRequest(url, options = {}) {
     const expectedTenant = document.body?.dataset.authTenantId || '';
     if (profileLocked) throw new Error(profileText('Account session changed. Reload to continue.'));
     if (!/^[0-9a-f]{64}$/i.test(expectedSession) ||
-        (expectedTenant !== '' && !/^[1-9]\\d*$/.test(expectedTenant)))
+        (expectedTenant !== '' && !/^[1-9]\d*$/.test(expectedTenant)))
         throw new Error(profileText('Account session changed. Reload to continue.'));
     if (!['GET','HEAD'].includes(method)) {
         // A stale form must never submit against a different cookie/institution.
