@@ -7,6 +7,7 @@ const bn = (document.documentElement.lang || '').toLowerCase().startsWith('bn');
 const t = (en, bd) => bn ? bd : en;
 const context = () => [document.body?.dataset?.authTenantId || '', document.body?.dataset?.authSessionReference || ''].join('|');
 let activeContext = context();
+let contextLocked = false;
 let options = null, report = null, generation = 0, controller;
 const monetaryKeys = /("(?:grossPerStudent|grossForCurrentCohort|observedInvoiceTotal)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
 const now = new Date();
@@ -47,7 +48,7 @@ function cancelStale() {
     ++generation;
     if (controller) controller.abort();
     controller = null;
-    el('feeProjectionRun').disabled = false;
+    el('feeProjectionRun').disabled = contextLocked;
     invalidate();
 }
 function option(id, name) {
@@ -165,7 +166,7 @@ function csvCell(value) {
     return '"' + v.replace(/"/g, '""') + '"';
 }
 function exportCsv() {
-    if (!report || context() !== activeContext) { cancelStale(); return; }
+    if (!report || context() !== activeContext) { lockContext(); return; }
     const rows = [[t('Month','মাস'),t('Earliest due','প্রথম শেষ তারিখ'),
         t('Latest due','শেষ তারিখ'),t('Unspecified due day','অনির্ধারিত শেষ দিন'),t('Fee heads','ফি খাত'),
         t('Gross per student','শিক্ষার্থীপ্রতি মোট'),t('Current cohort gross','বর্তমান ব্যাচের মোট'),
@@ -188,10 +189,20 @@ el('feeProjectionBatch').addEventListener('change', updateStructures);
 
 el('feeProjectionCsv').addEventListener('click', exportCsv);
 el('feeProjectionPrint').addEventListener('click', () => { if (report && context() === activeContext) window.print(); });
-window.addEventListener('pageshow', event => { if (event.persisted) cancelStale(); });
+window.addEventListener('pageshow', event => { if (event.persisted) cancelStale(); lockContext(); });
 const initialContext = context();
+function lockContext() {
+    if (contextLocked || context() === initialContext) return;
+    contextLocked = true; cancelStale();
+    for (const control of el('feeProjectionFilters').querySelectorAll('input,select,button')) control.disabled = true;
+    message(t('Institution session changed. Reload this page.','প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'), true);
+}
+window.addEventListener('focus', lockContext);
+if (typeof MutationObserver === 'function')
+    new MutationObserver(lockContext).observe(document.body, { attributes:true,
+        attributeFilter:['data-auth-tenant-id','data-auth-session-reference'] });
 api('/api/finance/fees/options').then(data => {
-    if (initialContext !== context()) { cancelStale(); return; }
+    if (initialContext !== context()) { lockContext(); return; }
     options = data;
     const select = el('feeProjectionBatch');
     select.replaceChildren(option('', t('Select academic batch','একাডেমিক ব্যাচ বাছুন')));

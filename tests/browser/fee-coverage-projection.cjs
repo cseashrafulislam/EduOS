@@ -124,6 +124,10 @@ async function verify(browser,kind,lang) {
   await page.waitForFunction(prefix=>document.getElementById(prefix+'Notice').classList.contains('alert-danger'),prefix);
   assert.doesNotMatch(await page.locator('#'+prefix+'Notice').innerText(),/PRIVATE-ROLE-DENIAL/);
   assert.equal(await page.locator('#'+prefix+'Csv').isDisabled(),true);
+  await page.evaluate(()=>{document.body.dataset.authTenantId='42';});
+  await page.waitForFunction(prefix=>document.getElementById(prefix+'Run').disabled,prefix);
+  assert.equal(await page.locator('#'+prefix+'Csv').isDisabled(),true);
+  assert.doesNotMatch(await page.locator('#'+prefix+'Rows').innerText(),/Synthetic Student|200\.50/);
   assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
   console.log(lang+' '+kind+': stale filter, localized CSV, 403 privacy PASS (synthetic GET)');
  }finally{await context.close();}

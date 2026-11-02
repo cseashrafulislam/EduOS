@@ -7,6 +7,7 @@ const bn = (document.documentElement.lang || '').toLowerCase().startsWith('bn');
 const t = (en, bd) => bn ? bd : en;
 const context = () => [document.body?.dataset?.authTenantId || '', document.body?.dataset?.authSessionReference || ''].join('|');
 let activeContext = context();
+let contextLocked = false;
 let options = null, report = null, page = 1, serial = 0, pending = null;
 const today = new Date();
 el('feeCoverageMonth').value = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
@@ -42,7 +43,7 @@ function invalidate() {
     ++serial;
     if (pending) pending.abort();
     pending = null; page = 1;
-    el('feeCoverageRun').disabled = false;
+    el('feeCoverageRun').disabled = contextLocked;
     clear();
 }
 async function api(url, signal) {
@@ -142,7 +143,7 @@ function csvCell(value) {
 }
 function exportCsv() {
     if (!report) return;
-    if (context() !== activeContext) { invalidate(); return; }
+    if (context() !== activeContext) { lockContext(); return; }
     const rows = [[t('Student code','শিক্ষার্থী কোড'),t('Student name','শিক্ষার্থীর নাম'),
         t('Invoices','ইনভয়েস'),t('Integrity issues','অসামঞ্জস্য'),
         t('Line issues','লাইন সমস্যা'),t('Status','অবস্থা')]];
@@ -164,10 +165,20 @@ el('feeCoveragePrev').addEventListener('click', () => { if (report && page > 1) 
 el('feeCoverageNext').addEventListener('click', () => { if (report) { page++; load(); } });
 el('feeCoverageCsv').addEventListener('click', exportCsv);
 el('feeCoveragePrint').addEventListener('click', () => { if (report && context() === activeContext) window.print(); });
-window.addEventListener('pageshow', event => { if (event.persisted) invalidate(); });
+window.addEventListener('pageshow', event => { if (event.persisted) invalidate(); lockContext(); });
 const initialContext = context();
+function lockContext() {
+    if (contextLocked || context() === initialContext) return;
+    contextLocked = true; invalidate();
+    for (const control of el('feeCoverageFilters').querySelectorAll('input,select,button')) control.disabled = true;
+    notice(t('Institution session changed. Reload this page.','প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'), true);
+}
+window.addEventListener('focus', lockContext);
+if (typeof MutationObserver === 'function')
+    new MutationObserver(lockContext).observe(document.body, { attributes:true,
+        attributeFilter:['data-auth-tenant-id','data-auth-session-reference'] });
 api('/api/finance/fees/options').then(data => {
-    if (initialContext !== context()) { invalidate(); return; }
+    if (initialContext !== context()) { lockContext(); return; }
     options = data;
     const select = el('feeCoverageBatch');
     select.replaceChildren(option('', t('Select academic batch','একাডেমিক ব্যাচ বাছুন')));
