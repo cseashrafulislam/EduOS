@@ -1199,6 +1199,23 @@
             [['/Learning/Index', 'Learning courses', 'কোর্সসমূহ']])
     };
     const manuals = {
+        '/account/profile/index': {
+            version: 1, reviewed: true,
+            title: ['My Profile and Account Security', 'আমার প্রোফাইল ও অ্যাকাউন্ট নিরাপত্তা'],
+            purpose: ['Review your own account information, manage optional MFA and active sessions, and change your password without exposing another institution session.', 'নিজের অ্যাকাউন্টের তথ্য দেখুন, ঐচ্ছিক MFA ও সক্রিয় সেশন পরিচালনা করুন এবং অন্য প্রতিষ্ঠানের সেশন প্রকাশ না করে পাসওয়ার্ড পরিবর্তন করুন।'],
+            before: ['Sign in to your own account. Have your current password available for sensitive changes; MFA actions also require a current authenticator or recovery code.', 'নিজের অ্যাকাউন্টে সাইন ইন করুন। সংবেদনশীল পরিবর্তনের জন্য বর্তমান পাসওয়ার্ড রাখুন; MFA পরিবর্তনে অথেনটিকেটর বা রিকভারি কোডও প্রয়োজন।'],
+            steps: [
+                ['Review the profile summary and current language; edit your name, phone or address, then save only after the account loads.', 'প্রোফাইল সারাংশ ও বর্তমান ভাষা দেখুন; অ্যাকাউন্ট লোড হওয়ার পর নাম, ফোন বা ঠিকানা বদলে সংরক্ষণ করুন।'],
+                ['Inspect optional MFA status. If enabled, use your current password and authenticator or recovery code to manage it; save any newly issued recovery codes privately.', 'ঐচ্ছিক MFA অবস্থা দেখুন। চালু থাকলে বর্তমান পাসওয়ার্ড ও অথেনটিকেটর বা রিকভারি কোড দিয়ে পরিচালনা করুন; নতুন রিকভারি কোড গোপনে রাখুন।'],
+                ['Review active devices, revoke an authorized session when needed, or enter your current password to sign out other devices.', 'সক্রিয় ডিভাইসগুলো দেখুন, প্রয়োজনমতো অনুমোদিত সেশন বাতিল করুন অথবা বর্তমান পাসওয়ার্ড দিয়ে অন্য ডিভাইস সাইন আউট করুন।'],
+                ['To change your password, enter the current password, a new password and its confirmation; expect to sign in again.', 'পাসওয়ার্ড বদলাতে বর্তমান পাসওয়ার্ড, নতুন পাসওয়ার্ড ও নিশ্চিতকরণ দিন; পরে আবার সাইন ইন করতে হবে।']
+            ],
+            example: ['A staff member updates a phone number, checks that only their current device is active and leaves MFA disabled until they choose to configure it.', 'একজন কর্মী ফোন নম্বর বদলে নিজের সক্রিয় ডিভাইস যাচাই করেন এবং ইচ্ছা না হওয়া পর্যন্ত MFA বন্ধ রাখেন।'],
+            result: ['Only your authorized profile and session details are shown. Password and MFA changes follow server verification and may require a fresh login.', 'শুধু আপনার অনুমোদিত প্রোফাইল ও সেশনের তথ্য দেখানো হয়। পাসওয়ার্ড ও MFA পরিবর্তনে সার্ভার যাচাই হয় এবং নতুন লগইন লাগতে পারে।'],
+            rules: ['Do not share passwords or recovery codes. A changed tenant/session or unavailable verification locks the old page; the Help Drawer is not an authorization grant.', 'পাসওয়ার্ড বা রিকভারি কোড কাউকে দেবেন না। প্রতিষ্ঠান বা সেশন বদলালে কিংবা যাচাই ব্যর্থ হলে পুরোনো পৃষ্ঠা বন্ধ হয়; Help Drawer কোনো অনুমতি প্রদান করে না।'],
+            recovery: ['If loading fails, reconnect and reload. On a session mismatch, sign in again; do not retry a sensitive action from an old tab.', 'লোড ব্যর্থ হলে সংযোগ ঠিক করে রিলোড করুন। সেশন না মিললে আবার সাইন ইন করুন; পুরোনো ট্যাব থেকে সংবেদনশীল কাজ পুনরায় করবেন না।'],
+            related: []
+        },
         '/feeduecalendar/index': {
             version: 1, reviewed: true,
             title: ['Student Fee Due Calendar', 'শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার'],

@@ -3,10 +3,111 @@
 // Account Profile
 // ============================================================
 
+
+// The selected server culture is authoritative; no personal data is embedded in translations.
+const profileBangla = document.documentElement.lang === "bn-BD";
+const profileTranslations = {
+    "Profile information not found.": "প্রোফাইলের তথ্য পাওয়া যায়নি।",
+    "User": "ব্যবহারকারী",
+    "Unable to load profile.": "প্রোফাইল লোড করা যায়নি।",
+    "MFA status is unavailable.": "MFA-এর অবস্থা পাওয়া যায়নি।",
+    "Enabled": "চালু",
+    "Your authenticator is enabled. MFA verification applies on subsequent sign-ins.": "অথেনটিকেটর চালু আছে। পরবর্তী সাইন ইনে MFA যাচাই প্রযোজ্য হবে।",
+    "Not enabled": "চালু নয়",
+    "MFA is optional. Continue signing in with your password unless you enable it here.": "MFA ঐচ্ছিক। এখানে চালু না করলে পাসওয়ার্ড দিয়ে সাইন ইন করতে পারবেন।",
+    "Unavailable": "পাওয়া যাচ্ছে না",
+    "Unable to load MFA status. Reload this page to retry.": "MFA-এর অবস্থা লোড করা যায়নি। আবার চেষ্টা করতে পৃষ্ঠা রিফ্রেশ করুন।",
+    "Full name is required.": "পূর্ণ নাম আবশ্যক।",
+    "Saving...": "সংরক্ষণ হচ্ছে...",
+    "Profile update failed.": "প্রোফাইল হালনাগাদ ব্যর্থ হয়েছে।",
+    "Profile updated successfully.": "প্রোফাইল সফলভাবে হালনাগাদ হয়েছে।",
+    "Current password is required.": "বর্তমান পাসওয়ার্ড আবশ্যক।",
+    "New password is required.": "নতুন পাসওয়ার্ড আবশ্যক।",
+    "Password must be at least 6 characters.": "পাসওয়ার্ড অন্তত ৬ অক্ষরের হতে হবে।",
+    "Confirm password is required.": "পাসওয়ার্ড নিশ্চিত করা আবশ্যক।",
+    "Passwords do not match.": "পাসওয়ার্ড দুটি মেলেনি।",
+    "Changing...": "পরিবর্তন হচ্ছে...",
+    "Password change failed.": "পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে।",
+    "Password changed. Sign in again.": "পাসওয়ার্ড পরিবর্তিত হয়েছে। আবার সাইন ইন করুন।",
+    "Your session has expired.": "আপনার সেশনের মেয়াদ শেষ হয়েছে।",
+    "You do not have permission to perform this action.": "এই কাজ করার অনুমতি আপনার নেই।",
+    "Account session changed. Reload to continue.": "অ্যাকাউন্ট সেশন পরিবর্তিত হয়েছে। চালিয়ে যেতে রিলোড করুন।",
+    "Current password and verification code are required.": "বর্তমান পাসওয়ার্ড ও যাচাই কোড আবশ্যক।",
+    "Recovery codes were not returned.": "রিকভারি কোড পাওয়া যায়নি।",
+    "Recovery codes regenerated. Save them before signing in again.": "নতুন রিকভারি কোড তৈরি হয়েছে। আবার সাইন ইন করার আগে সংরক্ষণ করুন।",
+    "Unable to update MFA settings.": "MFA সেটিংস হালনাগাদ করা যায়নি।",
+    "Other devices signed out.": "অন্য ডিভাইসগুলো সাইন আউট হয়েছে।",
+    "Unable to revoke other sessions.": "অন্য সেশনগুলো বাতিল করা যায়নি।",
+    "Enter your current password to sign out all devices.": "সব ডিভাইস সাইন আউট করতে বর্তমান পাসওয়ার্ড লিখুন।",
+    "Unable to revoke sessions.": "সেশনগুলো বাতিল করা যায়নি।",
+    "Session list unavailable.": "সেশনের তালিকা পাওয়া যায়নি।",
+    "No active sessions found.": "কোনো সক্রিয় সেশন পাওয়া যায়নি।",
+    "This device": "এই ডিভাইস",
+    "Other session": "অন্য সেশন",
+    "Revoke": "বাতিল করুন",
+    "Unable to revoke session.": "সেশন বাতিল করা যায়নি।",
+    "Unable to load active sessions.": "সক্রিয় সেশন লোড করা যায়নি।",
+    "Unable to load sessions.": "সেশনগুলো লোড করা যায়নি।",
+    "Save Changes": "পরিবর্তন সংরক্ষণ করুন",
+    "Change Password": "পাসওয়ার্ড পরিবর্তন",
+    "Close notification": "বিজ্ঞপ্তি বন্ধ করুন",
+    "Request failed. Please retry.": "অনুরোধ ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
+};
+function profileText(english) { return profileBangla ? (profileTranslations[english] || english) : english; }
+let profileLocked = false;
+let profileReady = false;
+let mfaReady = false;
+let mfaEnabled = false;
+let sessionsReady = false;
+function syncAccountActions() {
+    const availability = {
+        saveProfileBtn: profileReady, changePasswordBtn: profileReady,
+        mfaDisableBtn: profileReady && mfaReady && mfaEnabled,
+        mfaRegenerateBtn: profileReady && mfaReady && mfaEnabled,
+        sessionRevokeOthersBtn: profileReady && sessionsReady,
+        sessionRevokeAllBtn: profileReady && sessionsReady
+    };
+    for (const [id, allowed] of Object.entries(availability)) {
+        const button = document.getElementById(id);
+        if (button) button.disabled = profileLocked || !allowed;
+    }
+}
+
+let profileReadGeneration = 0;
+let mfaReadGeneration = 0;
+let sessionsReadGeneration = 0;
+function lockProfile() {
+    profileLocked = true;
+    profileReady = false;
+    mfaReady = false; sessionsReady = false;
+    ++profileReadGeneration; ++mfaReadGeneration; ++sessionsReadGeneration;
+    for (const id of ["fullName","email","phoneNumber","address","currentPassword","newPassword",
+        "confirmPassword","mfaManagePassword","mfaManageCode","sessionRevokePassword"]) {
+        const input = document.getElementById(id);
+        if (input) input.value = "";
+    }
+    for (const id of ["profileDisplayName","profileDisplayEmail","profileLanguage","mfaStatus","mfaStatusHelp"]) {
+        const element = document.getElementById(id);
+        if (element) element.textContent = "";
+    }
+    for (const id of ["sessionList","mfaNewCodes","alertContainer"]) document.getElementById(id)?.replaceChildren();
+    const avatar = document.getElementById("profileAvatar");
+    if (avatar) avatar.textContent = "U";
+    document.getElementById("mfaNewCodesPanel")?.classList.add("d-none");
+    document.getElementById("mfaManagement")?.classList.add("d-none");
+    document.getElementById("mfaSetupLink")?.classList.add("d-none");
+    for (const id of ["saveProfileBtn","changePasswordBtn","mfaDisableBtn","mfaRegenerateBtn",
+        "sessionRevokeOthersBtn","sessionRevokeAllBtn"]) {
+        const button = document.getElementById(id);
+        if (button) button.disabled = true;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     initializeProfileForm();
     initializePasswordForm();
     initializePasswordToggle();
+    syncAccountActions();
 
     loadProfile();
     loadMfaStatus();
@@ -19,13 +120,15 @@ document.addEventListener('DOMContentLoaded', function () {
 // ============================================================
 
 async function loadProfile() {
+    const generation = ++profileReadGeneration;
     try {
         const response = await apiRequest('/api/auth/profile', { cache: 'no-store', sessionBound: true });
 
+        if (profileLocked || generation !== profileReadGeneration) return;
         const profile = response?.data;
 
         if (!profile) {
-            throw new Error('Profile information not found.');
+            throw new Error(profileText("Profile information not found."));
         }
 
         setValue('fullName', profile.fullName);
@@ -33,17 +136,19 @@ async function loadProfile() {
         setValue('phoneNumber', profile.phoneNumber);
         setValue('address', profile.address);
 
-        setText('profileDisplayName', profile.fullName || 'User');
+        setText('profileDisplayName', profile.fullName || profileText("User"));
         setText('profileDisplayEmail', profile.email || '');
         setText('profileLanguage', profile.preferredLanguage === 'en-BD' ? 'English (Bangladesh)' : 'বাংলা (বাংলাদেশ)');
 
         updateAvatar(profile.fullName);
+        profileReady = true;
+        syncAccountActions();
     } catch (error) {
-        console.error('Profile load error:', error);
+        if (profileLocked || generation !== profileReadGeneration) return;
 
         showAlert(
             'danger',
-            error.message || 'Unable to load profile.'
+            error.message || profileText("Unable to load profile.")
         );
     }
 }
@@ -53,6 +158,7 @@ async function loadProfile() {
 // ============================================================
 
 async function loadMfaStatus() {
+    const generation = ++mfaReadGeneration;
     const status = document.getElementById('mfaStatus');
     const help = document.getElementById('mfaStatusHelp');
     const setupLink = document.getElementById('mfaSetupLink');
@@ -60,23 +166,28 @@ async function loadMfaStatus() {
     setupLink.classList.add('d-none');
     try {
         const response = await apiRequest('/api/auth/mfa/status', { cache: 'no-store', sessionBound: true });
+        if (profileLocked || generation !== mfaReadGeneration) return;
         if (response?.success !== true || typeof response.data?.enabled !== 'boolean')
-            throw new Error('MFA status is unavailable.');
+            throw new Error(profileText("MFA status is unavailable."));
+        mfaReady = true;
+        mfaEnabled = response.data.enabled;
+        syncAccountActions();
         if (response.data.enabled) {
-            status.textContent = 'Enabled';
+            status.textContent = profileText("Enabled");
             status.className = 'badge bg-success';
-            help.textContent = 'Your authenticator is enabled. MFA verification applies on subsequent sign-ins.';
+            help.textContent = profileText("Your authenticator is enabled. MFA verification applies on subsequent sign-ins.");
             document.getElementById('mfaManagement')?.classList.remove('d-none');
         } else {
-            status.textContent = 'Not enabled';
+            status.textContent = profileText("Not enabled");
             status.className = 'badge bg-secondary';
-            help.textContent = 'MFA is optional. Continue signing in with your password unless you enable it here.';
+            help.textContent = profileText("MFA is optional. Continue signing in with your password unless you enable it here.");
             setupLink.classList.remove('d-none');
         }
     } catch {
-        status.textContent = 'Unavailable';
+        if (profileLocked || generation !== mfaReadGeneration) return;
+        status.textContent = profileText("Unavailable");
         status.className = 'badge bg-warning text-dark';
-        help.textContent = 'Unable to load MFA status. Reload this page to retry.';
+        help.textContent = profileText("Unable to load MFA status. Reload this page to retry.");
     }
 }
 
@@ -99,6 +210,7 @@ function initializeProfileForm() {
 }
 
 async function updateProfile() {
+    if (profileLocked || !profileReady) return;
     clearValidation();
 
     const dto = {
@@ -110,7 +222,7 @@ async function updateProfile() {
     if (!dto.fullName) {
         showInputError(
             'fullName',
-            'Full name is required.'
+            profileText("Full name is required.")
         );
 
         return;
@@ -118,7 +230,7 @@ async function updateProfile() {
 
     const button = document.getElementById('saveProfileBtn');
 
-    setLoading(button, true, 'Saving...');
+    setLoading(button, true, profileText("Saving..."));
 
     try {
         const response = await apiRequest(
@@ -135,7 +247,7 @@ async function updateProfile() {
 
         if (response?.success === false) {
             throw new Error(
-                response.message || 'Profile update failed.'
+                profileText("Profile update failed.")
             );
         }
 
@@ -143,20 +255,19 @@ async function updateProfile() {
 
         showAlert(
             'success',
-            response?.message || 'Profile updated successfully.'
+            profileText("Profile updated successfully.")
         );
     } catch (error) {
-        console.error('Profile update error:', error);
 
         showAlert(
             'danger',
-            error.message || 'Profile update failed.'
+            error.message || profileText("Profile update failed.")
         );
     } finally {
         setLoading(
             button,
             false,
-            '<i class="bi bi-check-circle me-1"></i> Save Changes',
+            `<i class="bi bi-check-circle me-1"></i> ${profileText('Save Changes')}`,
             true
         );
     }
@@ -181,6 +292,7 @@ function initializePasswordForm() {
 }
 
 async function changePassword() {
+    if (profileLocked || !profileReady) return;
     clearPasswordValidation();
 
     const dto = {
@@ -192,7 +304,7 @@ async function changePassword() {
     if (!dto.currentPassword) {
         showPasswordError(
             'currentPassword',
-            'Current password is required.'
+            profileText("Current password is required.")
         );
 
         return;
@@ -201,7 +313,7 @@ async function changePassword() {
     if (!dto.newPassword) {
         setText(
             'newPasswordError',
-            'New password is required.'
+            profileText("New password is required.")
         );
 
         return;
@@ -210,7 +322,7 @@ async function changePassword() {
     if (dto.newPassword.length < 6) {
         setText(
             'newPasswordError',
-            'Password must be at least 6 characters.'
+            profileText("Password must be at least 6 characters.")
         );
 
         return;
@@ -219,7 +331,7 @@ async function changePassword() {
     if (!dto.confirmPassword) {
         setText(
             'confirmPasswordError',
-            'Confirm password is required.'
+            profileText("Confirm password is required.")
         );
 
         return;
@@ -228,7 +340,7 @@ async function changePassword() {
     if (dto.newPassword !== dto.confirmPassword) {
         setText(
             'confirmPasswordError',
-            'Passwords do not match.'
+            profileText("Passwords do not match.")
         );
 
         return;
@@ -236,7 +348,7 @@ async function changePassword() {
 
     const button = document.getElementById('changePasswordBtn');
 
-    setLoading(button, true, 'Changing...');
+    setLoading(button, true, profileText("Changing..."));
 
     try {
         const response = await apiRequest(
@@ -253,26 +365,25 @@ async function changePassword() {
 
         if (response?.success === false) {
             throw new Error(
-                response.message || 'Password change failed.'
+                profileText("Password change failed.")
             );
         }
 
         document.getElementById('passwordForm')?.reset();
 
-        showAlert('success', response?.message || 'Password changed. Sign in again.');
+        showAlert('success', profileText("Password changed. Sign in again."));
         window.location.assign('/Account/Login?status=password-changed');
     } catch (error) {
-        console.error('Password change error:', error);
 
         showAlert(
             'danger',
-            error.message || 'Password change failed.'
+            error.message || profileText("Password change failed.")
         );
     } finally {
         setLoading(
             button,
             false,
-            '<i class="bi bi-shield-check me-1"></i> Change Password',
+            `<i class="bi bi-shield-check me-1"></i> ${profileText('Change Password')}`,
             true
         );
     }
@@ -318,71 +429,54 @@ function initializePasswordToggle() {
 
 async function apiRequest(url, options = {}) {
     const { sessionBound = false, ...fetchOptions } = options;
-    const requestOptions = {
-        credentials: 'include',
-        ...fetchOptions,
-        headers: {
-            Accept: 'application/json',
-            ...(fetchOptions.headers || {})
-        }
-    };
-
-    const response = await fetch(url, requestOptions);
-
-    let result = null;
-
-    const contentType =
-        response.headers.get('content-type') || '';
-
-    if (contentType.includes('application/json')) {
-        result = await response.json();
-    } else {
-        const text = await response.text();
-
-        if (text) {
-            result = {
-                message: text
-            };
-        }
+    const method = String(fetchOptions.method || 'GET').toUpperCase();
+    const expectedSession = document.body?.dataset.authSessionReference || '';
+    const expectedTenant = document.body?.dataset.authTenantId || '';
+    if (profileLocked) throw new Error(profileText('Account session changed. Reload to continue.'));
+    if (!/^[0-9a-f]{64}$/i.test(expectedSession) ||
+        (expectedTenant !== '' && !/^[1-9]\\d*$/.test(expectedTenant)))
+        throw new Error(profileText('Account session changed. Reload to continue.'));
+    if (!['GET','HEAD'].includes(method)) {
+        // A stale form must never submit against a different cookie/institution.
+        if (typeof window.EduOSVerifySessionContext !== 'function' ||
+            window.EduOSSessionTransitionPending?.() === true)
+            throw new Error(profileText('Account session changed. Reload to continue.'));
+        await window.EduOSVerifySessionContext();
+        if (document.getElementById('eduosSessionShield')?.hidden !== true ||
+            document.body?.dataset.authSessionReference !== expectedSession ||
+            document.body?.dataset.authTenantId !== expectedTenant ||
+            window.EduOSSessionTransitionPending?.() === true)
+            throw new Error(profileText('Account session changed. Reload to continue.'));
     }
-
+    const response = await fetch(url, {
+        credentials: 'same-origin', cache: 'no-store', ...fetchOptions,
+        headers: { Accept: 'application/json', ...(fetchOptions.headers || {}) }
+    });
     if (response.status === 401) {
-        window.location.href = '/Account/Login';
-
-        throw new Error(
-            'Your session has expired.'
-        );
+        lockProfile();
+        window.location.assign('/Account/Login');
+        throw new Error(profileText('Your session has expired.'));
     }
-
     if (response.status === 403) {
-        throw new Error(
-            result?.message ||
-            'You do not have permission to perform this action.'
-        );
+        lockProfile();
+        throw new Error(profileText('You do not have permission to perform this action.'));
     }
-
-    if (!response.ok) {
-        throw new Error(
-            result?.message ||
-            result?.title ||
-            `Request failed with status ${response.status}.`
-        );
-    }
-
     if (sessionBound) {
-        const expected = document.body?.dataset.authSessionReference;
-        const expectedTenant = document.body?.dataset.authTenantId ?? '';
         const received = response.headers.get('X-EduOS-Session-Reference');
         const receivedTenant = response.headers.get('X-EduOS-Tenant-Id');
-        if (!/^[0-9A-F]{64}$/.test(expected || '') ||
-            received !== expected || receivedTenant !== expectedTenant ||
+        if (profileLocked || document.body?.dataset.authSessionReference !== expectedSession ||
+            document.body?.dataset.authTenantId !== expectedTenant ||
+            received !== expectedSession || receivedTenant !== expectedTenant ||
             window.EduOSSessionTransitionPending?.() === true) {
-            // Do not render stale profile, MFA or device data after a cookie switch.
+            lockProfile();
             void window.EduOSVerifySessionContext?.();
-            throw new Error('Account session changed. Reload to continue.');
+            throw new Error(profileText('Account session changed. Reload to continue.'));
         }
     }
-    return result;
+    if (!response.ok) throw new Error(profileText('Request failed. Please retry.'));
+    if (!(response.headers.get('content-type') || '').includes('application/json'))
+        throw new Error(profileText('Request failed. Please retry.'));
+    return response.json();
 }
 
 // ============================================================
@@ -531,6 +625,7 @@ function showAlert(type, message) {
 
             <button type="button"
                     class="btn-close"
+                    aria-label="${escapeHtml(profileText('Close notification'))}"
                     data-bs-dismiss="alert">
             </button>
 
@@ -610,7 +705,7 @@ function initializeAuthSecurityControls() {
             const code = document.getElementById('mfaManageCode')?.value.trim() || '';
             const useRecoveryCode = document.getElementById('mfaManageRecovery')?.checked ?? false;
             if (!currentPassword || !code) {
-                showAlert('danger', 'Current password and verification code are required.');
+                showAlert('danger', profileText("Current password and verification code are required."));
                 return;
             }
             button.disabled = true;
@@ -623,7 +718,7 @@ function initializeAuthSecurityControls() {
                     return;
                 }
                 const codes = result?.data?.recoveryCodes;
-                if (!Array.isArray(codes)) throw new Error('Recovery codes were not returned.');
+                if (!Array.isArray(codes)) throw new Error(profileText("Recovery codes were not returned."));
                 const list = document.getElementById('mfaNewCodes');
                 list?.replaceChildren();
                 for (const codeValue of codes) {
@@ -634,9 +729,9 @@ function initializeAuthSecurityControls() {
                 document.getElementById('mfaNewCodesPanel')?.classList.remove('d-none');
                 document.getElementById('mfaRegenerateBtn').disabled = true;
                 document.getElementById('mfaDisableBtn').disabled = true;
-                showAlert('success', 'Recovery codes regenerated. Save them before signing in again.');
+                showAlert('success', profileText("Recovery codes regenerated. Save them before signing in again."));
             } catch (error) {
-                showAlert('danger', error.message || 'Unable to update MFA settings.');
+                showAlert('danger', error.message || profileText("Unable to update MFA settings."));
             } finally {
                 if (document.getElementById('mfaNewCodesPanel')?.classList.contains('d-none') !== false)
                     button.disabled = false;
@@ -649,7 +744,7 @@ function initializeAuthSecurityControls() {
         const input = document.getElementById('sessionRevokePassword');
         const currentPassword = input?.value || '';
         if (!currentPassword) {
-            showAlert('danger', button.dataset.required || 'Current password is required.');
+            showAlert('danger', button.dataset.required || profileText("Current password is required."));
             input?.focus();
             return;
         }
@@ -658,9 +753,9 @@ function initializeAuthSecurityControls() {
             await authSecurityPost('/api/auth/sessions/revoke-others', { currentPassword });
             if (input) input.value = '';
             await loadActiveSessions();
-            showAlert('success', button.dataset.success || 'Other devices signed out.');
+            showAlert('success', button.dataset.success || profileText("Other devices signed out."));
         } catch (error) {
-            showAlert('danger', error.message || button.dataset.failed || 'Unable to revoke other sessions.');
+            showAlert('danger', error.message || button.dataset.failed || profileText("Unable to revoke other sessions."));
         } finally {
             button.disabled = false;
         }
@@ -670,7 +765,7 @@ function initializeAuthSecurityControls() {
         const button = event.currentTarget;
         const currentPassword = document.getElementById('sessionRevokePassword')?.value || '';
         if (!currentPassword) {
-            showAlert('danger', 'Enter your current password to sign out all devices.');
+            showAlert('danger', profileText("Enter your current password to sign out all devices."));
             return;
         }
         button.disabled = true;
@@ -678,21 +773,25 @@ function initializeAuthSecurityControls() {
             await authSecurityPost('/api/auth/sessions/revoke-all', { currentPassword });
             window.location.assign('/Account/Login');
         } catch (error) {
-            showAlert('danger', error.message || 'Unable to revoke sessions.');
+            showAlert('danger', error.message || profileText("Unable to revoke sessions."));
             button.disabled = false;
         }
     });
 }
 
 async function loadActiveSessions() {
+    const generation = ++sessionsReadGeneration;
     const container = document.getElementById('sessionList');
     if (!container) return;
     try {
         const response = await apiRequest('/api/auth/sessions', { cache: 'no-store', sessionBound: true });
-        if (!response?.success || !Array.isArray(response.data)) throw new Error('Session list unavailable.');
+        if (profileLocked || generation !== sessionsReadGeneration) return;
+        if (!response?.success || !Array.isArray(response.data)) throw new Error(profileText("Session list unavailable."));
+        sessionsReady = true;
+        syncAccountActions();
         container.replaceChildren();
         if (!response.data.length) {
-            container.textContent = container.dataset.empty || 'No active sessions found.';
+            container.textContent = container.dataset.empty || profileText("No active sessions found.");
             return;
         }
         for (const session of response.data) {
@@ -701,7 +800,7 @@ async function loadActiveSessions() {
             row.className = 'd-flex flex-wrap justify-content-between align-items-center border-bottom py-2 gap-2';
             const description = document.createElement('div');
             const detail = document.createElement('strong');
-            detail.textContent = session.isCurrent ? (container.dataset.current || 'This device') : (container.dataset.other || 'Other session');
+            detail.textContent = session.isCurrent ? (container.dataset.current || profileText("This device")) : (container.dataset.other || profileText("Other session"));
             const meta = document.createElement('div');
             meta.className = 'text-muted small';
             meta.textContent = [session.ipAddress, session.userAgent, session.createdAtUtc]
@@ -710,12 +809,12 @@ async function loadActiveSessions() {
             const revoke = document.createElement('button');
             revoke.type = 'button';
             revoke.className = 'btn btn-sm btn-outline-danger';
-            revoke.textContent = container.dataset.revoke || 'Revoke';
+            revoke.textContent = container.dataset.revoke || profileText("Revoke");
             revoke.addEventListener('click', async () => {
                 const input = document.getElementById('sessionRevokePassword');
                 const currentPassword = input?.value || '';
                 if (!session.isCurrent && !currentPassword) {
-                    showAlert('danger', container.dataset.passwordRequired || 'Current password is required.');
+                    showAlert('danger', container.dataset.passwordRequired || profileText("Current password is required."));
                     input?.focus();
                     return;
                 }
@@ -731,7 +830,7 @@ async function loadActiveSessions() {
                         await loadActiveSessions();
                     }
                 } catch (error) {
-                    showAlert('danger', error.message || container.dataset.revokeError || 'Unable to revoke session.');
+                    showAlert('danger', error.message || container.dataset.revokeError || profileText("Unable to revoke session."));
                     revoke.disabled = false;
                 }
             });
@@ -739,7 +838,8 @@ async function loadActiveSessions() {
             container.appendChild(row);
         }
     } catch (error) {
-        container.textContent = container.dataset.loadingError || 'Unable to load active sessions.';
-        showAlert('danger', error.message || 'Unable to load sessions.');
+        if (profileLocked || generation !== sessionsReadGeneration) return;
+        container.textContent = container.dataset.loadingError || profileText("Unable to load active sessions.");
+        showAlert('danger', error.message || profileText("Unable to load sessions."));
     }
 }

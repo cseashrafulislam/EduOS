@@ -1,0 +1,35 @@
+name: Account Profile Bilingual Chromium UI Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/Account/Profile.cshtml'
+      - 'EduOS.App/wwwroot/js/account/profile.js'
+      - 'EduOS.App/Controllers/AccountController.cs'
+      - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
+      - 'EduOS.Tests/JavaScript/account-profile-ui.test.cjs'
+      - 'tests/browser/account-profile.cjs'
+      - '.github/workflows/account-profile-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: account-profile-browser-Ashraful
+  cancel-in-progress: true
+jobs:
+  chromium-profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify bilingual profile source and privacy contracts
+        run: node --test EduOS.Tests/JavaScript/account-profile-ui.test.cjs
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise production profile script with synthetic scoped responses
+        run: node tests/browser/account-profile.cjs

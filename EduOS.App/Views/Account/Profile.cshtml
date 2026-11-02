@@ -1,5 +1,6 @@
 ﻿@{
-    ViewData["Title"] = "My Profile";
+    var profileBn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = profileBn ? "আমার প্রোফাইল" : "My Profile";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 
@@ -10,22 +11,22 @@
     <div class="row justify-content-center">
         <div class="col-xl-10 col-lg-11">
 
-            <div id="alertContainer"></div>
+            <div id="alertContainer" aria-live="polite"></div>
 
             <!-- =====================================================
                  PAGE HEADER
                  ===================================================== -->
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
                 <div>
-                    <h3 class="fw-bold mb-1">My Profile</h3>
+                    <h3 class="fw-bold mb-1">@(profileBn ? "আমার প্রোফাইল" : "My Profile")</h3>
                     <p class="text-muted mb-0">
-                        Manage your personal information and account security.
+                        @(profileBn ? "আপনার ব্যক্তিগত তথ্য ও অ্যাকাউন্টের নিরাপত্তা পরিচালনা করুন।" : "Manage your personal information and account security.")
                     </p>
                 </div>
 
                 <a href="/" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left me-1"></i>
-                    Back
+                    @(profileBn ? "ফিরে যান" : "Back")
                 </a>
             </div>
 
@@ -46,7 +47,7 @@
                             </div>
 
                             <h5 id="profileDisplayName" class="fw-bold mb-1">
-                                Loading...
+                                @(profileBn ? "লোড হচ্ছে..." : "Loading...")
                             </h5>
 
                             <div id="profileDisplayEmail"
@@ -57,7 +58,7 @@
 
                             <span class="badge bg-success-subtle text-success px-3 py-2">
                                 <i class="bi bi-check-circle me-1"></i>
-                                Active Account
+                                @(profileBn ? "সক্রিয় অ্যাকাউন্ট" : "Active Account")
                             </span>
 
                         </div>
@@ -78,11 +79,11 @@
 
                                 <div>
                                     <h5 class="fw-bold mb-1">
-                                        Personal Information
+                                        @(profileBn ? "ব্যক্তিগত তথ্য" : "Personal Information")
                                     </h5>
 
                                     <div class="small text-muted">
-                                        Update your account information.
+                                        @(profileBn ? "আপনার অ্যাকাউন্টের তথ্য হালনাগাদ করুন।" : "Update your account information.")
                                     </div>
                                 </div>
                             </div>
@@ -100,7 +101,7 @@
 
                                         <label for="fullName"
                                                class="form-label">
-                                            Full Name
+                                            @(profileBn ? "পূর্ণ নাম" : "Full Name")
                                             <span class="text-danger">*</span>
                                         </label>
 
@@ -109,7 +110,7 @@
                                                class="form-control"
                                                maxlength="150"
                                                autocomplete="name"
-                                               placeholder="Enter full name" />
+                                               placeholder="@(profileBn ? "পূর্ণ নাম লিখুন" : "Enter full name")" />
 
                                         <div class="invalid-feedback"></div>
 
@@ -120,7 +121,7 @@
 
                                         <label for="email"
                                                class="form-label">
-                                            Email Address
+                                            @(profileBn ? "ইমেইল ঠিকানা" : "Email Address")
                                         </label>
 
                                         <input type="email"
@@ -129,7 +130,7 @@
                                                readonly />
 
                                         <div class="form-text">
-                                            Email change requires a separate verification process.
+                                            @(profileBn ? "ইমেইল পরিবর্তনের জন্য আলাদা যাচাই প্রয়োজন।" : "Email change requires a separate verification process.")
                                         </div>
 
                                     </div>
@@ -139,7 +140,7 @@
 
                                         <label for="phoneNumber"
                                                class="form-label">
-                                            Phone Number
+                                            @(profileBn ? "ফোন নম্বর" : "Phone Number")
                                         </label>
 
                                         <input type="tel"
@@ -147,7 +148,7 @@
                                                class="form-control"
                                                maxlength="30"
                                                autocomplete="tel"
-                                               placeholder="Enter phone number" />
+                                               placeholder="@(profileBn ? "ফোন নম্বর লিখুন" : "Enter phone number")" />
 
                                     </div>
 
@@ -156,14 +157,14 @@
 
                                         <label for="address"
                                                class="form-label">
-                                            Address
+                                            @(profileBn ? "ঠিকানা" : "Address")
                                         </label>
 
                                         <textarea id="address"
                                                   class="form-control"
                                                   rows="3"
                                                   maxlength="500"
-                                                  placeholder="Enter address"></textarea>
+                                                  placeholder="@(profileBn ? "ঠিকানা লিখুন" : "Enter address")"></textarea>
 
                                     </div>
 
@@ -173,10 +174,10 @@
 
                                     <button type="submit"
                                             id="saveProfileBtn"
-                                            class="btn btn-primary">
+                                            class="btn btn-primary" disabled>
 
                                         <i class="bi bi-check-circle me-1"></i>
-                                        Save Changes
+                                        @(profileBn ? "পরিবর্তন সংরক্ষণ করুন" : "Save Changes")
 
                                     </button>
 
@@ -193,35 +194,35 @@
                             <div class="d-flex align-items-center gap-2">
                                 <i class="bi bi-shield-check text-primary fs-4" aria-hidden="true"></i>
                                 <div>
-                                    <h5 id="mfaTitle" class="fw-bold mb-1">Two-Factor Authentication (Optional)</h5>
-                                    <p class="small text-muted mb-0">Add an authenticator to your account only if you choose to.</p>
+                                    <h5 id="mfaTitle" class="fw-bold mb-1">@(profileBn ? "দুই ধাপের যাচাই (ঐচ্ছিক)" : "Two-Factor Authentication (Optional)")</h5>
+                                    <p class="small text-muted mb-0">@(profileBn ? "ইচ্ছা করলে অ্যাকাউন্টে অথেনটিকেটর যুক্ত করুন।" : "Add an authenticator to your account only if you choose to.")</p>
                                 </div>
                             </div>
                         </div>
                         <div class="card-body p-4">
-                            <p class="mb-2">Status: <span id="mfaStatus" role="status" aria-live="polite">Checking...</span></p>
-                            <p id="mfaStatusHelp" class="small text-muted mb-3">Password login works normally until you enable MFA.</p>
+                            <p class="mb-2">@(profileBn ? "অবস্থা:" : "Status:") <span id="mfaStatus" role="status" aria-live="polite">@(profileBn ? "যাচাই হচ্ছে..." : "Checking...")</span></p>
+                            <p id="mfaStatusHelp" class="small text-muted mb-3">@(profileBn ? "MFA চালু না করা পর্যন্ত পাসওয়ার্ড দিয়েই লগইন করা যাবে।" : "Password login works normally until you enable MFA.")</p>
                             <a id="mfaSetupLink" class="btn btn-outline-primary d-none" href="/Account/MfaSetup">
                                 <i class="bi bi-shield-plus me-1" aria-hidden="true"></i> Set Up MFA
                             </a>
                             <div id="mfaManagement" class="d-none mt-3">
-                                <p class="small text-muted">For security, confirm your password and a current authenticator or recovery code.</p>
-                                <label for="mfaManagePassword" class="form-label">Current password</label>
+                                <p class="small text-muted">@(profileBn ? "নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড এবং অথেনটিকেটর বা রিকভারি কোড দিন।" : "For security, confirm your password and a current authenticator or recovery code.")</p>
+                                <label for="mfaManagePassword" class="form-label">@(profileBn ? "বর্তমান পাসওয়ার্ড" : "Current password")</label>
                                 <input id="mfaManagePassword" type="password" autocomplete="current-password" class="form-control mb-2" />
-                                <label for="mfaManageCode" class="form-label">Authenticator or recovery code</label>
+                                <label for="mfaManageCode" class="form-label">@(profileBn ? "অথেনটিকেটর বা রিকভারি কোড" : "Authenticator or recovery code")</label>
                                 <input id="mfaManageCode" type="text" autocomplete="one-time-code" class="form-control mb-2" />
                                 <div class="form-check mb-3">
                                     <input id="mfaManageRecovery" class="form-check-input" type="checkbox" />
-                                    <label for="mfaManageRecovery" class="form-check-label">Use recovery code instead</label>
+                                    <label for="mfaManageRecovery" class="form-check-label">@(profileBn ? "পরিবর্তে রিকভারি কোড ব্যবহার করুন" : "Use recovery code instead")</label>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">
-                                    <button id="mfaRegenerateBtn" type="button" class="btn btn-outline-primary">Regenerate recovery codes</button>
-                                    <button id="mfaDisableBtn" type="button" class="btn btn-outline-danger">Disable MFA</button>
+                                    <button id="mfaRegenerateBtn" type="button" class="btn btn-outline-primary" disabled>@(profileBn ? "নতুন রিকভারি কোড তৈরি করুন" : "Regenerate recovery codes")</button>
+                                    <button id="mfaDisableBtn" type="button" class="btn btn-outline-danger" disabled>@(profileBn ? "MFA বন্ধ করুন" : "Disable MFA")</button>
                                 </div>
                                 <div id="mfaNewCodesPanel" class="mt-3 d-none">
-                                    <strong>Save these new recovery codes securely. Older codes no longer work.</strong>
+                                    <strong>@(profileBn ? "নতুন রিকভারি কোড নিরাপদে রাখুন। আগের কোডগুলো আর কাজ করবে না।" : "Save these new recovery codes securely. Older codes no longer work.")</strong>
                                     <ul id="mfaNewCodes" class="mt-2"></ul>
-                                    <a href="/Account/Login" class="btn btn-primary">Sign in again</a>
+                                    <a href="/Account/Login" class="btn btn-primary">@(profileBn ? "আবার সাইন ইন করুন" : "Sign in again")</a>
                                 </div>
                             </div>
                         </div>
@@ -250,8 +251,8 @@
                                 <button id="sessionRevokeOthersBtn" type="button" class="btn btn-outline-primary"
                                         data-required="@T["SessionPasswordRequired"]"
                                         data-success="@T["OtherSessionsRevoked"]"
-                                        data-failed="@T["OtherSessionsRevokeFailed"]">@T["SignOutOtherDevices"]</button>
-                                <button id="sessionRevokeAllBtn" type="button" class="btn btn-outline-danger">@T["SignOutAllDevices"]</button>
+                                        data-failed="@T["OtherSessionsRevokeFailed"]" disabled>@T["SignOutOtherDevices"]</button>
+                                <button id="sessionRevokeAllBtn" type="button" class="btn btn-outline-danger" disabled>@T["SignOutAllDevices"]</button>
                             </div>
                         </div>
                     </section>
@@ -269,11 +270,11 @@
 
                                 <div>
                                     <h5 class="fw-bold mb-1">
-                                        Change Password
+                                        @(profileBn ? "পাসওয়ার্ড পরিবর্তন" : "Change Password")
                                     </h5>
 
                                     <div class="small text-muted">
-                                        Use a strong password to protect your account.
+                                        @(profileBn ? "অ্যাকাউন্ট সুরক্ষিত রাখতে শক্তিশালী পাসওয়ার্ড ব্যবহার করুন।" : "Use a strong password to protect your account.")
                                     </div>
                                 </div>
 
@@ -292,7 +293,7 @@
 
                                         <label for="currentPassword"
                                                class="form-label">
-                                            Current Password
+                                            @(profileBn ? "বর্তমান পাসওয়ার্ড" : "Current Password")
                                             <span class="text-danger">*</span>
                                         </label>
 
@@ -302,11 +303,12 @@
                                                    id="currentPassword"
                                                    class="form-control"
                                                    autocomplete="current-password"
-                                                   placeholder="Enter current password" />
+                                                   placeholder="@(profileBn ? "বর্তমান পাসওয়ার্ড লিখুন" : "Enter current password")" />
 
                                             <button type="button"
                                                     class="btn btn-outline-secondary password-toggle"
-                                                    data-target="currentPassword">
+                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান বা লুকান" : "Show or hide password")"
+                                            data-target="currentPassword">
                                                 <i class="bi bi-eye"></i>
                                             </button>
 
@@ -321,7 +323,7 @@
 
                                         <label for="newPassword"
                                                class="form-label">
-                                            New Password
+                                            @(profileBn ? "নতুন পাসওয়ার্ড" : "New Password")
                                             <span class="text-danger">*</span>
                                         </label>
 
@@ -331,11 +333,12 @@
                                                    id="newPassword"
                                                    class="form-control"
                                                    autocomplete="new-password"
-                                                   placeholder="Enter new password" />
+                                                   placeholder="@(profileBn ? "নতুন পাসওয়ার্ড লিখুন" : "Enter new password")" />
 
                                             <button type="button"
                                                     class="btn btn-outline-secondary password-toggle"
-                                                    data-target="newPassword">
+                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান বা লুকান" : "Show or hide password")"
+                                            data-target="newPassword">
                                                 <i class="bi bi-eye"></i>
                                             </button>
 
@@ -352,7 +355,7 @@
 
                                         <label for="confirmPassword"
                                                class="form-label">
-                                            Confirm Password
+                                            @(profileBn ? "পাসওয়ার্ড নিশ্চিত করুন" : "Confirm Password")
                                             <span class="text-danger">*</span>
                                         </label>
 
@@ -362,11 +365,12 @@
                                                    id="confirmPassword"
                                                    class="form-control"
                                                    autocomplete="new-password"
-                                                   placeholder="Confirm new password" />
+                                                   placeholder="@(profileBn ? "নতুন পাসওয়ার্ড নিশ্চিত করুন" : "Confirm new password")" />
 
                                             <button type="button"
                                                     class="btn btn-outline-secondary password-toggle"
-                                                    data-target="confirmPassword">
+                                            aria-label="@(profileBn ? "পাসওয়ার্ড দেখান বা লুকান" : "Show or hide password")"
+                                            data-target="confirmPassword">
                                                 <i class="bi bi-eye"></i>
                                             </button>
 
@@ -384,7 +388,7 @@
 
                                     <button type="submit"
                                             id="changePasswordBtn"
-                                            class="btn btn-warning">
+                                            class="btn btn-warning" disabled>
 
                                         <i class="bi bi-shield-check me-1"></i>
                                         Change Password

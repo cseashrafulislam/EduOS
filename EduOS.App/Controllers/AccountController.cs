@@ -149,6 +149,7 @@ namespace EduOS.App.Controllers
 
         [Authorize]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult Profile() => View();
 
         // ==================== Logout ====================
