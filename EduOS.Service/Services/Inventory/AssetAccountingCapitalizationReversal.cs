@@ -131,6 +131,11 @@ public sealed partial class AssetAccountingService
         }
         catch (DbUpdateConcurrencyException) { return Conflict<AssetCapitalizationRecordDto>("Concurrent capitalization correction."); }
         catch (DbUpdateException ex) { logger.LogWarning(ex, "Capitalization reversal SQL conflict"); return Conflict<AssetCapitalizationRecordDto>("Correction SQL conflict."); }
+        // EF Core may wrap SQL Server deadlock 1205/lock-timeout/unique-key
+        // contention in InvalidOperationException. Treat ONLY recognized
+        // nested SQL contention as a safe 409; let other failures surface.
+        // The serializable transaction is disposed/rolled back on failure.
+        catch (InvalidOperationException ex) when (Contention(ex)) { return Conflict<AssetCapitalizationRecordDto>("Capitalization correction contention."); }
         catch (SqlException ex) when (Contention(ex)) { return Conflict<AssetCapitalizationRecordDto>("Capitalization correction contention."); }
     }
 
@@ -197,6 +202,7 @@ public sealed partial class AssetAccountingService
         }
         catch (DbUpdateConcurrencyException) { return Conflict<AssetCapitalizationRecordDto>("Concurrent correction review."); }
         catch (DbUpdateException ex) { logger.LogWarning(ex, "Asset unwind atomic SQL conflict"); return Conflict<AssetCapitalizationRecordDto>("Atomic stock/GL unwind rolled back."); }
+        catch (InvalidOperationException ex) when (Contention(ex)) { return Conflict<AssetCapitalizationRecordDto>("Capitalization unwind contention."); }
         catch (SqlException ex) when (Contention(ex)) { return Conflict<AssetCapitalizationRecordDto>("Capitalization unwind contention."); }
     }
 }
