@@ -100,3 +100,25 @@ test('visitor and incident generic audit keeps metadata but suppresses private v
     assert.match(visitorSql, /Assert\.Null\(row\.OldValue\)/);
     assert.match(visitorSql, /Assert\.Null\(row\.NewValue\)/);
 });
+
+test('visitor privacy removal requires independent reviewer, explicit retention and legal hold checks', () => {
+    const service = read('EduOS.Service/Services/Facilities/FacilityVisitorService.cs');
+    const ui = read('EduOS.App/wwwroot/js/facilities/visitors.js');
+    const page = read('EduOS.App/Views/FacilityVisitors/Index.cshtml');
+    const fixture = read('EduOS.Tests/App/SqlServerFacilityVisitorTests.cs');
+    assert.match(service, /action == "redactrequest"/);
+    assert.match(service, /action == "redactapprove"/);
+    assert.match(service, /Facilities\.Visitor\.RetentionDays\./);
+    assert.match(service, /Facilities\.Visitor\.LegalHold\./);
+    assert.match(service, /days is < 30 or > 3650/);
+    assert.match(service, /latest\.ActorUserId == user\.UserId/);
+    assert.match(service, /ReviewerLiveAsync\(ct\)/);
+    assert.match(service, /previous\.BadgeCode = null; previous\.Reason = null/);
+    assert.match(service, /ActionCode == "incident"/);
+    assert.match(ui, /row\.redactionRequested && privacyReviewer/);
+    assert.match(page, /data-privacy-reviewer=/);
+    assert.match(fixture, /Assert\.Equal\(409, noPolicy\.StatusCode\)/);
+    assert.match(fixture, /Assert\.Equal\(409, deniedHold\.StatusCode\)/);
+    assert.match(fixture, /Assert\.Equal\(403, selfApproval\.StatusCode\)/);
+    assert.match(fixture, /Assert\.Equal\(1, events\.Count\(x => x\.ActionCode == "redactapprove"\)\)/);
+});
