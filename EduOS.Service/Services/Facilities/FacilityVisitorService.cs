@@ -17,7 +17,7 @@ namespace EduOS.Service.Services.Facilities;
 /// <summary>
 /// Privacy-minimized internal visitor appointments. Never stores national IDs,
 /// photos, phones or documents. Incident events are append-only; retention
-/// deletion and independently approved site policy remain unimplemented; bounded summary exports are audit-logged.
+/// independent two-person, retention-gated redaction is available; independent site-policy approval remains outstanding.
 /// </summary>
 public sealed class FacilityVisitorService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
@@ -81,7 +81,8 @@ public sealed class FacilityVisitorService(
         VisitStartUtc = v.VisitStartUtc, VisitEndUtc = v.VisitEndUtc,
         StateCode = v.StateCode, BadgeCode = v.BadgeCode,
         CheckedInAtUtc = v.CheckedInAtUtc, CheckedOutAtUtc = v.CheckedOutAtUtc,
-        RowVersion = Convert.ToBase64String(v.RowVersion)
+        RowVersion = Convert.ToBase64String(v.RowVersion),
+        PrivacyRedacted = v.VisitorName == RedactedVisitor
     };
     private static bool Version(byte[] version, string? supplied)
     {
@@ -89,6 +90,47 @@ public sealed class FacilityVisitorService(
         catch (FormatException) { return false; }
     }
     private static bool Plain(string value) => value.All(c => !char.IsControl(c));
+    private const string RedactedVisitor = "[redacted]";
+    private const string RedactionRequestReason = "Visitor retention period expired";
+    private const string RedactionApprovalReason = "Independent retention approval";
+
+    // Redaction is manual, never a timer or tenant-wide cleanup. An explicit
+    // campus retention policy is mandatory; unconfigured/malformed/legal-hold
+    // settings fail closed. Active visits and any incident evidence stay intact.
+    private async Task<bool> CanRedactAsync(FacilityVisitorVisit visit, CancellationToken ct)
+    {
+        if (visit.StateCode is not ("Rejected" or "CheckedOut") ||
+            visit.VisitorName == RedactedVisitor) return false;
+        var suffix = visit.CampusId.ToString(CultureInfo.InvariantCulture);
+        var retention = await db.TenantSettings.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId &&
+                x.Key == "Facilities.Visitor.RetentionDays." + suffix && !x.IsDeleted)
+            .Select(x => new { x.Value, x.IsSensitive }).SingleOrDefaultAsync(ct);
+        if (retention == null || retention.IsSensitive ||
+            !int.TryParse(retention.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var days) ||
+            days is < 30 or > 3650 || visit.VisitEndUtc > Now.AddDays(-days))
+            return false;
+        var hold = await db.TenantSettings.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId &&
+                x.Key == "Facilities.Visitor.LegalHold." + suffix && !x.IsDeleted)
+            .Select(x => new { x.Value, x.IsSensitive }).SingleOrDefaultAsync(ct);
+        if (hold != null && (hold.IsSensitive || !bool.TryParse(hold.Value, out var isHeld) || isHeld))
+            return false;
+        // Incident evidence must be resolved under an explicit retention/legal
+        // process; never erase it merely because the appointment is old.
+        return !await db.Set<FacilityVisitorEvent>().AsNoTracking().AnyAsync(x =>
+            x.TenantId == user.TenantId && x.FacilityVisitorVisitId == visit.Id &&
+            x.ActionCode == "incident" && !x.IsDeleted, ct);
+    }
+
+    private Task<bool> ReviewerLiveAsync(CancellationToken ct) =>
+        db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
+            db.Roles.IgnoreQueryFilters().Any(role => role.Id == ur.RoleId &&
+                role.IsActive && !role.IsDeleted &&
+                (role.TenantId == user.TenantId ||
+                 (role.TenantId == null && role.IsSystemRole)) &&
+                (role.NormalizedName == "TENANTADMIN" ||
+                 role.NormalizedName == "PRINCIPAL")), ct);
 
     // Optional, tenant-owned campus occupancy ceiling uses the existing versioned
     // TenantSetting schema; no duplicate policy or stock ledger is introduced.
@@ -244,9 +286,26 @@ public sealed class FacilityVisitorService(
             foreach (var pageCampus in rows.Select(v => v.CampusId).Distinct())
                 if (!await LockLiveVisitorIdentityAsync(user.UserId, pageCampus, Manager, ct))
                     return Denied<PagedResult<FacilityVisitorDto>>();
+            // One bounded query for the page, never a per-visitor event lookup.
+            var items = rows.Select(Map).ToList();
+            if (items.Count > 0)
+            {
+                var ids = items.Select(x => x.Id).ToArray();
+                var privacy = await db.Set<FacilityVisitorEvent>().AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId &&
+                        ids.Contains(x.FacilityVisitorVisitId) && !x.IsDeleted &&
+                        (x.ActionCode == "redactrequest" || x.ActionCode == "redactapprove"))
+                    .OrderByDescending(x => x.Id)
+                    .Select(x => new { x.FacilityVisitorVisitId, x.ActionCode }).ToListAsync(ct);
+                var latest = privacy.GroupBy(x => x.FacilityVisitorVisitId)
+                    .ToDictionary(x => x.Key, x => x.First().ActionCode);
+                foreach (var item in items)
+                    item.RedactionRequested = latest.TryGetValue(item.Id, out var actionCode) &&
+                        actionCode == "redactrequest" && !item.PrivacyRedacted;
+            }
             if (tx != null) await tx.CommitAsync(ct);
             return ApiResponse<PagedResult<FacilityVisitorDto>>.SuccessResponse(new()
-            { Page = page, PageSize = pageSize, TotalCount = total, Items = rows.Select(Map).ToList() });
+            { Page = page, PageSize = pageSize, TotalCount = total, Items = items });
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
         {
@@ -390,7 +449,7 @@ public sealed class FacilityVisitorService(
         action = (action ?? "").Trim().ToLowerInvariant();
         if (id <= 0 || command == null || command.ClientCommandId == Guid.Empty ||
             string.IsNullOrWhiteSpace(command.RowVersion) ||
-            action is not ("hostapprove" or "hostreject" or "checkin" or "checkout" or "incident"))
+            action is not ("hostapprove" or "hostreject" or "checkin" or "checkout" or "incident" or "redactrequest" or "redactapprove"))
             return ApiResponse<FacilityVisitorDto>.ErrorResponse("Invalid visitor transition.", 400);
         var badge = command.BadgeCode?.Trim().ToUpperInvariant();
         var reason = command.Reason?.Trim();
@@ -399,6 +458,9 @@ public sealed class FacilityVisitorService(
             (action == "checkin" && (badge == null || badge.Length is < 4 or > 20 ||
                 !badge.All(c => char.IsAsciiLetterOrDigit(c) || c == '-'))))
             return ApiResponse<FacilityVisitorDto>.ErrorResponse("Invalid badge or reason.", 400);
+        if ((action == "redactrequest" && reason != RedactionRequestReason) ||
+            (action == "redactapprove" && reason != RedactionApprovalReason))
+            return ApiResponse<FacilityVisitorDto>.ErrorResponse("Use the reviewed privacy reason.", 400);
         await using var tx = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         try
@@ -476,6 +538,46 @@ public sealed class FacilityVisitorService(
                 visit.BadgeCode = badge;
                 visit.CheckedInAtUtc = now;
                 visit.StateCode = "CheckedIn";
+            }
+            else if (action is "redactrequest" or "redactapprove")
+            {
+                if (!await CanRedactAsync(visit, ct))
+                    return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                        "Retention period, legal hold or incident policy prevents redaction.", 409);
+                var latest = await db.Set<FacilityVisitorEvent>().AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId &&
+                        x.FacilityVisitorVisitId == id && !x.IsDeleted)
+                    .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+                if (action == "redactrequest")
+                {
+                    if (latest?.ActionCode is "redactrequest" or "redactapprove")
+                        return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                            "Privacy request already pending or approved.", 409);
+                }
+                else
+                {
+                    // Actual live principal/TenantAdmin role, not a stale cookie,
+                    // and a different checker from the last requesting actor.
+                    if (!Admin || !await ReviewerLiveAsync(ct))
+                        return Denied<FacilityVisitorDto>();
+                    if (latest?.ActionCode != "redactrequest" ||
+                        latest.ActorUserId == user.UserId)
+                        return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                            "Independent pending privacy request required.", 409);
+                    // Preserve immutable action/actor/time/status metadata. Only
+                    // privacy payload columns are erased on checked approval.
+                    var events = await db.Set<FacilityVisitorEvent>()
+                        .Where(x => x.TenantId == user.TenantId &&
+                            x.FacilityVisitorVisitId == id && !x.IsDeleted).ToListAsync(ct);
+                    foreach (var previous in events)
+                    {
+                        previous.BadgeCode = null; previous.Reason = null;
+                        previous.UpdatedAt = now; previous.UpdatedBy = user.UserId;
+                    }
+                    visit.VisitorName = RedactedVisitor;
+                    visit.Purpose = RedactedVisitor;
+                    visit.BadgeCode = null;
+                }
             }
             else if (action == "incident")
             {
