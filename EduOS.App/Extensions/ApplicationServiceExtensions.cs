@@ -156,6 +156,9 @@ namespace EduOS.App.Extensions
             s.AddScoped<IFacilityWorkflowService, FacilityWorkflowService>();
             s.AddScoped<IFacilityVisitorService, FacilityVisitorService>();
             s.AddScoped<IResearchProposalService, ResearchProposalService>();
+            s.AddScoped<ResearchWorkflowAccess>();
+            s.AddScoped<IResearchGrantService, ResearchGrantService>();
+            s.AddScoped<IAccreditationService, AccreditationService>();
             s.AddScoped<IProcurementRequisitionService, ProcurementRequisitionService>();
             s.AddScoped<IProcurementSupplierService, ProcurementSupplierService>();
             s.AddScoped<IProcurementPurchaseOrderService, ProcurementPurchaseOrderService>();

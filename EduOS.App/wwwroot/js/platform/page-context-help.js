@@ -1574,6 +1574,41 @@
             recovery: ['On 403/404 verify entitlement, membership, campus grants and role. On 409 reload the proposal before a new action. After an uncertain network result retry the unchanged action; do not create a second approval.', '৪০৩/৪০৪ হলে মডিউল, সদস্যপদ, ক্যাম্পাস অনুমতি ও ভূমিকা দেখুন। ৪০৯ হলে নতুন অবস্থা লোড করুন। নেটওয়ার্ক অনিশ্চিত হলে অপরিবর্তিত একই কাজ আবার দিন; নতুন অনুমোদন তৈরি করবেন না।'],
             related: [['/CareerOpportunities/Index', 'Jobs and internships', 'চাকরি ও ইন্টার্নশিপ']]
         },
+        '/researchgrants/index': {
+            version: 1, reviewed: true,
+            title: ['Research Grants & Projects', 'গবেষণা অনুদান ও প্রকল্প'],
+            purpose: ['Request and independently approve grant budgets for ethics-approved research, track milestones and close funded projects without creating Finance journals.', 'নৈতিক অনুমোদিত গবেষণার অনুদান বাজেট আবেদন ও স্বতন্ত্র অনুমোদন, মাইলস্টোন পর্যবেক্ষণ এবং Finance জার্নাল তৈরি ছাড়া প্রকল্প সমাপ্তি।'],
+            before: ['RESEARCH entitlement, active membership and current campus access are required. Only the ethics-approved proposal owner may apply; a different authorized coordinator awards budgets and approves closure.', 'RESEARCH মডিউল, সক্রিয় সদস্যপদ ও ক্যাম্পাস অনুমতি প্রয়োজন। নৈতিক অনুমোদিত প্রস্তাবের মালিক আবেদন করবেন; ভিন্ন অনুমোদিত সমন্বয়কারী বাজেট ও সমাপ্তি অনুমোদন করবেন।'],
+            steps: [
+                ['An administrator creates a grant scheme with its currency and maximum award.', 'প্রশাসক মুদ্রা ও সর্বোচ্চ সীমাসহ অনুদান স্কিম তৈরি করবেন।'],
+                ['Use the reference of an ethics-approved proposal, choose a scheme, title and requested amount, then save the draft and submit.', 'নৈতিক অনুমোদিত প্রস্তাবের রেফারেন্স, স্কিম, শিরোনাম ও অর্থ দিয়ে খসড়া সংরক্ষণ করে জমা দিন।'],
+                ['An independent coordinator approves the award. The owner then adds milestones and records outcomes.', 'স্বতন্ত্র সমন্বয়কারী অনুদান অনুমোদন করবেন। মালিক মাইলস্টোন ও ফলাফল সংরক্ষণ করবেন।'],
+                ['For a budget change, request and independently approve an amendment. Complete all milestones before requesting final closure.', 'বাজেট বদলাতে সংশোধনের অনুরোধ ও স্বতন্ত্র অনুমোদন নিন। সমাপ্তির আগে সব মাইলস্টোন সম্পন্ন করুন।']
+            ],
+            example: ['Fictional: A Biology proposal receives ethics approval; its owner requests a BDT 100,000 grant. A different coordinator approves BDT 80,000, followed by progress and closure.', 'কাল্পনিক: জীববিজ্ঞানের গবেষণা নৈতিক অনুমোদনের পর মালিক ১ লাখ টাকা অনুদান চান। অন্য সমন্বয়কারী ৮০ হাজার টাকা অনুমোদন করেন; এরপর অগ্রগতি ও সমাপ্তি হয়।'],
+            result: ['The authorized grant amount and later amendments retain immutable budget versions and an append-only event history. Payments, journals and cash remain under canonical Finance.', 'অনুমোদিত অর্থ ও সংশোধনের অপরিবর্তনীয় বাজেট সংস্করণ এবং ইতিহাস থাকে। পেমেন্ট, জার্নাল ও নগদ অর্থ বিদ্যমান Finance-এর অধীনে থাকে।'],
+            rules: ['Award/closure maker-checker separation, live campus permission, SQL rowversion, idempotent command key and amount limits are server-enforced. There is no automatic disbursement.', 'অনুদান/সমাপ্তির স্বতন্ত্র অনুমোদন, বর্তমান ক্যাম্পাস অনুমতি, rowversion, পুনরায় একই request key ও অর্থের সীমা সার্ভার যাচাই করে। স্বয়ংক্রিয় অর্থ ছাড় হয় না।'],
+            recovery: ['On 403/404 check active grants, roles, campus and ethics status. On 409 reload the row. On network uncertainty retry exactly the same command.', '৪০৩/৪০৪ এলে মডিউল, ভূমিকা, ক্যাম্পাস ও নৈতিক অনুমোদন যাচাই করুন। ৪০৯ হলে রিফ্রেশ করুন। নেটওয়ার্ক সমস্যায় একই তথ্য দিয়ে আবার চেষ্টা করুন।'],
+            related: [['/ResearchProposals/Index', 'Ethics-approved proposals', 'নৈতিকভাবে অনুমোদিত প্রস্তাব']]
+        },
+        '/accreditation/index': {
+            version: 1, reviewed: true,
+            title: ['Accreditation & Quality Assurance', 'স্বীকৃতি ও মান নিশ্চিতকরণ'],
+            purpose: ['Publish versioned standards, collect campus/program evidence, independently review frozen revisions and export scope-filtered aggregate audit results.', 'সংস্করণভিত্তিক মানদণ্ড প্রকাশ, ক্যাম্পাস/প্রোগ্রামের প্রমাণ সংগ্রহ, অপরিবর্তনীয় সংস্করণ স্বতন্ত্র পর্যালোচনা ও পরিসরভিত্তিক অডিট রিপোর্ট।'],
+            before: ['ACCREDITATION entitlement, active institute membership and explicit campus access. Coordinators configure frameworks, assigned reviewers decide evidence, and authors submit their own work.', 'ACCREDITATION মডিউল, সক্রিয় সদস্যপদ ও ক্যাম্পাস অনুমতি প্রয়োজন। সমন্বয়কারী কাঠামো নির্ধারণ, পর্যালোচক প্রমাণ যাচাই, লেখক নিজের প্রমাণ জমা দেন।'],
+            steps: [
+                ['A coordinator creates a draft framework version, adds rubric, required evidence and validity for each standard.', 'সমন্বয়কারী খসড়া কাঠামো তৈরি করে প্রতিটি মানদণ্ডের মূল্যায়ন ও প্রয়োজনীয় প্রমাণ নির্ধারণ করবেন।'],
+                ['Another coordinator independently publishes it. Published frameworks and standards are not edited; publish a new version instead.', 'অন্য সমন্বয়কারী স্বতন্ত্রভাবে প্রকাশ করবেন। প্রকাশিত কাঠামো বদলানো যাবে না; নতুন সংস্করণ তৈরি করতে হবে।'],
+                ['Choose campus, optional academic program, published standard and report period. Save and submit the evidence summary.', 'ক্যাম্পাস, প্রোগ্রাম, প্রকাশিত মানদণ্ড ও সময়কাল বেছে প্রমাণের সারসংক্ষেপ জমা দিন।'],
+                ['A different coordinator assigns an eligible reviewer; the reviewer declares no conflict, then approves, rejects or asks for revision.', 'ভিন্ন সমন্বয়কারী যোগ্য পর্যালোচক নিযুক্ত করেন; পর্যালোচক স্বার্থের সংঘাত নেই জানিয়ে অনুমোদন, প্রত্যাখ্যান বা সংশোধন চান।'],
+                ['Use the campus-scoped report and CSV. Print the report with the browser Save as PDF option.', 'ক্যাম্পাসভিত্তিক রিপোর্ট ও CSV দেখুন; ব্রাউজারের Save as PDF দিয়ে PDF নিন।']
+            ],
+            example: ['Fictional: Framework QA-2026 v1 includes LAB-SAFETY, then Main Campus Biology submits its period evidence and an independent reviewer approves.', 'কাল্পনিক: QA-2026 v1 কাঠামোর LAB-SAFETY মানদণ্ডে Main Campus Biology প্রমাণ জমা দেয়; স্বতন্ত্র পর্যালোচক অনুমোদন করেন।'],
+            result: ['Each approved evidence assessment retains the exact published standard/version, frozen evidence hash, review history and expiry; exported aggregates omit private notes.', 'অনুমোদিত মূল্যায়নে মানদণ্ডের প্রকাশিত সংস্করণ, প্রমাণের hash, পর্যালোচনার ইতিহাস ও মেয়াদ থাকে; রিপোর্টে গোপন নোট থাকে না।'],
+            rules: ['Published standards are immutable. Authors cannot approve their own work. Reviewer and campus rights are rechecked for each command. Text summaries are supported; confidential attachments remain unavailable until verified private-file ownership is integrated.', 'প্রকাশিত মানদণ্ড অপরিবর্তনীয়। লেখক নিজের কাজ অনুমোদন করতে পারবেন না। প্রতিটি অনুরোধে ভূমিকা ও ক্যাম্পাস অধিকার যাচাই হয়। লিখিত প্রমাণ আছে; নিরাপদ ফাইল সংযুক্তি এখনো নেই।'],
+            recovery: ['If no standard appears, confirm independent publication. On 403/404 verify module, role and campus. On 409 reload before a new command. Repeat an uncertain request with its original key.', 'মানদণ্ড না এলে প্রকাশ হয়েছে কি না দেখুন। ৪০৩/৪০৪ হলে মডিউল, ভূমিকা ও ক্যাম্পাস যাচাই করুন। ৪০৯ হলে রিফ্রেশ করুন। অনিশ্চিত অনুরোধে আগের key ব্যবহার করুন।'],
+            related: [['/ResearchProposals/Index', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন']]
+        },
         '/careeropportunities/index': {
             version: 1, reviewed: true,
             title: ['Career Opportunities & Applications', 'চাকরি ও ইন্টার্নশিপ আবেদন'],

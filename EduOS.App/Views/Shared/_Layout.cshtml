@@ -15,6 +15,7 @@
     var showFacilities = availableOptionalModules.Contains("FACILITIES");
     var showAlumni = availableOptionalModules.Contains("ALUMNI");
     var showResearch = availableOptionalModules.Contains("RESEARCH");
+    var showAccreditation = availableOptionalModules.Contains("ACCREDITATION");
     var v2RoleLinks = EduOS.App.Authorization.V2RolePortalNavigation.GetLinks(availableOptionalModules, User);
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
@@ -337,6 +338,19 @@
                     <a class="nav-link @ActiveFor("/ResearchProposals")" href="/ResearchProposals/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                         <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "গবেষণা ও নৈতিক অনুমোদন" : "Research & Ethics")</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/ResearchGrants")" href="/ResearchGrants/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                        <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "গবেষণা অনুদান ও প্রকল্প" : "Research Grants & Projects")</span>
+                    </a>
+                }
+                @if (showAccreditation && (User?.IsInRole("Teacher") == true || User?.IsInRole("TenantAdmin") == true ||
+                     User?.IsInRole("Principal") == true || User?.IsInRole("AccreditationOfficer") == true ||
+                     User?.IsInRole("AccreditationCoordinator") == true || User?.IsInRole("AccreditationReviewer") == true))
+                {
+                    <a class="nav-link @ActiveFor("/Accreditation")" href="/Accreditation/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                        <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "স্বীকৃতি ও মান নিশ্চিতকরণ" : "Accreditation & Quality Assurance")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)

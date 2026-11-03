@@ -52,10 +52,13 @@ public sealed class ResearchProposalService(
             !await db.TenantMemberships.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
                 x.UserId == user.UserId && x.Status == MembershipStatus.Active && !x.IsDeleted, ct))
             return new(StringComparer.OrdinalIgnoreCase);
+        var soleTenant = !await db.TenantMemberships.AsNoTracking().AnyAsync(m =>
+            m.UserId == user.UserId && m.TenantId != user.TenantId &&
+            m.Status == MembershipStatus.Active && !m.IsDeleted, ct);
         var roles = await (from ur in db.UserRoles.AsNoTracking()
                            join r in db.Roles.IgnoreQueryFilters().AsNoTracking() on ur.RoleId equals r.Id
                            where ur.UserId == user.UserId && r.IsActive && !r.IsDeleted &&
-                                 (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole))
+                                 (r.TenantId == user.TenantId || (soleTenant && r.TenantId == null && !r.IsSystemRole))
                            select r.NormalizedName).ToListAsync(ct);
         return roles.Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
@@ -113,11 +116,15 @@ public sealed class ResearchProposalService(
                 UserId = u.Id, Name = u.FullName,
                 CanSupervise = db.UserRoles.Any(ur => ur.UserId == u.Id && db.Roles.IgnoreQueryFilters().Any(r =>
                     r.Id == ur.RoleId && r.IsActive && !r.IsDeleted &&
-                    (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
+                    (r.TenantId == user.TenantId || (r.TenantId == null && !r.IsSystemRole &&
+                        !db.TenantMemberships.Any(m => m.UserId == u.Id && m.TenantId != user.TenantId &&
+                            m.Status == MembershipStatus.Active && !m.IsDeleted))) &&
                     (r.NormalizedName == "TEACHER" || r.NormalizedName == "PRINCIPAL" || r.NormalizedName == "RESEARCHSUPERVISOR"))),
                 CanReview = db.UserRoles.Any(ur => ur.UserId == u.Id && db.Roles.IgnoreQueryFilters().Any(r =>
                     r.Id == ur.RoleId && r.IsActive && !r.IsDeleted &&
-                    (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
+                    (r.TenantId == user.TenantId || (r.TenantId == null && !r.IsSystemRole &&
+                        !db.TenantMemberships.Any(m => m.UserId == u.Id && m.TenantId != user.TenantId &&
+                            m.Status == MembershipStatus.Active && !m.IsDeleted))) &&
                     (r.NormalizedName == "TEACHER" || r.NormalizedName == "RESEARCHREVIEWER")))
             }).ToListAsync(ct);
         return ApiResponse<List<ResearchReviewerDto>>.SuccessResponse(candidates.Where(x => x.CanSupervise || x.CanReview).ToList());
@@ -131,7 +138,9 @@ public sealed class ResearchProposalService(
                 g.CampusId == campusId && g.IsActive && !g.IsDeleted) &&
             db.UserRoles.Any(ur => ur.UserId == u.Id &&
                 db.Roles.IgnoreQueryFilters().Any(r => r.Id == ur.RoleId && r.IsActive && !r.IsDeleted &&
-                    (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
+                    (r.TenantId == user.TenantId || (r.TenantId == null && !r.IsSystemRole &&
+                        !db.TenantMemberships.Any(m => m.UserId == candidate && m.TenantId != user.TenantId &&
+                            m.Status == MembershipStatus.Active && !m.IsDeleted))) &&
                     roleCodes.Contains(r.NormalizedName!))), ct);
 
     private ResearchProposalDto Map(ProposalRow p, IReadOnlySet<string> roles) => new()

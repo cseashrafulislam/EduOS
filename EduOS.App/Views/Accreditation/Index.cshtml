@@ -1,0 +1,136 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "স্বীকৃতি ও মান নিশ্চিতকরণ" : "Accreditation & Quality Assurance";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var coordinator = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("AccreditationCoordinator");
+}
+<div class="container-fluid py-4" id="accreditationWorkspace">
+    @Html.AntiForgeryToken()
+    <div id="accreditationNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-xl-4">
+            @if (coordinator)
+            {
+                <section class="card border-0 shadow-sm mb-3" aria-labelledby="accFrameworkHeading">
+                    <div class="card-body">
+                        <h2 id="accFrameworkHeading" class="h5" data-a-en="Framework versions" data-a-bn="মানদণ্ড কাঠামোর সংস্করণ">Framework versions</h2>
+                        <form id="accFrameworkForm">
+                            <label for="accFrameworkCode" class="form-label" data-a-en="Framework code" data-a-bn="কাঠামো কোড">Framework code</label>
+                            <input id="accFrameworkCode" class="form-control mb-2" maxlength="40" required pattern="[A-Za-z0-9_]+" />
+                            <label for="accFrameworkName" class="form-label" data-a-en="Name" data-a-bn="নাম">Name</label>
+                            <input id="accFrameworkName" class="form-control mb-2" maxlength="200" required />
+                            <label for="accFrameworkVersion" class="form-label" data-a-en="Version" data-a-bn="সংস্করণ">Version</label>
+                            <input id="accFrameworkVersion" type="number" class="form-control mb-2" min="1" max="1000" value="1" required />
+                            <button class="btn btn-outline-primary" type="submit" data-a-en="Create draft version" data-a-bn="খসড়া সংস্করণ তৈরি">Create draft version</button>
+                        </form>
+                        <hr />
+                        <label for="accFrameworkManage" class="form-label" data-a-en="Draft framework" data-a-bn="খসড়া কাঠামো">Draft framework</label>
+                        <select id="accFrameworkManage" class="form-select mb-2"></select>
+                        <form id="accStandardForm">
+                            <label for="accStandardCode" class="form-label" data-a-en="Standard code" data-a-bn="মানদণ্ড কোড">Standard code</label>
+                            <input id="accStandardCode" class="form-control mb-2" maxlength="40" required />
+                            <label for="accStandardTitle" class="form-label" data-a-en="Standard title" data-a-bn="মানদণ্ড শিরোনাম">Standard title</label>
+                            <input id="accStandardTitle" class="form-control mb-2" maxlength="200" required />
+                            <label for="accStandardRubric" class="form-label" data-a-en="Evaluation rubric" data-a-bn="মূল্যায়ন নির্দেশিকা">Evaluation rubric</label>
+                            <textarea id="accStandardRubric" class="form-control mb-2" minlength="10" maxlength="2000" required rows="2"></textarea>
+                            <label for="accStandardRequired" class="form-label" data-a-en="Required evidence" data-a-bn="প্রয়োজনীয় প্রমাণ">Required evidence</label>
+                            <textarea id="accStandardRequired" class="form-control mb-2" minlength="10" maxlength="2000" required rows="2"></textarea>
+                            <label for="accStandardValidity" class="form-label" data-a-en="Approval validity (days)" data-a-bn="অনুমোদনের মেয়াদ (দিন)">Approval validity (days)</label>
+                            <input id="accStandardValidity" type="number" class="form-control mb-2" min="1" max="3650" value="365" required />
+                            <button id="accStandardSave" class="btn btn-outline-primary" type="submit" data-a-en="Add standard" data-a-bn="মানদণ্ড যোগ">Add standard</button>
+                        </form>
+                        <button id="accFrameworkPublish" class="btn btn-outline-success mt-3" type="button" data-a-en="Independent publish" data-a-bn="স্বতন্ত্র প্রকাশ অনুমোদন">Independent publish</button>
+                        <p class="small text-muted mb-0 mt-2" data-a-en="The draft creator cannot publish their own version. Published standards cannot be changed." data-a-bn="খসড়া প্রস্তুতকারী নিজে প্রকাশ করতে পারবেন না। প্রকাশিত মানদণ্ড আর বদলানো যাবে না।">The draft creator cannot publish their own version. Published standards cannot be changed.</p>
+                    </div>
+                </section>
+            }
+            <section class="card border-0 shadow-sm" aria-labelledby="accCreateHeading">
+                <div class="card-body">
+                    <h2 id="accCreateHeading" class="h5" data-a-en="New evidence assessment" data-a-bn="নতুন প্রমাণ মূল্যায়ন">New evidence assessment</h2>
+                    <form id="accCreateForm">
+                        <label for="accCampus" class="form-label" data-a-en="Campus" data-a-bn="ক্যাম্পাস">Campus</label>
+                        <select id="accCampus" class="form-select mb-2" required></select>
+                        <label for="accProgram" class="form-label" data-a-en="Program (optional)" data-a-bn="প্রোগ্রাম (ঐচ্ছিক)">Program (optional)</label>
+                        <select id="accProgram" class="form-select mb-2"></select>
+                        <label for="accFramework" class="form-label" data-a-en="Published framework" data-a-bn="প্রকাশিত কাঠামো">Published framework</label>
+                        <select id="accFramework" class="form-select mb-2" required></select>
+                        <label for="accStandard" class="form-label" data-a-en="Standard" data-a-bn="মানদণ্ড">Standard</label>
+                        <select id="accStandard" class="form-select mb-2" required></select>
+                        <label for="accPeriodFrom" class="form-label" data-a-en="Assessment period from" data-a-bn="মূল্যায়ন শুরুর তারিখ">Assessment period from</label>
+                        <input id="accPeriodFrom" type="date" class="form-control mb-2" required />
+                        <label for="accPeriodTo" class="form-label" data-a-en="Assessment period to" data-a-bn="মূল্যায়ন শেষের তারিখ">Assessment period to</label>
+                        <input id="accPeriodTo" type="date" class="form-control mb-2" required />
+                        <label for="accEvidence" class="form-label" data-a-en="Evidence summary" data-a-bn="প্রমাণের সারসংক্ষেপ">Evidence summary</label>
+                        <textarea id="accEvidence" class="form-control mb-2" rows="4" minlength="30" maxlength="3000" required></textarea>
+                        <button id="accCreateButton" type="submit" class="btn btn-primary" data-a-en="Save evidence draft" data-a-bn="প্রমাণের খসড়া সংরক্ষণ">Save evidence draft</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-8">
+            <section class="card border-0 shadow-sm" aria-labelledby="accQueueHeading">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                        <h2 id="accQueueHeading" class="h5 mb-0" data-a-en="Accreditation evidence queue" data-a-bn="স্বীকৃতি প্রমাণের তালিকা">Accreditation evidence queue</h2>
+                        <button id="accRefresh" type="button" class="btn btn-sm btn-outline-secondary" data-a-en="Refresh" data-a-bn="রিফ্রেশ">Refresh</button>
+                    </div>
+                    <div class="table-responsive"><table class="table table-sm table-striped">
+                        <thead><tr><th data-a-en="Standard" data-a-bn="মানদণ্ড">Standard</th><th data-a-en="Period" data-a-bn="সময়কাল">Period</th><th data-a-en="Status" data-a-bn="অবস্থা">Status</th><th data-a-en="Action" data-a-bn="কার্যক্রম">Action</th></tr></thead>
+                        <tbody id="accRows"></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <button id="accPrevious" type="button" class="btn btn-sm btn-outline-secondary" data-a-en="Previous" data-a-bn="আগের">Previous</button>
+                        <span id="accPage" aria-live="polite"></span>
+                        <button id="accNext" type="button" class="btn btn-sm btn-outline-secondary" data-a-en="Next" data-a-bn="পরের">Next</button>
+                    </div>
+                </div>
+            </section>
+            <section id="accDetail" class="card border-0 shadow-sm mt-3 d-none" aria-labelledby="accDetailHeading">
+                <div class="card-body">
+                    <h2 id="accDetailHeading" class="h5" data-a-en="Assessment and review" data-a-bn="মূল্যায়ন ও পর্যালোচনা">Assessment and review</h2>
+                    <div id="accSummary" class="mb-3"></div>
+                    <div id="accSensitive" class="mb-3"></div>
+                    <form id="accActionForm">
+                        <label for="accAction" class="form-label" data-a-en="Available action" data-a-bn="অনুমোদিত কার্যক্রম">Available action</label>
+                        <select id="accAction" class="form-select mb-2" required></select>
+                        <div id="accEditBox" class="d-none">
+                            <label for="accEditEvidence" class="form-label" data-a-en="Revised evidence summary" data-a-bn="সংশোধিত প্রমাণের সারসংক্ষেপ">Revised evidence summary</label>
+                            <textarea id="accEditEvidence" class="form-control mb-2" rows="4" minlength="30" maxlength="3000"></textarea>
+                        </div>
+                        <div id="accReviewerBox" class="d-none">
+                            <label for="accReviewer" class="form-label" data-a-en="Independent reviewer" data-a-bn="স্বতন্ত্র পর্যালোচক">Independent reviewer</label>
+                            <select id="accReviewer" class="form-select mb-2"></select>
+                        </div>
+                        <label for="accReason" class="form-label" data-a-en="Decision reason" data-a-bn="সিদ্ধান্তের কারণ">Decision reason</label>
+                        <textarea id="accReason" class="form-control mb-2" maxlength="500" rows="2"></textarea>
+                        <label id="accConflictLabel" class="form-check mb-2 d-none">
+                            <input id="accConflict" type="checkbox" class="form-check-input" />
+                            <span class="form-check-label" data-a-en="I have no conflict of interest" data-a-bn="আমার কোনো স্বার্থের সংঘাত নেই">I have no conflict of interest</span>
+                        </label>
+                        <button id="accConfirm" type="submit" class="btn btn-primary" data-a-en="Confirm action" data-a-bn="কার্যক্রম নিশ্চিত করুন">Confirm action</button>
+                    </form>
+                    <h3 class="h6 mt-4" data-a-en="Immutable decision history" data-a-bn="অপরিবর্তনীয় সিদ্ধান্ত ইতিহাস">Immutable decision history</h3>
+                    <div id="accHistory" class="small"></div>
+                </div>
+            </section>
+            <section id="accReport" class="card border-0 shadow-sm mt-3" aria-labelledby="accReportHeading">
+                <div class="card-body">
+                    <h2 id="accReportHeading" class="h5" data-a-en="Accreditation audit summary" data-a-bn="স্বীকৃতি অডিট সারসংক্ষেপ">Accreditation audit summary</h2>
+                    <form id="accReportForm" class="row g-2 align-items-end">
+                        <div class="col-md-4"><label class="form-label" for="accReportCampus" data-a-en="Campus" data-a-bn="ক্যাম্পাস">Campus</label><select id="accReportCampus" class="form-select" required></select></div>
+                        <div class="col-md-3"><label class="form-label" for="accReportFrom" data-a-en="From" data-a-bn="শুরু">From</label><input id="accReportFrom" type="date" class="form-control" required /></div>
+                        <div class="col-md-3"><label class="form-label" for="accReportTo" data-a-en="To" data-a-bn="শেষ">To</label><input id="accReportTo" type="date" class="form-control" required /></div>
+                        <div class="col-md-2"><button id="accReportRun" type="submit" class="btn btn-outline-primary" data-a-en="Run report" data-a-bn="রিপোর্ট দেখুন">Run report</button></div>
+                    </form>
+                    <div class="table-responsive mt-3"><table class="table table-sm">
+                        <thead><tr><th>Framework</th><th>Standard</th><th>Total</th><th>Approved</th><th>Pending</th><th>Expired</th></tr></thead>
+                        <tbody id="accReportRows"></tbody>
+                    </table></div>
+                    <a id="accCsv" href="#" class="btn btn-sm btn-outline-success d-none" download data-a-en="Download verified CSV" data-a-bn="যাচাইকৃত CSV ডাউনলোড">Download verified CSV</a>
+                    <button id="accPrint" type="button" class="btn btn-sm btn-outline-secondary d-none" data-a-en="Print / Save PDF" data-a-bn="প্রিন্ট / PDF সংরক্ষণ">Print / Save PDF</button>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+@section Scripts { <script src="~/js/research/accreditation.js" asp-append-version="true"></script> }

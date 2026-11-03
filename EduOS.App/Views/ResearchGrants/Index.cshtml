@@ -1,0 +1,103 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "গবেষণা অনুদান ও প্রকল্প" : "Research Grants & Projects";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var coordinator = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("ResearchCoordinator");
+}
+<div id="researchGrantWorkspace" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <div id="grantNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-xl-4">
+            @if (coordinator)
+            {
+                <section class="card border-0 shadow-sm mb-3" aria-label="Grant scheme configuration">
+                    <div class="card-body">
+                        <h2 class="h5" data-g-en="Grant scheme settings" data-g-bn="অনুদান স্কিম সেটিংস">Grant scheme settings</h2>
+                        <form id="grantSchemeForm">
+                            <label for="grantSchemeCode" class="form-label" data-g-en="Scheme code" data-g-bn="স্কিম কোড">Scheme code</label>
+                            <input id="grantSchemeCode" class="form-control mb-2" maxlength="40" required pattern="[A-Za-z0-9_]+" />
+                            <label for="grantSchemeName" class="form-label" data-g-en="Scheme name" data-g-bn="স্কিমের নাম">Scheme name</label>
+                            <input id="grantSchemeName" class="form-control mb-2" maxlength="200" required />
+                            <label for="grantCurrency" class="form-label" data-g-en="Currency (ISO code)" data-g-bn="মুদ্রা (ISO কোড)">Currency (ISO code)</label>
+                            <input id="grantCurrency" class="form-control mb-2" maxlength="3" pattern="[A-Za-z]{3}" value="BDT" required />
+                            <label for="grantSchemeMax" class="form-label" data-g-en="Maximum award" data-g-bn="সর্বোচ্চ অনুমোদন">Maximum award</label>
+                            <input id="grantSchemeMax" class="form-control mb-2" type="number" min="0.01" step="0.01" required />
+                            <button class="btn btn-outline-primary" type="submit" data-g-en="Create scheme" data-g-bn="স্কিম তৈরি">Create scheme</button>
+                        </form>
+                    </div>
+                </section>
+            }
+            <section class="card border-0 shadow-sm" aria-labelledby="grantCreateHeading">
+                <div class="card-body">
+                    <h2 class="h5" id="grantCreateHeading" data-g-en="New grant application" data-g-bn="নতুন অনুদান আবেদন">New grant application</h2>
+                    <p class="small text-muted" data-g-en="A proposal must already have independent ethics approval. Find its reference on the Research & Ethics page." data-g-bn="প্রস্তাবে আগে স্বতন্ত্র নৈতিক অনুমোদন থাকতে হবে। Research & Ethics পৃষ্ঠা থেকে রেফারেন্স নিন।">A proposal must already have independent ethics approval. Find its reference on the Research & Ethics page.</p>
+                    <form id="grantCreateForm">
+                        <label for="grantProposal" class="form-label" data-g-en="Ethics-approved proposal reference" data-g-bn="নৈতিকভাবে অনুমোদিত প্রস্তাব রেফারেন্স">Ethics-approved proposal reference</label>
+                        <input id="grantProposal" class="form-control mb-2" required maxlength="36" />
+                        <label for="grantScheme" class="form-label" data-g-en="Grant scheme" data-g-bn="অনুদান স্কিম">Grant scheme</label>
+                        <select id="grantScheme" class="form-select mb-2" required></select>
+                        <label for="grantTitle" class="form-label" data-g-en="Project title" data-g-bn="প্রকল্পের শিরোনাম">Project title</label>
+                        <input id="grantTitle" class="form-control mb-2" minlength="5" maxlength="200" required />
+                        <label for="grantRequested" class="form-label" data-g-en="Requested budget" data-g-bn="আবেদনকৃত বাজেট">Requested budget</label>
+                        <input id="grantRequested" type="number" min="0.01" step="0.01" class="form-control mb-2" required />
+                        <button id="grantCreateButton" class="btn btn-primary" type="submit" data-g-en="Save application" data-g-bn="আবেদন সংরক্ষণ">Save application</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-8">
+            <section class="card border-0 shadow-sm" aria-labelledby="grantQueueHeading">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between gap-2 align-items-center mb-2">
+                        <h2 id="grantQueueHeading" class="h5 mb-0" data-g-en="Grant applications & projects" data-g-bn="অনুদান আবেদন ও প্রকল্প">Grant applications & projects</h2>
+                        <button id="grantRefresh" type="button" class="btn btn-sm btn-outline-secondary" data-g-en="Refresh" data-g-bn="রিফ্রেশ">Refresh</button>
+                    </div>
+                    <div class="table-responsive"><table class="table table-sm table-striped align-middle">
+                        <thead><tr><th data-g-en="Project" data-g-bn="প্রকল্প">Project</th><th data-g-en="Status" data-g-bn="অবস্থা">Status</th><th data-g-en="Budget" data-g-bn="বাজেট">Budget</th><th data-g-en="Action" data-g-bn="কার্যক্রম">Action</th></tr></thead>
+                        <tbody id="grantRows"></tbody>
+                    </table></div>
+                    <div class="d-flex justify-content-between gap-2 align-items-center">
+                        <button id="grantPrevious" class="btn btn-sm btn-outline-secondary" type="button" data-g-en="Previous" data-g-bn="আগের">Previous</button>
+                        <span id="grantPage" aria-live="polite"></span>
+                        <button id="grantNext" class="btn btn-sm btn-outline-secondary" type="button" data-g-en="Next" data-g-bn="পরের">Next</button>
+                    </div>
+                </div>
+            </section>
+            <section id="grantDetail" class="card border-0 shadow-sm mt-3 d-none" aria-labelledby="grantDetailHeading">
+                <div class="card-body">
+                    <h2 id="grantDetailHeading" class="h5" data-g-en="Selected grant" data-g-bn="নির্বাচিত অনুদান">Selected grant</h2>
+                    <div id="grantSummary" class="mb-3"></div>
+                    <form id="grantActionForm">
+                        <label for="grantAction" class="form-label" data-g-en="Available action" data-g-bn="অনুমোদিত কার্যক্রম">Available action</label>
+                        <select id="grantAction" class="form-select mb-2" required></select>
+                        <div id="grantAmountBox" class="d-none">
+                            <label for="grantAmount" class="form-label" data-g-en="Amount" data-g-bn="অর্থের পরিমাণ">Amount</label>
+                            <input id="grantAmount" type="number" class="form-control mb-2" step="0.01" min="0.01" />
+                        </div>
+                        <div id="grantMilestoneBox" class="d-none">
+                            <label for="grantMilestoneTitle" class="form-label" data-g-en="Milestone title" data-g-bn="মাইলস্টোন শিরোনাম">Milestone title</label>
+                            <input id="grantMilestoneTitle" class="form-control mb-2" maxlength="200" />
+                            <label for="grantDueDate" class="form-label" data-g-en="Due date" data-g-bn="শেষ তারিখ">Due date</label>
+                            <input id="grantDueDate" type="date" class="form-control mb-2" />
+                        </div>
+                        <div id="grantOutcomeBox" class="d-none">
+                            <label for="grantMilestoneId" class="form-label" data-g-en="Milestone" data-g-bn="মাইলস্টোন">Milestone</label>
+                            <select id="grantMilestoneId" class="form-select mb-2"></select>
+                            <label for="grantOutcome" class="form-label" data-g-en="Outcome / evidence summary" data-g-bn="ফলাফল / প্রমাণের সারসংক্ষেপ">Outcome / evidence summary</label>
+                            <textarea id="grantOutcome" class="form-control mb-2" maxlength="2000" rows="3"></textarea>
+                        </div>
+                        <label for="grantReason" class="form-label" data-g-en="Reason / decision note" data-g-bn="কারণ / সিদ্ধান্ত মন্তব্য">Reason / decision note</label>
+                        <textarea id="grantReason" class="form-control mb-2" maxlength="500" rows="2"></textarea>
+                        <button id="grantConfirm" type="submit" class="btn btn-primary" data-g-en="Confirm action" data-g-bn="কার্যক্রম নিশ্চিত করুন">Confirm action</button>
+                    </form>
+                    <h3 class="h6 mt-4" data-g-en="Milestones" data-g-bn="মাইলস্টোন">Milestones</h3>
+                    <div id="grantMilestones" class="small mb-3"></div>
+                    <h3 class="h6" data-g-en="Command history" data-g-bn="কার্যক্রমের ইতিহাস">Command history</h3>
+                    <div id="grantHistory" class="small"></div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+@section Scripts { <script src="~/js/research/research-grants.js" asp-append-version="true"></script> }

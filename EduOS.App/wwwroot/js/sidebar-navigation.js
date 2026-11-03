@@ -21,7 +21,8 @@
             ['portal', 'My Learning Portal', 'আমার লার্নিং পোর্টাল', ['/StudentPortal', '/StudentSubjects', '/Alumni']],
             ['learners', 'Admissions & Students', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/LearnerIdentities']],
             ['career', 'Career & Placement', 'ক্যারিয়ার ও কর্মসংস্থান', ['/CareerEmployers', '/CareerOpportunities', '/CareerPlacements']],
-            ['research', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন', ['/ResearchProposals']],
+            ['research', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন', ['/ResearchProposals', '/ResearchGrants']],
+            ['accreditation', 'Accreditation & Quality', 'স্বীকৃতি ও মান', ['/Accreditation']],
             ['learning', 'Learning & Courses', 'শিক্ষা ও কোর্স', ['/Learning']],
             ['assessments', 'Exams & Results', 'পরীক্ষা ও ফলাফল', ['/AssessmentAdministration']],
             ['operations', 'Classes & Attendance', 'ক্লাস ও উপস্থিতি', ['/AcademicRoutines', '/AcademicInstruction', '/AcademicCalendar', '/StudentLeaves', '/Attendance']]
@@ -63,7 +64,10 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/CareerOpportunities', '/CareerPlacements']]
         ],
         'academics:research': [
-            ['operations', 'Operations', 'কার্যক্রম', ['/ResearchProposals']]
+            ['operations', 'Operations', 'কার্যক্রম', ['/ResearchProposals', '/ResearchGrants']]
+        ],
+        'academics:accreditation': [
+            ['operations', 'Operations & Reports', 'কার্যক্রম ও রিপোর্ট', ['/Accreditation']]
         ],
         'academics:learning': [
             ['settings', 'Settings', 'সেটিংস', ['/Learning/CourseContent']],
