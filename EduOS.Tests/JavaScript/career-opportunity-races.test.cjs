@@ -132,6 +132,8 @@ test('Career employer search invalidates stale options and guards draft submissi
     });
     submit();
     submit();
+    // Writes now revalidate the live cookie session asynchronously before fetch.
+    await h.settle();
     const posts = h.requests.filter(r => r.options.method === 'POST');
     assert.equal(posts.length, 1, 'double-submit must create one request');
     assert.equal(JSON.parse(posts[0].options.body).employerReference, 'new');
