@@ -77,7 +77,7 @@ public sealed class FacilityWorkOrdersCsvExportTests
         service.Setup(x => x.ExportSnapshotAsync(null, null, false, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Ok(Enumerable.Range(1, 101).Select(i =>
                 new FacilityRequestDto { Id = i, Summary = "Safe" }).ToArray()));
-        var file = Assert.IsType<FileContentResult>(await new FacilityWorkOrdersApiController(service.Object)
+        var file = Assert.IsType<FileContentResult>(await Controller(service.Object)
             .Export(null, null, false, CancellationToken.None));
         var csv = Encoding.UTF8.GetString(file.FileContents);
         Assert.Contains("\"101\"", csv);
