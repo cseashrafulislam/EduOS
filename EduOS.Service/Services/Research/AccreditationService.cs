@@ -639,11 +639,6 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
     {
         public long Id { get; set; }
         public int ValidityDays { get; set; }
-        public int RequiredReviewerCount { get; set; }
-        public int AssignedReviewerCount { get; set; }
-        public int ApprovalsReceived { get; set; }
-        public bool ActorIsReviewer { get; set; }
-        public bool ActorReviewPending { get; set; }
     }
     private sealed class AssessmentEventRow
     {
@@ -663,6 +658,11 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         public string FrameworkCode { get; set; } = "";
         public int FrameworkVersion { get; set; }
         public int ValidityDays { get; set; }
+        public int RequiredReviewerCount { get; set; }
+        public int AssignedReviewerCount { get; set; }
+        public int ApprovalsReceived { get; set; }
+        public bool ActorIsReviewer { get; set; }
+        public bool ActorReviewPending { get; set; }
         public long OwnerUserId { get; set; }
         public long? ReviewerUserId { get; set; }
         public DateTime PeriodStart { get; set; }
