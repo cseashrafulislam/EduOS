@@ -282,7 +282,7 @@ test('branding onboarding is the thirteenth independently reviewed bilingual man
     const view = read('EduOS.App/Views/Account/BrandingSetup.cshtml');
     const layout = read('EduOS.App/Views/Account/_OnboardingLayout.cshtml');
     const editor = read('EduOS.App/wwwroot/js/account/branding-setup.js');
-    assert.match(controller, /\[Authorize\(Roles = "TenantAdmin"\)\]\s*\[HttpGet\]\s*public IActionResult BrandingSetup\(\) => View\(\)/);
+    assert.match(controller, /\[Authorize\(Roles = "TenantAdmin"\)\]\s*\[HttpGet\]\s*\[ResponseCache\(NoStore = true, Location = ResponseCacheLocation\.None\)\]\s*public IActionResult BrandingSetup\(\) => View\(\)/);
     assert.match(view, /Layout = "_OnboardingLayout"/);
     assert.match(layout, /Layout = "_Layout"/);
     assert.match(view, /id="brandingForm"[\s\S]*?@Html\.AntiForgeryToken\(\)/);

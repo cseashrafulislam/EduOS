@@ -420,6 +420,7 @@ test('branding color saves carry CSRF; missing token and invalid colors fail bef
             addEventListener(name, callback) { if (name === 'DOMContentLoaded') onReady = callback; }
         };
         const window = {
+            addEventListener() {}, // lifecycle is tested by the dedicated branding harness
             clearTimeout() {}, setTimeout() {}, confirm: () => true,
             location: { assign(url) { calls.push({ redirect: url }); } },
             EduOSSessionTransitionPending: () => false,
