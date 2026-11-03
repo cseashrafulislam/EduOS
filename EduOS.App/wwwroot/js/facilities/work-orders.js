@@ -86,8 +86,13 @@
         pending.set(key, { id, fingerprint });
         return id;
     };
-    // This API has no response-bound session identity. Reconcile with the
-    // existing authenticated session shield before displaying any readback.
+    // Every private JSON and CSV response must belong to the original institution
+    // and public cookie session. The shield alone cannot authenticate a stale 200.
+    const responseMatchesSession = response =>
+        sessionCurrent() && /^[0-9A-F]{64}$/.test(session.reference) &&
+        /^[1-9][0-9]*$/.test(session.tenant) &&
+        response?.headers?.get('X-EduOS-Session-Reference') === session.reference &&
+        response?.headers?.get('X-EduOS-Tenant-Id') === session.tenant;
     function lockPage() {
         if (blocked) return;
         blocked = true;
@@ -162,15 +167,23 @@
             method, credentials: 'same-origin', cache: 'no-store', headers,
             ...(body === undefined ? {} : { body: JSON.stringify(body) })
         });
-        await verifySession();
-        const data = await response.json().catch(() => null);
-        // JSON parsing is asynchronous: the institution may switch after the
-        // verification response but before the private payload is consumed.
-        if (!sessionCurrent() || shield.hidden !== true) {
+        if (response.status === 401 || response.status === 403) {
             lockPage();
             throw new Error('session-changed');
         }
-        if (response.status === 401 || response.status === 403) { lockPage(); throw new Error('session-changed'); }
+        await verifySession();
+        // Reject before parsing private JSON, including a successful stale HTTP 200.
+        if (!responseMatchesSession(response)) {
+            lockPage();
+            throw new Error('session-changed');
+        }
+        const data = await response.json().catch(() => null);
+        // The institution can change during asynchronous JSON parsing.
+        await verifySession();
+        if (!responseMatchesSession(response)) {
+            lockPage();
+            throw new Error('session-changed');
+        }
         if (!response.ok || !data?.success) {
             const error = new Error(data?.message || t('Request failed.', 'অনুরোধ ব্যর্থ।'));
             error.status = response.status;
@@ -768,15 +781,57 @@
     el('workflowSearch').addEventListener('submit', e => { e.preventDefault(); page = 1; clearSelection(); load(); });
     el('wfPrev').addEventListener('click', () => { if (page > 1) { page--; clearSelection(); load(); } });
     el('wfNext').addEventListener('click', () => { if (page < pages) { page++; clearSelection(); load(); } });
+    // A direct location.assign download cannot validate the response tenant or
+    // cookie-session reference. Fetch and verify the bounded CSV before release.
+    let exporting = false;
     el('facilityExport').addEventListener('click', async () => {
-        try { await verifySession(); }
-        catch (error) { if (!blocked) notice(error.message); return; }
-        if (blocked) return;
-        const q = new URLSearchParams();
-        if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
-        if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
-        if (el('wfOverdueOnly').checked) q.set('overdueOnly', 'true');
-        window.location.assign(base + '/export?' + q);
+        if (blocked || exporting) return;
+        exporting = true;
+        const exportButton = el('facilityExport');
+        exportButton.disabled = true;
+        try {
+            await verifySession();
+            const q = new URLSearchParams();
+            if (el('wfCampusFilter').value) q.set('campusId', el('wfCampusFilter').value);
+            if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
+            if (el('wfOverdueOnly').checked) q.set('overdueOnly', 'true');
+            const response = await fetch(base + '/export?' + q, {
+                method: 'GET', credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'text/csv' }
+            });
+            if (response.status === 401 || response.status === 403) {
+                lockPage();
+                throw new Error('session-changed');
+            }
+            await verifySession();
+            if (!responseMatchesSession(response)) {
+                lockPage();
+                throw new Error('session-changed');
+            }
+            if (!response.ok || !(response.headers.get('content-type') || '').includes('text/csv'))
+                throw new Error(t('Export denied or invalid; narrow the filters and retry.',
+                    'এক্সপোর্ট প্রত্যাখ্যাত বা ভুল; ফিল্টার কমিয়ে আবার চেষ্টা করুন।'));
+            const blob = await response.blob();
+            await verifySession();
+            if (!responseMatchesSession(response)) {
+                lockPage();
+                throw new Error('session-changed');
+            }
+            const href = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = href;
+            anchor.download = 'facilities-work-orders.csv';
+            document.body.append(anchor);
+            anchor.click();
+            anchor.remove();
+            setTimeout(() => URL.revokeObjectURL(href), 1000);
+            notice(t('Scoped work-order CSV downloaded.', 'অনুমোদিত কাজের CSV ডাউনলোড হয়েছে।'), true);
+        } catch (error) {
+            if (!blocked) notice(error.message);
+        } finally {
+            exporting = false;
+            if (!blocked) exportButton.disabled = false;
+        }
     });
     el('wfAction').addEventListener('change', toggleFields);
     el('wfCreate').addEventListener('submit', async e => {

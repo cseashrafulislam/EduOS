@@ -201,7 +201,8 @@ test('confirmed validation rejection exposes status so the form can permit corre
     const context = {
         base: '/api/facilities/work-orders', token: 'test-csrf',
         t: en => en, sessionCurrent: () => true, verifySession: async () => {},
-        shield: { hidden: true }, lockPage: () => {}, fetch: async () => ({
+        shield: { hidden: true }, lockPage: () => {}, responseMatchesSession: () => true,
+        fetch: async () => ({
             ok: false, status: 400,
             json: async () => ({ success: false, message: 'Invalid summary' })
         })
@@ -459,4 +460,22 @@ test('approved vendor and technician windows must intersect in preview, mutation
     assert.match(script, /selected\.workOrderState === 'Scheduled'/);
     assert.match(view, /An approved vendor booking and technician schedule must overlap/);
     assert.match(view, /টেকনিশিয়ানের সময়সূচির সঙ্গে অন্তত কিছু সময় মিলতে হবে/);
+});
+
+test('work-order private JSON and CSV require server-bound institution/session before display', () => {
+    const api = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/Controllers/Api/FacilityWorkOrdersApiController.cs'), 'utf8');
+    assert.match(api, /IAsyncActionFilter/);
+    assert.match(api, /AuthSessionRegistry.ToPublicReference/);
+    assert.match(api, /X-EduOS-Session-Reference/);
+    assert.match(api, /X-EduOS-Tenant-Id/);
+    assert.match(api, /context.Result = SessionUnavailable/);
+    assert.match(script, /const responseMatchesSession = response/);
+    assert.match(script, /response\.headers\?\.get\('X-EduOS-Tenant-Id'\)/);
+    assert.match(script, /const data = await response\.json\(\)/);
+    assert.match(script, /const blob = await response\.blob\(\)/);
+    assert.match(script, /if \(!responseMatchesSession\(response\)\)/);
+    assert.doesNotMatch(script, /window\.location\.assign\(base \+ '\/export/);
+    assert.match(script, /URL\.createObjectURL\(blob\)/);
+    assert.match(script, /if \(blocked \|\| exporting\) return/);
 });

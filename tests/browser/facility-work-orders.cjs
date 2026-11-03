@@ -54,6 +54,8 @@ async function setup(browser, bn = false, manager = true, mobile = false,
     });
     // localhost is a trustworthy origin: production uses HTTPS and commandId
     // requires secure-context crypto.randomUUID for real form submission.
+    const scopeHeaders = { 'X-EduOS-Session-Reference': 'A'.repeat(64),
+        'X-EduOS-Tenant-Id': '12' };
     await page.route('http://localhost/**', async route => {
         const request = route.request(), url = new URL(request.url());
         if (!url.pathname.startsWith('/api/'))
@@ -61,7 +63,11 @@ async function setup(browser, bn = false, manager = true, mobile = false,
         state.calls.push({ url: url.pathname + url.search, method: request.method(),
             body: request.method() === 'POST' ? request.postDataJSON() : null });
         assert(url.pathname.startsWith('/api/facilities/work-orders'), 'Unexpected endpoint ' + url.pathname);
-        const reply = payload => route.fulfill({ contentType: 'application/json', body: JSON.stringify(ok(payload)) });
+        const reply = payload => route.fulfill({ contentType: 'application/json',
+            headers: scopeHeaders, body: JSON.stringify(ok(payload)) });
+        if (url.pathname.endsWith('/export'))
+            return route.fulfill({ contentType: 'text/csv; charset=utf-8',
+                headers: scopeHeaders, body: 'Request,Campus,Summary\\r\\n7,12,Broken light\\r\\n' });
         if (state.revoked) return route.fulfill({ status: 403, contentType: 'application/json',
             body: JSON.stringify({ success: false, message: 'Campus access revoked' }) });
         if (request.method() !== 'GET') {
@@ -116,6 +122,53 @@ async function setup(browser, bn = false, manager = true, mobile = false,
     await page.addScriptTag({ path: script });
     await page.locator('#wfRows').filter({ hasText: 'Broken light' }).waitFor();
     return { context, page, state };
+}
+async function boundCsvAndStaleResponses(browser) {
+    const valid = await setup(browser, false, true, false);
+    try {
+        const downloadPromise = valid.page.waitForEvent('download');
+        await valid.page.locator('#facilityExport').click();
+        const download = await downloadPromise;
+        const csv = fs.readFileSync(await download.path(), 'utf8');
+        assert.match(csv, /Request,Campus,Summary/);
+        assert.equal(download.suggestedFilename(), 'facilities-work-orders.csv');
+        assert.ok(valid.state.calls.some(c => c.url.startsWith('/api/facilities/work-orders/export?') &&
+            c.method === 'GET'));
+        assert.deepEqual(valid.state.errors, []);
+    } finally { await valid.context.close(); }
+
+    const staleJson = await setup(browser, true, true, true);
+    try {
+        await staleJson.page.route('http://localhost/api/facilities/work-orders?*', route =>
+            route.fulfill({ status: 200, contentType: 'application/json',
+                headers: { 'X-EduOS-Session-Reference': 'B'.repeat(64),
+                    'X-EduOS-Tenant-Id': '12' },
+                body: JSON.stringify(ok({ items: [record], totalPages: 1 })) }));
+        await staleJson.page.locator('#workflowSearch button[type="submit"]').click();
+        await staleJson.page.locator('#workflowAlert')
+            .filter({ hasText: 'প্রতিষ্ঠানের সেশন পরিবর্তিত' }).waitFor();
+        assert.equal(await staleJson.page.locator('#wfRows tr').count(), 0);
+        assert.equal(await staleJson.page.locator('#facilityExport').isDisabled(), true);
+        assert.deepEqual(staleJson.state.errors, []);
+    } finally { await staleJson.context.close(); }
+
+    const staleCsv = await setup(browser, false, true, false);
+    try {
+        let downloads = 0;
+        staleCsv.page.on('download', () => { downloads++; });
+        await staleCsv.page.route('http://localhost/api/facilities/work-orders/export?*', route =>
+            route.fulfill({ status: 200, contentType: 'text/csv',
+                headers: { 'X-EduOS-Session-Reference': 'A'.repeat(64),
+                    'X-EduOS-Tenant-Id': '99' },
+                body: 'Request,Campus,Summary\\r\\n7,99,Foreign work order\\r\\n' }));
+        await staleCsv.page.locator('#facilityExport').click();
+        await staleCsv.page.locator('#workflowAlert')
+            .filter({ hasText: 'Institution session changed' }).waitFor();
+        assert.equal(downloads, 0, 'stale cross-tenant CSV must never be released');
+        assert.equal(await staleCsv.page.locator('#wfRows tr').count(), 0);
+        assert.equal(await staleCsv.page.locator('#facilityExport').isDisabled(), true);
+        assert.deepEqual(staleCsv.state.errors, []);
+    } finally { await staleCsv.context.close(); }
 }
 async function managerAndSession(browser) {
     const { context, page, state } = await setup(browser);
@@ -444,6 +497,7 @@ async function selectionAfterTransition(browser) {
 (async () => {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
+        await boundCsvAndStaleResponses(browser);
         await managerAndSession(browser);
         await delayedRead(browser);
         await mobileBangla(browser);
@@ -455,6 +509,6 @@ async function selectionAfterTransition(browser) {
         await incompatibleWindows(browser);
         await revokedCampus(browser);
         await selectionAfterTransition(browser);
-        console.log('Facility Work Orders Chromium PASS: bilingual mobile/desktop, conflict-aware availability and vendor/technician window compatibility, authorized location picker, approved vendor proposal and independent approval, stale vendor window/search, revocation and stale selection; synthetic API/session only.');
+        console.log('Facility Work Orders Chromium PASS: session-bound JSON/CSV and stale 200 denial, bilingual mobile/desktop, conflict-aware availability and vendor/technician window compatibility, authorized location picker, approved vendor proposal and independent approval, stale vendor window/search, revocation and stale selection; synthetic API/session only.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,4 +1,7 @@
 using System.Text;
+using System.Security.Claims;
+using EduOS.App.Security;
+using Microsoft.AspNetCore.Mvc.Filters;
 using System.Globalization;
 using EduOS.App.Authorization;
 using EduOS.Core.Common;
@@ -13,9 +16,36 @@ namespace EduOS.App.Controllers.Api;
 [ApiController, Route("api/facilities/work-orders"), Authorize, RequireModule("FACILITIES"),
  AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService service) : ControllerBase
+public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService service) : ControllerBase, IAsyncActionFilter
 {
-    private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
+    // Bind every private API response to the authenticated institution and public
+    // cookie-session reference. Missing context must fail before a write action.
+    private bool BindCurrentSession()
+    {
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = User.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
+            return false;
+        Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+        Response.Headers["X-EduOS-Tenant-Id"] = tenant;
+        return true;
+    }
+
+    private IActionResult SessionUnavailable() =>
+        Unauthorized(new { success = false, message = "Session unavailable; sign in again." });
+
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        if (!BindCurrentSession())
+        {
+            context.Result = SessionUnavailable();
+            return;
+        }
+        await next();
+    }
+
+    private IActionResult Reply<T>(ApiResponse<T> response) =>
+        BindCurrentSession() ? StatusCode(response.StatusCode, response) : SessionUnavailable();
 
     [HttpGet, Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester")]
     public async Task<IActionResult> List(long? campusId, string? state, bool overdueOnly = false,
@@ -62,8 +92,10 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
     public async Task<IActionResult> Export(long? campusId, string? state, bool overdueOnly = false,
         CancellationToken ct = default)
     {
+        if (!BindCurrentSession()) return SessionUnavailable();
         var snapshot = await service.ExportSnapshotAsync(campusId, state, overdueOnly, ct);
         if (!snapshot.Success || snapshot.Data == null) return Reply(snapshot);
+        if (!BindCurrentSession()) return SessionUnavailable();
         var bangla = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
         var rows = snapshot.Data;
         static string Csv(object? value)
