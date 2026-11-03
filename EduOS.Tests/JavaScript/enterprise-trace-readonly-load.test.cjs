@@ -10,6 +10,8 @@ const config = {
         '33333333-3333-4333-8333-333333333333'],
     from: '2026-10-01', to: '2026-10-31', campus: '10',
     privateRefs: new Set(['11111111-1111-4111-8111-111111111111',
+        '22222222-2222-4222-8222-222222222222',
+        '33333333-3333-4333-8333-333333333333',
         '99999999-9999-4999-8999-999999999999'])
 };
 const headers = value => new Headers({ 'cache-control': value });
@@ -234,4 +236,60 @@ test('concurrent owner source evidence drift cannot count as a stable load pass'
     };
     await assert.rejects(runSyntheticReadLoad(config, fetch,
         { iterations: 2, concurrency: 2 }), /drifted/);
+});
+
+test('unsafe origin, path injection and untracked owner UUID fail before network', async () => {
+    let calls = 0;
+    const fetch = async () => { calls++; throw new Error('network must not run'); };
+    for (const change of [
+        { base: 'http://qa.eduos.example' },
+        { base: 'https://production.eduos.example' },
+        { base: 'https://qa.eduos.example/extra' },
+        { base: 'https://qa.eduos.example@production.eduos.example' },
+        { refs: ['../finance', config.refs[1], config.refs[2]] },
+        { refs: [config.refs[0], config.refs[0], config.refs[2]] },
+        { privateRefs: new Set([config.refs[0]]) },
+        { from: '2026-02-30' }, { to: '2028-12-31' }, { campus: '0' }
+    ]) await assert.rejects(runSyntheticReadLoad({ ...config, ...change }, fetch,
+        { iterations: 2, concurrency: 2 }));
+    assert.equal(calls, 0);
+});
+
+test('hung requests expire, abort in-flight work and stop new lane dispatch', async () => {
+    let calls = 0, aborted = 0;
+    const hung = (_url, options) => {
+        calls++;
+        return new Promise((_, reject) => {
+            options.signal.addEventListener('abort', () => {
+                aborted++;
+                reject(new Error('aborted synthetic request'));
+            }, { once: true });
+        });
+    };
+    await assert.rejects(runSyntheticReadLoad(config, hung,
+        { iterations: 2, concurrency: 2, timeoutMs: 40 }), /timed out/);
+    assert.equal(calls, 2);
+    assert.equal(aborted, 2);
+});
+
+test('stalled streamed body expires and cancels without accepting partial evidence', async () => {
+    let cancelled = 0;
+    const stalled = async () => new Response(new ReadableStream({
+        start(controller) { controller.enqueue(new Uint8Array([123])); },
+        cancel() { cancelled++; }
+    }), { status: 200, headers: {
+        'cache-control': 'private, no-store', 'content-type': 'application/json'
+    } });
+    await assert.rejects(runSyntheticReadLoad(config, stalled,
+        { iterations: 2, concurrency: 1, timeoutMs: 40 }), /timed out/);
+    assert.equal(cancelled, 1);
+});
+
+test('timeout cannot be disabled or expanded beyond the synthetic budget', async () => {
+    let calls = 0;
+    const fetch = async () => { calls++; throw new Error('network must not run'); };
+    for (const timeoutMs of [0, -1, 24, 30001, 1.5, Infinity])
+        await assert.rejects(runSyntheticReadLoad(config, fetch,
+            { iterations: 2, concurrency: 2, timeoutMs }), /unbounded/);
+    assert.equal(calls, 0);
 });

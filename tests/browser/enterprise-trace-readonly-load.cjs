@@ -53,6 +53,35 @@ function lanes(config) {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Validate the exported load runner independently of the Chromium env parser.
+// Reject unsafe origins, source-path injection and incomplete private UUID inventory.
+function validateReadOnlyConfig(config) {
+    assert(config && typeof config.base === 'string' &&
+        Array.isArray(config.refs) && config.refs.length === 3 &&
+        config.privateRefs instanceof Set && config.privateRefs.size <= 10000,
+    'Validated staging configuration required');
+    let origin;
+    try { origin = new URL(config.base); }
+    catch { assert.fail('Refusing non-isolated staging origin'); }
+    assert(origin.protocol === 'https:' && origin.origin === config.base &&
+        !origin.username && !origin.password && !origin.search && !origin.hash &&
+        /(?:^|[.-])(staging|stage|test|qa|sandbox)(?:[.-]|$)/i.test(origin.hostname),
+    'Refusing non-isolated staging origin');
+    const refs = config.refs.map(ref => String(ref).toLowerCase());
+    const privateRefs = new Set([...config.privateRefs].map(ref => String(ref).toLowerCase()));
+    assert(refs.every(ref => UUID.test(ref) && privateRefs.has(ref)) &&
+        new Set(refs).size === 3, 'Untrusted or untracked synthetic source reference');
+    const validDate = value => typeof value === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        !Number.isNaN(Date.parse(value + 'T00:00:00Z')) &&
+        new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
+    assert(validDate(config.from) && validDate(config.to) &&
+        config.from <= config.to &&
+        (Date.parse(config.to) - Date.parse(config.from)) / 86400000 <= 366 &&
+        /^[1-9]\d*$/.test(String(config.campus)) &&
+        Number.isSafeInteger(Number(config.campus)),
+    'Invalid bounded synthetic campus/date scope');
+}
 // Decode JSON string escapes before searching denied/private payloads.
 function assertNoPrivateEvidence(body, refs) {
     const forms = [body.toLowerCase()];
@@ -62,7 +91,7 @@ function assertNoPrivateEvidence(body, refs) {
         assert(forms.every(form => !form.includes(ref.toLowerCase())),
             'Synthetic denial disclosed private source or Finance evidence');
 }
-async function readBoundedBody(response) {
+async function readBoundedBody(response, signal) {
     const length = response.headers.get('content-length');
     assert(length === null || (/^\d+$/.test(length) && Number(length) <= 2_000_000),
         'Invalid or oversized synthetic content length');
@@ -74,10 +103,13 @@ async function readBoundedBody(response) {
         return text;
     }
     const decoder = new TextDecoder('utf-8', { fatal: true });
+    const cancelOnAbort = () => { void reader.cancel().catch(() => {}); };
+    signal?.addEventListener('abort', cancelOnAbort, { once: true });
     let text = '', bytes = 0;
     try {
         while (true) {
             const { done, value } = await reader.read();
+            if (signal?.aborted) throw new Error('Synthetic read timed out');
             if (done) break;
             assert(value instanceof Uint8Array, 'Invalid synthetic response chunk');
             bytes += value.byteLength;
@@ -89,6 +121,7 @@ async function readBoundedBody(response) {
         try { await reader.cancel(); } catch { /* Preserve original failure. */ }
         throw error;
     } finally {
+        signal?.removeEventListener('abort', cancelOnAbort);
         reader.releaseLock();
     }
 }
@@ -129,14 +162,14 @@ function authorizedFingerprint(lane, body, config) {
 }
 
 async function runSyntheticReadLoad(config, fetcher, options = {}) {
-    assert(config && typeof config.base === 'string' &&
-        Array.isArray(config.refs) && config.refs.length >= 3 &&
-        config.privateRefs instanceof Set, 'Validated staging configuration required');
+    validateReadOnlyConfig(config);
     assert(typeof fetcher === 'function', 'Authenticated fetcher required');
     const iterations = options.iterations ?? 12;
     const concurrency = options.concurrency ?? 4;
+    const timeoutMs = options.timeoutMs ?? 20000;
     assert(Number.isInteger(iterations) && iterations >= 2 && iterations <= 13 &&
-        Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 4,
+        Number.isInteger(concurrency) && concurrency >= 1 && concurrency <= 4 &&
+        Number.isInteger(timeoutMs) && timeoutMs >= 25 && timeoutMs <= 30000,
     'Refusing unbounded synthetic load');
     const definitions = lanes(config);
     const tasks = [];
@@ -151,12 +184,21 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
         while (!failure && cursor < tasks.length) {
             const lane = tasks[cursor++];
             const start = performance.now();
+            const controller = new AbortController();
+            let timer;
+            const deadline = new Promise((_, reject) => {
+                timer = setTimeout(() => {
+                    reject(new Error('Synthetic read timed out'));
+                    controller.abort();
+                }, timeoutMs);
+            });
             inFlight++;
             peakInFlight = Math.max(peakInFlight, inFlight);
             try {
-                const response = await fetcher(lane.url, {
-                    method: 'GET', headers: { Cookie: lane.session }
-                });
+                const response = await Promise.race([fetcher(lane.url, {
+                    method: 'GET', headers: { Cookie: lane.session },
+                    signal: controller.signal
+                }), deadline]);
                 assert(lane.statuses.includes(response.status),
                     'Synthetic read returned an unexpected authorization status');
                 assert(privateNoStore(response.headers),
@@ -165,7 +207,9 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
                     assert(/^application\/(?:json|[a-z0-9.+-]+\+json)(?:\s*;|\s*$)/i
                         .test(String(response.headers.get('content-type') || '')),
                     'Authorized synthetic evidence is not JSON');
-                const body = await readBoundedBody(response);
+                const body = await Promise.race([
+                    readBoundedBody(response, controller.signal), deadline
+                ]);
                 if (lane.deniedOwner) assertNoPrivateEvidence(body, config.privateRefs);
                 if (response.status === 200) {
                     const signature = authorizedFingerprint(lane, body, config);
@@ -178,6 +222,8 @@ async function runSyntheticReadLoad(config, fetcher, options = {}) {
             } catch (error) {
                 failure = error;
             } finally {
+                clearTimeout(timer);
+                controller.abort();
                 inFlight--;
             }
         }
