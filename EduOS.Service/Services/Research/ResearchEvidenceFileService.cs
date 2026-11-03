@@ -27,6 +27,9 @@ public sealed class ResearchEvidenceFileService(EduOSDbContext db, ResearchWorkf
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Research evidence unavailable.", 404);
     private static ApiResponse<T> Conflict<T>() => ApiResponse<T>.ErrorResponse("Evidence changed; reload and retry.", 409);
     private static bool Purpose(string value) => value is "proposal" or "accreditation";
+    private static bool EvidenceWritable(string purpose, string state) =>
+        state is "Draft" or "ChangesRequested" ||
+        (purpose == "proposal" && state == "EthicsRejected");
     private static string Folder(string purpose) => purpose == "proposal" ? "research-evidence" : "accreditation-evidence";
     internal static bool TenantKey(string? key, long tenant, string purpose) =>
         Purpose(purpose) && tenant > 0 && !string.IsNullOrWhiteSpace(key) &&
@@ -170,7 +173,7 @@ public sealed class ResearchEvidenceFileService(EduOSDbContext db, ResearchWorkf
                 ? ApiResponse<ResearchEvidenceFileDto>.SuccessResponse(Map(prior))
                 : Conflict<ResearchEvidenceFileDto>();
         }
-        if (parent.StateCode is not ("Draft" or "ChangesRequested"))
+        if (!EvidenceWritable(purpose, parent.StateCode))
             return Conflict<ResearchEvidenceFileDto>();
         var quota = await SubscriptionStorageQuotaPolicy.GetAsync(db, access.TenantId, Now, ct);
         if (!quota.CanAdd(buffer.Length))
@@ -212,7 +215,7 @@ public sealed class ResearchEvidenceFileService(EduOSDbContext db, ResearchWorkf
                 var live = current.Parent;
                 if (live == null || !current.Owner ||
                     live.Id != parent.Id || live.CurrentRevision != parent.CurrentRevision ||
-                    live.StateCode is not ("Draft" or "ChangesRequested"))
+                    !EvidenceWritable(purpose, live.StateCode))
                     return Conflict<ResearchEvidenceFileDto>();
                 var revision = live.CurrentRevision + 1;
                 var typeFilter = ParentFilter(purpose);

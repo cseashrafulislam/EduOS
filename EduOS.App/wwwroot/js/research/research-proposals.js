@@ -266,7 +266,7 @@
             el('researchReason').value = ''; el('researchConflict').checked = false;
             el('researchDetail').classList.remove('d-none'); updateActionFields(); controls();
             el('researchFileForm').classList.toggle('d-none',
-                !(['Draft', 'ChangesRequested'].includes(proposal.stateCode) &&
+                !(['Draft', 'ChangesRequested', 'EthicsRejected'].includes(proposal.stateCode) &&
                     (proposal.allowedActions || []).some(a => ['edit', 'submit', 'revise'].includes(a))));
             if (proposal.allowedActions?.includes('assign')) await reviewerOptions(proposal, generation);
             const history = await api('/api/research/proposals/' + encodeURIComponent(reference) + '/history?page=1&pageSize=25');

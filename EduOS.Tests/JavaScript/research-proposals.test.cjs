@@ -35,6 +35,8 @@ test('research evidence uses tenant-scoped private scanning and authenticated ve
     assert.match(evidence, /SubscriptionStorageQuotaPolicy\.GetAsync/);
     assert.match(evidence, /IsolationLevel\.Serializable/);
     assert.match(evidence, /live\.CurrentRevision \+ 1/);
+    assert.match(evidence, /purpose == "proposal" && state == "EthicsRejected"/);
+    assert.match(js, /'Draft', 'ChangesRequested', 'EthicsRejected'/);
     assert.match(evidence, /f\.IsVerifiedSafe = 1/);
     assert.match(evidence, /SHA256\.HashData\(stored\.Content\)/);
     assert.match(view, /id="researchFileForm"/);

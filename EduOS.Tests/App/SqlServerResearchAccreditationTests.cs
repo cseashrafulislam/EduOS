@@ -304,6 +304,37 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.Single(report.Data!);
             Assert.Equal(1, report.Data![0].Approved);
         }
+
+        var rejectedProposal = Guid.NewGuid();
+        var rejectedFile = Guid.NewGuid();
+        await using (var ownerDb = Db(options, tenantId, identities[0]))
+        {
+            var requestId = Guid.NewGuid();
+            await ownerDb.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO dbo.ResearchProposals
+                (TenantId, PublicId, CampusId, CreateRequestId, OwnerUserId, Title,
+                 Abstract, Protocol, ContentSha256, CurrentRevision, StateCode, CreatedAtUtc, UpdatedAtUtc)
+                VALUES ({tenantId}, {rejectedProposal}, {campusId}, {requestId}, {identities[0]},
+                        {"Revised independent research ethics submission"},
+                        {"Approval was withheld pending additional supporting documents."},
+                        {"Updated protocol and supporting safety assessment for review."},
+                        {new string('B', 64)}, {1}, {"EthicsRejected"},
+                        {DateTime.UtcNow}, {DateTime.UtcNow})
+                """);
+            var files = Evidence(ownerDb, tenantId, identities[0], privateStorage);
+            var uploaded = await files.UploadAsync("proposal", rejectedProposal, rejectedFile, Upload(uploadBytes));
+            Assert.True(uploaded.Success, uploaded.Message);
+            Assert.Equal(2, uploaded.Data!.RevisionNo);
+            Assert.Equal(rejectedFile, (await files.ListAsync("proposal", rejectedProposal)).Data!.Items.Single().Reference);
+            var frozen = await files.UploadAsync("proposal", proposalRef, Guid.NewGuid(), Upload(uploadBytes));
+            Assert.False(frozen.Success); // Ethics-approved evidence cannot be silently amended.
+        }
+        await using (var coordinatorDb = Db(options, tenantId, identities[1]))
+        {
+            var hidden = await Evidence(coordinatorDb, tenantId, identities[1], privateStorage)
+                .DownloadAsync("proposal", rejectedProposal, rejectedFile);
+            Assert.False(hidden.Success); // Coordinators cannot fetch confidential future revisions.
+        }
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options, long tenant, long actor)
