@@ -85,3 +85,18 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(migration, /\[StateCode\] = N'CheckedIn'/);
     assert.match(migration, /FK_FacilityVisitorEvents_FacilityVisitorVisits/);
 });
+
+test('visitor and incident generic audit keeps metadata but suppresses private values', () => {
+    const db = read('EduOS.Persistence/Context/EduOSDbContext.cs');
+    const visitorSql = read('EduOS.Tests/App/SqlServerFacilityVisitorTests.cs');
+    const start = db.indexOf('private static bool SuppressAuditPayload(object entity)');
+    assert.ok(start >= 0, 'Expected central audit payload suppression');
+    const end = db.indexOf('private static bool IsSensitiveField(', start);
+    assert.ok(end > start, 'Expected bounded suppression function');
+    const policy = db.slice(start, end);
+    assert.match(policy, /entity is FacilityVisitorVisit/);
+    assert.match(policy, /or FacilityVisitorEvent/);
+    assert.match(visitorSql, /Assert\.NotEmpty\(auditRows\)/);
+    assert.match(visitorSql, /Assert\.Null\(row\.OldValue\)/);
+    assert.match(visitorSql, /Assert\.Null\(row\.NewValue\)/);
+});
