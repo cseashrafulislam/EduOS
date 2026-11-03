@@ -17,8 +17,10 @@ public sealed class PlatformCatalogSeederTests
         await PlatformCatalogSeeder.SeedAsync(db);
         await PlatformCatalogSeeder.SeedAsync(db);
         (await db.InstitutionTypeDefinitions.CountAsync()).Should().Be(13);
-        (await db.ProductModules.CountAsync()).Should().Be(22);
+        (await db.ProductModules.CountAsync()).Should().Be(24);
         (await db.ProductModules.AnyAsync(x => x.Code == "ALUMNI" && x.IsActive)).Should().BeTrue();
+        (await db.ProductModules.AnyAsync(x => x.Code == "RESEARCH" && x.IsActive)).Should().BeTrue();
+        (await db.ProductModules.AnyAsync(x => x.Code == "ACCREDITATION" && x.IsActive)).Should().BeTrue();
         (await db.InstitutionTypeModules.CountAsync()).Should().Be(212);
         (await db.ProductModuleFeatures.CountAsync()).Should().Be(34);
         var university = await db.InstitutionTypeDefinitions.SingleAsync(x => x.Code == "UNIVERSITY");
