@@ -34,6 +34,76 @@ public sealed class FacilityWorkflowService(
                 a.UserId == user.UserId && a.CampusId == c.Id && a.IsActive && !a.IsDeleted)))
         .Select(c => c.Id);
 
+
+    // Vendor decisions must not trust a stale manager/approver cookie. Hold the
+    // canonical user, membership, role, campus and grant rows through the
+    // SERIALIZABLE work-order/event commit (including idempotent replay).
+    private async Task<bool> LockLiveVendorActorAsync(
+        long campusId, bool approving, CancellationToken ct)
+    {
+        if (!ValidTenant || !(approving ? Approver : Manager) ||
+            !await AllowedCampuses().ContainsAsync(campusId, ct))
+            return false;
+        if (db.Database.IsSqlServer())
+        {
+            try
+            {
+                await db.Database.ExecuteSqlInterpolatedAsync($"""
+                    IF NOT EXISTS (
+                        SELECT 1 FROM dbo.AspNetUsers AS u WITH (UPDLOCK, HOLDLOCK)
+                        JOIN dbo.TenantMemberships AS m WITH (UPDLOCK, HOLDLOCK)
+                            ON m.UserId = u.Id AND m.TenantId = {user.TenantId}
+                        JOIN dbo.AspNetUserRoles AS ur WITH (UPDLOCK, HOLDLOCK)
+                            ON ur.UserId = u.Id
+                        JOIN dbo.AspNetRoles AS r WITH (UPDLOCK, HOLDLOCK)
+                            ON r.Id = ur.RoleId
+                        JOIN dbo.Campuses AS c WITH (UPDLOCK, HOLDLOCK)
+                            ON c.Id = {campusId} AND c.TenantId = {user.TenantId}
+                        WHERE u.Id = {user.UserId} AND u.IsActive = 1 AND u.IsDeleted = 0
+                            AND m.IsDeleted = 0 AND m.Status = {(int)MembershipStatus.Active}
+                            AND c.IsActive = 1 AND c.IsDeleted = 0
+                            AND r.IsActive = 1 AND r.IsDeleted = 0
+                            AND (r.TenantId = {user.TenantId}
+                                 OR (r.TenantId IS NULL AND r.IsSystemRole = 1))
+                            AND (({approving} = 1 AND r.NormalizedName IN
+                                    (N'TENANTADMIN',N'PRINCIPAL',N'FACILITIESAPPROVER'))
+                                 OR ({approving} = 0 AND r.NormalizedName IN
+                                    (N'TENANTADMIN',N'PRINCIPAL',N'FACILITIESMANAGER')))
+                            AND (r.NormalizedName IN (N'TENANTADMIN',N'PRINCIPAL')
+                                 OR EXISTS (
+                                     SELECT 1 FROM dbo.UserCampusAccesses AS g WITH (UPDLOCK, HOLDLOCK)
+                                     WHERE g.TenantId = {user.TenantId}
+                                         AND g.UserId = u.Id AND g.CampusId = c.Id
+                                         AND g.IsActive = 1 AND g.IsDeleted = 0))
+                    ) THROW 51004, 'Facilities vendor actor authorization revoked', 1;
+                    """, ct);
+            }
+            catch (Microsoft.Data.SqlClient.SqlException ex)
+                when (ex.Number is 51004 or 1205 or 1222)
+            {
+                logger.LogWarning(ex, "Facilities vendor decision authorization conflict for tenant {TenantId}", user.TenantId);
+                return false;
+            }
+        }
+        // Also guard non-SQL tests/providers; SQL Server additionally locks all
+        // checked rows until commit to prevent concurrent revocation races.
+        return await db.Users.AsNoTracking().AnyAsync(u =>
+                u.Id == user.UserId && u.IsActive && !u.IsDeleted, ct) &&
+            await db.TenantMemberships.AsNoTracking().AnyAsync(m =>
+                m.TenantId == user.TenantId && m.UserId == user.UserId &&
+                !m.IsDeleted && m.Status == MembershipStatus.Active, ct) &&
+            await db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
+                db.Roles.IgnoreQueryFilters().Any(r => r.Id == ur.RoleId &&
+                    r.IsActive && !r.IsDeleted &&
+                    (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
+                    (approving
+                        ? (r.NormalizedName == "TENANTADMIN" || r.NormalizedName == "PRINCIPAL" ||
+                           r.NormalizedName == "FACILITIESAPPROVER")
+                        : (r.NormalizedName == "TENANTADMIN" || r.NormalizedName == "PRINCIPAL" ||
+                           r.NormalizedName == "FACILITIESMANAGER"))), ct) &&
+            await AllowedCampuses().ContainsAsync(campusId, ct);
+    }
+
     // Request visibility is scoped by ownership, assignment and authorized campus.
     private IQueryable<FacilityServiceRequest> VisibleRequests() =>
         db.Set<FacilityServiceRequest>().AsNoTracking().Where(x =>
@@ -661,10 +731,23 @@ public sealed class FacilityWorkflowService(
         };
         if (!allowed) return Denied<FacilityRequestDto>();
         var workerMutation = action is "start" or "pause" or "resume" or "complete";
-        // Replay acknowledgement is also an authorized read. A technician who
-        // lost their current membership/grant/role must not receive an old success.
-        if (workerMutation && !await EligibleTechnicians(request.CampusId)
-            .AnyAsync(candidate => candidate.Id == user.UserId, ct))
+        var vendorMutation = action is "vendorpropose" or "vendorapprove" or
+            "vendorreject" or "vendorrelease";
+        // Lock authorization before reading idempotent success. A revoked actor
+        // cannot replay an old approved vendor decision after their grant is gone.
+        await using var scheduleTransaction = (action == "schedule" || workerMutation ||
+            vendorMutation) && db.Database.IsSqlServer()
+            ? await db.Database.BeginTransactionAsync(
+                workerMutation || vendorMutation
+                    ? System.Data.IsolationLevel.Serializable
+                    : System.Data.IsolationLevel.ReadCommitted, ct)
+            : null;
+        if (vendorMutation && !await LockLiveVendorActorAsync(
+            request.CampusId, action != "vendorpropose", ct))
+            return Denied<FacilityRequestDto>();
+        if (workerMutation && (!await EligibleTechnicians(request.CampusId)
+                .AnyAsync(candidate => candidate.Id == user.UserId, ct) ||
+            !await LockLiveTechnicianAsync(user.UserId, request.CampusId, ct)))
             return Denied<FacilityRequestDto>();
 
         var replay = await db.Set<FacilityWorkflowEvent>().AsNoTracking().FirstOrDefaultAsync(
@@ -694,18 +777,8 @@ public sealed class FacilityWorkflowService(
         var requestAction = action is "triage" or "approve" or "reject";
         if (!VersionMatches(requestAction ? request.RowVersion : order?.RowVersion ?? [], command.RowVersion))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Record changed; reload.", 409);
-        // SQL Server application lock serializes scheduling for the same tenant/technician.
-        // It is held through the work-order update and audit SaveChanges/commit.
-        await using var scheduleTransaction = (action is "schedule" or "vendorapprove" or
-            "start" or "pause" or "resume" or "complete") && db.Database.IsSqlServer()
-            ? await db.Database.BeginTransactionAsync(
-                workerMutation ? System.Data.IsolationLevel.Serializable : System.Data.IsolationLevel.ReadCommitted, ct)
-            : null;
-        // Lock live authorization until the projection and immutable event commit.
-        // Without this, role/membership revocation could race a previously valid
-        // Pause/Resume/Complete command after the first authorization read.
-        if (workerMutation && !await LockLiveTechnicianAsync(user.UserId, request.CampusId, ct))
-            return Denied<FacilityRequestDto>();
+        // Transaction-owned SQL application locks for scheduling and vendor booking
+        // remain held through the projection and immutable event commit.
         var before = requestAction ? request.StateCode : order?.StateCode ?? "None";
         var note = command.Note?.Trim();
         string? auditNote = note;

@@ -79,6 +79,8 @@ public sealed class SqlServerFacilityWorkOrderTests
                     new TenantMembership
                     { TenantId = tenantId, UserId = managerId, Status = MembershipStatus.Active },
                     new TenantMembership
+                    { TenantId = tenantId, UserId = approverId, Status = MembershipStatus.Active },
+                    new TenantMembership
                     { TenantId = tenantId, UserId = globalTechId, Status = MembershipStatus.Active });
                 var technicianRole = new ApplicationRole
                 {
@@ -95,8 +97,23 @@ public sealed class SqlServerFacilityWorkOrderTests
                     TenantId = tenantId, Name = "FacilitiesApprover",
                     NormalizedName = "FACILITIESAPPROVER", IsActive = true
                 };
-                setup.Roles.AddRange(technicianRole, globalTechnicianRole, secondFacilitiesApproverRole);
+                var managerRole = new ApplicationRole
+                {
+                    TenantId = tenantId, Name = "FacilitiesManager",
+                    NormalizedName = "FACILITIESMANAGER", IsActive = true
+                };
+                var approverRole = new ApplicationRole
+                {
+                    TenantId = tenantId, Name = "FacilitiesApprover",
+                    NormalizedName = "FACILITIESAPPROVER", IsActive = true
+                };
+                setup.Roles.AddRange(technicianRole, globalTechnicianRole,
+                    secondFacilitiesApproverRole, managerRole, approverRole);
                 await setup.SaveChangesAsync();
+                setup.UserRoles.Add(new IdentityUserRole<long>
+                { UserId = managerId, RoleId = managerRole.Id });
+                setup.UserRoles.Add(new IdentityUserRole<long>
+                { UserId = approverId, RoleId = approverRole.Id });
                 setup.UserRoles.Add(new IdentityUserRole<long>
                 { UserId = techId, RoleId = technicianRole.Id });
                 setup.UserRoles.Add(new IdentityUserRole<long>
@@ -470,6 +487,83 @@ public sealed class SqlServerFacilityWorkOrderTests
                 new FacilityTransitionDto { ClientCommandId = Guid.NewGuid(),
                     RowVersion = vendorProposal.WorkOrderRowVersion!,
                     Note = "Stale vendor approval cannot be replayed." })).StatusCode);
+        }
+
+        // SQL-backed vendor decision authorization: stale cookie claims and even
+        // exact successful command replays must fail after a live role revocation.
+        // No denied command may change the work-order rowversion or audit history.
+        await using (var db = Db(options, tenantId, approverId, "FacilitiesApprover"))
+        {
+            var roleId = await db.Roles.Where(r => r.TenantId == tenantId &&
+                r.NormalizedName == "FACILITIESAPPROVER" &&
+                db.UserRoles.Any(ur => ur.UserId == approverId && ur.RoleId == r.Id))
+                .Select(r => r.Id).SingleAsync();
+            await db.Roles.Where(r => r.Id == roleId)
+                .ExecuteUpdateAsync(x => x.SetProperty(r => r.IsActive, false));
+            try
+            {
+                var stale = await Service(db, tenantId, approverId, "FacilitiesApprover")
+                    .TransitionAsync(submitted.Id, "vendorapprove", new FacilityTransitionDto
+                    {
+                        ClientCommandId = Guid.NewGuid(),
+                        RowVersion = vendorBooked.WorkOrderRowVersion!,
+                        Note = "Revoked approver cannot change vendor booking."
+                    });
+                Assert.Equal(403, stale.StatusCode);
+                Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(e =>
+                    e.FacilityServiceRequestId == submitted.Id && e.ActionCode == "vendorrelease"));
+            }
+            finally
+            {
+                await db.Roles.Where(r => r.Id == roleId)
+                    .ExecuteUpdateAsync(x => x.SetProperty(r => r.IsActive, true));
+            }
+        }
+        // The independent release approver has a real campus grant and role;
+        // revoking either tenant membership or campus access blocks the decision.
+        await using (var db = Db(options, tenantId, globalTechId, "FacilitiesApprover"))
+        {
+            var command = new FacilityTransitionDto
+            {
+                ClientCommandId = Guid.NewGuid(),
+                RowVersion = vendorBooked.WorkOrderRowVersion!,
+                Note = "Independent vendor release must respect live permissions."
+            };
+            await db.TenantMemberships.Where(m => m.TenantId == tenantId &&
+                m.UserId == globalTechId)
+                .ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MembershipStatus.Suspended));
+            try
+            {
+                Assert.Equal(403, (await Service(db, tenantId, globalTechId, "FacilitiesApprover")
+                    .TransitionAsync(submitted.Id, "vendorrelease", command)).StatusCode);
+            }
+            finally
+            {
+                await db.TenantMemberships.Where(m => m.TenantId == tenantId &&
+                    m.UserId == globalTechId)
+                    .ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MembershipStatus.Active));
+            }
+            await db.UserCampusAccesses.Where(g => g.TenantId == tenantId &&
+                g.CampusId == campusId && g.UserId == globalTechId)
+                .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, false));
+            try
+            {
+                Assert.Equal(403, (await Service(db, tenantId, globalTechId, "FacilitiesApprover")
+                    .TransitionAsync(submitted.Id, "vendorrelease", command)).StatusCode);
+            }
+            finally
+            {
+                await db.UserCampusAccesses.Where(g => g.TenantId == tenantId &&
+                    g.CampusId == campusId && g.UserId == globalTechId)
+                    .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, true));
+            }
+            var unchanged = await db.FacilityWorkOrders.AsNoTracking()
+                .SingleAsync(w => w.FacilityServiceRequestId == submitted.Id);
+            Assert.Equal(vendorBooked.WorkOrderRowVersion!,
+                Convert.ToBase64String(unchanged.RowVersion));
+            Assert.Equal("Approved", unchanged.VendorStateCode);
+            Assert.Equal(0, await db.FacilityWorkflowEvents.CountAsync(e =>
+                e.FacilityServiceRequestId == submitted.Id && e.ActionCode == "vendorrelease"));
         }
         // An approved vendor booking at +3h..+4h cannot be combined with a
         // disjoint +5h..+6h technician schedule. Preview and mutation agree,
