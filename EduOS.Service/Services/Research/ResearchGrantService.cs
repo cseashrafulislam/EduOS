@@ -109,11 +109,11 @@ public sealed class ResearchGrantService(EduOSDbContext db, ResearchWorkflowAcce
     {
         if ((await access.RolesAsync(ct)).Count == 0) return Denied<List<ResearchGrantSchemeDto>>();
         var schemes = await db.Database.SqlQueryRaw<ResearchGrantSchemeDto>("""
-            SELECT Id, Code, Name, CurrencyCode, MaxAward, IsActive
+            SELECT TOP(100) Id, Code, Name, CurrencyCode, MaxAward, IsActive
             FROM dbo.ResearchGrantSchemes WHERE TenantId = {0} AND IsActive = 1
             ORDER BY Name, Id
             """, access.TenantId).ToListAsync(ct);
-        return ApiResponse<List<ResearchGrantSchemeDto>>.SuccessResponse(schemes.Take(100).ToList());
+        return ApiResponse<List<ResearchGrantSchemeDto>>.SuccessResponse(schemes);
     }
 
     public async Task<ApiResponse<ResearchGrantSchemeDto>> CreateSchemeAsync(
@@ -306,11 +306,19 @@ public sealed class ResearchGrantService(EduOSDbContext db, ResearchWorkflowAcce
                     if (changed != 1) return Conflict<ResearchGrantDto>();
                 }
                 if (action == "milestone-add")
+                {
+                    var count = await db.Database.SqlQueryRaw<int>("""
+                        SELECT COUNT(*) AS Value FROM dbo.ResearchGrantMilestones
+                        WHERE TenantId = {0} AND GrantId = {1}
+                        """, access.TenantId, row.Id).SingleAsync(token);
+                    if (count >= 200)
+                        return ApiResponse<ResearchGrantDto>.ErrorResponse("Maximum 200 milestones per grant.", 409);
                     await db.Database.ExecuteSqlInterpolatedAsync($"""
                         INSERT INTO dbo.ResearchGrantMilestones
                         (TenantId, GrantId, Title, DueDate, CreatedAtUtc)
                         VALUES ({access.TenantId}, {row.Id}, {input.MilestoneTitle!.Trim()}, {input.DueDate!.Value.Date}, {Now})
                         """, token);
+                }
                 var updatedRows = await db.Database.ExecuteSqlInterpolatedAsync($"""
                     UPDATE dbo.ResearchGrants SET StateCode = {next}, ApprovedAmount = {award},
                       PendingAmount = {pending}, BudgetVersion = {budgetVersion}, UpdatedAtUtc = {Now}
@@ -375,13 +383,13 @@ public sealed class ResearchGrantService(EduOSDbContext db, ResearchWorkflowAcce
         var detail = await DetailAsync(reference, ct);
         if (!detail.Success) return Denied<List<ResearchGrantMilestoneDto>>();
         var milestones = await db.Database.SqlQueryRaw<ResearchGrantMilestoneDto>("""
-            SELECT m.Id, m.Title, m.DueDate, m.Outcome, m.CompletedAtUtc
+            SELECT TOP(200) m.Id, m.Title, m.DueDate, m.Outcome, m.CompletedAtUtc
             FROM dbo.ResearchGrantMilestones AS m
             JOIN dbo.ResearchGrants AS g ON g.Id = m.GrantId AND g.TenantId = m.TenantId
             WHERE m.TenantId = {0} AND g.PublicId = {1}
             ORDER BY m.DueDate, m.Id
             """, access.TenantId, reference).ToListAsync(ct);
-        return ApiResponse<List<ResearchGrantMilestoneDto>>.SuccessResponse(milestones.Take(200).ToList());
+        return ApiResponse<List<ResearchGrantMilestoneDto>>.SuccessResponse(milestones);
     }
 
     public async Task<ApiResponse<PagedResult<ResearchGrantHistoryDto>>> HistoryAsync(Guid reference,
