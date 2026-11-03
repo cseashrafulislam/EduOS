@@ -466,7 +466,18 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.All(auditRows, row =>
             {
                 Assert.Null(row.OldValue);
-                Assert.Null(row.NewValue);
+                if (row.Action == "VisitorSummaryExport")
+                {
+                    // The privileged export-access audit deliberately stores only
+                    // a campus/window/count, never a visit or incident payload.
+                    Assert.StartsWith($"CampusId={campusId};FromUtc=", row.NewValue);
+                    Assert.Contains(";ToUtc=", row.NewValue);
+                    Assert.Contains(";Rows=", row.NewValue);
+                    Assert.DoesNotContain("Guest", row.NewValue, StringComparison.OrdinalIgnoreCase);
+                    Assert.DoesNotContain("Appointment", row.NewValue, StringComparison.OrdinalIgnoreCase);
+                }
+                else
+                    Assert.Null(row.NewValue);
             });
         }
 
@@ -577,6 +588,110 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.All(events, x => Assert.Null(x.BadgeCode));
             Assert.DoesNotContain(events, x => x.Reason == "Appointment declined.");
             Assert.Equal(1, events.Count(x => x.ActionCode == "redactapprove"));
+        }
+        // Site-wide visitor privacy settings require a different live checker,
+        // independent of the per-visit retention redaction reviewer.
+        FacilityVisitorPolicyDto requested;
+        var policyRequestId = Guid.NewGuid();
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            var proposal = new FacilityVisitorPolicyRequestDto
+            {
+                ClientRequestId = policyRequestId, CampusId = campusId,
+                PolicyCode = "RetentionDays", ProposedValue = "60",
+                Reason = "Approved archive policy update"
+            };
+            var result = await service.RequestPolicyChangeAsync(proposal);
+            Assert.True(result.Success, result.Message);
+            requested = result.Data!;
+            var replay = await service.RequestPolicyChangeAsync(proposal);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(requested.Id, replay.Data!.Id);
+            Assert.Equal(409, (await service.RequestPolicyChangeAsync(new FacilityVisitorPolicyRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId,
+                PolicyCode = "RetentionDays", ProposedValue = "90",
+                Reason = "Second competing proposal"
+            })).StatusCode);
+            Assert.Equal(403, (await service.DecidePolicyChangeAsync(requested.Id, "approve",
+                new FacilityVisitorPolicyDecisionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = requested.RowVersion,
+                    Reason = "Self approval attempt"
+                })).StatusCode);
+            Assert.Equal("30", (await db.TenantSettings.SingleAsync(x =>
+                x.Key == "Facilities.Visitor.RetentionDays." + campusId)).Value);
+        }
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+        {
+            var service = Service(db, tenantId, hostId, "Staff");
+            Assert.Equal(403, (await service.PolicyChangesAsync(campusId, 1, 25)).StatusCode);
+            Assert.Equal(403, (await service.RequestPolicyChangeAsync(new FacilityVisitorPolicyRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId,
+                PolicyCode = "LegalHold", ProposedValue = "false",
+                Reason = "Host cannot manage policy"
+            })).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, outsiderId, "Principal"))
+        {
+            var service = Service(db, tenantId, outsiderId, "Principal");
+            var command = new FacilityVisitorPolicyDecisionDto
+            {
+                ClientCommandId = Guid.NewGuid(), RowVersion = requested.RowVersion,
+                Reason = "Independently reviewed retention"
+            };
+            Assert.Equal(409, (await service.DecidePolicyChangeAsync(requested.Id,
+                "approve", new FacilityVisitorPolicyDecisionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = "stale",
+                    Reason = "Stale version must fail"
+                })).StatusCode);
+            var applied = await service.DecidePolicyChangeAsync(requested.Id, "approve", command);
+            Assert.True(applied.Success, applied.Message);
+            Assert.Equal("Approved", applied.Data!.StateCode);
+            Assert.Equal("60", (await db.TenantSettings.SingleAsync(x =>
+                x.Key == "Facilities.Visitor.RetentionDays." + campusId)).Value);
+            var replay = await service.DecidePolicyChangeAsync(requested.Id, "approve", command);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(409, (await service.DecidePolicyChangeAsync(requested.Id,
+                "reject", new FacilityVisitorPolicyDecisionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = requested.RowVersion,
+                    Reason = "Conflicting review decision"
+                })).StatusCode);
+            Assert.Equal(403, (await service.PolicyChangesAsync(campusId + 999, 1, 25)).StatusCode);
+            Assert.Single(await db.AuditLogs.AsNoTracking().Where(x =>
+                x.TenantId == tenantId && x.Action == "VisitorPolicyApproved").ToListAsync());
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager");
+            Assert.Equal(400, (await service.RequestPolicyChangeAsync(new FacilityVisitorPolicyRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId,
+                PolicyCode = "RetentionDays", ProposedValue = "5",
+                Reason = "Cannot shorten below minimum"
+            })).StatusCode);
+            var holdProposal = await service.RequestPolicyChangeAsync(new FacilityVisitorPolicyRequestDto
+            {
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId,
+                PolicyCode = "LegalHold", ProposedValue = "true",
+                Reason = "Legal evidence preservation"
+            });
+            Assert.True(holdProposal.Success, holdProposal.Message);
+            await using var checkerDb = Db(options, tenantId, outsiderId, "Principal");
+            var rejected = await Service(checkerDb, tenantId, outsiderId, "Principal")
+                .DecidePolicyChangeAsync(holdProposal.Data!.Id, "reject",
+                    new FacilityVisitorPolicyDecisionDto
+                    {
+                        ClientCommandId = Guid.NewGuid(), RowVersion = holdProposal.Data.RowVersion,
+                        Reason = "Not authorized by legal counsel"
+                    });
+            Assert.True(rejected.Success, rejected.Message);
+            Assert.Equal("false", (await checkerDb.TenantSettings.SingleAsync(x =>
+                x.Key == "Facilities.Visitor.LegalHold." + campusId)).Value);
         }
     }
 

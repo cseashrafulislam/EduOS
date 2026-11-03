@@ -60,6 +60,32 @@
                 <div class="col-md-3"><button id="fvExportButton" class="btn btn-outline-secondary w-100" type="submit">@(bn ? "CSV এক্সপোর্ট" : "Export CSV")</button></div>
             </div>
         </form>
+        <div class="card card-body mb-3">
+            <h3 class="h6">@(bn ? "ভিজিটর তথ্য সংরক্ষণ ও আইনগত স্থগিতাদেশ — স্বতন্ত্র অনুমোদন" : "Visitor retention and legal hold — independent approval")</h3>
+            <p class="small text-muted">@(bn
+                ? "৩০–৩৬৫০ দিনের সংরক্ষণকাল বা legal hold পরিবর্তনের অনুরোধ করুন। আবেদনকারী নিজের অনুরোধ অনুমোদন করতে পারবেন না। বর্তমান সেটিং কেবল অনুমোদনের পর কার্যকর হয়।"
+                : "Request a retention period of 30–3650 days or a legal-hold change. The requester cannot approve their own proposal; effective settings change only after independent review.")</p>
+            <form id="fvPolicyRequest" class="row g-2 align-items-end">
+                <div class="col-md-2"><label for="fvPolicyCampus" class="form-label">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label>
+                    <input id="fvPolicyCampus" class="form-control" type="number" min="1" required /></div>
+                <div class="col-md-2"><label for="fvPolicyCode" class="form-label">@(bn ? "নীতিমালা" : "Policy")</label>
+                    <select id="fvPolicyCode" class="form-select"><option value="RetentionDays">RetentionDays</option><option value="LegalHold">LegalHold</option></select></div>
+                <div class="col-md-2"><label for="fvPolicyValue" class="form-label">@(bn ? "নতুন মান" : "New value")</label>
+                    <input id="fvPolicyValue" class="form-control" maxlength="12" required placeholder="30 / true / false" /></div>
+                <div class="col-md-4"><label for="fvPolicyReason" class="form-label">@(bn ? "অনুমোদিত নীতির ভিত্তি (কমপক্ষে ১০ অক্ষর)" : "Policy basis (at least 10 characters)")</label>
+                    <input id="fvPolicyReason" class="form-control" minlength="10" maxlength="200" required /></div>
+                <div class="col-md-2 d-flex gap-1"><button class="btn btn-outline-primary btn-sm" type="submit">@(bn ? "অনুরোধ" : "Request")</button>
+                    <button id="fvPolicyLoad" class="btn btn-outline-secondary btn-sm" type="button">@(bn ? "তালিকা" : "Review")</button></div>
+            </form>
+            @if (privacyReviewer)
+            {
+                <div class="row g-2 mt-2">
+                    <div class="col-md-8"><label for="fvPolicyReviewReason" class="form-label">@(bn ? "স্বতন্ত্র পর্যালোচনার কারণ (কমপক্ষে ১০ অক্ষর)" : "Independent review reason (at least 10 characters)")</label>
+                        <input id="fvPolicyReviewReason" class="form-control" minlength="10" maxlength="200" /></div>
+                </div>
+            }
+            <div id="fvPolicyRows" class="vstack gap-2 mt-2 small" aria-live="polite"></div>
+        </div>
     }
     <div class="card card-body">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">

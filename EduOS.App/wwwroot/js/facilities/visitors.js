@@ -26,10 +26,11 @@
     const status = message => { $('fvStatus').textContent = message; };
     // On revocation, erase rendered visitor PII and invalidate in-flight reads.
     const invalidateAuthorization = () => {
-        ++requestEpoch; ++hostEpoch; ++occupancyEpoch; ++exportEpoch;
+        ++requestEpoch; ++hostEpoch; ++occupancyEpoch; ++exportEpoch; ++policyEpoch;
         $('fvRows')?.replaceChildren();
         $('fvHost')?.replaceChildren();
         $('fvOccupancyResult')?.replaceChildren();
+        $('fvPolicyRows')?.replaceChildren();
         root.querySelectorAll('form, #fvRefresh, #fvBadge, #fvReason').forEach(element => {
             element.hidden = true;
             element.querySelectorAll('input, select, button').forEach(control => {
@@ -243,6 +244,77 @@
                     ? label('No configured ceiling', 'সীমা কনফিগার করা নেই') : snapshot.maxConcurrent) +
                 ' · ' + label('Overdue: ', 'নির্ধারিত সময় পার: ') + snapshot.overdueCount;
         } catch (error) { if (epoch === occupancyEpoch) result.textContent = error.message; }
+    });
+
+    let policyEpoch = 0, pendingPolicyId = crypto.randomUUID();
+    const loadPolicies = async () => {
+        const campusId = Number($('fvPolicyCampus')?.value || 0);
+        if (!Number.isSafeInteger(campusId) || campusId <= 0) {
+            status(label('Choose a campus to review policies.', 'নীতিমালা দেখতে ক্যাম্পাস নির্বাচন করুন।'));
+            return;
+        }
+        const epoch = ++policyEpoch;
+        try {
+            const result = await api('/api/facilities/visitors/policies?campusId=' + campusId);
+            if (epoch !== policyEpoch) return;
+            const holder = $('fvPolicyRows'); holder.replaceChildren();
+            for (const row of result.items || []) {
+                const card = document.createElement('div');
+                card.className = 'border rounded p-2';
+                const detail = document.createElement('span');
+                detail.textContent = '#' + row.id + ' · ' + row.policyCode + ': ' +
+                    (row.previousValue ?? label('(not set)', '(নেই)')) + ' → ' +
+                    row.proposedValue + ' · ' + row.stateCode +
+                    ' · ' + label('Requested by ', 'আবেদনকারী ') + row.requestedByUserId +
+                    ' · ' + row.requestReason;
+                card.append(detail);
+                if (privacyReviewer && row.stateCode === 'Submitted' && row.requestedByUserId !== actor) {
+                    const controls = document.createElement('div');
+                    controls.className = 'd-flex gap-2 mt-2';
+                    for (const decision of ['approve', 'reject']) {
+                        const btn = document.createElement('button');
+                        btn.type = 'button'; btn.className = 'btn btn-outline-primary btn-sm';
+                        btn.textContent = decision === 'approve'
+                            ? label('Approve', 'অনুমোদন') : label('Reject', 'প্রত্যাখ্যান');
+                        btn.addEventListener('click', async () => {
+                            const reason = $('fvPolicyReviewReason')?.value.trim() || '';
+                            if (reason.length < 10) {
+                                status(label('Enter a 10-character independent review reason.',
+                                    'পর্যালোচনার কমপক্ষে ১০ অক্ষরের কারণ দিন।')); return;
+                            }
+                            const commandId = crypto.randomUUID();
+                            try {
+                                await api('/api/facilities/visitors/policies/' + row.id + '/' + decision,
+                                    'POST', { clientCommandId: commandId, rowVersion: row.rowVersion, reason });
+                                $('fvPolicyReviewReason').value = '';
+                                await loadPolicies();
+                            } catch (error) { status(error.message); }
+                        });
+                        controls.append(btn);
+                    }
+                    card.append(controls);
+                }
+                holder.append(card);
+            }
+            if (!holder.childElementCount)
+                holder.textContent = label('No requests for this campus.', 'এই ক্যাম্পাসে কোনো অনুরোধ নেই।');
+        } catch (error) { if (epoch === policyEpoch) status(error.message); }
+    };
+    $('fvPolicyLoad')?.addEventListener('click', loadPolicies);
+    $('fvPolicyRequest')?.addEventListener('submit', async event => {
+        event.preventDefault();
+        try {
+            await api('/api/facilities/visitors/policies', 'POST', {
+                clientRequestId: pendingPolicyId,
+                campusId: Number($('fvPolicyCampus').value),
+                policyCode: $('fvPolicyCode').value,
+                proposedValue: $('fvPolicyValue').value.trim(),
+                reason: $('fvPolicyReason').value.trim()
+            });
+            pendingPolicyId = crypto.randomUUID();
+            $('fvPolicyReason').value = '';
+            await loadPolicies();
+        } catch (error) { status(error.message); }
     });
 
     // Never release a CSV after tenant/session change, or after a newer export request.

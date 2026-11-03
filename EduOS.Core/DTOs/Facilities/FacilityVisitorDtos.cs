@@ -83,3 +83,35 @@ public sealed class FacilityVisitorOccupancyDto
     public int? MaxConcurrent { get; set; }
     public DateTime AsOfUtc { get; set; }
 }
+
+public sealed class FacilityVisitorPolicyRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Range(1, long.MaxValue)] public long CampusId { get; set; }
+    [Required, MaxLength(24)] public string PolicyCode { get; set; } = string.Empty;
+    [Required, MaxLength(12)] public string ProposedValue { get; set; } = string.Empty;
+    [Required, MinLength(10), MaxLength(200)] public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class FacilityVisitorPolicyDecisionDto
+{
+    public Guid ClientCommandId { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required, MinLength(10), MaxLength(200)] public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class FacilityVisitorPolicyDto
+{
+    public long Id { get; set; }
+    public long CampusId { get; set; }
+    public string PolicyCode { get; set; } = string.Empty;
+    public string ProposedValue { get; set; } = string.Empty;
+    public string? PreviousValue { get; set; }
+    public string StateCode { get; set; } = string.Empty;
+    public string RequestReason { get; set; } = string.Empty;
+    public long RequestedByUserId { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    public string? ReviewReason { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}

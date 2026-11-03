@@ -21,7 +21,15 @@ The existing canonical `TenantSettings` table is the effective policy source; no
 | `Facilities.Visitor.MaxVisitMinutes.{CampusId}` | existing bounded minutes | Existing appointment duration; not modified |
 | `Facilities.Visitor.EarlyCheckInMinutes.{CampusId}` | existing bounded minutes | Existing early-entry policy; not modified |
 
-**Important:** independent approval of *site-policy changes* is not supplied by these keys. Settings must be configured under an approved institute change-control process. This is separate from the **two-person per-visit redaction approval**, which is implemented.
+### Independent campus privacy-policy changes
+
+RetentionDays and LegalHold can no longer be created or updated from generic Tenant Settings. Use the Facilities Visitor page's policy request/review card or its API:
+
+1. An active FacilitiesManager/Principal/TenantAdmin with a valid live campus grant submits a UUID-bound request containing campus, policy, proposed value and a 10–200 character institutional basis. The application snapshots the **existing** canonical setting value and SQL rowversion (or its absence). Only one submitted change per campus/policy is allowed.
+2. A **different** currently authorized Principal/TenantAdmin selects Approve or Reject with a 10–200 character review reason and the exact request rowversion. Serializable locking, live membership/role/campus validation, approved policy-value bounds, uniqueness and optimistic rowversions prevent stale/self/duplicate approvals.
+3. Only approval updates the canonical `TenantSettings` value; rejection preserves it. Both outcomes persist a versioned review row, reviewer identity/time and a PII-free access audit. Replays use the same command UUID and may not alter a previous outcome.
+
+Only the two privacy-sensitive keys above use this new workflow; general Visitor occupancy, early-check-in and duration policy settings retain their existing management path. Existing campus retention/legal-hold values are left untouched during deployment. **Before enabling use**, an institution still must authorize the retention schedule and legal-hold decisions under its own legal policy.
 
 ## Manual two-person redaction
 
@@ -36,7 +44,7 @@ The existing canonical `TenantSettings` table is the effective policy source; no
 
 - **Historical generic audit payloads:** older records created before the audit-suppression fix may already contain visitor PII. Privately inventory affected `AuditLogs` and backups and obtain security/legal sign-off for a controlled remediation plan. Do not silently truncate the audit table or run unreviewed destructive SQL.
 - **Incident/legal holds:** any visit with an incident remains ineligible. Campus hold is a conservative barrier, not a full per-case retention/hold-resolution register. The business must establish a separate authorized legal-hold release and case closure procedure before redacting incident visits.
-- **Independent site-policy change approval:** general tenant settings are the effective values; an independently approved versioned policy-edit workflow remains an outstanding feature and must not be falsely claimed complete.
+- **Independent site-policy change approval:** the application now has a versioned, independently reviewed workflow for the two privacy-sensitive campus keys; full legal-policy sign-off and SQL/browser acceptance remain separately required. General visitor operational policy keys have not been migrated into this approval system.
 - **Verification:** run final-SHA Release CI, `SqlServerFacilityVisitorTests`, full disposable SQL migration/rollback/backup-restore, source-privacy JavaScript contracts, and cookie-authenticated SQL-backed multi-tenant/campus Chromium (desktop/mobile, both locales). Review denied policy, rejected vs active, supersession, two simultaneous approvals, role revocation, replay, report totals and old audit-history privacy. Tests require disposable SQL, never production tenant data.
 - **Deployment:** record effective retention policies, existing visit/event counts, legal holds and prior backups; release behind the existing FACILITIES entitlement. Roll back application code if needed **without** restoring already approved PII or rewriting action history. Distinguish code QA from real institutional/legal UAT and owner go/no-go.
 

@@ -444,6 +444,7 @@ public class EduOSDbContext :
     public DbSet<FacilityWorkflowEvent> FacilityWorkflowEvents => Set<FacilityWorkflowEvent>();
     public DbSet<FacilityVisitorVisit> FacilityVisitorVisits => Set<FacilityVisitorVisit>();
     public DbSet<FacilityVisitorEvent> FacilityVisitorEvents => Set<FacilityVisitorEvent>();
+    public DbSet<FacilityVisitorPolicyChange> FacilityVisitorPolicyChanges => Set<FacilityVisitorPolicyChange>();
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
@@ -1220,6 +1221,7 @@ public class EduOSDbContext :
         TenantReference<FacilityWorkflowEvent, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkflowEvent.FacilityServiceRequestId));
         TenantReference<FacilityVisitorVisit, Campus>(modelBuilder, nameof(FacilityVisitorVisit.CampusId));
         TenantReference<FacilityVisitorEvent, FacilityVisitorVisit>(modelBuilder, nameof(FacilityVisitorEvent.FacilityVisitorVisitId));
+        TenantReference<FacilityVisitorPolicyChange, Campus>(modelBuilder, nameof(FacilityVisitorPolicyChange.CampusId));
         // Inventory / Assets
         TenantReference<InventoryLocation, Campus>(modelBuilder, nameof(InventoryLocation.CampusId));
         TenantReference<InventoryMovement, InventoryLocation>(modelBuilder, nameof(InventoryMovement.FromLocationId));
@@ -2010,6 +2012,13 @@ public class EduOSDbContext :
         });
         modelBuilder.Entity<FacilityVisitorEvent>().HasIndex(x => new { x.TenantId, x.ClientCommandId }).IsUnique();
         modelBuilder.Entity<FacilityVisitorEvent>().HasIndex(x => new { x.TenantId, x.FacilityVisitorVisitId, x.CreatedAt });
+        modelBuilder.Entity<FacilityVisitorPolicyChange>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<FacilityVisitorPolicyChange>().HasIndex(x => new { x.TenantId, x.CampusId, x.PolicyCode })
+            .IsUnique().HasFilter("[StateCode] = N'Submitted' AND [IsDeleted] = 0");
+        modelBuilder.Entity<FacilityVisitorPolicyChange>().HasIndex(x => new { x.TenantId, x.CampusId, x.CreatedAt });
+        modelBuilder.Entity<FacilityVisitorPolicyChange>().ToTable(t => t.HasCheckConstraint(
+            "CK_FacilityVisitorPolicyChanges_State",
+            "[StateCode] IN (N'Submitted',N'Approved',N'Rejected')"));
         modelBuilder.Entity<FacilitySpace>().HasIndex(x => new { x.TenantId, x.CampusId, x.IsActive, x.Name });
         modelBuilder.Entity<FacilitySpace>().ToTable(t => t.HasCheckConstraint("CK_FacilitySpaces_Code",
             "LEN(LTRIM(RTRIM([Code]))) > 0 AND LEN(LTRIM(RTRIM([Name]))) > 0"));
@@ -3225,6 +3234,7 @@ public class EduOSDbContext :
     {
         return entity is FacilityVisitorVisit
             or FacilityVisitorEvent
+            or FacilityVisitorPolicyChange
             or ApplicationUser
             or TenantSetting
             or AdmissionApplicant

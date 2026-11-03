@@ -17,7 +17,7 @@ namespace EduOS.Service.Services.Facilities;
 /// <summary>
 /// Privacy-minimized internal visitor appointments. Never stores national IDs,
 /// photos, phones or documents. Incident events are append-only; retention
-/// independent two-person, retention-gated redaction is available; independent site-policy approval remains outstanding.
+/// independent two-person, retention-gated redaction and separately approved campus privacy policy changes.
 /// </summary>
 public sealed class FacilityVisitorService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
@@ -732,6 +732,222 @@ public sealed class FacilityVisitorService(
         {
             logger.LogWarning(ex, "Visitor history read contention");
             return ApiResponse<PagedResult<FacilityVisitorEventDto>>.ErrorResponse("Visitor history busy; retry.", 409);
+        }
+    }
+
+    private static FacilityVisitorPolicyDto MapPolicy(FacilityVisitorPolicyChange row) => new()
+    {
+        Id = row.Id, CampusId = row.CampusId, PolicyCode = row.PolicyCode,
+        ProposedValue = row.ProposedValue, PreviousValue = row.PreviousValue,
+        StateCode = row.StateCode, RequestReason = row.RequestReason,
+        RequestedByUserId = row.RequestedByUserId,
+        ReviewedByUserId = row.ReviewedByUserId, ReviewedAtUtc = row.ReviewedAtUtc,
+        ReviewReason = row.ReviewReason,
+        RowVersion = Convert.ToBase64String(row.RowVersion)
+    };
+
+    private static string? PrivacyPolicyKey(string code, long campusId) =>
+        code switch
+        {
+            "RetentionDays" => "Facilities.Visitor.RetentionDays." + campusId.ToString(CultureInfo.InvariantCulture),
+            "LegalHold" => "Facilities.Visitor.LegalHold." + campusId.ToString(CultureInfo.InvariantCulture),
+            _ => null
+        };
+
+    private static string? PrivacyPolicyValue(string code, string? value)
+    {
+        if (code == "RetentionDays" &&
+            int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var days) &&
+            days is >= 30 and <= 3650)
+            return days.ToString(CultureInfo.InvariantCulture);
+        if (code == "LegalHold" && bool.TryParse(value, out var hold))
+            return hold ? "true" : "false";
+        return null;
+    }
+
+    public async Task<ApiResponse<PagedResult<FacilityVisitorPolicyDto>>> PolicyChangesAsync(
+        long campusId, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct))
+            return Denied<PagedResult<FacilityVisitorPolicyDto>>();
+        if (campusId <= 0 || page is < 1 or > 100000 || pageSize is < 1 or > 50)
+            return ApiResponse<PagedResult<FacilityVisitorPolicyDto>>.ErrorResponse("Invalid policy page.", 400);
+        if (!await Campuses().ContainsAsync(campusId, ct))
+            return Denied<PagedResult<FacilityVisitorPolicyDto>>();
+        var rows = db.Set<FacilityVisitorPolicyChange>().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.CampusId == campusId && !x.IsDeleted);
+        var count = await rows.CountAsync(ct);
+        var items = await rows.OrderByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<FacilityVisitorPolicyDto>>.SuccessResponse(new()
+        {
+            Page = page, PageSize = pageSize, TotalCount = count,
+            Items = items.Select(MapPolicy).ToList()
+        });
+    }
+
+    public async Task<ApiResponse<FacilityVisitorPolicyDto>> RequestPolicyChangeAsync(
+        FacilityVisitorPolicyRequestDto request, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Manager || !await ActorActiveAsync(ct) || !await ManagerLiveAsync(ct))
+            return Denied<FacilityVisitorPolicyDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || request.CampusId <= 0 ||
+            request.Reason == null || request.Reason.Trim().Length is < 10 or > 200 ||
+            !Plain(request.Reason))
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Valid policy request and reason required.", 400);
+        var policy = request.PolicyCode?.Trim() ?? "";
+        var key = PrivacyPolicyKey(policy, request.CampusId);
+        var proposed = PrivacyPolicyValue(policy, request.ProposedValue?.Trim());
+        if (key == null || proposed == null)
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Unsupported visitor privacy policy value.", 400);
+        try
+        {
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, request.CampusId, true, ct))
+                return Denied<FacilityVisitorPolicyDto>();
+            var replay = await db.Set<FacilityVisitorPolicyChange>().AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TenantId == user.TenantId &&
+                    x.ClientRequestId == request.ClientRequestId, ct);
+            if (replay != null)
+                return replay.CampusId == request.CampusId && replay.PolicyCode == policy &&
+                       replay.ProposedValue == proposed && replay.RequestReason == request.Reason.Trim()
+                    ? ApiResponse<FacilityVisitorPolicyDto>.SuccessResponse(MapPolicy(replay))
+                    : ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Request identifier was already used.", 409);
+            if (await db.Set<FacilityVisitorPolicyChange>().AnyAsync(x =>
+                x.TenantId == user.TenantId && x.CampusId == request.CampusId &&
+                x.PolicyCode == policy && x.StateCode == "Submitted" && !x.IsDeleted, ct))
+                return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse(
+                    "A policy request is already awaiting independent review.", 409);
+            var current = await db.TenantSettings.AsNoTracking().SingleOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.Key == key && !x.IsDeleted, ct);
+            if (current?.IsSensitive == true ||
+                (current != null && PrivacyPolicyValue(policy, current.Value) == null))
+                return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse(
+                    "Existing policy is invalid; administrative reconciliation required.", 409);
+            if (current != null && PrivacyPolicyValue(policy, current.Value) == proposed)
+                return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy already has the requested value.", 409);
+            var row = new FacilityVisitorPolicyChange
+            {
+                TenantId = user.TenantId, CampusId = request.CampusId,
+                ClientRequestId = request.ClientRequestId, PolicyCode = policy,
+                ProposedValue = proposed,
+                PreviousValue = current?.Value,
+                PreviousVersion = current == null ? null : Convert.ToBase64String(current.RowVersion),
+                RequestedByUserId = user.UserId, RequestReason = request.Reason.Trim(),
+                StateCode = "Submitted", CreatedAt = Now, CreatedBy = user.UserId
+            };
+            db.Set<FacilityVisitorPolicyChange>().Add(row);
+            await db.SaveChangesAsync(ct);
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<FacilityVisitorPolicyDto>.SuccessResponse(MapPolicy(row));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy request changed; reload.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Concurrent visitor policy request");
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy request conflicts with another change.", 409);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor policy request contention");
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy is busy; retry.", 409);
+        }
+    }
+
+    public async Task<ApiResponse<FacilityVisitorPolicyDto>> DecidePolicyChangeAsync(
+        long id, string decision, FacilityVisitorPolicyDecisionDto request, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Admin || !await ActorActiveAsync(ct) || !await ReviewerLiveAsync(ct))
+            return Denied<FacilityVisitorPolicyDto>();
+        if (id <= 0 || decision is not ("approve" or "reject") || request == null ||
+            request.ClientCommandId == Guid.Empty || string.IsNullOrWhiteSpace(request.RowVersion) ||
+            request.Reason == null || request.Reason.Trim().Length is < 10 or > 200 ||
+            !Plain(request.Reason))
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Valid independent decision required.", 400);
+        try
+        {
+            await using var tx = db.Database.IsRelational()
+                ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
+            var row = await db.Set<FacilityVisitorPolicyChange>().SingleOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.Id == id && !x.IsDeleted, ct);
+            if (row == null) return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy request not found.", 404);
+            if (!await LockLiveVisitorIdentityAsync(user.UserId, row.CampusId, true, ct))
+                return Denied<FacilityVisitorPolicyDto>();
+            if (row.RequestedByUserId == user.UserId)
+                return Denied<FacilityVisitorPolicyDto>();
+            if (row.StateCode != "Submitted")
+                return row.ReviewCommandId == request.ClientCommandId &&
+                       row.ReviewedByUserId == user.UserId &&
+                       row.StateCode == (decision == "approve" ? "Approved" : "Rejected") &&
+                       row.ReviewReason == request.Reason.Trim()
+                    ? ApiResponse<FacilityVisitorPolicyDto>.SuccessResponse(MapPolicy(row))
+                    : ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy was already decided.", 409);
+            if (!Version(row.RowVersion, request.RowVersion))
+                return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy request changed; reload.", 409);
+            var key = PrivacyPolicyKey(row.PolicyCode, row.CampusId);
+            if (key == null || PrivacyPolicyValue(row.PolicyCode, row.ProposedValue) == null)
+                return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Invalid stored policy request.", 409);
+            var current = await db.TenantSettings.SingleOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.Key == key && !x.IsDeleted, ct);
+            var unchanged = current == null
+                ? row.PreviousVersion == null && row.PreviousValue == null
+                : !current.IsSensitive && current.Value == row.PreviousValue &&
+                  Version(current.RowVersion, row.PreviousVersion);
+            if (!unchanged)
+                return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse(
+                    "Effective policy changed since the request; submit a new request.", 409);
+            var decidedAt = Now;
+            if (decision == "approve")
+            {
+                var setting = current ?? new EduOS.Core.Entities.SaaS.TenantSetting
+                {
+                    TenantId = user.TenantId, Key = key, Category = "Facilities",
+                    CreatedAt = decidedAt, CreatedBy = user.UserId
+                };
+                setting.Value = row.ProposedValue;
+                setting.IsSensitive = false;
+                if (current == null) db.TenantSettings.Add(setting);
+                else { setting.UpdatedAt = decidedAt; setting.UpdatedBy = user.UserId; }
+            }
+            row.StateCode = decision == "approve" ? "Approved" : "Rejected";
+            row.ReviewCommandId = request.ClientCommandId;
+            row.ReviewedByUserId = user.UserId;
+            row.ReviewedAtUtc = decidedAt;
+            row.ReviewReason = request.Reason.Trim();
+            row.UpdatedAt = decidedAt;
+            row.UpdatedBy = user.UserId;
+            db.AuditLogs.Add(new AuditLog
+            {
+                TenantId = user.TenantId, UserId = user.UserId,
+                Action = decision == "approve" ? "VisitorPolicyApproved" : "VisitorPolicyRejected",
+                EntityName = nameof(FacilityVisitorPolicyChange), EntityId = row.Id,
+                Endpoint = "/api/facilities/visitors/policies",
+                RequestId = request.ClientCommandId.ToString("N"),
+                // Only campus/policy/value metadata; no visitor identity or incident narratives.
+                NewValue = $"CampusId={row.CampusId};Policy={row.PolicyCode};Value={row.ProposedValue}",
+                IsSuccess = true, OccurredAt = decidedAt, CreatedAt = decidedAt, CreatedBy = user.UserId
+            });
+            await db.SaveChangesAsync(ct);
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<FacilityVisitorPolicyDto>.SuccessResponse(MapPolicy(row));
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy changed; reload.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Concurrent visitor policy decision");
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy decision conflicts with another change.", 409);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Visitor policy decision contention");
+            return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy is busy; retry.", 409);
         }
     }
 }

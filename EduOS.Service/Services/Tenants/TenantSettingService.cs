@@ -78,6 +78,13 @@ public sealed class TenantSettingService : ITenantSettingService
         var key = request.Key.Trim();
         if (key.StartsWith(WorkspacePreferencesService.KeyPrefix, StringComparison.OrdinalIgnoreCase))
             return ApiResponse<TenantSettingDto>.ErrorResponse("Reserved workspace key.", 403);
+        // These PII-retention controls require a separately approved campus
+        // workflow. Do not permit an administrator to bypass the checker by
+        // creating, updating or changing their category in general Settings.
+        if (key.StartsWith("Facilities.Visitor.RetentionDays.", StringComparison.OrdinalIgnoreCase) ||
+            key.StartsWith("Facilities.Visitor.LegalHold.", StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<TenantSettingDto>.ErrorResponse(
+                "Visitor privacy policy must be changed through independent campus approval.", 403);
         if ((key.Equals("Branding.PrimaryColor", StringComparison.OrdinalIgnoreCase) ||
              key.Equals("Branding.SecondaryColor", StringComparison.OrdinalIgnoreCase) ||
              key.Equals("Branding.AccentColor", StringComparison.OrdinalIgnoreCase)) &&

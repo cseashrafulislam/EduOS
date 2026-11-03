@@ -15,6 +15,21 @@ namespace EduOS.Tests.Services;
 
 public sealed class TenantSettingSecurityTests
 {
+    [Theory]
+    [InlineData("Facilities.Visitor.RetentionDays.12")]
+    [InlineData("facilities.visitor.legalhold.12")]
+    [InlineData("FACILITIES.VISITOR.RETENTIONDAYS.12")]
+    public async Task Visitor_privacy_policies_cannot_bypass_independent_approval_via_general_settings(string key)
+    {
+        await using var setup = Create();
+        var result = await setup.Service.SaveSettingAsync(null, new SaveTenantSettingRequestDto
+        {
+            Key = key, Category = "Facilities", Value = "30"
+        });
+        Assert.Equal(403, result.StatusCode);
+        Assert.Empty(await setup.Db.TenantSettings.ToListAsync());
+    }
+
     [Fact]
     public async Task Sensitive_value_is_encrypted_redacted_and_preserved_when_mask_is_submitted()
     {

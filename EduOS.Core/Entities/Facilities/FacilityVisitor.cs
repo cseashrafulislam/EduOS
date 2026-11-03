@@ -33,3 +33,25 @@ public sealed class FacilityVisitorEvent : BaseTenantEntity
     [MaxLength(20)] public string? BadgeCode { get; set; }
     [MaxLength(200)] public string? Reason { get; set; }
 }
+
+/// <summary>
+/// Immutable proposal and independent decision for the canonical TenantSettings
+/// visitor privacy controls. Approved changes are applied to TenantSettings;
+/// the request row is kept as a PII-free approval record.
+/// </summary>
+public sealed class FacilityVisitorPolicyChange : BaseTenantEntity
+{
+    public Guid ClientRequestId { get; set; }
+    public long CampusId { get; set; }
+    [Required, MaxLength(24)] public string PolicyCode { get; set; } = string.Empty;
+    [Required, MaxLength(12)] public string ProposedValue { get; set; } = string.Empty;
+    [MaxLength(12)] public string? PreviousValue { get; set; }
+    [MaxLength(24)] public string? PreviousVersion { get; set; }
+    [Required, MaxLength(12)] public string StateCode { get; set; } = "Submitted";
+    [Required, MaxLength(200)] public string RequestReason { get; set; } = string.Empty;
+    public long RequestedByUserId { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    public Guid? ReviewCommandId { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    [MaxLength(200)] public string? ReviewReason { get; set; }
+}

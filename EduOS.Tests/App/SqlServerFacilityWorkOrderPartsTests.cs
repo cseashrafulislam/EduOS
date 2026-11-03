@@ -224,7 +224,9 @@ public sealed class SqlServerFacilityWorkOrderTestsParts
                 .ReviewAsync(journalRef, new FacilityPartsFinanceReviewDto {
                     RowVersion = financeVersion, Approve = true })).StatusCode);
         await using (var differentTenantDb = Db(options, tenantId + 100000, makerId, "TenantAdmin"))
-            Assert.Equal(404, (await Finance(differentTenantDb, makerId, "TenantAdmin")
+            // The actor has no live membership in this tenant: deny before
+            // attempting to resolve the movement, without exposing its identity.
+            Assert.Equal(403, (await Finance(differentTenantDb, makerId, "TenantAdmin")
                 .GetAsync(financeMovement)).StatusCode);
         await using (var reviewerDb = Db(options, tenantId, managerId, "Principal"))
         {

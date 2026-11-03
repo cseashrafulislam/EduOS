@@ -48,6 +48,20 @@ public sealed class FacilityVisitorsApiController(IFacilityVisitorService servic
     public async Task<IActionResult> Occupancy(long campusId, CancellationToken ct = default) =>
         Reply(await service.OccupancyAsync(campusId, ct));
 
+    [HttpGet("policies"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
+    public async Task<IActionResult> Policies(long campusId, int page = 1, int pageSize = 25,
+        CancellationToken ct = default) =>
+        Reply(await service.PolicyChangesAsync(campusId, page, pageSize, ct));
+
+    [HttpPost("policies"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
+    public async Task<IActionResult> RequestPolicy([FromBody] FacilityVisitorPolicyRequestDto request,
+        CancellationToken ct) => Reply(await service.RequestPolicyChangeAsync(request, ct));
+
+    [HttpPost("policies/{id:long}/{decision}"), Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> DecidePolicy(long id, string decision,
+        [FromBody] FacilityVisitorPolicyDecisionDto request, CancellationToken ct) =>
+        Reply(await service.DecidePolicyChangeAsync(id, decision, request, ct));
+
     [HttpPost, Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
     public async Task<IActionResult> Create([FromBody] CreateFacilityVisitorDto request,
         CancellationToken ct) => Reply(await service.CreateAsync(request, ct));
