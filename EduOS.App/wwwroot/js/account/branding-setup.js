@@ -26,12 +26,27 @@
     let saving = false;
     let loading = false;
     let invalidSession = false;
+    // A restored BFCache document must not expose the previous tenant's branding,
+    // reuse its antiforgery token, or resume a pending privileged operation.
+    let pageActive = true;
+    window.addEventListener('pagehide', () => {
+        pageActive = false;
+        clearLoadedBranding();
+        if (alertContainer) {
+            alertContainer.className = 'd-none';
+            alertContainer.textContent = '';
+        }
+        if (retryLoadButton) retryLoadButton.hidden = true;
+    });
+    window.addEventListener('pageshow', event => {
+        if (event.persisted) window.location.reload();
+    });
     const retryLoadButton = document.getElementById('retryBrandingLoadBtn');
     const originalTenant = document.body?.dataset.authTenantId || '';
     const originalSession = document.body?.dataset.authSessionReference || '';
     const shield = document.getElementById('eduosSessionShield');
     function contextReady() {
-        return !!originalTenant && !!originalSession &&
+        return pageActive && !!originalTenant && !!originalSession &&
             document.body?.dataset.authTenantId === originalTenant &&
             document.body?.dataset.authSessionReference === originalSession &&
             !window.EduOSSessionTransitionPending?.() &&
@@ -101,7 +116,7 @@
     }
 
     async function reloadBranding() {
-        if (loading || invalidSession) return false;
+        if (loading || invalidSession || !pageActive) return false;
         loading = true;
         clearLoadedBranding();
         updateControls();
@@ -286,8 +301,9 @@
     function bindUpload(type, endpoint) {
         const capitalized = type[0].toUpperCase() + type.slice(1);
         const input = document.getElementById(`${type}Input`);
-        document.getElementById(`upload${capitalized}Btn`)?.addEventListener('click', () => input?.click());
-        document.getElementById(`${type}Preview`)?.addEventListener('click', () => input?.click());
+        const openPicker = () => { if (pageActive && ready && !saving && !invalidSession) input?.click(); };
+        document.getElementById(`upload${capitalized}Btn`)?.addEventListener('click', openPicker);
+        document.getElementById(`${type}Preview`)?.addEventListener('click', openPicker);
         input?.addEventListener('change', async () => {
             const file = input.files?.[0];
             if (!file || !ready || saving) return;
@@ -452,7 +468,7 @@
     }
 
     function showAlert(type, message) {
-        if (!alertContainer) return;
+        if (!alertContainer || !pageActive) return;
         alertContainer.className = `alert alert-${type}`;
         alertContainer.textContent = message || '';
         alertContainer.focus();

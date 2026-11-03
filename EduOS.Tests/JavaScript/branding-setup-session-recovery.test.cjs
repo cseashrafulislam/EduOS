@@ -45,7 +45,8 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
         dashboard: 'Dashboard', continueSetup: 'Continue',
         logoAlt: 'Logo', faviconAlt: 'Favicon'
     });
-    const callbacks = {};
+    const callbacks = {}, lifecycle = {};
+    let reloads = 0;
     const calls = [], navigations = [], savedRows = [];
     const body = { dataset: { authTenantId: tenant, authSessionReference: 'session-1' } };
     let verificationUp = verificationAvailable;
@@ -95,7 +96,8 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
         throw new Error('Unexpected request: ' + url);
     };
     const window = {
-        location: { origin: 'https://school.example', assign: url => navigations.push(url) },
+        location: { origin: 'https://school.example', assign: url => navigations.push(url), reload: () => { reloads++; } },
+        addEventListener: (name, callback) => { lifecycle[name] = callback; },
         clearTimeout() {}, setTimeout() { return 1; }, confirm() { return true; },
         EduOSWorkspaceResponseMatchesSession: missingMatcher ? undefined : result =>
             result.headers.get('X-EduOS-Session-Reference') === 'current',
@@ -107,6 +109,8 @@ async function mount({ onboardingOk = true, sessionMatches = true, token = 'csrf
     await callbacks.DOMContentLoaded();
     return {
         nodes, calls, navigations, savedRows,
+        lifecycle,
+        get reloads() { return reloads; },
         setOnboardingOk(value) { onboardingAvailable = value; },
         setVerificationUp(value) { verificationUp = value; },
         get colorWrites() { return colorWrites; },
@@ -222,4 +226,37 @@ test('Unavailable session verifier clears privileged UI and only retries after r
     app.setVerificationUp(true);
     await app.retry();
     assert.equal(app.nodes.saveBrandingBtn.disabled, false);
+});
+
+test('Branding onboarding clears private values on pagehide and forces a fresh authenticated document on BFCache return', async () => {
+    const app = await mount();
+    assert.equal(app.nodes.subdomainInput.value, 'demo-school');
+    assert.equal(app.nodes.saveBrandingBtn.disabled, false);
+    app.lifecycle.pagehide();
+    assert.equal(app.nodes.subdomainInput.value, '');
+    assert.equal(app.nodes.primaryColorText.value, '#1E40AF');
+    assert.equal(app.nodes.saveBrandingBtn.disabled, true);
+    assert.equal(app.nodes.uploadLogoBtn.disabled, true);
+    assert.equal(app.nodes.retryBrandingLoadBtn.hidden, true);
+    assert.equal(app.nodes.alertContainer.textContent, '');
+    await app.submit();
+    assert.equal(app.colorWrites, 0);
+    assert.deepEqual(app.navigations, []);
+    app.lifecycle.pageshow({ persisted: true });
+    assert.equal(app.reloads, 1);
+    app.lifecycle.pageshow({ persisted: false });
+    assert.equal(app.reloads, 1);
+});
+
+test('TenantAdmin onboarding pages disable HTTP caching and branding enforces lifecycle privacy', () => {
+    const controller = fs.readFileSync(path.resolve(__dirname,
+        '../../EduOS.App/Controllers/AccountController.cs'), 'utf8');
+    for (const action of ['InstitutionProfile', 'CampusSetup', 'AcademicSetup',
+        'ModuleSetup', 'BrandingSetup', 'GeneralSettings', 'GatewaySetup']) {
+        const signature = new RegExp('\\[ResponseCache\\(NoStore = true, Location = ResponseCacheLocation\\.None\\)\\]\\s+public IActionResult ' + action + '\\(\\)');
+        assert.match(controller, signature, action + ' must not be shared-cached');
+    }
+    assert.match(source, /window\.addEventListener\('pagehide'/);
+    assert.match(source, /event\.persisted\) window\.location\.reload\(\)/);
+    assert.match(source, /return pageActive && !!originalTenant/);
 });

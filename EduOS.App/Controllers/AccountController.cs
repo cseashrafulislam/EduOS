@@ -85,6 +85,7 @@ namespace EduOS.App.Controllers
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult InstitutionProfile() => View();
 
         [Authorize(Roles = "TenantAdmin")]
@@ -119,26 +120,32 @@ namespace EduOS.App.Controllers
         }
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult CampusSetup() => View();
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult AcademicSetup() => View();
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult ModuleSetup() => View();
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult BrandingSetup() => View();
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult GeneralSettings() => View();
 
         [Authorize(Roles = "TenantAdmin")]
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public IActionResult GatewaySetup() => View();
 
         [Authorize(Roles = "TenantAdmin")]
