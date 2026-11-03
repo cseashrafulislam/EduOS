@@ -13,6 +13,8 @@
     let listGeneration = 0, detailGeneration = 0, standardsGeneration = 0, programGeneration = 0, reportGeneration = 0;
     let createRetry = null, actionRetry = null, frameworkRetry = null, standardRetry = null, publishRetry = null;
     let fileRetry = null, filePage = 1, fileTotal = 0;
+    let outcomeRetry = null, mappingRetry = null, academicRetry = null;
+    let mapGeneration = 0, outcomeGeneration = 0;
     const actions = {
         edit: ['Edit draft', 'খসড়া সংশোধন'], submit: ['Submit evidence', 'প্রমাণ জমা'],
         assign: ['Assign reviewer', 'পর্যালোচক নিযুক্ত'], approve: ['Approve evidence', 'প্রমাণ অনুমোদন'],
@@ -24,6 +26,7 @@
         session === document.body.dataset.authSessionReference);
     function clearReport() {
         reportGeneration++; get('accReportRows').replaceChildren();
+        get('accGapRows').replaceChildren();
         get('accCsv').classList.add('d-none'); get('accCsv').removeAttribute('href');
         get('accPrint').classList.add('d-none');
     }
@@ -33,6 +36,8 @@
         get('accSensitive').replaceChildren(); get('accAction').replaceChildren(); get('accHistory').replaceChildren();
         get('accFileRows').replaceChildren(); get('accFilesPage').textContent = '';
         get('accFileForm').classList.add('d-none'); fileRetry = null; filePage = 1; fileTotal = 0;
+        get('accAcademicEvidenceBox').classList.add('d-none');
+        get('accAcademicEvidenceList').replaceChildren(); academicRetry = null;
     }
     async function api(url, body) {
         if (!sessionValid()) { clearDetail(); clearReport(); throw Error(t('Session changed.', 'সেশন পরিবর্তিত।')); }
@@ -154,6 +159,7 @@
                 if (draft && f.stateCode === 'Draft') option(draft, f.id, label);
             });
             await loadStandards(); controls();
+            await loadDraftMapStandards();
         } catch (e) { notice(e.message, true); }
     }
     async function loadStandards() {
@@ -177,19 +183,54 @@
                 campuses.forEach(c => option(select, c.id, c.name));
             }
             controls();
+            await loadGapPrograms();
+        } catch (e) { notice(e.message, true); }
+    }
+    async function loadGapPrograms() {
+        const campus = get('accReportCampus').value, target = get('accGapProgram');
+        target.replaceChildren(); option(target, '', t('Institution-wide', 'প্রতিষ্ঠানব্যাপী'));
+        if (!campus) return;
+        try {
+            const rows = await api('/api/accreditation/programs?campusId=' + encodeURIComponent(campus));
+            if (get('accReportCampus').value !== campus || !sessionValid()) return;
+            rows.forEach(x => option(target, x.id, x.name));
         } catch (e) { notice(e.message, true); }
     }
     async function loadPrograms() {
         const campus = get('accCampus').value, generation = ++programGeneration;
         const target = get('accProgram'); target.replaceChildren();
         option(target, '', t('Institute-wide / no program', 'সম্পূর্ণ প্রতিষ্ঠান / প্রোগ্রাম নেই'));
-        if (!campus) { controls(); return; }
+        if (!campus) { await loadOutcomes(); controls(); return; }
         try {
             const programs = await api('/api/accreditation/programs?campusId=' + encodeURIComponent(campus));
             if (generation !== programGeneration || !sessionValid()) return;
             programs.forEach(p => option(target, p.id, p.name));
         } catch (e) { if (generation === programGeneration) notice(e.message, true); }
-        controls();
+        await loadOutcomes(); controls();
+    }
+    async function loadOutcomes() {
+        const campus = get('accCampus').value, program = get('accProgram').value;
+        const generation = ++outcomeGeneration;
+        const target = get('accMapOutcome'); target.replaceChildren();
+        option(target, '', t('Choose an outcome version', 'শিক্ষণফলের সংস্করণ নির্বাচন'));
+        if (!campus || !program) return;
+        try {
+            const rows = await api('/api/accreditation/program-outcomes?' +
+                new URLSearchParams({ campusId: campus, programId: program }));
+            if (generation !== outcomeGeneration || !sessionValid()) return;
+            rows.forEach(x => option(target, x.id, x.code + ' v' + x.versionNo + ' · ' + x.statement));
+        } catch (e) { if (generation === outcomeGeneration) notice(e.message, true); }
+    }
+    async function loadDraftMapStandards() {
+        const frameworkId = get('accFrameworkManage')?.value, generation = ++mapGeneration;
+        const target = get('accMapStandard'); if (!target) return;
+        target.replaceChildren(); option(target, '', t('Choose a draft standard', 'খসড়া মানদণ্ড নির্বাচন'));
+        if (!frameworkId) return;
+        try {
+            const rows = await api('/api/accreditation/frameworks/' + encodeURIComponent(frameworkId) + '/standards');
+            if (generation !== mapGeneration || !sessionValid()) return;
+            rows.forEach(x => option(target, x.id, x.code + ' · ' + x.title));
+        } catch (e) { if (generation === mapGeneration) notice(e.message, true); }
     }
     async function loadList() {
         const generation = ++listGeneration; clearDetail(); get('accRows').replaceChildren();
@@ -221,6 +262,21 @@
             get('accSummary').textContent = `${detail.frameworkCode} v${detail.frameworkVersion} · ${detail.standardCode} · ${detail.stateCode} · v${detail.currentRevision} · ${detail.reference}` +
                 ` · ${t('Independent review', 'স্বতন্ত্র মূল্যায়ন')}: ${detail.approvalsReceived}/${detail.requiredReviewerCount}`;
             get('accSensitive').textContent = detail.evidenceSummary || t('Evidence visible only to its owner or assigned reviewer.', 'প্রমাণ শুধু মালিক বা নিযুক্ত পর্যালোচক দেখতে পারবেন।');
+            if (detail.academicProgramId && detail.evidenceSummary) {
+                get('accAcademicEvidenceBox').classList.remove('d-none');
+                const canLink = ['Draft', 'ChangesRequested'].includes(detail.stateCode) &&
+                    detail.allowedActions.some(a => ['edit', 'submit', 'revise'].includes(a));
+                get('accAcademicEvidenceForm').classList.toggle('d-none', !canLink);
+                const links = await api('/api/accreditation/assessments/' + encodeURIComponent(reference) + '/academic-evidence');
+                if (generation !== detailGeneration || !sessionValid()) return;
+                links.forEach(link => {
+                    const p = document.createElement('p'); p.className = 'mb-1';
+                    p.textContent = 'Result #' + link.resultPublicationId + ' · v' + link.publicationVersionNo +
+                        ' · ' + String(link.publishedAtUtc).slice(0, 10);
+                    get('accAcademicEvidenceList').appendChild(p);
+                });
+                if (!links.length) get('accAcademicEvidenceList').textContent = t('No linked academic results.', 'সংযুক্ত একাডেমিক ফলাফল নেই।');
+            }
             get('accEditEvidence').value = detail.evidenceSummary || '';
             const action = get('accAction'); action.replaceChildren(); option(action, '', t('Choose action', 'কার্যক্রম নির্বাচন'));
             detail.allowedActions.forEach(a => option(action, a, t(...(actions[a] || [a, a]))));
@@ -255,8 +311,11 @@
     }
     get('accAction').addEventListener('change', changeAction);
     get('accCampus').addEventListener('change', () => { createRetry = null; loadPrograms(); });
+    get('accProgram').addEventListener('change', () => { createRetry = null; loadOutcomes(); });
     get('accFramework').addEventListener('change', () => { createRetry = null; loadStandards(); });
-    get('accFrameworkManage')?.addEventListener('change', () => { standardRetry = null; publishRetry = null; controls(); });
+    get('accFrameworkManage')?.addEventListener('change', () => {
+        standardRetry = null; publishRetry = null; mappingRetry = null; loadDraftMapStandards(); controls();
+    });
     get('accRefresh').addEventListener('click', () => { page = 1; loadList(); });
     get('accPrevious').addEventListener('click', () => { if (page > 1) { page--; loadList(); } });
     get('accNext').addEventListener('click', () => { if (page * 20 < total) { page++; loadList(); } });
@@ -329,10 +388,59 @@
                 code: get('accStandardCode').value.trim().toUpperCase(), title: get('accStandardTitle').value.trim(),
                 rubric: get('accStandardRubric').value.trim(), requiredEvidence: get('accStandardRequired').value.trim(),
                 validityDays: Number(get('accStandardValidity').value),
-                requiredReviewerCount: Number(get('accStandardQuorum').value)
+                requiredReviewerCount: Number(get('accStandardQuorum').value),
+                requiresOutcomeMapping: get('accRequiresOutcome').checked,
+                requiresPublishedAcademicEvidence: get('accRequiresPublished').checked
             });
             standardRetry = null; get('accStandardForm').reset();
+            await loadDraftMapStandards();
             notice(t('Standard added to the draft.', 'খসড়ায় মানদণ্ড যোগ হয়েছে।'));
+        } catch (e) { notice(e.message, true); }
+        finally { busy = false; controls(); }
+    });
+    get('accOutcomeForm')?.addEventListener('input', () => { outcomeRetry = null; });
+    get('accOutcomeForm')?.addEventListener('submit', async event => {
+        event.preventDefault(); if (busy) return;
+        const program = Number(get('accProgram').value);
+        if (!program) { notice(t('Choose a campus and program in the assessment form.', 'মূল্যায়ন ফর্মে ক্যাম্পাস ও প্রোগ্রাম নির্বাচন করুন।'), true); return; }
+        busy = true; controls();
+        try {
+            await api('/api/accreditation/program-outcomes', {
+                clientRequestId: outcomeRetry ||= crypto.randomUUID(), academicProgramId: program,
+                code: get('accOutcomeCode').value.trim().toUpperCase(),
+                versionNo: Number(get('accOutcomeVersion').value), statement: get('accOutcomeText').value.trim()
+            });
+            outcomeRetry = null; get('accOutcomeForm').reset(); await loadOutcomes();
+            notice(t('Immutable program outcome saved.', 'অপরিবর্তনীয় প্রোগ্রাম শিক্ষণফল সংরক্ষিত।'));
+        } catch (e) { notice(e.message, true); }
+        finally { busy = false; controls(); }
+    });
+    get('accOutcomeMapForm')?.addEventListener('input', () => { mappingRetry = null; });
+    get('accOutcomeMapForm')?.addEventListener('submit', async event => {
+        event.preventDefault(); if (busy) return;
+        busy = true; controls();
+        try {
+            await api('/api/accreditation/standard-outcomes', {
+                clientRequestId: mappingRetry ||= crypto.randomUUID(),
+                standardId: Number(get('accMapStandard').value), outcomeId: Number(get('accMapOutcome').value)
+            });
+            mappingRetry = null;
+            notice(t('Outcome mapped to the draft standard.', 'খসড়া মানদণ্ডে শিক্ষণফল সংযুক্ত।'));
+        } catch (e) { notice(e.message, true); }
+        finally { busy = false; controls(); }
+    });
+    get('accAcademicEvidenceForm').addEventListener('input', () => { academicRetry = null; });
+    get('accAcademicEvidenceForm').addEventListener('submit', async event => {
+        event.preventDefault(); if (busy || !selected) return;
+        const reference = selected.reference;
+        busy = true; controls();
+        try {
+            await api('/api/accreditation/assessments/' + encodeURIComponent(reference) + '/academic-evidence', {
+                clientRequestId: academicRetry ||= crypto.randomUUID(),
+                resultPublicationId: Number(get('accAcademicResultId').value)
+            });
+            academicRetry = null; await open(reference);
+            notice(t('Published result linked to evidence.', 'প্রকাশিত ফলাফল প্রমাণের সঙ্গে যুক্ত হয়েছে।'));
         } catch (e) { notice(e.message, true); }
         finally { busy = false; controls(); }
     });
@@ -351,6 +459,37 @@
     for (const id of ['accReportCampus', 'accReportFrom', 'accReportTo']) {
         get(id).addEventListener('change', clearReport);
     }
+    get('accReportCampus').addEventListener('change', loadGapPrograms);
+    get('accGapProgram').addEventListener('change', clearReport);
+    get('accRenewDays').addEventListener('change', clearReport);
+    get('accGapRun').addEventListener('click', async () => {
+        const campus = get('accReportCampus').value, asOf = get('accReportTo').value;
+        const days = Number(get('accRenewDays').value);
+        if (!campus || !asOf || !Number.isInteger(days) || days < 1 || days > 365) {
+            notice(t('Choose a campus, date and valid renewal warning period.', 'ক্যাম্পাস, তারিখ এবং বৈধ নবায়ন সতর্কতা সময় নির্বাচন করুন।'), true);
+            return;
+        }
+        clearReport(); const generation = reportGeneration;
+        try {
+            const query = new URLSearchParams({ campusId: campus, asOf,
+                renewWithinDays: String(days) });
+            if (get('accGapProgram').value) query.set('programId', get('accGapProgram').value);
+            const rows = await api('/api/accreditation/reports/gaps?' + query);
+            if (generation !== reportGeneration || !sessionValid()) return;
+            rows.forEach(x => {
+                const tr = document.createElement('tr');
+                [x.frameworkCode + ' v' + x.frameworkVersion, x.standardCode,
+                    x.statusCode, x.expiresAtUtc ? String(x.expiresAtUtc).slice(0, 10) : '—',
+                    x.requiresOutcomeMapping ? x.mappedOutcomes : 'N/A',
+                    x.requiresPublishedAcademicEvidence ? x.academicEvidenceRecords : 'N/A'
+                ].forEach(value => td(tr, value));
+                get('accGapRows').appendChild(tr);
+            });
+            if (!rows.length) { const tr = document.createElement('tr');
+                td(tr, t('No published standards.', 'প্রকাশিত মানদণ্ড নেই।')).colSpan = 6; get('accGapRows').appendChild(tr); }
+            get('accPrint').classList.remove('d-none');
+        } catch (e) { if (generation === reportGeneration) notice(e.message, true); }
+    });
     get('accReportForm').addEventListener('submit', async event => {
         event.preventDefault(); clearReport(); const generation = reportGeneration;
         const query = new URLSearchParams({ campusId: get('accReportCampus').value,

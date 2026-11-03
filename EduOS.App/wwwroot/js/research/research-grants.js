@@ -13,6 +13,7 @@
     let createRetry = null, actionRetry = null, schemeRetry = null;
     let outputPage = 1, outputTotal = 0, outputRetry = null, outputReview = null, reviewRetry = null;
     let outputGeneration = 0, reportGeneration = 0;
+    let financeMappingRetry = null, financeLinkRetry = null;
     const names = {
         submit: ['Submit application', 'আবেদন জমা'], award: ['Approve award', 'অনুদান অনুমোদন'],
         reject: ['Reject application', 'আবেদন প্রত্যাখ্যান'], 'request-amend': ['Request budget change', 'বাজেট পরিবর্তন অনুরোধ'],
@@ -37,6 +38,7 @@
         get('grantOutputForm').classList.add('d-none');
         get('grantOutputReviewForm').classList.add('d-none');
         get('grantOutcomeReportRows')?.replaceChildren();
+        get('grantFinanceReport')?.replaceChildren(); financeLinkRetry = null;
     }
     async function api(url, data) {
         if (!sessionValid()) { clearDetail(); throw Error(t('Session changed; sign in again.', 'সেশন বদলেছে; আবার লগইন করুন।')); }
@@ -214,8 +216,35 @@
             const select = get('grantScheme'); select.replaceChildren();
             option(select, '', t('Choose scheme', 'স্কিম নির্বাচন'));
             list.forEach(s => option(select, s.id, `${s.name} (${s.currencyCode}, max ${s.maxAward})`));
+            await loadFinanceAccounts();
             controls();
         } catch (e) { notice(e.message, true); }
+    }
+    async function loadFinanceAccounts() {
+        const scheme = get('grantScheme')?.value, target = get('grantFinanceAccounts');
+        if (!target) return;
+        target.replaceChildren();
+        if (!scheme) return;
+        try {
+            const rows = await api('/api/research/grants/finance-accounts?schemeId=' + encodeURIComponent(scheme));
+            if (get('grantScheme').value !== scheme || !sessionValid()) return;
+            rows.forEach(x => textRow(target, [x.accountCode, x.accountName, x.flowCode, x.normalSide]));
+        } catch (e) { notice(e.message, true); }
+    }
+    async function loadFinanceReport(reference, generation) {
+        const target = get('grantFinanceReport'); if (!target) return;
+        try {
+            const report = await api('/api/research/grants/' + encodeURIComponent(reference) + '/finance');
+            if (generation !== detailGeneration || !sessionValid()) return;
+            target.replaceChildren();
+            [
+                ['Approved budget', report.approvedBudget], ['Disbursed', report.disbursed],
+                ['Expenses', report.expenses], ['Refunds', report.refunds],
+                ['Available budget', report.availableBudget], ['Undisbursed', report.undisbursed],
+                ['Linked GL journals', report.linkedJournals],
+                ['Journals requiring mapping review', report.journalsMissingAccountMapping]
+            ].forEach(x => textRow(target, [x[0], x[1], report.currencyCode]));
+        } catch (e) { if (generation === detailGeneration) notice(e.message, true); }
     }
     async function loadList() {
         clearDetail(); const generation = ++listGeneration;
@@ -275,6 +304,7 @@
             const audit = get('grantHistory'); audit.replaceChildren();
             history.items.forEach(h => textRow(audit, [h.actionCode, h.fromState + ' → ' + h.toState, h.reason, String(h.occurredAtUtc).slice(0, 16)]));
             await loadOutputs(reference, generation);
+            await loadFinanceReport(reference, generation);
         } catch (e) { if (generation === detailGeneration) { clearDetail(); notice(e.message, true); } }
         finally { controls(); }
     }
@@ -340,6 +370,38 @@
                 currencyCode: get('grantCurrency').value.trim().toUpperCase(), maxAward: Number(get('grantSchemeMax').value)
             });
             schemeRetry = null; get('grantSchemeForm').reset(); await schemes(); notice(t('Scheme created.', 'স্কিম তৈরি হয়েছে।'));
+        } catch (e) { notice(e.message, true); }
+        finally { busy = false; controls(); }
+    });
+    get('grantScheme')?.addEventListener('change', () => { financeMappingRetry = null; loadFinanceAccounts(); });
+    get('grantFinanceAccountForm')?.addEventListener('input', () => { financeMappingRetry = null; });
+    get('grantFinanceAccountForm')?.addEventListener('submit', async event => {
+        event.preventDefault(); if (busy || !get('grantScheme').value) return;
+        busy = true; controls();
+        try {
+            await api('/api/research/grants/finance-accounts', {
+                clientRequestId: financeMappingRetry ||= crypto.randomUUID(),
+                schemeId: Number(get('grantScheme').value), accountId: Number(get('grantFinanceAccountId').value),
+                flowCode: get('grantFinanceFlow').value, normalSide: get('grantFinanceSide').value
+            });
+            financeMappingRetry = null; get('grantFinanceAccountForm').reset(); await loadFinanceAccounts();
+            notice(t('Account classification saved.', 'অ্যাকাউন্ট শ্রেণিবিভাগ সংরক্ষিত।'));
+        } catch (e) { notice(e.message, true); }
+        finally { busy = false; controls(); }
+    });
+    get('grantFinanceJournalForm')?.addEventListener('input', () => { financeLinkRetry = null; });
+    get('grantFinanceJournalForm')?.addEventListener('submit', async event => {
+        event.preventDefault(); if (busy || !selected) return;
+        const reference = selected.reference;
+        busy = true; controls();
+        try {
+            await api('/api/research/grants/' + encodeURIComponent(reference) + '/finance/journals', {
+                clientRequestId: financeLinkRetry ||= crypto.randomUUID(),
+                journalId: Number(get('grantFinanceJournalId').value)
+            });
+            financeLinkRetry = null; get('grantFinanceJournalForm').reset();
+            await loadFinanceReport(reference, detailGeneration);
+            notice(t('Posted GL journal linked.', 'পোস্টকৃত জার্নাল সংযুক্ত।'));
         } catch (e) { notice(e.message, true); }
         finally { busy = false; controls(); }
     });

@@ -20,6 +20,8 @@ public sealed class AccreditationStandardCreateDto
     [Required, StringLength(2000, MinimumLength = 10)] public string RequiredEvidence { get; set; } = "";
     [Range(1, 3650)] public int ValidityDays { get; set; } = 365;
     [Range(1, 3)] public int RequiredReviewerCount { get; set; } = 1;
+    public bool RequiresOutcomeMapping { get; set; }
+    public bool RequiresPublishedAcademicEvidence { get; set; }
 }
 
 public sealed class AccreditationFrameworkPublishDto
@@ -48,6 +50,8 @@ public sealed class AccreditationStandardDto
     public string RequiredEvidence { get; set; } = "";
     public int ValidityDays { get; set; }
     public int RequiredReviewerCount { get; set; }
+    public bool RequiresOutcomeMapping { get; set; }
+    public bool RequiresPublishedAcademicEvidence { get; set; }
 }
 
 public sealed class AccreditationAssessmentCreateDto
@@ -120,4 +124,19 @@ public sealed class AccreditationReportRowDto
     public int Approved { get; set; }
     public int Pending { get; set; }
     public int Expired { get; set; }
+}
+
+public sealed class AccreditationGapDto
+{
+    public long StandardId { get; set; }
+    public string FrameworkCode { get; set; } = "";
+    public int FrameworkVersion { get; set; }
+    public string StandardCode { get; set; } = "";
+    public string StatusCode { get; set; } = "";
+    public DateTime? ApprovedAtUtc { get; set; }
+    public DateTime? ExpiresAtUtc { get; set; }
+    public bool RequiresOutcomeMapping { get; set; }
+    public bool RequiresPublishedAcademicEvidence { get; set; }
+    public int MappedOutcomes { get; set; }
+    public int AcademicEvidenceRecords { get; set; }
 }

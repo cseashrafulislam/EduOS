@@ -9,6 +9,7 @@
     #accReport, #accReport * { visibility: visible !important; }
     #accReport { position: absolute; left: 0; top: 0; width: 100%; border: 0 !important; box-shadow: none !important; }
     #accReportForm, #accCsv, #accPrint { display: none !important; }
+    #accGapRun { display: none !important; }
 </style>
 <div class="container-fluid py-4" id="accreditationWorkspace">
     @Html.AntiForgeryToken()
@@ -45,7 +46,31 @@
                             <input id="accStandardValidity" type="number" class="form-control mb-2" min="1" max="3650" value="365" required />
                             <label for="accStandardQuorum" class="form-label" data-a-en="Independent reviewers required" data-a-bn="প্রয়োজনীয় স্বাধীন পর্যালোচক">Independent reviewers required</label>
                             <select id="accStandardQuorum" class="form-select mb-2"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+                            <label class="form-check mb-2"><input id="accRequiresOutcome" type="checkbox" class="form-check-input" />
+                                <span data-a-en="Require program learning outcome mapping" data-a-bn="প্রোগ্রাম শিক্ষণফল ম্যাপিং আবশ্যক">Require program learning outcome mapping</span></label>
+                            <label class="form-check mb-2"><input id="accRequiresPublished" type="checkbox" class="form-check-input" />
+                                <span data-a-en="Require published academic result evidence" data-a-bn="প্রকাশিত একাডেমিক ফলাফলের প্রমাণ আবশ্যক">Require published academic result evidence</span></label>
                             <button id="accStandardSave" class="btn btn-outline-primary" type="submit" data-a-en="Add standard" data-a-bn="মানদণ্ড যোগ">Add standard</button>
+                        </form>
+                        <hr />
+                        <h3 class="h6" data-a-en="Versioned program learning outcomes" data-a-bn="সংস্করণভিত্তিক প্রোগ্রাম শিক্ষণফল">Versioned program learning outcomes</h3>
+                        <p class="small text-muted" data-a-en="Select a campus and program in the assessment form first. New versions preserve the prior wording for historical audits." data-a-bn="প্রথমে মূল্যায়ন ফর্মে ক্যাম্পাস ও প্রোগ্রাম নির্বাচন করুন। নতুন সংস্করণে আগের বিবরণ অক্ষত থাকে।">Select a campus and program in the assessment form first. New versions preserve the prior wording for historical audits.</p>
+                        <form id="accOutcomeForm" class="mb-3">
+                            <label for="accOutcomeCode" class="form-label">PLO code</label>
+                            <input id="accOutcomeCode" class="form-control mb-2" maxlength="40" pattern="[A-Za-z0-9_]+" required />
+                            <label for="accOutcomeVersion" class="form-label">Version</label>
+                            <input id="accOutcomeVersion" class="form-control mb-2" type="number" min="1" max="1000" value="1" required />
+                            <label for="accOutcomeText" class="form-label" data-a-en="Outcome statement" data-a-bn="শিক্ষণফল বিবরণ">Outcome statement</label>
+                            <textarea id="accOutcomeText" class="form-control mb-2" minlength="10" maxlength="1000" rows="2" required></textarea>
+                            <button class="btn btn-sm btn-outline-primary" type="submit" data-a-en="Save immutable outcome version" data-a-bn="অপরিবর্তনীয় শিক্ষণফল সংরক্ষণ">Save immutable outcome version</button>
+                        </form>
+                        <h3 class="h6" data-a-en="Draft standard → outcome map" data-a-bn="খসড়া মানদণ্ড → শিক্ষণফল ম্যাপিং">Draft standard → outcome map</h3>
+                        <form id="accOutcomeMapForm">
+                            <label for="accMapStandard" class="form-label">Draft standard</label>
+                            <select id="accMapStandard" class="form-select mb-2" required></select>
+                            <label for="accMapOutcome" class="form-label">Program outcome</label>
+                            <select id="accMapOutcome" class="form-select mb-2" required></select>
+                            <button class="btn btn-sm btn-outline-primary" type="submit" data-a-en="Link to draft standard" data-a-bn="খসড়া মানদণ্ডে সংযুক্ত করুন">Link to draft standard</button>
                         </form>
                         <button id="accFrameworkPublish" class="btn btn-outline-success mt-3" type="button" data-a-en="Independent publish" data-a-bn="স্বতন্ত্র প্রকাশ অনুমোদন">Independent publish</button>
                         <p class="small text-muted mb-0 mt-2" data-a-en="The draft creator cannot publish their own version. Published standards cannot be changed." data-a-bn="খসড়া প্রস্তুতকারী নিজে প্রকাশ করতে পারবেন না। প্রকাশিত মানদণ্ড আর বদলানো যাবে না।">The draft creator cannot publish their own version. Published standards cannot be changed.</p>
@@ -98,6 +123,15 @@
                     <h2 id="accDetailHeading" class="h5" data-a-en="Assessment and review" data-a-bn="মূল্যায়ন ও পর্যালোচনা">Assessment and review</h2>
                     <div id="accSummary" class="mb-3"></div>
                     <div id="accSensitive" class="mb-3"></div>
+                    <section id="accAcademicEvidenceBox" class="border rounded p-3 mb-3 d-none">
+                        <h3 class="h6" data-a-en="Published academic result evidence" data-a-bn="প্রকাশিত একাডেমিক ফলাফলের প্রমাণ">Published academic result evidence</h3>
+                        <form id="accAcademicEvidenceForm" class="mb-2 d-none">
+                            <label for="accAcademicResultId" class="form-label" data-a-en="Published result record ID" data-a-bn="প্রকাশিত ফলাফলের রেকর্ড আইডি">Published result record ID</label>
+                            <input id="accAcademicResultId" class="form-control mb-2" type="number" min="1" step="1" required />
+                            <button class="btn btn-sm btn-outline-primary" type="submit" data-a-en="Link published result" data-a-bn="প্রকাশিত ফলাফল সংযুক্ত করুন">Link published result</button>
+                        </form>
+                        <div id="accAcademicEvidenceList" class="small"></div>
+                    </section>
                     <form id="accActionForm">
                         <label for="accAction" class="form-label" data-a-en="Available action" data-a-bn="অনুমোদিত কার্যক্রম">Available action</label>
                         <select id="accAction" class="form-select mb-2" required></select>
@@ -149,6 +183,21 @@
                         <thead><tr><th>Framework</th><th>Standard</th><th>Total</th><th>Approved</th><th>Pending</th><th>Expired</th></tr></thead>
                         <tbody id="accReportRows"></tbody>
                     </table></div>
+                    <div class="border-top pt-3 mt-3">
+                        <h3 class="h6" data-a-en="Compliance gaps and renewal forecast" data-a-bn="কমপ্লায়েন্স ঘাটতি ও নবায়ন পূর্বাভাস">Compliance gaps and renewal forecast</h3>
+                        <p class="small text-muted" data-a-en="Select a program for program-level evidence, or leave blank for institution-wide standards. Choose the renewal warning period." data-a-bn="প্রোগ্রামভিত্তিক প্রমাণের জন্য প্রোগ্রাম নির্বাচন করুন; প্রতিষ্ঠানভিত্তিক মানদণ্ডের জন্য ফাঁকা রাখুন। নবায়নের সতর্কতার সময় নির্ধারণ করুন।">Select a program for program-level evidence, or leave blank for institution-wide standards. Choose the renewal warning period.</p>
+                        <div class="d-flex gap-2 align-items-end flex-wrap mb-2">
+                            <div><label for="accGapProgram" class="form-label" data-a-en="Program scope" data-a-bn="প্রোগ্রামের পরিসর">Program scope</label>
+                                <select id="accGapProgram" class="form-select"></select></div>
+                            <div><label for="accRenewDays" class="form-label" data-a-en="Renewal warning (days)" data-a-bn="নবায়ন সতর্কতা (দিন)">Renewal warning (days)</label>
+                                <input id="accRenewDays" type="number" class="form-control" min="1" max="365" value="30" /></div>
+                            <button id="accGapRun" class="btn btn-sm btn-outline-primary" type="button" data-a-en="Analyze gaps" data-a-bn="ঘাটতি বিশ্লেষণ">Analyze gaps</button>
+                        </div>
+                        <div class="table-responsive"><table class="table table-sm table-striped">
+                            <thead><tr><th>Framework</th><th>Standard</th><th>Status</th><th>Expiry</th><th>PLO mapped</th><th>Published evidence</th></tr></thead>
+                            <tbody id="accGapRows"></tbody>
+                        </table></div>
+                    </div>
                     <a id="accCsv" href="#" class="btn btn-sm btn-outline-success d-none" download data-a-en="Download verified CSV" data-a-bn="যাচাইকৃত CSV ডাউনলোড">Download verified CSV</a>
                     <button id="accPrint" type="button" class="btn btn-sm btn-outline-secondary d-none" data-a-en="Print / Save PDF" data-a-bn="প্রিন্ট / PDF সংরক্ষণ">Print / Save PDF</button>
                 </div>

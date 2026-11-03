@@ -19,4 +19,6 @@ public interface IAccreditationService
     Task<ApiResponse<PagedResult<AccreditationAssessmentDto>>> ListAsync(long? campusId, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<AccreditationAssessmentHistoryDto>>> HistoryAsync(Guid reference, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<List<AccreditationReportRowDto>>> ReportAsync(long campusId, DateTime from, DateTime to, CancellationToken ct = default);
+    Task<ApiResponse<List<AccreditationGapDto>>> ComplianceGapsAsync(long campusId, long? programId,
+        DateTime asOf, int renewWithinDays, CancellationToken ct = default);
 }

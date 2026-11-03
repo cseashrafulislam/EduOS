@@ -86,7 +86,8 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
     private const string AssessmentColumns = """
         SELECT a.Id, a.PublicId AS Reference, a.CampusId, a.AcademicProgramId,
           a.StandardId, s.Code AS StandardCode, f.Code AS FrameworkCode, f.VersionNo AS FrameworkVersion,
-          s.ValidityDays, s.RequiredReviewerCount, a.OwnerUserId, a.ReviewerUserId, a.PeriodStart, a.PeriodEnd,
+          s.ValidityDays, s.RequiredReviewerCount, s.RequiresOutcomeMapping, s.RequiresPublishedAcademicEvidence,
+          a.OwnerUserId, a.ReviewerUserId, a.PeriodStart, a.PeriodEnd,
           a.CurrentRevision, a.EvidenceSummary, a.EvidenceSha256, a.StateCode,
           a.ApprovedAtUtc, a.ExpiresAtUtc, a.RowVersion, a.UpdatedAtUtc,
           (SELECT COUNT(*) FROM dbo.AccreditationReviewAssignments AS ra
@@ -197,7 +198,10 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
             !Text(title, 5, 200) || !Text(rubric, 10, 2000) || !Text(evidence, 10, 2000) ||
             input.ValidityDays is < 1 or > 3650 || input.RequiredReviewerCount is < 1 or > 3)
             return ApiResponse<AccreditationStandardDto>.ErrorResponse("Invalid standard configuration.", 400);
-        var hash = Hash(JsonSerializer.Serialize(new object[] { input.FrameworkId, code, title, rubric, evidence, input.ValidityDays, input.RequiredReviewerCount }));
+        var hash = Hash(JsonSerializer.Serialize(input.RequiresOutcomeMapping || input.RequiresPublishedAcademicEvidence
+            ? new object[] { input.FrameworkId, code, title, rubric, evidence, input.ValidityDays,
+                input.RequiredReviewerCount, input.RequiresOutcomeMapping, input.RequiresPublishedAcademicEvidence }
+            : new object[] { input.FrameworkId, code, title, rubric, evidence, input.ValidityDays, input.RequiredReviewerCount }));
         try
         {
             return await db.ExecuteInTransactionAsync(async token =>
@@ -219,9 +223,11 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
                 await db.Database.ExecuteSqlInterpolatedAsync($"""
                     INSERT INTO dbo.AccreditationStandards
                       (TenantId, FrameworkId, CreateRequestId, CreateSha256,
-                       Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount)
+                       Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount,
+                       RequiresOutcomeMapping, RequiresPublishedAcademicEvidence)
                     VALUES ({access.TenantId}, {input.FrameworkId}, {input.ClientRequestId}, {hash},
-                            {code}, {title}, {rubric}, {evidence}, {input.ValidityDays}, {input.RequiredReviewerCount})
+                            {code}, {title}, {rubric}, {evidence}, {input.ValidityDays}, {input.RequiredReviewerCount},
+                            {input.RequiresOutcomeMapping}, {input.RequiresPublishedAcademicEvidence})
                     """, token);
                 var row = (await db.Database.SqlQueryRaw<StandardCreateRow>("""
                     SELECT Id, CreateSha256 FROM dbo.AccreditationStandards
@@ -236,7 +242,8 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
 
     private async Task<AccreditationStandardDto?> StandardAsync(long id, CancellationToken ct) =>
         (await db.Database.SqlQueryRaw<AccreditationStandardDto>("""
-            SELECT Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount
+            SELECT Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount,
+              RequiresOutcomeMapping, RequiresPublishedAcademicEvidence
             FROM dbo.AccreditationStandards WHERE TenantId = {0} AND Id = {1}
             """, access.TenantId, id).ToListAsync(ct)).SingleOrDefault();
 
@@ -248,7 +255,8 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         if (framework == null || (framework.StateCode != "Published" && !ResearchWorkflowAccess.AccreditationCoordinator(roles)))
             return Denied<List<AccreditationStandardDto>>();
         var rows = await db.Database.SqlQueryRaw<AccreditationStandardDto>("""
-            SELECT TOP(200) Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount
+            SELECT TOP(200) Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount,
+              RequiresOutcomeMapping, RequiresPublishedAcademicEvidence
             FROM dbo.AccreditationStandards WHERE TenantId = {0} AND FrameworkId = {1}
             ORDER BY Code, Id
             """, access.TenantId, frameworkId).ToListAsync(ct);
@@ -488,6 +496,31 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
                 var next = Next(row.StateCode, action);
                 if (next == null) return Conflict<AccreditationAssessmentDto>();
                 if (reviewerAction && !row.ActorReviewPending) return Conflict<AccreditationAssessmentDto>();
+                if (action == "approve")
+                {
+                    if ((row.RequiresOutcomeMapping || row.RequiresPublishedAcademicEvidence) && row.AcademicProgramId == null)
+                        return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("A specific academic program is required by this standard.", 409);
+                    if (row.RequiresOutcomeMapping)
+                    {
+                        var mapped = await db.Database.SqlQueryRaw<int>("""
+                            SELECT COUNT(*) AS Value FROM dbo.AccreditationStandardOutcomeMaps AS m
+                            JOIN dbo.AccreditationProgramOutcomes AS o ON o.TenantId = m.TenantId AND o.Id = m.OutcomeId
+                            WHERE m.TenantId = {0} AND m.StandardId = {1} AND o.AcademicProgramId = {2}
+                            """, access.TenantId, row.StandardId, row.AcademicProgramId).SingleAsync(token);
+                        if (mapped == 0)
+                            return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("No program outcome is mapped to this published standard.", 409);
+                    }
+                    if (row.RequiresPublishedAcademicEvidence)
+                    {
+                        var published = await db.Database.SqlQueryRaw<int>("""
+                            SELECT COUNT(*) AS Value FROM dbo.AccreditationAcademicEvidenceLinks AS e
+                            JOIN dbo.ResultPublications AS p ON p.TenantId = e.TenantId AND p.Id = e.ResultPublicationId
+                            WHERE e.TenantId = {0} AND e.AssessmentId = {1} AND p.State = 2 AND p.IsDeleted = 0
+                            """, access.TenantId, row.Id).SingleAsync(token);
+                        if (published == 0)
+                            return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("A currently published academic result must be linked before approval.", 409);
+                    }
+                }
                 if (action == "assign")
                 {
                     if (reviewerIds.Length != row.RequiredReviewerCount || reviewerIds.Distinct().Count() != reviewerIds.Length ||
@@ -635,6 +668,68 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         return ApiResponse<List<AccreditationReportRowDto>>.SuccessResponse(rows);
     }
 
+    public async Task<ApiResponse<List<AccreditationGapDto>>> ComplianceGapsAsync(long campusId,
+        long? programId, DateTime asOf, int renewWithinDays, CancellationToken ct = default)
+    {
+        var roles = await access.RolesAsync(ct);
+        if (!ResearchWorkflowAccess.AccreditationCoordinator(roles) || !await access.CampusAsync(campusId, ct))
+            return Denied<List<AccreditationGapDto>>();
+        if (programId is <= 0 || asOf.Year is < 2000 or > 9980 || asOf.TimeOfDay != TimeSpan.Zero ||
+            renewWithinDays is < 1 or > 365 || asOf.Year > 9980 || asOf.AddDays(renewWithinDays).Year > 9998)
+            return ApiResponse<List<AccreditationGapDto>>.ErrorResponse("Invalid report scope or renewal warning days.", 400);
+        if (programId.HasValue && !await db.ProgramCampuses.AsNoTracking().AnyAsync(pc =>
+            pc.TenantId == access.TenantId && pc.CampusId == campusId &&
+            pc.AcademicProgramId == programId && pc.IsActive && !pc.IsDeleted &&
+            db.AcademicPrograms.Any(p => p.TenantId == access.TenantId && p.Id == pc.AcademicProgramId &&
+                p.IsActive && !p.IsDeleted), ct)) return Denied<List<AccreditationGapDto>>();
+        var program = programId ?? 0;
+        var asOfEnd = asOf.Date.AddDays(1);
+        var renewBy = asOf.Date.AddDays(renewWithinDays + 1);
+        var rows = await db.Database.SqlQueryRaw<AccreditationGapDto>("""
+            SELECT TOP(501) s.Id AS StandardId, f.Code AS FrameworkCode,
+              f.VersionNo AS FrameworkVersion, s.Code AS StandardCode,
+              CASE WHEN approved.Id IS NOT NULL AND approved.ExpiresAtUtc > {4}
+                     THEN CASE WHEN approved.ExpiresAtUtc < {5} THEN N'RenewSoon' ELSE N'Current' END
+                   WHEN approved.Id IS NOT NULL THEN N'Expired'
+                   WHEN EXISTS (SELECT 1 FROM dbo.AccreditationAssessments AS pending
+                       WHERE pending.TenantId = s.TenantId AND pending.StandardId = s.Id
+                         AND pending.CampusId = {1} AND
+                           (({2} = 0 AND pending.AcademicProgramId IS NULL) OR pending.AcademicProgramId = {2})
+                         AND pending.StateCode IN (N'Draft',N'Submitted',N'Assigned',N'ChangesRequested'))
+                     THEN N'Pending' ELSE N'Missing' END AS StatusCode,
+              approved.ApprovedAtUtc, approved.ExpiresAtUtc,
+              s.RequiresOutcomeMapping, s.RequiresPublishedAcademicEvidence,
+              (SELECT COUNT(*) FROM dbo.AccreditationStandardOutcomeMaps AS mapped
+               JOIN dbo.AccreditationProgramOutcomes AS outcome ON outcome.TenantId = mapped.TenantId
+                 AND outcome.Id = mapped.OutcomeId
+               WHERE mapped.TenantId = s.TenantId AND mapped.StandardId = s.Id
+                 AND outcome.AcademicProgramId = {2}) AS MappedOutcomes,
+              (SELECT COUNT(*) FROM dbo.AccreditationAcademicEvidenceLinks AS ev
+               JOIN dbo.ResultPublications AS p ON p.TenantId = ev.TenantId
+                 AND p.Id = ev.ResultPublicationId AND p.State = 2 AND p.IsDeleted = 0
+               WHERE ev.TenantId = s.TenantId AND ev.AssessmentId = approved.Id) AS AcademicEvidenceRecords
+            FROM dbo.AccreditationStandards AS s
+            JOIN dbo.AccreditationFrameworks AS f ON f.TenantId = s.TenantId AND f.Id = s.FrameworkId
+            OUTER APPLY (SELECT TOP(1) a.Id, a.ApprovedAtUtc, a.ExpiresAtUtc
+                FROM dbo.AccreditationAssessments AS a
+                WHERE a.TenantId = s.TenantId AND a.StandardId = s.Id
+                  AND a.CampusId = {1} AND
+                    (({2} = 0 AND a.AcademicProgramId IS NULL) OR a.AcademicProgramId = {2})
+                  AND a.StateCode = N'Approved' AND a.ApprovedAtUtc < {3}
+                ORDER BY a.ApprovedAtUtc DESC, a.Id DESC) AS approved
+            WHERE s.TenantId = {0} AND f.StateCode = N'Published' AND f.PublishedAtUtc < {3}
+            ORDER BY f.Code, f.VersionNo DESC, s.Code
+            """, access.TenantId, campusId, program, asOfEnd, asOf.Date, renewBy).ToListAsync(ct);
+        if (rows.Count > 500)
+            return ApiResponse<List<AccreditationGapDto>>.ErrorResponse("Over 500 standards; narrow the framework scope.", 409);
+        foreach (var row in rows)
+            if ((row.StatusCode is "Current" or "RenewSoon") &&
+                ((row.RequiresOutcomeMapping && row.MappedOutcomes == 0) ||
+                 (row.RequiresPublishedAcademicEvidence && row.AcademicEvidenceRecords == 0)))
+                row.StatusCode = "EvidenceGap";
+        return ApiResponse<List<AccreditationGapDto>>.SuccessResponse(rows);
+    }
+
     private sealed class StandardPublishedRow
     {
         public long Id { get; set; }
@@ -659,6 +754,8 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         public int FrameworkVersion { get; set; }
         public int ValidityDays { get; set; }
         public int RequiredReviewerCount { get; set; }
+        public bool RequiresOutcomeMapping { get; set; }
+        public bool RequiresPublishedAcademicEvidence { get; set; }
         public int AssignedReviewerCount { get; set; }
         public int ApprovalsReceived { get; set; }
         public bool ActorIsReviewer { get; set; }

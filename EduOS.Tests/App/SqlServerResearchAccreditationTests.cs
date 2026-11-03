@@ -2,6 +2,8 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using EduOS.Core.DTOs.Files;
 using EduOS.Core.DTOs.Research;
+using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
@@ -27,7 +29,7 @@ public sealed class SqlServerResearchAccreditationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, campusId;
+        long tenantId, campusId, programId;
         var identities = new long[7]; // Researcher, grant checker, framework maker, publisher, three reviewers.
         await using (var setup = new EduOSDbContext(options))
         {
@@ -57,6 +59,13 @@ public sealed class SqlServerResearchAccreditationTests
                 setup.Campuses.Add(campus);
                 await setup.SaveChangesAsync();
                 campusId = campus.Id;
+                var program = new AcademicProgram { TenantId = tenantId, Code = "RES", Name = "Research academic program", IsActive = true };
+                setup.AcademicPrograms.Add(program);
+                await setup.SaveChangesAsync();
+                programId = program.Id;
+                setup.ProgramCampuses.Add(new ProgramCampus { TenantId = tenantId, CampusId = campusId,
+                    AcademicProgramId = programId, IsActive = true });
+                await setup.SaveChangesAsync();
                 var codes = new[] { "Teacher", "ResearchCoordinator", "AccreditationCoordinator",
                     "AccreditationCoordinator", "AccreditationReviewer", "AccreditationReviewer", "AccreditationReviewer" };
                 var roles = new Dictionary<string, ApplicationRole>();
@@ -148,6 +157,66 @@ public sealed class SqlServerResearchAccreditationTests
             grant = awarded.Data!;
             Assert.Equal("Active", grant.StateCode);
             Assert.Equal(1, grant.BudgetVersion);
+            var finance = Quality(checkerDb, tenantId, identities[1]);
+            var report = await finance.FinanceReportAsync(grant.Reference);
+            Assert.True(report.Success, report.Message);
+            Assert.Equal(40000m, report.Data!.ApprovedBudget);
+            Assert.Equal(0, report.Data!.LinkedJournals);
+            Assert.Equal(40000m, report.Data!.AvailableBudget);
+
+            var period = new AccountingPeriod
+            { TenantId = tenantId, Name = "Research fiscal period", StartDate = new DateOnly(2026, 1, 1),
+                EndDate = new DateOnly(2027, 12, 31) };
+            var researchExpense = new Account { TenantId = tenantId, Code = "RES_EXP_" + suffix,
+                Name = "Research grant expense", AccountType = AccountType.Expense };
+            var cash = new Account { TenantId = tenantId, Code = "RES_CASH_" + suffix,
+                Name = "Research grant cash", AccountType = AccountType.Asset };
+            checkerDb.AccountingPeriods.Add(period);
+            checkerDb.Accounts.AddRange(researchExpense, cash);
+            await checkerDb.SaveChangesAsync();
+            var journal = new Journal
+            { TenantId = tenantId, AccountingPeriodId = period.Id, JournalNumber = "RAC-J-" + suffix,
+                JournalDate = DateOnly.FromDateTime(DateTime.UtcNow), State = JournalState.Posted,
+                SourceType = "Manual", PostedAt = DateTime.UtcNow, CurrencyCode = "BDT" };
+            checkerDb.Journals.Add(journal);
+            await checkerDb.SaveChangesAsync();
+            checkerDb.JournalLines.AddRange(
+                new JournalLine { TenantId = tenantId, JournalId = journal.Id, LineNo = 1,
+                    AccountId = researchExpense.Id, DebitAmount = 4000m },
+                new JournalLine { TenantId = tenantId, JournalId = journal.Id, LineNo = 2,
+                    AccountId = cash.Id, CreditAmount = 4000m });
+            await checkerDb.SaveChangesAsync();
+            var mapped = await finance.ConfigureFinanceAccountAsync(new()
+            { ClientRequestId = Guid.NewGuid(), SchemeId = schemeId, AccountId = researchExpense.Id,
+                FlowCode = "Expense", NormalSide = "Debit" });
+            Assert.True(mapped.Success, mapped.Message);
+            var linkedRequest = new GrantJournalLinkCreateDto
+            { ClientRequestId = Guid.NewGuid(), JournalId = journal.Id };
+            Assert.True((await finance.LinkJournalAsync(grant.Reference, linkedRequest)).Success);
+            Assert.True((await finance.LinkJournalAsync(grant.Reference, linkedRequest)).Success);
+            var withExpense = await finance.FinanceReportAsync(grant.Reference);
+            Assert.True(withExpense.Success, withExpense.Message);
+            Assert.Equal(4000m, withExpense.Data!.Expenses);
+            Assert.Equal(36000m, withExpense.Data!.AvailableBudget);
+
+            journal.State = JournalState.Reversed;
+            var reversal = new Journal
+            { TenantId = tenantId, AccountingPeriodId = period.Id, JournalNumber = "RAC-R-" + suffix,
+                JournalDate = DateOnly.FromDateTime(DateTime.UtcNow), State = JournalState.Posted,
+                SourceType = "ManualReversal", SourceId = journal.Id, ReversalOfJournalId = journal.Id,
+                PostedAt = DateTime.UtcNow, CurrencyCode = "BDT" };
+            checkerDb.Journals.Add(reversal);
+            await checkerDb.SaveChangesAsync();
+            checkerDb.JournalLines.AddRange(
+                new JournalLine { TenantId = tenantId, JournalId = reversal.Id, LineNo = 1,
+                    AccountId = researchExpense.Id, CreditAmount = 4000m },
+                new JournalLine { TenantId = tenantId, JournalId = reversal.Id, LineNo = 2,
+                    AccountId = cash.Id, DebitAmount = 4000m });
+            await checkerDb.SaveChangesAsync();
+            var reversedReport = await finance.FinanceReportAsync(grant.Reference);
+            Assert.True(reversedReport.Success, reversedReport.Message);
+            Assert.Equal(0m, reversedReport.Data!.Expenses);
+            Assert.Equal(40000m, reversedReport.Data!.AvailableBudget);
         }
         await using (var ownerDb = Db(options, tenantId, identities[0]))
         {
@@ -258,6 +327,19 @@ public sealed class SqlServerResearchAccreditationTests
         AccreditationStandardDto quorumStandard;
         await using (var makerDb = Db(options, tenantId, identities[2]))
         {
+            var outcomes = Quality(makerDb, tenantId, identities[2]);
+            var draft = new ProgramOutcomeCreateDto
+            {
+                ClientRequestId = Guid.NewGuid(), AcademicProgramId = programId,
+                Code = "PLO_COMM", VersionNo = 1,
+                Statement = "Students demonstrate and communicate applied research methods."
+            };
+            var outcome = await outcomes.CreateOutcomeAsync(draft);
+            Assert.True(outcome.Success, outcome.Message);
+            var repeated = await outcomes.CreateOutcomeAsync(draft);
+            Assert.True(repeated.Success, repeated.Message);
+            Assert.Equal(outcome.Data!.Id, repeated.Data!.Id);
+            Assert.Single((await outcomes.OutcomesAsync(campusId, programId)).Data!);
             var service = Accreditation(makerDb, tenantId, identities[2]);
             var created = await service.CreateFrameworkAsync(new()
             { ClientRequestId = Guid.NewGuid(), Code = "QA_" + suffix.ToUpperInvariant(),
@@ -278,10 +360,14 @@ public sealed class SqlServerResearchAccreditationTests
                 Code = "STD_PANEL", Title = "Independent research review panel",
                 Rubric = "Two independent reviewers must unanimously approve submitted evidence.",
                 RequiredEvidence = "Audited independent research records and supporting documents.",
-                ValidityDays = 180, RequiredReviewerCount = 2
+                ValidityDays = 180, RequiredReviewerCount = 2, RequiresOutcomeMapping = true
             });
             Assert.True(panel.Success, panel.Message);
             quorumStandard = panel.Data!;
+            var mapped = await outcomes.MapOutcomeAsync(new()
+            { ClientRequestId = Guid.NewGuid(), StandardId = quorumStandard.Id, OutcomeId = outcome.Data!.Id });
+            Assert.True(mapped.Success, mapped.Message);
+            Assert.Single((await outcomes.StandardOutcomesAsync(quorumStandard.Id)).Data!);
             var ownPublish = await service.PublishFrameworkAsync(framework.Id, new()
             { ClientRequestId = Guid.NewGuid(), RowVersion = framework.RowVersion });
             Assert.False(ownPublish.Success);
@@ -293,6 +379,9 @@ public sealed class SqlServerResearchAccreditationTests
                 { ClientRequestId = Guid.NewGuid(), RowVersion = framework.RowVersion });
             Assert.True(published.Success, published.Message);
             Assert.Equal("Published", published.Data!.StateCode);
+            var noLateMapping = await Quality(publisherDb, tenantId, identities[3]).MapOutcomeAsync(new()
+            { ClientRequestId = Guid.NewGuid(), StandardId = quorumStandard.Id, OutcomeId = 1 });
+            Assert.False(noLateMapping.Success);
         }
         AccreditationAssessmentDto assessment;
         var privateStorage = new FakeEvidenceStorage(tenantId);
@@ -401,7 +490,8 @@ public sealed class SqlServerResearchAccreditationTests
             var service = Accreditation(ownerDb, tenantId, identities[0]);
             var created = await service.CreateAsync(new()
             {
-                ClientRequestId = Guid.NewGuid(), CampusId = campusId, StandardId = quorumStandard.Id,
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId, AcademicProgramId = programId,
+                StandardId = quorumStandard.Id,
                 PeriodStart = DateTime.UtcNow.Date.AddDays(-20), PeriodEnd = DateTime.UtcNow.Date,
                 EvidenceSummary = "The independent audit evidence covers all program learning outcomes."
             });
@@ -479,6 +569,19 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.Equal(2, approved.Data!.ApprovalsReceived);
             Assert.NotNull(approved.Data!.ApprovedAtUtc);
         }
+        await using (var coordinatorDb = Db(options, tenantId, identities[2]))
+        {
+            var gaps = await Accreditation(coordinatorDb, tenantId, identities[2]).ComplianceGapsAsync(
+                campusId, programId, DateTime.UtcNow.Date, 60);
+            Assert.True(gaps.Success, gaps.Message);
+            var row = Assert.Single(gaps.Data!, x => x.StandardCode == "STD_PANEL");
+            Assert.Equal("Current", row.StatusCode);
+            Assert.True(row.RequiresOutcomeMapping);
+            Assert.Equal(1, row.MappedOutcomes);
+            var denied = await Accreditation(coordinatorDb, tenantId, identities[2]).ComplianceGapsAsync(
+                campusId + 100000, programId, DateTime.UtcNow.Date, 60);
+            Assert.False(denied.Success);
+        }
 
         var rejectedProposal = Guid.NewGuid();
         var rejectedFile = Guid.NewGuid();
@@ -522,6 +625,9 @@ public sealed class SqlServerResearchAccreditationTests
     private static ResearchGrantService Grant(EduOSDbContext db, long tenant, long actor) =>
         new(db, new ResearchWorkflowAccess(db, new Principal(tenant, actor)), TimeProvider.System,
             NullLogger<ResearchGrantService>.Instance);
+    private static ResearchQualityExtensionService Quality(EduOSDbContext db, long tenant, long actor) =>
+        new(db, new ResearchWorkflowAccess(db, new Principal(tenant, actor)), TimeProvider.System,
+            NullLogger<ResearchQualityExtensionService>.Instance);
     private static AccreditationService Accreditation(EduOSDbContext db, long tenant, long actor) =>
         new(db, new ResearchWorkflowAccess(db, new Principal(tenant, actor)), TimeProvider.System,
             NullLogger<AccreditationService>.Instance);

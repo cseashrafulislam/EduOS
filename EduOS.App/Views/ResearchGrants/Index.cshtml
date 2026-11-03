@@ -27,6 +27,22 @@
                         </form>
                     </div>
                 </section>
+                <section class="card border-0 shadow-sm mb-3" aria-labelledby="grantFinanceConfigHeading">
+                    <div class="card-body">
+                        <h2 id="grantFinanceConfigHeading" class="h5" data-g-en="Research Finance GL account mapping" data-g-bn="গবেষণা অনুদান ফাইন্যান্স লেজার ম্যাপিং">Research Finance GL account mapping</h2>
+                        <p class="small text-muted" data-g-en="Choose the scheme above. Assign each posting account to one cash flow and a normal debit/credit direction. No duplicate ledger is created." data-g-bn="উপরের স্কিম নির্বাচন করুন। প্রতিটি হিসাবকে একটি প্রবাহ ও ডেবিট/ক্রেডিট দিক নির্ধারণ করুন। কোনো দ্বিতীয় লেজার তৈরি হয় না।">Choose the scheme above. Assign each posting account to one cash flow and a normal debit/credit direction. No duplicate ledger is created.</p>
+                        <form id="grantFinanceAccountForm">
+                            <label for="grantFinanceAccountId" class="form-label" data-g-en="Finance account ID" data-g-bn="ফাইন্যান্স অ্যাকাউন্ট আইডি">Finance account ID</label>
+                            <input id="grantFinanceAccountId" class="form-control mb-2" type="number" min="1" step="1" required />
+                            <label for="grantFinanceFlow" class="form-label" data-g-en="Cash flow" data-g-bn="অর্থপ্রবাহ">Cash flow</label>
+                            <select id="grantFinanceFlow" class="form-select mb-2"><option value="Disbursement">Disbursement</option><option value="Expense">Expense</option><option value="Refund">Refund</option></select>
+                            <label for="grantFinanceSide" class="form-label" data-g-en="Normal account side" data-g-bn="স্বাভাবিক হিসাবের দিক">Normal account side</label>
+                            <select id="grantFinanceSide" class="form-select mb-2"><option value="Debit">Debit</option><option value="Credit">Credit</option></select>
+                            <button class="btn btn-sm btn-outline-primary" type="submit" data-g-en="Save classification" data-g-bn="শ্রেণিবিভাগ সংরক্ষণ">Save classification</button>
+                        </form>
+                        <div id="grantFinanceAccounts" class="small mt-2"></div>
+                    </div>
+                </section>
             }
             <section class="card border-0 shadow-sm" aria-labelledby="grantCreateHeading">
                 <div class="card-body">
@@ -68,6 +84,19 @@
                 <div class="card-body">
                     <h2 id="grantDetailHeading" class="h5" data-g-en="Selected grant" data-g-bn="নির্বাচিত অনুদান">Selected grant</h2>
                     <div id="grantSummary" class="mb-3"></div>
+                    @if (coordinator)
+                    {
+                        <section id="grantFinanceBox" class="border rounded p-3 mb-3">
+                            <h3 class="h6" data-g-en="Posted Finance ledger reconciliation" data-g-bn="পোস্টকৃত ফাইন্যান্স লেজার মিল">Posted Finance ledger reconciliation</h3>
+                            <p class="small text-muted" data-g-en="Only posted manual GL journals can be associated. Reversals are included automatically; awards never create cash postings." data-g-bn="শুধু পোস্টকৃত ম্যানুয়াল GL জার্নাল সংযুক্ত করা যায়। রিভার্সাল স্বয়ংক্রিয়ভাবে গণনায় আসে; অনুদান অনুমোদনে নগদ পোস্টিং হয় না।">Only posted manual GL journals can be associated. Reversals are included automatically; awards never create cash postings.</p>
+                            <form id="grantFinanceJournalForm" class="d-flex gap-2 align-items-end flex-wrap mb-2">
+                                <div><label for="grantFinanceJournalId" class="form-label" data-g-en="Posted journal ID" data-g-bn="পোস্টকৃত জার্নাল আইডি">Posted journal ID</label>
+                                    <input id="grantFinanceJournalId" type="number" min="1" step="1" class="form-control" required /></div>
+                                <button class="btn btn-sm btn-outline-primary" type="submit" data-g-en="Link verified journal" data-g-bn="যাচাইকৃত জার্নাল সংযুক্ত করুন">Link verified journal</button>
+                            </form>
+                            <div id="grantFinanceReport" class="small" aria-live="polite"></div>
+                        </section>
+                    }
                     <form id="grantActionForm">
                         <label for="grantAction" class="form-label" data-g-en="Available action" data-g-bn="অনুমোদিত কার্যক্রম">Available action</label>
                         <select id="grantAction" class="form-select mb-2" required></select>

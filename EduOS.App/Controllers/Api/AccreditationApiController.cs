@@ -114,6 +114,11 @@ public sealed class AccreditationApiController(IAccreditationService service,
     public async Task<IActionResult> Report(long campusId, DateTime from, DateTime to, CancellationToken ct) =>
         Reply(await service.ReportAsync(campusId, from, to, ct));
 
+    [HttpGet("reports/gaps")]
+    public async Task<IActionResult> ComplianceGaps(long campusId, long? programId, DateTime asOf,
+        int renewWithinDays = 30, CancellationToken ct = default) =>
+        Reply(await service.ComplianceGapsAsync(campusId, programId, asOf, renewWithinDays, ct));
+
     // Only aggregate, scope-filtered fields can be exported; no evidence text or reviewer reasons.
     [HttpGet("reports.csv")]
     public async Task<IActionResult> Csv(long campusId, DateTime from, DateTime to, CancellationToken ct)
