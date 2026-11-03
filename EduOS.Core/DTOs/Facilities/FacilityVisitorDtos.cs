@@ -33,6 +33,8 @@ public sealed class FacilityVisitorDto
     public DateTime? CheckedInAtUtc { get; set; }
     public DateTime? CheckedOutAtUtc { get; set; }
     public string RowVersion { get; set; } = string.Empty;
+    public bool RedactionRequested { get; set; }
+    public bool PrivacyRedacted { get; set; }
 }
 public sealed class FacilityVisitorHostDto
 {
