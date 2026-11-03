@@ -310,7 +310,10 @@ test('work orders fail closed when tenant changes during an in-flight read', asy
         t: en => en, token: 'csrf', base: '/api/facilities/work-orders',
         fetch: async () => {
             network++;
-            return { ok: true, status: 200, json: async () =>
+            return { ok: true, status: 200,
+                headers: { get: name => name === 'X-EduOS-Session-Reference'
+                    ? 'A'.repeat(64) : name === 'X-EduOS-Tenant-Id' ? '12' : null },
+                json: async () =>
                 ({ success: true, data: { items: [{ id: 7, summary: 'private' }] } }) };
         }
     };
@@ -338,7 +341,8 @@ test('work-order exports and duplicate commands use the existing session shield'
     assert.match(script, /catch \{\s*lockPage\(\);\s*throw new Error\('session-changed'\)/);
     assert.match(script, /shield\.hidden !== true/);
     assert.match(script, /if \(method !== 'GET'\) await verifySession\(\)/);
-    assert.match(script, /await verifySession\(\);\s*const data = await response\.json/);
+    assert.match(script, /await verifySession\(\);\s*\/\/ Reject before parsing private JSON/);
+    assert.match(script, /const data = await response\.json/);
     assert.match(script, /facilityExport'\)\.addEventListener\('click', async/);
     assert.match(script, /if \(blocked \|\| creating\) return/);
     assert.match(script, /if \(!selected \|\| blocked \|\| transitioning\) return/);
@@ -354,6 +358,7 @@ test('work-order JSON readback is discarded if the tenant changes after verifica
     const context = {
         base: '/api/facilities/work-orders', token: 'csrf', t: en => en,
         sessionCurrent: () => current, verifySession: async () => {},
+        responseMatchesSession: () => current,
         shield: { hidden: true }, lockPage: () => { locked = true; },
         fetch: async () => ({ ok: true, status: 200, json: () => {
             entered(); return delayedJson;
