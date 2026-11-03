@@ -22,15 +22,15 @@ public sealed partial class InventoryMovementService
             await db.InventoryMovements.AnyAsync(m => m.TenantId == user.TenantId &&
                 m.ReversalOfMovementId == movementId && !m.IsDeleted, ct))
             return (null, "Stock issue is invalid, out of scope or already corrected.");
-        var approvedFinanceSource = await (from reversal in db.Journals.AsNoTracking()
-            join posted in db.Journals.AsNoTracking() on reversal.ReversalOfJournalId equals (long?)posted.Id
-            where reversal.TenantId == user.TenantId && posted.TenantId == user.TenantId &&
-                reversal.PublicId == commandId && !reversal.IsDeleted && !posted.IsDeleted &&
-                reversal.SourceType == "FacilityPartsExpenseReversal" && reversal.State == EduOS.Core.Enums.Domain.JournalState.Submitted &&
-                reversal.CreatedBy != user.UserId && reversal.SourceId == posted.Id &&
+        var approvedFinanceSource = await (from contra in db.Journals.AsNoTracking()
+            join posted in db.Journals.AsNoTracking() on contra.ReversalOfJournalId equals (long?)posted.Id
+            where contra.TenantId == user.TenantId && posted.TenantId == user.TenantId &&
+                contra.PublicId == commandId && !contra.IsDeleted && !posted.IsDeleted &&
+                contra.SourceType == "FacilityPartsExpenseReversal" && contra.State == EduOS.Core.Enums.Domain.JournalState.Submitted &&
+                contra.CreatedBy != user.UserId && contra.SourceId == posted.Id &&
                 posted.SourceType == "InventoryMovement" && posted.SourceId == movementId &&
                 posted.State == EduOS.Core.Enums.Domain.JournalState.Posted
-            select reversal.Id).AnyAsync(ct);
+            select contra.Id).AnyAsync(ct);
         if (!approvedFinanceSource) return (null, "Submitted independent Finance reversal must match this posted stock issue.");
         var (error, lines) = await CheckReversalAsync(original, ct);
         if (error != null) return (null, error);

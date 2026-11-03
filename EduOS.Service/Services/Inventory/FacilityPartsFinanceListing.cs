@@ -65,7 +65,7 @@ public sealed partial class FacilityPartsFinanceService
                     (reversals.Contains(journal.Id) != reversedStockIds.Contains(m.Id)) ? "OutOfSync" :
                     reversals.Contains(journal.Id) ? "Reversed" : journal.State.ToString()
             };
-        }).ToArray();
+        }).ToList();
         return ApiResponse<PagedResult<FacilityPartsFinanceCandidateDto>>.SuccessResponse(new() {
             Items = result, Page = page, PageSize = pageSize, TotalCount = total
         });

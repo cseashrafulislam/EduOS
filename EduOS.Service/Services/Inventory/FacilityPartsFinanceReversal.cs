@@ -4,6 +4,7 @@ using EduOS.Core.DTOs.Facilities;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace EduOS.Service.Services.Inventory;
 
