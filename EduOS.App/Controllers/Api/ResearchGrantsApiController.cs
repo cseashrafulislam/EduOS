@@ -13,7 +13,8 @@ namespace EduOS.App.Controllers.Api;
 [ApiController, Route("api/research/grants"), Authorize, RequireModule("RESEARCH"),
  AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class ResearchGrantsApiController(IResearchGrantService service) : ControllerBase
+public sealed class ResearchGrantsApiController(IResearchGrantService service,
+    IResearchGrantOutputService outputs) : ControllerBase
 {
     private IActionResult Reply<T>(ApiResponse<T> result)
     {
@@ -51,6 +52,24 @@ public sealed class ResearchGrantsApiController(IResearchGrantService service) :
     [HttpGet("{reference:guid}/history")]
     public async Task<IActionResult> History(Guid reference, int page = 1, int pageSize = 20,
         CancellationToken ct = default) => Reply(await service.HistoryAsync(reference, page, pageSize, ct));
+
+    [HttpGet("{reference:guid}/outputs")]
+    public async Task<IActionResult> Outputs(Guid reference, int page = 1, int pageSize = 20,
+        CancellationToken ct = default) => Reply(await outputs.ListAsync(reference, page, pageSize, ct));
+
+    [HttpPost("{reference:guid}/outputs")]
+    public async Task<IActionResult> SubmitOutput(Guid reference,
+        [FromBody] ResearchGrantOutputSubmitDto input, CancellationToken ct) =>
+        ModelState.IsValid ? Reply(await outputs.SubmitAsync(reference, input, ct)) : ValidationProblem(ModelState);
+
+    [HttpPost("{reference:guid}/outputs/{outputReference:guid}/review")]
+    public async Task<IActionResult> ReviewOutput(Guid reference, Guid outputReference,
+        [FromBody] ResearchGrantOutputReviewDto input, CancellationToken ct) =>
+        ModelState.IsValid ? Reply(await outputs.ReviewAsync(reference, outputReference, input, ct)) : ValidationProblem(ModelState);
+
+    [HttpGet("reports/outcomes")]
+    public async Task<IActionResult> OutcomeReport(long campusId, DateTime from, DateTime to,
+        CancellationToken ct) => Reply(await outputs.ReportAsync(campusId, from, to, ct));
 
     [HttpPost("{reference:guid}/{action}")]
     public async Task<IActionResult> Command(Guid reference, string action,

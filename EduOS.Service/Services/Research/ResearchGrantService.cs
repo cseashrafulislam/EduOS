@@ -284,6 +284,13 @@ public sealed class ResearchGrantService(EduOSDbContext db, ResearchWorkflowAcce
                 if (action == "reject-amend") pending = null;
                 if (action == "request-close")
                 {
+                    // A submitted outcome must receive an independent decision before a grant closes.
+                    var pendingOutputs = await db.Database.SqlQueryRaw<int>("""
+                        SELECT COUNT(*) AS Value FROM dbo.ResearchGrantOutputs
+                        WHERE TenantId = {0} AND GrantId = {1} AND StateCode = N'Submitted'
+                        """, access.TenantId, row.Id).SingleAsync(token);
+                    if (pendingOutputs > 0)
+                        return ApiResponse<ResearchGrantDto>.ErrorResponse("Review pending research outputs before closure.", 409);
                     var incomplete = await db.Database.SqlQueryRaw<int>("""
                         SELECT COUNT(*) AS Value FROM dbo.ResearchGrantMilestones
                         WHERE TenantId = {0} AND GrantId = {1} AND CompletedAtUtc IS NULL

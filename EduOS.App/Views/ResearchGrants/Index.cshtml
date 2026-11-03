@@ -93,6 +93,62 @@
                     </form>
                     <h3 class="h6 mt-4" data-g-en="Milestones" data-g-bn="মাইলস্টোন">Milestones</h3>
                     <div id="grantMilestones" class="small mb-3"></div>
+                    <section class="border-top pt-3 mt-3" aria-labelledby="grantOutputsHeading">
+                        <h3 id="grantOutputsHeading" class="h6" data-g-en="Verified research outcomes" data-g-bn="যাচাইকৃত গবেষণা ফলাফল">Verified research outcomes</h3>
+                        <p class="small text-muted" data-g-en="Submit an immutable output with an HTTPS reference or completed milestone. Independent review is required." data-g-bn="HTTPS রেফারেন্স বা সম্পন্ন মাইলস্টোনসহ অপরিবর্তনীয় ফলাফল জমা দিন। স্বতন্ত্র পর্যালোচনা আবশ্যক।">Submit an immutable output with an HTTPS reference or completed milestone. Independent review is required.</p>
+                        <form id="grantOutputForm" class="d-none mb-3">
+                            <div class="row g-2">
+                                <div class="col-md-6"><label class="form-label" for="grantOutputType" data-g-en="Output category" data-g-bn="ফলাফলের ধরন">Output category</label>
+                                    <select id="grantOutputType" class="form-select" required>
+                                        <option value="Publication">Publication</option><option value="Dataset">Dataset</option>
+                                        <option value="Patent">Patent</option><option value="Prototype">Prototype</option>
+                                        <option value="CommunityImpact">Community impact</option><option value="Other">Other</option>
+                                    </select></div>
+                                <div class="col-md-6"><label class="form-label" for="grantOutputDate" data-g-en="Achievement date" data-g-bn="অর্জনের তারিখ">Achievement date</label>
+                                    <input id="grantOutputDate" class="form-control" type="date" required /></div>
+                            </div>
+                            <label class="form-label mt-2" for="grantOutputTitle" data-g-en="Outcome title" data-g-bn="ফলাফলের শিরোনাম">Outcome title</label>
+                            <input id="grantOutputTitle" class="form-control" minlength="5" maxlength="200" required />
+                            <label class="form-label mt-2" for="grantOutputSummary" data-g-en="Verified evidence summary" data-g-bn="প্রমাণের সারসংক্ষেপ">Verified evidence summary</label>
+                            <textarea id="grantOutputSummary" class="form-control" minlength="20" maxlength="2000" rows="3" required></textarea>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-6"><label class="form-label" for="grantOutputMilestone" data-g-en="Completed milestone (optional with URL)" data-g-bn="সম্পন্ন মাইলস্টোন (URL থাকলে ঐচ্ছিক)">Completed milestone (optional with URL)</label>
+                                    <select id="grantOutputMilestone" class="form-select"></select></div>
+                                <div class="col-md-6"><label class="form-label" for="grantOutputUrl" data-g-en="HTTPS evidence URL (optional with milestone)" data-g-bn="HTTPS প্রমাণ URL (মাইলস্টোন থাকলে ঐচ্ছিক)">HTTPS evidence URL (optional with milestone)</label>
+                                    <input id="grantOutputUrl" class="form-control" maxlength="500" type="url" placeholder="https://" /></div>
+                            </div>
+                            <button id="grantOutputSubmit" type="submit" class="btn btn-sm btn-outline-primary mt-2" data-g-en="Submit outcome for review" data-g-bn="যাচাইয়ের জন্য ফলাফল জমা দিন">Submit outcome for review</button>
+                        </form>
+                        <div id="grantOutputRows" class="small mb-2"></div>
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <button id="grantOutputsPrev" type="button" class="btn btn-sm btn-outline-secondary" data-g-en="Previous outcomes" data-g-bn="আগের ফলাফল">Previous outcomes</button>
+                            <span id="grantOutputsPage" class="small" aria-live="polite"></span>
+                            <button id="grantOutputsNext" type="button" class="btn btn-sm btn-outline-secondary" data-g-en="Next outcomes" data-g-bn="পরের ফলাফল">Next outcomes</button>
+                        </div>
+                        <form id="grantOutputReviewForm" class="d-none border rounded p-3 mb-3">
+                            <p id="grantOutputReviewTitle" class="fw-semibold mb-2"></p>
+                            <label class="form-label" for="grantOutputDecision" data-g-en="Independent decision" data-g-bn="স্বতন্ত্র সিদ্ধান্ত">Independent decision</label>
+                            <select id="grantOutputDecision" class="form-select mb-2" required>
+                                <option value="verify">Verify</option><option value="reject">Reject</option>
+                            </select>
+                            <label class="form-label" for="grantOutputReason" data-g-en="Review reason (minimum 10 characters)" data-g-bn="সিদ্ধান্তের কারণ (কমপক্ষে ১০ অক্ষর)">Review reason (minimum 10 characters)</label>
+                            <textarea id="grantOutputReason" class="form-control mb-2" minlength="10" maxlength="500" required></textarea>
+                            <label class="d-block mb-2"><input id="grantOutputNoConflict" type="checkbox" required /> <span data-g-en="I declare no conflict of interest" data-g-bn="আমার স্বার্থের সংঘাত নেই বলে ঘোষণা করছি">I declare no conflict of interest</span></label>
+                            <button id="grantOutputReviewConfirm" type="submit" class="btn btn-sm btn-primary" data-g-en="Save review decision" data-g-bn="পর্যালোচনার সিদ্ধান্ত সংরক্ষণ">Save review decision</button>
+                        </form>
+                        @if (coordinator)
+                        {
+                            <div class="border-top pt-3" aria-label="Outcome report">
+                                <h4 class="h6" data-g-en="Campus outcome report" data-g-bn="ক্যাম্পাস ফলাফল রিপোর্ট">Campus outcome report</h4>
+                                <div class="d-flex gap-2 flex-wrap align-items-end">
+                                    <div><label class="form-label" for="grantOutputReportFrom" data-g-en="From" data-g-bn="শুরু">From</label><input id="grantOutputReportFrom" type="date" class="form-control" /></div>
+                                    <div><label class="form-label" for="grantOutputReportTo" data-g-en="To" data-g-bn="শেষ">To</label><input id="grantOutputReportTo" type="date" class="form-control" /></div>
+                                    <button id="grantOutcomeReportRun" type="button" class="btn btn-sm btn-outline-secondary" data-g-en="Load report" data-g-bn="রিপোর্ট দেখুন">Load report</button>
+                                </div>
+                                <div id="grantOutcomeReportRows" class="small mt-2"></div>
+                            </div>
+                        }
+                    </section>
                     <h3 class="h6" data-g-en="Command history" data-g-bn="কার্যক্রমের ইতিহাস">Command history</h3>
                     <div id="grantHistory" class="small"></div>
                 </div>

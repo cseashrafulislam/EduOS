@@ -111,6 +111,9 @@ public sealed class SqlServerResearchAccreditationTests
             schemeId = scheme.Data!.Id;
         }
         ResearchGrantDto grant;
+        ResearchGrantOutputDto grantOutput;
+        ResearchGrantOutputDto rejectedOutput;
+        long verifiedMilestone;
         var grantCreateRequest = Guid.NewGuid();
         await using (var ownerDb = Db(options, tenantId, identities[0]))
         {
@@ -156,14 +159,88 @@ public sealed class SqlServerResearchAccreditationTests
             grant = milestone.Data!;
             var list = await service.MilestonesAsync(grant.Reference);
             Assert.Single(list.Data!);
+            verifiedMilestone = list.Data![0].Id;
             var complete = await service.CommandAsync(grant.Reference, "milestone-complete", new()
             { ClientRequestId = Guid.NewGuid(), RowVersion = grant.RowVersion,
                 MilestoneId = list.Data![0].Id, Outcome = "Published and verified final project outcome." });
             Assert.True(complete.Success, complete.Message);
             grant = complete.Data!;
-            var closure = await service.CommandAsync(grant.Reference, "request-close", new()
+            var outputs = Outputs(ownerDb, tenantId, identities[0]);
+            var outputRequest = new ResearchGrantOutputSubmitDto
+            {
+                ClientRequestId = Guid.NewGuid(), KindCode = "Publication",
+                Title = "Independently validated milk supply study",
+                Summary = "A peer-reviewed research outcome was published with a verifiable public DOI and linked to its completed milestone.",
+                ReferenceUrl = "https://doi.org/10.1234/research.acceptance", MilestoneId = verifiedMilestone,
+                OccurredOn = DateTime.UtcNow.Date
+            };
+            var published = await outputs.SubmitAsync(grant.Reference, outputRequest);
+            Assert.True(published.Success, published.Message);
+            grantOutput = published.Data!;
+            Assert.Equal("Submitted", grantOutput.StateCode);
+            var duplicate = await outputs.SubmitAsync(grant.Reference, outputRequest);
+            Assert.Equal(grantOutput.Reference, duplicate.Data!.Reference);
+            var wrongMilestone = await outputs.SubmitAsync(grant.Reference, new()
+            { ClientRequestId = Guid.NewGuid(), KindCode = "Dataset",
+                Title = "Unrelated evidence dataset",
+                Summary = "The submitted dataset is attached to a milestone that does not belong to this grant.",
+                MilestoneId = verifiedMilestone + 100000, OccurredOn = DateTime.UtcNow.Date });
+            Assert.False(wrongMilestone.Success);
+            var second = await outputs.SubmitAsync(grant.Reference, new()
+            { ClientRequestId = Guid.NewGuid(), KindCode = "Dataset",
+                Title = "Research dataset requiring correction",
+                Summary = "This research dataset awaits independent validation and may need to be corrected and resubmitted.",
+                ReferenceUrl = "https://example.org/research/dataset", OccurredOn = DateTime.UtcNow.Date });
+            Assert.True(second.Success, second.Message);
+            rejectedOutput = second.Data!;
+            var ownerReview = await outputs.ReviewAsync(grant.Reference, grantOutput.Reference, new()
+            { ClientRequestId = Guid.NewGuid(), RowVersion = grantOutput.RowVersion,
+                Decision = "verify", Reason = "Independently reviewed publication evidence.", DeclaresNoConflict = true });
+            Assert.False(ownerReview.Success);
+            var closureBlocked = await service.CommandAsync(grant.Reference, "request-close", new()
             { ClientRequestId = Guid.NewGuid(), RowVersion = grant.RowVersion,
                 Reason = "All approved deliverables have been completed." });
+            Assert.Equal(409, closureBlocked.StatusCode);
+        }
+        await using (var checkerDb = Db(options, tenantId, identities[1]))
+        {
+            var outputs = Outputs(checkerDb, tenantId, identities[1]);
+            var request = new ResearchGrantOutputReviewDto
+            { ClientRequestId = Guid.NewGuid(), RowVersion = grantOutput.RowVersion,
+                Decision = "verify", Reason = "The publication is independently verified against the completed project milestone.",
+                DeclaresNoConflict = true };
+            var review = await outputs.ReviewAsync(grant.Reference, grantOutput.Reference, request);
+            Assert.True(review.Success, review.Message);
+            Assert.Equal("Verified", review.Data!.StateCode);
+            var replay = await outputs.ReviewAsync(grant.Reference, grantOutput.Reference, request);
+            Assert.True(replay.Success, replay.Message);
+            var doubleReview = await outputs.ReviewAsync(grant.Reference, grantOutput.Reference, new()
+            { ClientRequestId = Guid.NewGuid(), RowVersion = grantOutput.RowVersion,
+                Decision = "reject", Reason = "Conflicting independent outcome decision.", DeclaresNoConflict = true });
+            Assert.Equal(409, doubleReview.StatusCode);
+            var rejected = await outputs.ReviewAsync(grant.Reference, rejectedOutput.Reference, new()
+            { ClientRequestId = Guid.NewGuid(), RowVersion = rejectedOutput.RowVersion,
+                Decision = "reject", Reason = "The dataset has not met independent reproducibility checks.",
+                DeclaresNoConflict = true });
+            Assert.True(rejected.Success, rejected.Message);
+            Assert.Equal("Rejected", rejected.Data!.StateCode);
+            var report = await outputs.ReportAsync(campusId,
+                DateTime.UtcNow.Date.AddDays(-1), DateTime.UtcNow.Date.AddDays(1));
+            Assert.True(report.Success, report.Message);
+            Assert.Contains(report.Data!, x => x.KindCode == "Publication" && x.Verified == 1);
+            Assert.Contains(report.Data!, x => x.KindCode == "Dataset" && x.Rejected == 1);
+        }
+        await using (var unauthorizedDb = Db(options, tenantId, identities[2]))
+        {
+            var hidden = await Outputs(unauthorizedDb, tenantId, identities[2]).ListAsync(grant.Reference);
+            Assert.False(hidden.Success);
+        }
+        await using (var ownerDb = Db(options, tenantId, identities[0]))
+        {
+            var closure = await Grant(ownerDb, tenantId, identities[0]).CommandAsync(
+                grant.Reference, "request-close", new()
+                { ClientRequestId = Guid.NewGuid(), RowVersion = grant.RowVersion,
+                    Reason = "All outcomes independently checked and all milestones completed." });
             Assert.True(closure.Success, closure.Message);
             grant = closure.Data!;
         }
@@ -354,6 +431,9 @@ public sealed class SqlServerResearchAccreditationTests
         IFileUploadService storage) =>
         new(db, new ResearchWorkflowAccess(db, new Principal(tenant, actor)), storage, TimeProvider.System,
             NullLogger<ResearchEvidenceFileService>.Instance);
+    private static ResearchGrantOutputService Outputs(EduOSDbContext db, long tenant, long actor) =>
+        new(db, new ResearchWorkflowAccess(db, new Principal(tenant, actor)), TimeProvider.System,
+            NullLogger<ResearchGrantOutputService>.Instance);
     private static PrivateFileUploadDto Upload(byte[] content) => new()
     {
         FileName = "audit.pdf", ContentType = "application/pdf",

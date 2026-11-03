@@ -11,6 +11,8 @@ const accreditationView = read('EduOS.App/Views/Accreditation/Index.cshtml');
 const help = read('EduOS.App/wwwroot/js/platform/page-context-help.js');
 const evidenceService = read('EduOS.Service/Services/Research/ResearchEvidenceFileService.cs');
 const accreditationApi = read('EduOS.App/Controllers/Api/AccreditationApiController.cs');
+const outputService = read('EduOS.Service/Services/Research/ResearchGrantOutputService.cs');
+const grantApi = read('EduOS.App/Controllers/Api/ResearchGrantsApiController.cs');
 
 test('research grant UI scopes session, clears stale details and retains retry keys', () => {
     assert.match(grants, /sessionValid\(\)/);
@@ -20,6 +22,23 @@ test('research grant UI scopes session, clears stale details and retains retry k
     assert.match(grants, /'X-EduOS-Tenant-Id'/);
     assert.doesNotMatch(grants, /\.innerHTML\s*=/);
     assert.match(grantView, /Html\.AntiForgeryToken\(\)/);
+});
+
+test('research output claims require independent review and stay tenant/campus scoped', () => {
+    assert.match(grantApi, /HttpPost\("\{reference:guid\}\/outputs"\)/);
+    assert.match(grantApi, /HttpPost\("\{reference:guid\}\/outputs\/\{outputReference:guid\}\/review"\)/);
+    assert.match(outputService, /IsolationLevel\.Serializable/);
+    assert.match(outputService, /access\.CampusAsync\(grant\.CampusId, ct\)/);
+    assert.match(outputService, /DecisionByUserId = \{access\.UserId\}/);
+    assert.match(outputService, /CryptographicOperations\.FixedTimeEquals/);
+    assert.match(outputService, /ResearchWorkflowAccess\.ResearchCoordinator\(roles\)/);
+    assert.match(outputService, /p\.CampusId = \{1\}/);
+    assert.match(grants, /outputRetry \|\|= crypto\.randomUUID\(\)/);
+    assert.match(grants, /reviewRetry \|\|= crypto\.randomUUID\(\)/);
+    assert.match(grantView, /id="grantOutputReviewForm"/);
+    assert.match(grantView, /id="grantOutcomeReportRows"/);
+    assert.doesNotMatch(grants, /\.innerHTML\s*=/);
+    assert.match(help, /অপেক্ষমাণ ফলাফল থাকলে সমাপ্তি বন্ধ থাকে/);
 });
 
 test('accreditation UI retains version, reviewer and report scope without HTML injection', () => {
