@@ -471,7 +471,7 @@ test('work-order private JSON and CSV require server-bound institution/session b
     assert.match(api, /X-EduOS-Tenant-Id/);
     assert.match(api, /context.Result = SessionUnavailable/);
     assert.match(script, /const responseMatchesSession = response/);
-    assert.match(script, /response\.headers\?\.get\('X-EduOS-Tenant-Id'\)/);
+    assert.match(script, /response\?\.headers\?\.get\('X-EduOS-Tenant-Id'\)/);
     assert.match(script, /const data = await response\.json\(\)/);
     assert.match(script, /const blob = await response\.blob\(\)/);
     assert.match(script, /if \(!responseMatchesSession\(response\)\)/);
