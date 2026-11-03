@@ -421,12 +421,14 @@ public sealed class ResearchQualityExtensionService(EduOSDbContext db, ResearchW
             """, access.TenantId, row.Id, row.SchemeId).SingleAsync(ct);
         var counts = await db.Database.SqlQueryRaw<GrantFinanceCountsRow>("""
             SELECT COUNT(*) AS LinkedJournals,
-              COALESCE(SUM(CASE WHEN NOT EXISTS (SELECT 1 FROM dbo.JournalLines AS l
-                JOIN dbo.ResearchGrantFinanceAccounts AS r ON r.TenantId = l.TenantId
-                  AND r.AccountId = l.AccountId AND r.SchemeId = {2}
-                WHERE l.TenantId = link.TenantId AND l.JournalId = link.JournalId AND l.IsDeleted = 0)
-                THEN 1 ELSE 0 END), 0) AS MissingCount
+              COALESCE(SUM(CASE WHEN configured.JournalId IS NULL THEN 1 ELSE 0 END), 0) AS MissingCount
             FROM dbo.ResearchGrantJournalLinks AS link
+            OUTER APPLY (SELECT TOP (1) l.JournalId
+              FROM dbo.JournalLines AS l
+              JOIN dbo.ResearchGrantFinanceAccounts AS r ON r.TenantId = l.TenantId
+                AND r.AccountId = l.AccountId AND r.SchemeId = {2}
+              WHERE l.TenantId = link.TenantId AND l.JournalId = link.JournalId AND l.IsDeleted = 0
+            ) AS configured
             WHERE link.TenantId = {0} AND link.GrantId = {1}
             """, access.TenantId, row.Id, row.SchemeId).SingleAsync(ct);
         var budget = row.ApprovedAmount ?? 0;
