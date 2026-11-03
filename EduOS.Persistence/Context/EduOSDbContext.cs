@@ -3223,7 +3223,9 @@ public class EduOSDbContext :
 
     private static bool SuppressAuditPayload(object entity)
     {
-        return entity is ApplicationUser
+        return entity is FacilityVisitorVisit
+            or FacilityVisitorEvent
+            or ApplicationUser
             or TenantSetting
             or AdmissionApplicant
             or AdmissionApplicantGuardian
