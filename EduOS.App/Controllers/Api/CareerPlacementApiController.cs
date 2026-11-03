@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Claims;
+using EduOS.App.Security;
+using Microsoft.AspNetCore.Mvc.Filters;
 using System.Text;
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Alumni;
@@ -15,8 +18,32 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("api/alumni/career")]
-public sealed class CareerPlacementApiController : ControllerBase
+public sealed class CareerPlacementApiController : ControllerBase, IAsyncActionFilter
 {
+    // Every private Career response is bound to the original cookie session and institution.
+    private bool BindCurrentSession()
+    {
+        var principal = ControllerContext?.HttpContext?.User;
+        var sid = principal?.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = principal?.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
+            return false;
+        Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+        Response.Headers["X-EduOS-Tenant-Id"] = tenant;
+        return true;
+    }
+
+    [NonAction]
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+    {
+        if (!BindCurrentSession())
+        {
+            context.Result = Unauthorized(new { success = false, message = "Session unavailable; sign in again." });
+            return;
+        }
+        await next();
+    }
+
     private readonly IAlumniService _service;
     public CareerPlacementApiController(IAlumniService service) => _service = service;
 

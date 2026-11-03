@@ -55,3 +55,17 @@ test('Reports are bounded and never expose student contact exports or unapproved
     assert.match(opportunityView, /id="careerOpportunityRows"/);
     assert.match(placementView, /id="careerPlacementRows"/);
 });
+
+test('Career opportunity readbacks require exact cookie-session and tenant binding', () => {
+    const employerApi = read('EduOS.App/Controllers/Api/AlumniApiController.cs');
+    assert.match(api, /IAsyncActionFilter/);
+    assert.match(api, /AuthSessionRegistry\.ToPublicReference\(sid\)/);
+    assert.match(api, /X-EduOS-Session-Reference/);
+    assert.match(api, /X-EduOS-Tenant-Id/);
+    assert.match(employerApi, /BindCareerSession\(\)/);
+    assert.match(employerApi, /CareerSessionUnavailable/);
+    assert.match(opportunityJs, /await verifySession\(res\);[\s\S]*?res\.json\(\)/);
+    assert.match(opportunityJs, /res\.json\(\)[\s\S]*?await verifySession\(res\);/);
+    assert.match(opportunityJs, /EduOSSessionTransitionPending/);
+    assert.match(opportunityJs, /careerOpportunityRows', 'careerMyRows'/);
+});

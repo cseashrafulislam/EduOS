@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Claims;
+using EduOS.App.Security;
 using System.Text;
 using EduOS.App.Authorization;
 using EduOS.Core.DTOs.Alumni;
@@ -19,6 +21,21 @@ public sealed class AlumniApiController : ControllerBase
 {
     private readonly IAlumniService _service;
     public AlumniApiController(IAlumniService service) => _service = service;
+
+    // Career verified-employer readbacks only; other Alumni endpoints are unchanged.
+    private bool BindCareerSession()
+    {
+        var principal = ControllerContext?.HttpContext?.User;
+        var sid = principal?.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = principal?.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
+            return false;
+        Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+        Response.Headers["X-EduOS-Tenant-Id"] = tenant;
+        return true;
+    }
+    private IActionResult CareerSessionUnavailable() =>
+        Unauthorized(new { success = false, message = "Session unavailable; sign in again." });
 
     [HttpGet("me")]
     public async Task<IActionResult> Mine(CancellationToken ct)
@@ -193,8 +210,9 @@ public sealed class AlumniApiController : ControllerBase
     public async Task<IActionResult> Employers([FromQuery] CareerEmployerQueryDto query, CancellationToken ct)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        if (!BindCareerSession()) return CareerSessionUnavailable();
         var result = await _service.EmployersAsync(query, ct);
-        return StatusCode(result.StatusCode, result);
+        return BindCareerSession() ? StatusCode(result.StatusCode, result) : CareerSessionUnavailable();
     }
 
     [HttpPost("career/employers")]

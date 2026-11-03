@@ -23,6 +23,50 @@
     const pending = new Map();
     let page = 1, total = 0, myPage = 1, myTotal = 0, revision = 0, myRevision = 0;
     let employersRevision = 0, employerTimer, createRequest = null, students = [], saving = false;
+    // A stale HTTP 200 is not evidence of current cookie-session or tenant ownership.
+    const session = {
+        reference: document.body?.dataset.authSessionReference || '',
+        tenant: document.body?.dataset.authTenantId || ''
+    };
+    const shield = document.getElementById('eduosSessionShield');
+    let locked = false;
+    const sessionError = () => new Error(t(
+        'Institution session changed. Reload this page.',
+        'প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। পেজটি আবার লোড করুন।'));
+    function lockPage() {
+        if (locked) return;
+        locked = true;
+        ++revision; ++myRevision; ++employersRevision;
+        students = []; pending.clear(); createRequest = null;
+        clearTimeout(employerTimer);
+        for (const id of ['careerOpportunityRows', 'careerMyRows', 'careerEmployer']) el(id)?.replaceChildren();
+        for (const node of root.querySelectorAll('button, input, select, textarea')) node.disabled = true;
+        for (const id of ['careerOpportunityRefresh', 'careerOpportunityPrev', 'careerOpportunityNext',
+            'careerMyRefresh', 'careerMyPrev', 'careerMyNext', 'careerOpportunitySave'])
+            if (el(id)) el(id).disabled = true;
+        const message = el('careerOpportunityNotice');
+        if (message) { message.textContent = sessionError().message; message.className = 'alert alert-danger'; }
+        void window.EduOSVerifySessionContext?.();
+    }
+    function sessionCurrent() {
+        return !locked && /^[0-9A-F]{64}$/.test(session.reference) &&
+            /^[1-9][0-9]*$/.test(session.tenant) &&
+            document.body?.dataset.authSessionReference === session.reference &&
+            document.body?.dataset.authTenantId === session.tenant &&
+            !window.EduOSSessionTransitionPending?.();
+    }
+    async function verifySession(response) {
+        if (!sessionCurrent() || !shield || typeof window.EduOSVerifySessionContext !== 'function') {
+            lockPage(); throw sessionError();
+        }
+        try { await window.EduOSVerifySessionContext(); }
+        catch { lockPage(); throw sessionError(); }
+        if (!sessionCurrent() || shield.hidden !== true ||
+            (response && (response.headers?.get('X-EduOS-Session-Reference') !== session.reference ||
+                response.headers?.get('X-EduOS-Tenant-Id') !== session.tenant))) {
+            lockPage(); throw sessionError();
+        }
+    }
     const notice = (message, error = false) => {
         const target = el('careerOpportunityNotice');
         target.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -30,10 +74,18 @@
     };
     async function api(path, body) {
         const write = body !== undefined;
+        if (!sessionCurrent()) { lockPage(); throw sessionError(); }
+        if (write) {
+            if (!token) throw new Error(t('Security token missing. Reload.', 'নিরাপত্তা টোকেন নেই। রিলোড করুন।'));
+            await verifySession();
+        }
         const res = await fetch(path, { method: write ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
             headers: { Accept: 'application/json', ...(write ? { 'Content-Type': 'application/json', RequestVerificationToken: token } : {}) },
             ...(write ? { body: JSON.stringify(body) } : {}) });
+        // Check before parsing private JSON and again after an asynchronous parse.
+        await verifySession(res);
         const json = await res.json().catch(() => null);
+        await verifySession(res);
         if (!res.ok || json?.success !== true) {
             const err = new Error(json?.message || t('Request failed. Refresh and retry.', 'অনুরোধ ব্যর্থ। রিফ্রেশ করে আবার চেষ্টা করুন।'));
             err.status = res.status; throw err;
@@ -51,10 +103,11 @@
         const b = document.createElement('button'); b.type = 'button';
         b.className = 'btn btn-sm ' + style + ' me-1 mb-1'; b.textContent = label;
         b.addEventListener('click', async () => {
+            if (locked) return;
             b.disabled = true;
             try { await action(); }
             catch (err) { notice(err.message, true); }
-            finally { b.disabled = false; }
+            finally { if (!locked) b.disabled = false; }
         });
         return b;
     };
@@ -88,6 +141,7 @@
         }
     }
     async function load() {
+        if (locked) return;
         const id = ++revision;
         const rows = el('careerOpportunityRows');
         empty(rows, 6, t('Loading…', 'লোড হচ্ছে…'));
@@ -127,7 +181,7 @@
         }
     }
     async function loadMine() {
-        if (admin) return;
+        if (admin || locked) return;
         const id = ++myRevision; const rows = el('careerMyRows'); empty(rows, 3, t('Loading…', 'লোড হচ্ছে…'));
         try {
             const data = await api('/api/alumni/career/applications?page=' + myPage + '&pageSize=20');
@@ -153,7 +207,7 @@
         finally { if (id === myRevision) { el('careerMyPrev').disabled = myPage <= 1; el('careerMyNext').disabled = myPage * 20 >= myTotal; } }
     }
     async function loadEmployers() {
-        if (!admin) return;
+        if (!admin || locked) return;
         const id = ++employersRevision;
         const select = el('careerEmployer'), save = el('careerOpportunitySave');
         select.replaceChildren();
@@ -187,7 +241,7 @@
             ev.preventDefault();
             const form = ev.currentTarget, save = el('careerOpportunitySave');
             const selectedEmployer = el('careerEmployer').value;
-            if (saving || save.disabled || !selectedEmployer || !form.reportValidity()) return;
+            if (locked || saving || save.disabled || !selectedEmployer || !form.reportValidity()) return;
             const until = new Date(el('careerOpportunityDeadline').value);
             if (!Number.isFinite(until.getTime())) { notice(t('Invalid deadline.', 'সঠিক সময় দিন।'), true); return; }
             if (!createRequest) createRequest = crypto.randomUUID();
@@ -204,9 +258,11 @@
             } catch (err) { if ([400, 403, 409].includes(err.status)) createRequest = null; notice(err.message, true); }
             finally {
                 saving = false;
-                for (const control of controls) control.disabled = false;
-                save.disabled = !el('careerEmployer').value;
-                el('careerEmployer').disabled = !el('careerEmployer').value;
+                if (!locked) {
+                    for (const control of controls) control.disabled = false;
+                    save.disabled = !el('careerEmployer').value;
+                    el('careerEmployer').disabled = !el('careerEmployer').value;
+                }
             }
         });
         el('careerOpportunityStatus').addEventListener('change', () => { page = 1; load(); });

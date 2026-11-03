@@ -62,10 +62,19 @@ function harness(admin) {
     root.dataset.admin = String(admin);
     root.querySelectorAll = () => [];
     root.querySelector = () => ({ value: 'synthetic-csrf' });
+    const reference = 'A'.repeat(64), tenant = '12', shield = { hidden: true };
     const document = {
+        body: { dataset: { authSessionReference: reference, authTenantId: tenant } },
         documentElement: { lang: 'en-BD' },
-        getElementById: id => id === 'careerOpportunityWorkspace' ? root : elements[id],
+        getElementById: id => id === 'careerOpportunityWorkspace' ? root :
+            id === 'eduosSessionShield' ? shield : elements[id],
         createElement: tag => new Element(tag.toUpperCase())
+    };
+    const window = {
+        EduOSSessionTransitionPending: () => false,
+        EduOSVerifySessionContext: async () => {
+            shield.hidden = document.body.dataset.authTenantId === tenant;
+        }
     };
     const requests = [], timers = [];
     const fetch = (url, options) => new Promise(resolve => {
@@ -73,19 +82,24 @@ function harness(admin) {
     });
     let sequence = 0;
     vm.runInNewContext(script, {
-        document, fetch, crypto: { randomUUID: () => 'synthetic-' + ++sequence },
+        document, window, fetch, crypto: { randomUUID: () => 'synthetic-' + ++sequence },
         setTimeout: callback => { timers.push(callback); return timers.length; },
         clearTimeout() {}, confirm: () => true
     });
-    const respond = (request, data, status = 200) => request.resolve({
-        ok: status < 400, status,
-        json: async () => status < 400
-            ? { success: true, data } : { success: false, message: 'Synthetic error' }
-    });
+    const respond = (request, data, status = 200, responseReference = reference, responseTenant = tenant) =>
+        request.resolve({
+            ok: status < 400, status,
+            headers: { get(name) {
+                return name === 'X-EduOS-Session-Reference' ? responseReference :
+                    name === 'X-EduOS-Tenant-Id' ? responseTenant : null;
+            } },
+            json: async () => status < 400
+                ? { success: true, data } : { success: false, message: 'Synthetic error' }
+        });
     const settle = async () => {
-        for (let i = 0; i < 12; i++) await Promise.resolve();
+        for (let i = 0; i < 40; i++) await Promise.resolve();
     };
-    return { elements, requests, timers, respond, settle };
+    return { elements, requests, timers, respond, settle, document, shield };
 }
 
 test('Career employer search invalidates stale options and guards draft submission', async () => {
@@ -152,4 +166,31 @@ test('Student opportunity list stays read-only when identity lookup fails', asyn
     assert.ok(row);
     assert.equal(row.children[5].children.length, 0,
         'no Apply action without verified student identity');
+});
+test('Career rejects stale successful JSON before parsing private student identities', async () => {
+    const h = harness(false);
+    const identity = h.requests.find(r => r.url.includes('/students/me'));
+    const applications = h.requests.find(r => r.url.includes('/applications?'));
+    h.respond(identity, [{ studentReference: 'private-student', campusId: 1 }],
+        200, 'B'.repeat(64), '99');
+    h.respond(applications, { items: [], totalCount: 0 });
+    await h.settle();
+    assert.equal(h.elements.careerOpportunityRows.children.length, 0);
+    assert.equal(h.elements.careerMyRows.children.length, 0);
+    assert.equal(h.elements.careerOpportunityRefresh.disabled, true);
+    assert.match(h.elements.careerOpportunityNotice.textContent, /session changed/i);
+    assert.equal(h.requests.some(r => r.url.includes('/opportunities?')), false);
+});
+
+test('Career invalidates in-flight identity after an institution switch', async () => {
+    const h = harness(false);
+    const identity = h.requests.find(r => r.url.includes('/students/me'));
+    const applications = h.requests.find(r => r.url.includes('/applications?'));
+    h.document.body.dataset.authTenantId = '99';
+    h.respond(identity, [{ studentReference: 'old-tenant', campusId: 1 }]);
+    h.respond(applications, { items: [], totalCount: 0 });
+    await h.settle();
+    assert.equal(h.elements.careerOpportunityRows.children.length, 0);
+    assert.equal(h.elements.careerOpportunityRefresh.disabled, true);
+    assert.equal(h.requests.some(r => r.url.includes('/opportunities?')), false);
 });
