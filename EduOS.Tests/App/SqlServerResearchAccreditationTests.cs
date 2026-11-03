@@ -155,7 +155,7 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.Single(list.Data!);
             var complete = await service.CommandAsync(grant.Reference, "milestone-complete", new()
             { ClientRequestId = Guid.NewGuid(), RowVersion = grant.RowVersion,
-                MilestoneId = list.Data[0].Id, Outcome = "Published and verified final project outcome." });
+                MilestoneId = list.Data![0].Id, Outcome = "Published and verified final project outcome." });
             Assert.True(complete.Success, complete.Message);
             grant = complete.Data!;
             var closure = await service.CommandAsync(grant.Reference, "request-close", new()
@@ -212,7 +212,7 @@ public sealed class SqlServerResearchAccreditationTests
             var created = await service.CreateAsync(new()
             {
                 ClientRequestId = Guid.NewGuid(), CampusId = campusId,
-                StandardId = standards.Data[0].Id, PeriodStart = DateTime.UtcNow.Date.AddDays(-30),
+                StandardId = standards.Data![0].Id, PeriodStart = DateTime.UtcNow.Date.AddDays(-30),
                 PeriodEnd = DateTime.UtcNow.Date,
                 EvidenceSummary = "Verified research and teaching outcomes with independent records."
             });
@@ -253,7 +253,7 @@ public sealed class SqlServerResearchAccreditationTests
                 DateTime.UtcNow.Date.AddDays(-60), DateTime.UtcNow.Date.AddDays(1));
             Assert.True(report.Success, report.Message);
             Assert.Single(report.Data!);
-            Assert.Equal(1, report.Data[0].Approved);
+            Assert.Equal(1, report.Data![0].Approved);
         }
     }
 
