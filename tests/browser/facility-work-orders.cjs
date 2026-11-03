@@ -165,6 +165,22 @@ async function boundCsvAndStaleResponses(browser) {
         assert.deepEqual(missingHeaders.state.errors, []);
     } finally { await missingHeaders.context.close(); }
 
+    const revokedCsv = await setup(browser, true, true, true);
+    try {
+        let downloads = 0;
+        revokedCsv.page.on('download', () => { downloads++; });
+        await revokedCsv.page.route('http://localhost/api/facilities/work-orders/export?*', route =>
+            route.fulfill({ status: 403, contentType: 'application/json',
+                body: JSON.stringify({ success: false, message: 'Revoked desk access' }) }));
+        await revokedCsv.page.locator('#facilityExport').click();
+        await revokedCsv.page.locator('#workflowAlert')
+            .filter({ hasText: 'প্রতিষ্ঠানের সেশন পরিবর্তিত' }).waitFor();
+        assert.equal(downloads, 0);
+        assert.equal(await revokedCsv.page.locator('#wfRows tr').count(), 0);
+        assert.equal(await revokedCsv.page.locator('#facilityExport').isDisabled(), true);
+        assert.deepEqual(revokedCsv.state.errors, []);
+    } finally { await revokedCsv.context.close(); }
+
     const staleCsv = await setup(browser, false, true, false);
     try {
         let downloads = 0;
