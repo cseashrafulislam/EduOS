@@ -13,7 +13,7 @@ public sealed class ModuleAccessHandler : AuthorizationHandler<ModuleAccessRequi
     // V2 LMS/Library/Hostel/Transport and V3 Inventory remain unavailable during V1 pilot.
     // Inventory includes Asset Lifecycle in the canonical module catalog.
     private static readonly HashSet<string> PilotExcludedModules =
-        new(StringComparer.OrdinalIgnoreCase) { "LMS", "LIBRARY", "HOSTEL", "TRANSPORT", "INVENTORY", "FACILITIES", "ALUMNI" };
+        new(StringComparer.OrdinalIgnoreCase) { "LMS", "LIBRARY", "HOSTEL", "TRANSPORT", "INVENTORY", "FACILITIES", "ALUMNI", "RESEARCH", "ACCREDITATION" };
 
     public ModuleAccessHandler(ITenantModuleService tenantModuleService, IConfiguration configuration)
     {

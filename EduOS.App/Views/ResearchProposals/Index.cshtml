@@ -1,0 +1,95 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "গবেষণা প্রস্তাব ও নৈতিক অনুমোদন" : "Research Proposals & Ethics";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div id="researchWorkspace" class="container-fluid py-4">
+    @Html.AntiForgeryToken()
+    <div id="researchNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    <div class="row g-3">
+        <section class="col-xl-4" aria-labelledby="researchCreateHeading">
+            <div class="card border-0 shadow-sm"><div class="card-body">
+                <h2 class="h5" id="researchCreateHeading" data-r-i18n="create">New research proposal</h2>
+                <form id="researchCreateForm">
+                    <label class="form-label" for="researchCampus" data-r-i18n="campus">Campus</label>
+                    <select class="form-select mb-3" id="researchCampus" required></select>
+                    <label class="form-label" for="researchProgram" data-r-i18n="program">Academic program (optional)</label>
+                    <select class="form-select mb-3" id="researchProgram"></select>
+                    <label class="form-label" for="researchTitle" data-r-i18n="title">Title</label>
+                    <input class="form-control mb-3" id="researchTitle" minlength="5" maxlength="200" required />
+                    <label class="form-label" for="researchAbstract" data-r-i18n="abstract">Abstract</label>
+                    <textarea class="form-control mb-3" id="researchAbstract" rows="3" minlength="30" maxlength="3000" required></textarea>
+                    <label class="form-label" for="researchProtocol" data-r-i18n="protocol">Protocol</label>
+                    <textarea class="form-control mb-3" id="researchProtocol" rows="4" minlength="30" maxlength="6000" required></textarea>
+                    <button class="btn btn-primary" type="submit" id="researchCreateButton" data-r-i18n="save">Save draft</button>
+                </form>
+            </div></div>
+        </section>
+        <section class="col-xl-8" aria-labelledby="researchListHeading">
+            <div class="card border-0 shadow-sm"><div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-3">
+                    <h2 class="h5 mb-0" id="researchListHeading" data-r-i18n="queue">Proposal and ethics queue</h2>
+                    <button class="btn btn-outline-secondary btn-sm" id="researchRefresh" type="button" data-r-i18n="refresh">Refresh</button>
+                </div>
+                <div class="table-responsive"><table class="table table-striped table-sm align-middle">
+                    <thead><tr><th data-r-i18n="title">Title</th><th data-r-i18n="campus">Campus</th><th data-r-i18n="status">Status</th><th data-r-i18n="revision">Revision</th><th data-r-i18n="actions">Actions</th></tr></thead>
+                    <tbody id="researchRows"><tr><td colspan="5">—</td></tr></tbody>
+                </table></div>
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    <button id="researchPrevious" type="button" class="btn btn-outline-secondary btn-sm" data-r-i18n="previous">Previous</button>
+                    <span id="researchPage" aria-live="polite"></span>
+                    <button id="researchNext" type="button" class="btn btn-outline-secondary btn-sm" data-r-i18n="next">Next</button>
+                </div>
+            </div></div>
+            <section id="researchDetail" class="card border-0 shadow-sm mt-3 d-none" aria-labelledby="researchDetailHeading">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center gap-2">
+                        <h2 class="h5" id="researchDetailHeading" data-r-i18n="detail">Selected proposal</h2>
+                        <button id="researchClose" type="button" class="btn btn-sm btn-outline-secondary" data-r-i18n="close">Close</button>
+                    </div>
+                    <div id="researchSummary" class="mb-3"></div>
+                    <div id="researchSensitive" class="mb-3"></div>
+                    <form id="researchActionForm" class="border-top pt-3">
+                        <label for="researchAction" class="form-label" data-r-i18n="action">Available action</label>
+                        <select class="form-select mb-2" id="researchAction" required></select>
+                        <div id="researchContentEdit" class="d-none">
+                            <label for="researchEditTitle" class="form-label" data-r-i18n="title">Title</label>
+                            <input id="researchEditTitle" class="form-control mb-2" minlength="5" maxlength="200" />
+                            <label for="researchEditAbstract" class="form-label" data-r-i18n="abstract">Abstract</label>
+                            <textarea id="researchEditAbstract" class="form-control mb-2" minlength="30" maxlength="3000" rows="3"></textarea>
+                            <label for="researchEditProtocol" class="form-label" data-r-i18n="protocol">Protocol</label>
+                            <textarea id="researchEditProtocol" class="form-control mb-2" minlength="30" maxlength="6000" rows="3"></textarea>
+                        </div>
+                        <div id="researchAssign" class="d-none">
+                            <label for="researchSupervisor" class="form-label" data-r-i18n="supervisor">Supervisor</label>
+                            <select id="researchSupervisor" class="form-select mb-2"></select>
+                            <label for="researchReviewer" class="form-label" data-r-i18n="reviewer">Independent reviewer</label>
+                            <select id="researchReviewer" class="form-select mb-2"></select>
+                        </div>
+                        <div id="researchEthics" class="d-none">
+                            <label for="researchRisk" class="form-label" data-r-i18n="risk">Risk category</label>
+                            <select id="researchRisk" class="form-select mb-2">
+                                <option value="Low" data-r-i18n="low">Low</option>
+                                <option value="Moderate" data-r-i18n="moderate">Moderate</option>
+                                <option value="High" data-r-i18n="high">High</option>
+                            </select>
+                            <label class="form-check mb-2"><input id="researchConflict" type="checkbox" class="form-check-input" />
+                                <span class="form-check-label" data-r-i18n="conflict">I declare no conflict of interest</span></label>
+                        </div>
+                        <label for="researchReason" class="form-label" data-r-i18n="reason">Decision / correction reason</label>
+                        <textarea class="form-control mb-2" id="researchReason" maxlength="500" rows="2"></textarea>
+                        <button class="btn btn-primary" id="researchActButton" type="submit" data-r-i18n="confirm">Confirm action</button>
+                    </form>
+                    <h3 class="h6 mt-4" data-r-i18n="history">Immutable command history</h3>
+                    <div class="table-responsive"><table class="table table-sm">
+                        <thead><tr><th data-r-i18n="action">Action</th><th data-r-i18n="status">Status</th><th data-r-i18n="revision">Revision</th><th data-r-i18n="reason">Reason</th></tr></thead>
+                        <tbody id="researchHistory"></tbody>
+                    </table></div>
+                </div>
+            </section>
+        </section>
+    </div>
+</div>
+@section Scripts {
+    <script src="~/js/research/research-proposals.js" asp-append-version="true"></script>
+}

@@ -14,6 +14,7 @@
     var showInventory = availableOptionalModules.Contains("INVENTORY");
     var showFacilities = availableOptionalModules.Contains("FACILITIES");
     var showAlumni = availableOptionalModules.Contains("ALUMNI");
+    var showResearch = availableOptionalModules.Contains("RESEARCH");
     var v2RoleLinks = EduOS.App.Authorization.V2RolePortalNavigation.GetLinks(availableOptionalModules, User);
     var titleKey = ViewData["Title"]?.ToString() ?? "Dashboard";
     var localizedTitle = T[titleKey];
@@ -326,6 +327,16 @@
                     <a class="nav-link @ActiveFor("/CareerPlacements")" href="/CareerPlacements/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#graduation" /></svg>
                         <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "প্লেসমেন্ট ও রিপোর্ট" : "Placement & Reports")</span>
+                    </a>
+                }
+                @if (showResearch && (User?.IsInRole("Teacher") == true || User?.IsInRole("TenantAdmin") == true ||
+                     User?.IsInRole("Principal") == true || User?.IsInRole("Researcher") == true ||
+                     User?.IsInRole("ResearchCoordinator") == true || User?.IsInRole("ResearchReviewer") == true ||
+                     User?.IsInRole("ResearchSupervisor") == true || User?.IsInRole("EthicsReviewer") == true))
+                {
+                    <a class="nav-link @ActiveFor("/ResearchProposals")" href="/ResearchProposals/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                        <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "গবেষণা ও নৈতিক অনুমোদন" : "Research & Ethics")</span>
                     </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)

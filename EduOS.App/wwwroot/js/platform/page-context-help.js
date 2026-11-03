@@ -1557,6 +1557,23 @@
             ]
           ]
         },
+        '/researchproposals/index': {
+            version: 1, reviewed: true,
+            title: ['Research Proposals & Ethics', 'গবেষণা প্রস্তাব ও নৈতিক অনুমোদন'],
+            purpose: ['Create campus-owned research proposals, preserve submitted versions, assign independent reviewers and record ethics decisions.', 'ক্যাম্পাসভিত্তিক গবেষণা প্রস্তাব তৈরি, জমা দেওয়া সংস্করণ সংরক্ষণ, স্বতন্ত্র পর্যালোচক নিযুক্তি ও নৈতিক সিদ্ধান্ত রেকর্ড করুন।'],
+            before: ['RESEARCH entitlement, active institution membership and explicit campus access are required. Authors need a Researcher/Teacher or authorized leadership role. Coordinators, supervisors, reviewers and ethics decision-makers need their own active roles.', 'RESEARCH মডিউল, সক্রিয় প্রতিষ্ঠান সদস্যপদ ও নির্দিষ্ট ক্যাম্পাসের অনুমতি লাগবে। লেখকের গবেষক/শিক্ষক বা অনুমোদিত নেতৃত্বের ভূমিকা লাগবে। সমন্বয়কারী, তত্ত্বাবধায়ক, পর্যালোচক ও নৈতিক সিদ্ধান্তদাতার নিজস্ব সক্রিয় ভূমিকা প্রয়োজন।'],
+            steps: [
+                ['Choose a permitted Campus, optional academic program, title, abstract and protocol. Save draft and open it from the queue.', 'অনুমোদিত ক্যাম্পাস, চাইলে একাডেমিক প্রোগ্রাম, শিরোনাম, সারসংক্ষেপ ও পদ্ধতি লিখে খসড়া সংরক্ষণ করুন এবং তালিকা থেকে খুলুন।'],
+                ['The author selects Submit; that revision becomes immutable. A different coordinator assigns two distinct eligible campus members.', 'লেখক Submit করলে সেই সংস্করণ অপরিবর্তনীয় হয়। ভিন্ন সমন্বয়কারী ক্যাম্পাসের যোগ্য দুজন আলাদা সদস্য নিযুক্ত করেন।'],
+                ['The supervisor approves or requests changes; the reviewer then recommends ethics review or requests a new revision.', 'তত্ত্বাবধায়ক অনুমোদন বা সংশোধন চান; এরপর পর্যালোচক নৈতিক যাচাই সুপারিশ বা নতুন সংস্করণ চান।'],
+                ['An independent EthicsReviewer declares no conflict, selects risk, provides a reason and approves or rejects. Use History to inspect recorded transitions.', 'স্বতন্ত্র EthicsReviewer স্বার্থের সংঘাত নেই বলে ঘোষণা, ঝুঁকি ও কারণ দিয়ে অনুমোদন বা প্রত্যাখ্যান করেন। History-তে রেকর্ড দেখুন।']
+            ],
+            example: ['Fictional: Teacher Mina submits a campus water-quality study. Coordinator Rahim assigns Sara and Nila; after their ordered reviews an independent ethics officer approves the frozen revision.', 'কাল্পনিক: শিক্ষক মিনা ক্যাম্পাসের পানির মান নিয়ে গবেষণা জমা দেন। সমন্বয়কারী রহিম সারা ও নীলাকে নিযুক্ত করেন; তাঁদের পর্যালোচনার পর স্বতন্ত্র নৈতিক কর্মকর্তা সেই সংস্করণ অনুমোদন করেন।'],
+            result: ['The proposal has a stable reference, immutable submitted revision, rowversion and append-only command history. No budget, payment or Finance posting occurs.', 'প্রস্তাবের স্থায়ী রেফারেন্স, অপরিবর্তনীয় জমা সংস্করণ, rowversion ও কার্যক্রমের ইতিহাস থাকে। বাজেট, পেমেন্ট বা Finance পোস্ট হয় না।'],
+            rules: ['A creator cannot assign or approve their own work. The supervisor, reviewer and ethics approver must be independent. Campus grants and live roles are checked on the server; replay uses the same request ID, and stale versions return 409. Confidential file upload is not available on this page.', 'লেখক নিজের কাজ নিযুক্ত বা অনুমোদন করতে পারবেন না। তত্ত্বাবধায়ক, পর্যালোচক ও নৈতিক অনুমোদনকারী আলাদা। ক্যাম্পাস ও বর্তমান ভূমিকা সার্ভারে যাচাই হয়; পুনরায় একই request ID লাগে, পুরোনো সংস্করণে ৪০৯ আসে। এখানে গোপন ফাইল আপলোড নেই।'],
+            recovery: ['On 403/404 verify entitlement, membership, campus grants and role. On 409 reload the proposal before a new action. After an uncertain network result retry the unchanged action; do not create a second approval.', '৪০৩/৪০৪ হলে মডিউল, সদস্যপদ, ক্যাম্পাস অনুমতি ও ভূমিকা দেখুন। ৪০৯ হলে নতুন অবস্থা লোড করুন। নেটওয়ার্ক অনিশ্চিত হলে অপরিবর্তিত একই কাজ আবার দিন; নতুন অনুমোদন তৈরি করবেন না।'],
+            related: [['/CareerOpportunities/Index', 'Jobs and internships', 'চাকরি ও ইন্টার্নশিপ']]
+        },
         '/careeropportunities/index': {
             version: 1, reviewed: true,
             title: ['Career Opportunities & Applications', 'চাকরি ও ইন্টার্নশিপ আবেদন'],

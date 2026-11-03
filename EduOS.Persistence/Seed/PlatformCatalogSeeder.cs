@@ -155,6 +155,8 @@ public static class PlatformCatalogSeeder
             Module("INVENTORY","Inventory & Assets",140),
             Module("FACILITIES","Facilities & Campus Operations",145),
             Module("ALUMNI","Alumni & Graduate Relations",146),
+            Module("RESEARCH","Research & Ethics",147),
+            Module("ACCREDITATION","Accreditation & Quality Assurance",148),
             Module("COMMUNICATION","Communication",150),
             Module("DOCUMENTS","Documents & Certificates",160),
             Module("REPORTING","Reporting & Analytics",170),
