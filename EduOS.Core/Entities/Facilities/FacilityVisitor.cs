@@ -21,7 +21,7 @@ public sealed class FacilityVisitorVisit : BaseTenantEntity
     public DateTime? CheckedOutAtUtc { get; set; }
 }
 
-/// <summary>Append-only, source-linked command evidence. No visitor PII is copied here.</summary>
+/// <summary>Source-linked action/actor/time audit. Badge and reason are private payloads, cleared only by independently approved retention redaction; immutable action metadata is retained.</summary>
 public sealed class FacilityVisitorEvent : BaseTenantEntity
 {
     public long FacilityVisitorVisitId { get; set; }
