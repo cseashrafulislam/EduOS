@@ -3,6 +3,7 @@ using EduOS.App.Authorization;
 using EduOS.App.Security;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Research;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +14,8 @@ namespace EduOS.App.Controllers.Api;
 [ApiController, Route("api/research/proposals"), Authorize, RequireModule("RESEARCH"),
  AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class ResearchProposalsApiController(IResearchProposalService service) : ControllerBase
+public sealed class ResearchProposalsApiController(IResearchProposalService service,
+    IResearchEvidenceFileService evidence) : ControllerBase
 {
     private bool BindSession()
     {
@@ -67,5 +69,33 @@ public sealed class ResearchProposalsApiController(IResearchProposalService serv
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
         return Reply(await service.CommandAsync(reference, action, request, ct));
+    }
+
+    [HttpGet("{reference:guid}/files")]
+    public async Task<IActionResult> Files(Guid reference, int page = 1, int pageSize = 25,
+        CancellationToken ct = default) =>
+        Reply(await evidence.ListAsync("proposal", reference, page, pageSize, ct));
+
+    [HttpPost("{reference:guid}/files")]
+    [Consumes("multipart/form-data"), RequestSizeLimit(6291456)]
+    public async Task<IActionResult> UploadFile(Guid reference, [FromForm] IFormFile? file,
+        [FromForm] Guid requestId, CancellationToken ct)
+    {
+        if (file == null || requestId == Guid.Empty || file.Length is < 1 or > 5242880)
+            return BadRequest(new { success = false, message = "Choose a file up to 5 MB and a unique request ID." });
+        await using var stream = file.OpenReadStream();
+        return Reply(await evidence.UploadAsync("proposal", reference, requestId, new PrivateFileUploadDto
+        { FileName = file.FileName, ContentType = file.ContentType, Length = file.Length, Content = stream }, ct));
+    }
+
+    [HttpGet("{reference:guid}/files/{fileReference:guid}/download")]
+    public async Task<IActionResult> DownloadFile(Guid reference, Guid fileReference, CancellationToken ct)
+    {
+        if (!BindSession()) return Unauthorized();
+        var result = await evidence.DownloadAsync("proposal", reference, fileReference, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
     }
 }

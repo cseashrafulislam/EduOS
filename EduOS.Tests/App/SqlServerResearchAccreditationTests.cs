@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.DTOs.Research;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.SaaS;
@@ -6,6 +8,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Research;
+using EduOS.Service.Helpers.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -204,6 +207,9 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.Equal("Published", published.Data!.StateCode);
         }
         AccreditationAssessmentDto assessment;
+        var privateStorage = new FakeEvidenceStorage(tenantId);
+        var uploadBytes = System.Text.Encoding.ASCII.GetBytes("%PDF-1.7\nControlled test evidence");
+        Guid fileReference;
         await using (var ownerDb = Db(options, tenantId, identities[0]))
         {
             var service = Accreditation(ownerDb, tenantId, identities[0]);
@@ -218,6 +224,26 @@ public sealed class SqlServerResearchAccreditationTests
             });
             Assert.True(created.Success, created.Message);
             assessment = created.Data!;
+            var files = Evidence(ownerDb, tenantId, identities[0], privateStorage);
+            var failedId = Guid.NewGuid();
+            privateStorage.FailScan = true;
+            var failed = await files.UploadAsync("accreditation", assessment.Reference, failedId,
+                Upload(uploadBytes));
+            Assert.False(failed.Success);
+            Assert.Empty((await files.ListAsync("accreditation", assessment.Reference)).Data!.Items);
+            privateStorage.FailScan = false;
+            fileReference = Guid.NewGuid();
+            var saved = await files.UploadAsync("accreditation", assessment.Reference, fileReference,
+                Upload(uploadBytes));
+            Assert.True(saved.Success, saved.Message);
+            Assert.Equal(1, saved.Data!.RevisionNo);
+            var retry = await files.UploadAsync("accreditation", assessment.Reference, fileReference,
+                Upload(uploadBytes));
+            Assert.True(retry.Success, retry.Message);
+            Assert.Equal(fileReference, retry.Data!.Reference);
+            var attached = await files.ListAsync("accreditation", assessment.Reference);
+            Assert.Single(attached.Data!.Items);
+            Assert.Equal(fileReference, attached.Data!.Items[0].Reference);
             var submitted = await service.CommandAsync(assessment.Reference, "submit", new()
             { ClientRequestId = Guid.NewGuid(), RowVersion = assessment.RowVersion });
             Assert.True(submitted.Success, submitted.Message);
@@ -233,18 +259,41 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.True(assigned.Success, assigned.Message);
             assessment = assigned.Data!;
             Assert.Null(assessment.EvidenceSummary); // Coordinator cannot read private evidence.
+            var confidential = await Evidence(coordinatorDb, tenantId, identities[2], privateStorage)
+                .ListAsync("accreditation", assessment.Reference);
+            Assert.False(confidential.Success);
         }
         await using (var reviewerDb = Db(options, tenantId, identities[4]))
         {
             var service = Accreditation(reviewerDb, tenantId, identities[4]);
             var detail = await service.DetailAsync(assessment.Reference);
             Assert.NotNull(detail.Data!.EvidenceSummary);
+            var files = Evidence(reviewerDb, tenantId, identities[4], privateStorage);
+            var download = await files.DownloadAsync("accreditation", assessment.Reference, fileReference);
+            Assert.True(download.Success, download.Message);
+            Assert.Equal(uploadBytes, download.Data!.Content);
+            privateStorage.Tamper = true;
+            var tampered = await files.DownloadAsync("accreditation", assessment.Reference, fileReference);
+            Assert.Equal(409, tampered.StatusCode);
+            privateStorage.Tamper = false;
+            var foreignPurpose = await files.DownloadAsync("proposal", assessment.Reference, fileReference);
+            Assert.False(foreignPurpose.Success);
             var approved = await service.CommandAsync(assessment.Reference, "approve", new()
             { ClientRequestId = Guid.NewGuid(), RowVersion = assessment.RowVersion,
                 Reason = "The independent evidence meets the quality rubric.",
                 DeclaresNoConflict = true });
             Assert.True(approved.Success, approved.Message);
             Assert.Equal("Approved", approved.Data!.StateCode);
+        }
+        await using (var revokeDb = Db(options, tenantId, identities[4]))
+        {
+            var access = await revokeDb.UserCampusAccesses.SingleAsync(x =>
+                x.TenantId == tenantId && x.UserId == identities[4] && x.CampusId == campusId);
+            access.IsActive = false;
+            await revokeDb.SaveChangesAsync();
+            var revoked = await Evidence(revokeDb, tenantId, identities[4], privateStorage)
+                .DownloadAsync("accreditation", assessment.Reference, fileReference);
+            Assert.False(revoked.Success);
         }
         await using (var reportDb = Db(options, tenantId, identities[2]))
         {
@@ -270,6 +319,50 @@ public sealed class SqlServerResearchAccreditationTests
     private static AccreditationService Accreditation(EduOSDbContext db, long tenant, long actor) =>
         new(db, new ResearchWorkflowAccess(db, new Principal(tenant, actor)), TimeProvider.System,
             NullLogger<AccreditationService>.Instance);
+    private static ResearchEvidenceFileService Evidence(EduOSDbContext db, long tenant, long actor,
+        IFileUploadService storage) =>
+        new(db, new ResearchWorkflowAccess(db, new Principal(tenant, actor)), storage, TimeProvider.System,
+            NullLogger<ResearchEvidenceFileService>.Instance);
+    private static PrivateFileUploadDto Upload(byte[] content) => new()
+    {
+        FileName = "audit.pdf", ContentType = "application/pdf",
+        Length = content.Length, Content = new MemoryStream(content)
+    };
+
+    private sealed class FakeEvidenceStorage(long tenant) : IFileUploadService
+    {
+        private readonly Dictionary<string, byte[]> files = new();
+        public bool FailScan { get; set; }
+        public bool Tamper { get; set; }
+        public bool ValidateFile(IFormFile? file) =>
+            file != null && file.ContentType == "application/pdf" &&
+            file.Length is > 0 and <= 5242880;
+        public async Task<FileUploadResult> UploadPrivateAsync(IFormFile file, string folder)
+        {
+            var input = file.OpenReadStream(); // Caller owns the underlying buffered stream.
+            await using var buffer = new MemoryStream();
+            await input.CopyToAsync(buffer);
+            var key = $"tenant-{tenant}/{folder}/{Guid.NewGuid():N}.pdf";
+            files[key] = buffer.ToArray();
+            return new FileUploadResult { Success = true, FileUrl = key };
+        }
+        public Task<string?> ScanPrivateForMalwareAsync(string key, CancellationToken ct = default) =>
+            Task.FromResult(FailScan || !files.TryGetValue(key, out var bytes) ? null :
+                Convert.ToHexString(SHA256.HashData(bytes)));
+        public Task<FileDownloadResult?> GetPrivateFileAsync(string key) =>
+            Task.FromResult(files.TryGetValue(key, out var bytes) ? new FileDownloadResult
+            { Content = Tamper ? bytes.Append((byte)'X').ToArray() : bytes.ToArray() } : null);
+        public Task<bool> DeletePrivateAsync(string key) => Task.FromResult(files.Remove(key));
+        public Task<FileUploadResult> UploadAsync(IFormFile file, string folder) =>
+            throw new NotSupportedException();
+        public Task<FileUploadResult> UploadPrivateForTenantAsync(IFormFile file, string folder, long id) =>
+            throw new NotSupportedException();
+        public Task<bool> DeleteAsync(string key) => throw new NotSupportedException();
+        public Task<bool> DeleteByPathAsync(string key) => throw new NotSupportedException();
+        public Task<byte[]> GetFileContentAsync(string key) => throw new NotSupportedException();
+        public Task<List<FileInfo>> GetFilesInFolderAsync(string folder) => throw new NotSupportedException();
+        public Task<long> GetFolderSizeAsync(string folder) => throw new NotSupportedException();
+    }
 
     private sealed class Principal(long tenant, long actor) : ICurrentUserService
     {

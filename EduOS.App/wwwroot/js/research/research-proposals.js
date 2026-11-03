@@ -18,7 +18,12 @@
         low: ['Low', 'কম'], moderate: ['Moderate', 'মাঝারি'], high: ['High', 'বেশি'],
         conflict: ['I declare no conflict of interest', 'আমার স্বার্থের সংঘাত নেই বলে ঘোষণা করছি'],
         reason: ['Decision / correction reason', 'সিদ্ধান্ত / সংশোধনের কারণ'],
-        confirm: ['Confirm action', 'কার্যক্রম নিশ্চিত করুন'], history: ['Immutable command history', 'অপরিবর্তনীয় কার্যক্রমের ইতিহাস']
+        confirm: ['Confirm action', 'কার্যক্রম নিশ্চিত করুন'], history: ['Immutable command history', 'অপরিবর্তনীয় কার্যক্রমের ইতিহাস'],
+        files: ['Private research evidence files', 'গোপন গবেষণা প্রমাণ ফাইল'],
+        filerules: ['Only scanned PDF/images; up to five files per revision. Downloads require current authorization.', 'শুধু স্ক্যান করা PDF/ছবি; প্রতি সংস্করণে সর্বোচ্চ পাঁচটি ফাইল। ডাউনলোডের সময় বর্তমান অনুমতি যাচাই হবে।'],
+        filelabel: ['Supporting evidence (5 MB maximum)', 'প্রমাণ ফাইল (সর্বোচ্চ ৫ এমবি)'],
+        fileupload: ['Upload scanned evidence', 'স্ক্যান করা প্রমাণ আপলোড'],
+        filesprev: ['Previous files', 'আগের ফাইল'], filesnext: ['Next files', 'পরের ফাইল']
     };
     const actionNames = {
         edit: ['Edit draft', 'খসড়া সংশোধন'], submit: ['Submit for review', 'পর্যালোচনার জন্য জমা'],
@@ -42,7 +47,7 @@
     const initialTenant = document.body.dataset.authTenantId;
     const initialSession = document.body.dataset.authSessionReference;
     let listGeneration = 0, detailGeneration = 0, selected = null, page = 1, total = 0, busy = false;
-    let createRetry = null, actionRetry = null;
+    let createRetry = null, actionRetry = null, fileRetry = null, filePage = 1, fileTotal = 0;
     function clearDetail() {
         ++detailGeneration;
         selected = null; actionRetry = null;
@@ -50,6 +55,8 @@
         el('researchSummary').replaceChildren(); el('researchSensitive').replaceChildren();
         el('researchHistory').replaceChildren();
         el('researchAction').replaceChildren();
+        el('researchFileRows').replaceChildren(); el('researchFilesPage').textContent = '';
+        el('researchFileForm').classList.add('d-none'); fileRetry = null; filePage = 1; fileTotal = 0;
     }
     function currentSession() {
         if (!initialTenant || !initialSession || document.body.dataset.authTenantId !== initialTenant ||
@@ -104,7 +111,67 @@
         el('researchPrevious').disabled = busy || page <= 1;
         el('researchNext').disabled = busy || page * 20 >= total;
         el('researchActButton').disabled = busy || !selected || !el('researchAction').value;
+        el('researchFileUpload').disabled = busy || !selected;
+        el('researchFilesPrev').disabled = busy || !selected || filePage <= 1;
+        el('researchFilesNext').disabled = busy || !selected || filePage * 25 >= fileTotal;
     }
+    async function loadFiles(reference, generation) {
+        const data = await api('/api/research/proposals/' + encodeURIComponent(reference) +
+            '/files?page=' + filePage + '&pageSize=25');
+        if (generation !== detailGeneration || !currentSession()) return;
+        fileTotal = data.totalCount;
+        const container = el('researchFileRows'); container.replaceChildren();
+        for (const item of data.items) {
+            const row = document.createElement('div'); row.className = 'py-1 border-bottom';
+            const link = document.createElement('a');
+            link.href = '/api/research/proposals/' + encodeURIComponent(reference) +
+                '/files/' + encodeURIComponent(item.reference) + '/download';
+            link.textContent = item.fileName; link.setAttribute('download', '');
+            row.append(link, document.createTextNode(' · v' + item.revisionNo + ' · ' +
+                Math.ceil(item.sizeBytes / 1024) + ' KB'));
+            container.appendChild(row);
+        }
+        if (!data.items.length) container.textContent = t('No private evidence files.', 'কোনো ব্যক্তিগত প্রমাণ ফাইল নেই।');
+        el('researchFilesPage').textContent = filePage + ' / ' + Math.max(1, Math.ceil(fileTotal / 25));
+        controls();
+    }
+    el('researchFilesPrev').addEventListener('click', async () => {
+        if (!selected || filePage <= 1) return;
+        const ref = selected.reference, generation = detailGeneration; filePage--;
+        try { await loadFiles(ref, generation); } catch (error) { notice(error.message, true); }
+    });
+    el('researchFilesNext').addEventListener('click', async () => {
+        if (!selected || filePage * 25 >= fileTotal) return;
+        const ref = selected.reference, generation = detailGeneration; filePage++;
+        try { await loadFiles(ref, generation); } catch (error) { notice(error.message, true); }
+    });
+    el('researchFileInput').addEventListener('change', () => { fileRetry = null; });
+    el('researchFileForm').addEventListener('submit', async event => {
+        event.preventDefault();
+        if (busy || !selected || !currentSession()) return;
+        const file = el('researchFileInput').files?.[0]; if (!file) return;
+        if (file.size < 1 || file.size > 5242880) { notice(t('File must be 5 MB or smaller.', 'ফাইল ৫ এমবির মধ্যে হতে হবে।'), true); return; }
+        const ref = selected.reference, generation = detailGeneration;
+        const data = new FormData(); data.append('file', file); data.append('requestId', fileRetry ||= crypto.randomUUID());
+        busy = true; controls();
+        try {
+            if (typeof window.EduOSVerifySessionContext === 'function') await window.EduOSVerifySessionContext();
+            const response = await fetch('/api/research/proposals/' + encodeURIComponent(ref) + '/files', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { RequestVerificationToken: token, Accept: 'application/json' }, body: data
+            });
+            if (!currentSession() || response.headers.get('X-EduOS-Tenant-Id') !== initialTenant ||
+                response.headers.get('X-EduOS-Session-Reference') !== initialSession)
+                throw Error(t('Session verification failed.', 'সেশন যাচাই ব্যর্থ।'));
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.success !== true) throw Error(result?.message || t('Upload failed.', 'আপলোড ব্যর্থ।'));
+            if (generation !== detailGeneration) return;
+            fileRetry = null; el('researchFileForm').reset(); filePage = 1;
+            await loadFiles(ref, generation);
+            notice(t('Scanned evidence saved to this version.', 'স্ক্যান করা প্রমাণ ফাইল সংস্করণে সংরক্ষিত।'));
+        } catch (error) { if (generation === detailGeneration) notice(error.message, true); }
+        finally { busy = false; controls(); }
+    });
     async function programs() {
         const campus = el('researchCampus').value;
         const select = el('researchProgram'); select.replaceChildren();
@@ -198,6 +265,9 @@
             el('researchEditProtocol').value = proposal.protocol || '';
             el('researchReason').value = ''; el('researchConflict').checked = false;
             el('researchDetail').classList.remove('d-none'); updateActionFields(); controls();
+            el('researchFileForm').classList.toggle('d-none',
+                !(['Draft', 'ChangesRequested'].includes(proposal.stateCode) &&
+                    (proposal.allowedActions || []).some(a => ['edit', 'submit', 'revise'].includes(a))));
             if (proposal.allowedActions?.includes('assign')) await reviewerOptions(proposal, generation);
             const history = await api('/api/research/proposals/' + encodeURIComponent(reference) + '/history?page=1&pageSize=25');
             if (generation !== detailGeneration) return;
@@ -207,6 +277,7 @@
                 cell(tr, h.actionCode); cell(tr, h.fromState + ' → ' + h.toState);
                 cell(tr, h.revisionNo); cell(tr, h.reason); tbody.appendChild(tr);
             }
+            await loadFiles(reference, generation);
         } catch (error) {
             if (generation !== detailGeneration) return;
             clearDetail(); notice(error.message, true);

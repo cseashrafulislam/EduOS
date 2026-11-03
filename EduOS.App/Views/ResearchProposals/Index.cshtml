@@ -80,6 +80,21 @@
                         <textarea class="form-control mb-2" id="researchReason" maxlength="500" rows="2"></textarea>
                         <button class="btn btn-primary" id="researchActButton" type="submit" data-r-i18n="confirm">Confirm action</button>
                     </form>
+                    <section class="border-top mt-4 pt-3" aria-labelledby="researchFilesHeading">
+                        <h3 id="researchFilesHeading" class="h6" data-r-i18n="files">Private research evidence files</h3>
+                        <p class="small text-muted" data-r-i18n="filerules">Only scanned PDF/images; up to five files per revision. Downloads require current authorization.</p>
+                        <form id="researchFileForm" class="d-none mb-3">
+                            <div><label class="form-label" for="researchFileInput" data-r-i18n="filelabel">Supporting evidence (5 MB maximum)</label>
+                                <input id="researchFileInput" class="form-control" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" required /></div>
+                            <button id="researchFileUpload" class="btn btn-sm btn-outline-primary" type="submit" data-r-i18n="fileupload">Upload scanned evidence</button>
+                        </form>
+                        <div id="researchFileRows" class="small"></div>
+                        <div class="d-flex align-items-center justify-content-between mt-2">
+                            <button id="researchFilesPrev" class="btn btn-sm btn-outline-secondary" type="button" data-r-i18n="filesprev">Previous files</button>
+                            <span id="researchFilesPage" class="small" aria-live="polite"></span>
+                            <button id="researchFilesNext" class="btn btn-sm btn-outline-secondary" type="button" data-r-i18n="filesnext">Next files</button>
+                        </div>
+                    </section>
                     <h3 class="h6 mt-4" data-r-i18n="history">Immutable command history</h3>
                     <div class="table-responsive"><table class="table table-sm">
                         <thead><tr><th data-r-i18n="action">Action</th><th data-r-i18n="status">Status</th><th data-r-i18n="revision">Revision</th><th data-r-i18n="reason">Reason</th></tr></thead>

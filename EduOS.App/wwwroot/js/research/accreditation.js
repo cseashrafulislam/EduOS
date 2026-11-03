@@ -12,6 +12,7 @@
     let selected = null, frameworks = [], total = 0, page = 1, busy = false;
     let listGeneration = 0, detailGeneration = 0, standardsGeneration = 0, programGeneration = 0, reportGeneration = 0;
     let createRetry = null, actionRetry = null, frameworkRetry = null, standardRetry = null, publishRetry = null;
+    let fileRetry = null, filePage = 1, fileTotal = 0;
     const actions = {
         edit: ['Edit draft', 'খসড়া সংশোধন'], submit: ['Submit evidence', 'প্রমাণ জমা'],
         assign: ['Assign reviewer', 'পর্যালোচক নিযুক্ত'], approve: ['Approve evidence', 'প্রমাণ অনুমোদন'],
@@ -30,6 +31,8 @@
         detailGeneration++; selected = null; actionRetry = null;
         get('accDetail').classList.add('d-none'); get('accSummary').replaceChildren();
         get('accSensitive').replaceChildren(); get('accAction').replaceChildren(); get('accHistory').replaceChildren();
+        get('accFileRows').replaceChildren(); get('accFilesPage').textContent = '';
+        get('accFileForm').classList.add('d-none'); fileRetry = null; filePage = 1; fileTotal = 0;
     }
     async function api(url, body) {
         if (!sessionValid()) { clearDetail(); clearReport(); throw Error(t('Session changed.', 'সেশন পরিবর্তিত।')); }
@@ -78,9 +81,67 @@
         get('accPrevious').disabled = busy || page === 1;
         get('accNext').disabled = busy || page * 20 >= total;
         get('accReportRun').disabled = busy;
+        get('accFileUpload').disabled = busy || !selected;
+        get('accFilesPrev').disabled = busy || !selected || filePage <= 1;
+        get('accFilesNext').disabled = busy || !selected || filePage * 25 >= fileTotal;
         if (get('accFrameworkPublish')) get('accFrameworkPublish').disabled = busy || !get('accFrameworkManage').value;
         if (get('accStandardSave')) get('accStandardSave').disabled = busy || !get('accFrameworkManage').value;
     }
+    async function loadFiles(reference, generation) {
+        const data = await api('/api/accreditation/assessments/' + encodeURIComponent(reference) +
+            '/files?page=' + filePage + '&pageSize=25');
+        if (generation !== detailGeneration || !sessionValid()) return;
+        fileTotal = data.totalCount;
+        const container = get('accFileRows'); container.replaceChildren();
+        data.items.forEach(item => {
+            const row = document.createElement('div'); row.className = 'py-1 border-bottom';
+            const link = document.createElement('a'); link.setAttribute('download', '');
+            link.href = '/api/accreditation/assessments/' + encodeURIComponent(reference) +
+                '/files/' + encodeURIComponent(item.reference) + '/download';
+            link.textContent = item.fileName;
+            row.append(link, document.createTextNode(' · v' + item.revisionNo + ' · ' +
+                Math.ceil(item.sizeBytes / 1024) + ' KB')); container.appendChild(row);
+        });
+        if (!data.items.length) container.textContent = t('No private evidence files.', 'কোনো ব্যক্তিগত প্রমাণ ফাইল নেই।');
+        get('accFilesPage').textContent = filePage + ' / ' + Math.max(1, Math.ceil(fileTotal / 25));
+        controls();
+    }
+    get('accFilesPrev').addEventListener('click', async () => {
+        if (!selected || filePage <= 1) return;
+        filePage--;
+        try { await loadFiles(selected.reference, detailGeneration); } catch (e) { notice(e.message, true); }
+    });
+    get('accFilesNext').addEventListener('click', async () => {
+        if (!selected || filePage * 25 >= fileTotal) return;
+        filePage++;
+        try { await loadFiles(selected.reference, detailGeneration); } catch (e) { notice(e.message, true); }
+    });
+    get('accFileInput').addEventListener('change', () => { fileRetry = null; });
+    get('accFileForm').addEventListener('submit', async event => {
+        event.preventDefault(); if (busy || !selected || !sessionValid()) return;
+        const file = get('accFileInput').files?.[0]; if (!file) return;
+        if (file.size < 1 || file.size > 5242880) { notice(t('File must be 5 MB or smaller.', 'ফাইল ৫ এমবির মধ্যে হতে হবে।'), true); return; }
+        const reference = selected.reference, generation = detailGeneration;
+        const data = new FormData(); data.append('file', file); data.append('requestId', fileRetry ||= crypto.randomUUID());
+        busy = true; controls();
+        try {
+            if (typeof window.EduOSVerifySessionContext === 'function') await window.EduOSVerifySessionContext();
+            const res = await fetch('/api/accreditation/assessments/' + encodeURIComponent(reference) + '/files', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { RequestVerificationToken: token, Accept: 'application/json' }, body: data
+            });
+            if (!sessionValid() || res.headers.get('X-EduOS-Tenant-Id') !== tenant ||
+                res.headers.get('X-EduOS-Session-Reference') !== session)
+                throw Error(t('Session verification failed.', 'সেশন যাচাই ব্যর্থ।'));
+            const result = await res.json().catch(() => null);
+            if (!res.ok || result?.success !== true) throw Error(result?.message || t('Upload failed.', 'আপলোড ব্যর্থ।'));
+            if (generation !== detailGeneration) return;
+            fileRetry = null; get('accFileForm').reset(); filePage = 1;
+            await loadFiles(reference, generation);
+            notice(t('Scanned evidence saved.', 'স্ক্যান করা প্রমাণ সংরক্ষিত।'));
+        } catch (e) { if (generation === detailGeneration) notice(e.message, true); }
+        finally { busy = false; controls(); }
+    });
     async function loadFrameworks() {
         try {
             frameworks = await api('/api/accreditation/frameworks');
@@ -163,9 +224,13 @@
             const action = get('accAction'); action.replaceChildren(); option(action, '', t('Choose action', 'কার্যক্রম নির্বাচন'));
             detail.allowedActions.forEach(a => option(action, a, t(...(actions[a] || [a, a]))));
             changeAction();
+            get('accFileForm').classList.toggle('d-none',
+                !(['Draft', 'ChangesRequested'].includes(detail.stateCode) &&
+                    detail.allowedActions.some(a => ['edit', 'submit', 'revise'].includes(a))));
             const audit = await api('/api/accreditation/assessments/' + encodeURIComponent(reference) + '/history?page=1&pageSize=20');
             if (generation !== detailGeneration || !sessionValid()) return;
             get('accHistory').replaceChildren(); audit.items.forEach(historyRow);
+            await loadFiles(reference, generation);
         } catch (e) { if (generation === detailGeneration) { clearDetail(); notice(e.message, true); } }
         finally { controls(); }
     }

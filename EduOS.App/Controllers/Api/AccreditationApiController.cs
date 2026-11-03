@@ -4,6 +4,7 @@ using EduOS.App.Authorization;
 using EduOS.App.Security;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Research;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +15,8 @@ namespace EduOS.App.Controllers.Api;
 [ApiController, Route("api/accreditation"), Authorize, RequireModule("ACCREDITATION"),
  AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class AccreditationApiController(IAccreditationService service) : ControllerBase
+public sealed class AccreditationApiController(IAccreditationService service,
+    IResearchEvidenceFileService evidence) : ControllerBase
 {
     private IActionResult Reply<T>(ApiResponse<T> result)
     {
@@ -71,6 +73,37 @@ public sealed class AccreditationApiController(IAccreditationService service) : 
     [HttpGet("assessments/{reference:guid}/history")]
     public async Task<IActionResult> History(Guid reference, int page = 1, int pageSize = 20,
         CancellationToken ct = default) => Reply(await service.HistoryAsync(reference, page, pageSize, ct));
+
+    [HttpGet("assessments/{reference:guid}/files")]
+    public async Task<IActionResult> Files(Guid reference, int page = 1, int pageSize = 25,
+        CancellationToken ct = default) =>
+        Reply(await evidence.ListAsync("accreditation", reference, page, pageSize, ct));
+
+    [HttpPost("assessments/{reference:guid}/files")]
+    [Consumes("multipart/form-data"), RequestSizeLimit(6291456)]
+    public async Task<IActionResult> UploadFile(Guid reference, [FromForm] IFormFile? file,
+        [FromForm] Guid requestId, CancellationToken ct)
+    {
+        if (file == null || requestId == Guid.Empty || file.Length is < 1 or > 5242880)
+            return BadRequest(new { success = false, message = "Choose a file up to 5 MB and a unique request ID." });
+        await using var stream = file.OpenReadStream();
+        return Reply(await evidence.UploadAsync("accreditation", reference, requestId, new PrivateFileUploadDto
+        { FileName = file.FileName, ContentType = file.ContentType, Length = file.Length, Content = stream }, ct));
+    }
+
+    [HttpGet("assessments/{reference:guid}/files/{fileReference:guid}/download")]
+    public async Task<IActionResult> DownloadFile(Guid reference, Guid fileReference, CancellationToken ct)
+    {
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = User.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tid) || tid <= 0)
+            return Unauthorized();
+        var result = await evidence.DownloadAsync("accreditation", reference, fileReference, ct);
+        if (!result.Success || result.Data == null) return Reply(result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+    }
 
     [HttpPost("assessments/{reference:guid}/{action}")]
     public async Task<IActionResult> Command(Guid reference, string action,
