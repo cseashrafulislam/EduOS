@@ -512,7 +512,8 @@ public sealed class SqlServerFacilityWorkOrderTests
             }
             finally
             {
-                await db.Roles.Where(r => r.Id == roleId)
+                await db.Roles.IgnoreQueryFilters().Where(r => r.Id == roleId &&
+                    r.TenantId == tenantId)
                     .ExecuteUpdateAsync(x => x.SetProperty(r => r.IsActive, true));
             }
         }
@@ -536,7 +537,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             }
             finally
             {
-                await db.TenantMemberships.Where(m => m.TenantId == tenantId &&
+                await db.TenantMemberships.IgnoreQueryFilters().Where(m => m.TenantId == tenantId &&
                     m.UserId == globalTechId)
                     .ExecuteUpdateAsync(x => x.SetProperty(m => m.Status, MembershipStatus.Active));
             }
@@ -550,7 +551,7 @@ public sealed class SqlServerFacilityWorkOrderTests
             }
             finally
             {
-                await db.UserCampusAccesses.Where(g => g.TenantId == tenantId &&
+                await db.UserCampusAccesses.IgnoreQueryFilters().Where(g => g.TenantId == tenantId &&
                     g.CampusId == campusId && g.UserId == globalTechId)
                     .ExecuteUpdateAsync(x => x.SetProperty(g => g.IsActive, true));
             }
