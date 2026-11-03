@@ -28,12 +28,12 @@ public sealed class SqlServerResearchAccreditationTests
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
         long tenantId, campusId;
-        var identities = new long[5]; // Researcher, grant checker, framework maker, publisher, reviewer.
+        var identities = new long[7]; // Researcher, grant checker, framework maker, publisher, three reviewers.
         await using (var setup = new EduOSDbContext(options))
         {
             var tenant = new Tenant { Code = "CI-RAC-" + suffix, Name = "Research CI",
                 Email = "research-" + suffix + "@example.test", State = TenantState.Active };
-            var users = Enumerable.Range(0, 5).Select(i =>
+            var users = Enumerable.Range(0, 7).Select(i =>
             {
                 var mail = "rac-" + i + "-" + suffix + "@example.test";
                 return new ApplicationUser
@@ -58,7 +58,7 @@ public sealed class SqlServerResearchAccreditationTests
                 await setup.SaveChangesAsync();
                 campusId = campus.Id;
                 var codes = new[] { "Teacher", "ResearchCoordinator", "AccreditationCoordinator",
-                    "AccreditationCoordinator", "AccreditationReviewer" };
+                    "AccreditationCoordinator", "AccreditationReviewer", "AccreditationReviewer", "AccreditationReviewer" };
                 var roles = new Dictionary<string, ApplicationRole>();
                 foreach (var code in codes.Distinct())
                     roles.Add(code, new ApplicationRole
@@ -255,6 +255,7 @@ public sealed class SqlServerResearchAccreditationTests
         }
 
         AccreditationFrameworkDto framework;
+        AccreditationStandardDto quorumStandard;
         await using (var makerDb = Db(options, tenantId, identities[2]))
         {
             var service = Accreditation(makerDb, tenantId, identities[2]);
@@ -271,6 +272,16 @@ public sealed class SqlServerResearchAccreditationTests
                 RequiredEvidence = "Approved evidence and compliance report.", ValidityDays = 365
             });
             Assert.True(standard.Success, standard.Message);
+            var panel = await service.AddStandardAsync(new()
+            {
+                ClientRequestId = Guid.NewGuid(), FrameworkId = framework.Id,
+                Code = "STD_PANEL", Title = "Independent research review panel",
+                Rubric = "Two independent reviewers must unanimously approve submitted evidence.",
+                RequiredEvidence = "Audited independent research records and supporting documents.",
+                ValidityDays = 180, RequiredReviewerCount = 2
+            });
+            Assert.True(panel.Success, panel.Message);
+            quorumStandard = panel.Data!;
             var ownPublish = await service.PublishFrameworkAsync(framework.Id, new()
             { ClientRequestId = Guid.NewGuid(), RowVersion = framework.RowVersion });
             Assert.False(ownPublish.Success);
@@ -291,11 +302,11 @@ public sealed class SqlServerResearchAccreditationTests
         {
             var service = Accreditation(ownerDb, tenantId, identities[0]);
             var standards = await service.StandardsAsync(framework.Id);
-            Assert.Single(standards.Data!);
+            Assert.Equal(2, standards.Data!.Count);
             var created = await service.CreateAsync(new()
             {
                 ClientRequestId = Guid.NewGuid(), CampusId = campusId,
-                StandardId = standards.Data![0].Id, PeriodStart = DateTime.UtcNow.Date.AddDays(-30),
+                StandardId = standards.Data!.Single(x => x.Code == "STD_1").Id, PeriodStart = DateTime.UtcNow.Date.AddDays(-30),
                 PeriodEnd = DateTime.UtcNow.Date,
                 EvidenceSummary = "Verified research and teaching outcomes with independent records."
             });
@@ -380,6 +391,93 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.True(report.Success, report.Message);
             Assert.Single(report.Data!);
             Assert.Equal(1, report.Data![0].Approved);
+        }
+
+        // Panel: exactly two distinct eligible reviewers, immutable individual votes, no early approval.
+        AccreditationAssessmentDto panelAssessment;
+        Guid panelFile;
+        await using (var ownerDb = Db(options, tenantId, identities[0]))
+        {
+            var service = Accreditation(ownerDb, tenantId, identities[0]);
+            var created = await service.CreateAsync(new()
+            {
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId, StandardId = quorumStandard.Id,
+                PeriodStart = DateTime.UtcNow.Date.AddDays(-20), PeriodEnd = DateTime.UtcNow.Date,
+                EvidenceSummary = "The independent audit evidence covers all program learning outcomes."
+            });
+            Assert.True(created.Success, created.Message);
+            panelAssessment = created.Data!;
+            Assert.Equal(2, panelAssessment.RequiredReviewerCount);
+            panelFile = Guid.NewGuid();
+            var uploaded = await Evidence(ownerDb, tenantId, identities[0], privateStorage)
+                .UploadAsync("accreditation", panelAssessment.Reference, panelFile, Upload(uploadBytes));
+            Assert.True(uploaded.Success, uploaded.Message);
+            var submitted = await service.CommandAsync(panelAssessment.Reference, "submit", new()
+            { ClientRequestId = Guid.NewGuid(), RowVersion = panelAssessment.RowVersion });
+            Assert.True(submitted.Success, submitted.Message);
+            panelAssessment = submitted.Data!;
+        }
+        await using (var coordinatorDb = Db(options, tenantId, identities[2]))
+        {
+            var service = Accreditation(coordinatorDb, tenantId, identities[2]);
+            var invalid = await service.CommandAsync(panelAssessment.Reference, "assign", new()
+            { ClientRequestId = Guid.NewGuid(), RowVersion = panelAssessment.RowVersion,
+                ReviewerUserIds = [identities[5], identities[5]] });
+            Assert.False(invalid.Success);
+            var assignedId = Guid.NewGuid();
+            var assigned = await service.CommandAsync(panelAssessment.Reference, "assign", new()
+            { ClientRequestId = assignedId, RowVersion = panelAssessment.RowVersion,
+                ReviewerUserIds = [identities[5], identities[6]] });
+            Assert.True(assigned.Success, assigned.Message);
+            panelAssessment = assigned.Data!;
+            Assert.Equal(2, panelAssessment.AssignedReviewerCount);
+            Assert.Equal(0, panelAssessment.ApprovalsReceived);
+            Assert.Null(panelAssessment.EvidenceSummary);
+            var retry = await service.CommandAsync(panelAssessment.Reference, "assign", new()
+            { ClientRequestId = assignedId, RowVersion = assigned.Data.RowVersion,
+                ReviewerUserIds = [identities[5], identities[6]] });
+            Assert.False(retry.Success); // A different concurrency token cannot reuse the request ID.
+        }
+        var firstVote = Guid.NewGuid();
+        var firstVersion = panelAssessment.RowVersion;
+        await using (var firstDb = Db(options, tenantId, identities[5]))
+        {
+            var service = Accreditation(firstDb, tenantId, identities[5]);
+            var visible = await service.DetailAsync(panelAssessment.Reference);
+            Assert.True(visible.Success, visible.Message);
+            Assert.Contains("approve", visible.Data!.AllowedActions);
+            var doc = await Evidence(firstDb, tenantId, identities[5], privateStorage)
+                .DownloadAsync("accreditation", panelAssessment.Reference, panelFile);
+            Assert.True(doc.Success, doc.Message);
+            var voted = await service.CommandAsync(panelAssessment.Reference, "approve", new()
+            { ClientRequestId = firstVote, RowVersion = firstVersion,
+                Reason = "Independent reviewer one confirms complete rubric evidence.", DeclaresNoConflict = true });
+            Assert.True(voted.Success, voted.Message);
+            panelAssessment = voted.Data!;
+            Assert.Equal("Assigned", panelAssessment.StateCode);
+            Assert.Equal(1, panelAssessment.ApprovalsReceived);
+            Assert.DoesNotContain("approve", panelAssessment.AllowedActions);
+            Assert.Null(panelAssessment.ApprovedAtUtc);
+            var retry = await service.CommandAsync(panelAssessment.Reference, "approve", new()
+            { ClientRequestId = firstVote, RowVersion = firstVersion,
+                Reason = "Independent reviewer one confirms complete rubric evidence.", DeclaresNoConflict = true });
+            Assert.True(retry.Success, retry.Message);
+            Assert.Equal(1, retry.Data!.ApprovalsReceived);
+        }
+        await using (var secondDb = Db(options, tenantId, identities[6]))
+        {
+            var service = Accreditation(secondDb, tenantId, identities[6]);
+            var stale = await service.CommandAsync(panelAssessment.Reference, "approve", new()
+            { ClientRequestId = Guid.NewGuid(), RowVersion = firstVersion,
+                Reason = "Second independent reviewer confirms the audit evidence.", DeclaresNoConflict = true });
+            Assert.Equal(409, stale.StatusCode);
+            var approved = await service.CommandAsync(panelAssessment.Reference, "approve", new()
+            { ClientRequestId = Guid.NewGuid(), RowVersion = panelAssessment.RowVersion,
+                Reason = "Second independent reviewer confirms the audit evidence.", DeclaresNoConflict = true });
+            Assert.True(approved.Success, approved.Message);
+            Assert.Equal("Approved", approved.Data!.StateCode);
+            Assert.Equal(2, approved.Data.ApprovalsReceived);
+            Assert.NotNull(approved.Data.ApprovedAtUtc);
         }
 
         var rejectedProposal = Guid.NewGuid();

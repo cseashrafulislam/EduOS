@@ -69,7 +69,7 @@ public sealed class ResearchEvidenceFileService(EduOSDbContext db, ResearchWorkf
             ? (p.SupervisorUserId == actor && ResearchWorkflowAccess.Has(roles, "TEACHER", "PRINCIPAL", "RESEARCHSUPERVISOR")) ||
               (p.ReviewerUserId == actor && ResearchWorkflowAccess.Has(roles, "TEACHER", "RESEARCHREVIEWER")) ||
               (p.StateCode == "ReviewRecommended" && ResearchWorkflowAccess.Has(roles, "ETHICSREVIEWER"))
-            : p.ReviewerUserId == actor && ResearchWorkflowAccess.Has(roles, "ACCREDITATIONREVIEWER", "TEACHER", "PRINCIPAL"));
+            : false);
     private async Task<(ParentRow? Parent, bool Owner, bool Reviewer)> AuthorizedAsync(
         string purpose, Guid reference, CancellationToken ct)
     {
@@ -79,6 +79,14 @@ public sealed class ResearchEvidenceFileService(EduOSDbContext db, ResearchWorkf
         if (p == null || !await access.CampusAsync(p.CampusId, ct)) return (null, false, false);
         var owner = Owner(purpose, p, access.UserId, roles);
         var reviewer = Reviewer(purpose, p, access.UserId, roles);
+        if (purpose == "accreditation" && p.CurrentRevision > 0 && p.OwnerUserId != access.UserId &&
+            ResearchWorkflowAccess.Has(roles, "ACCREDITATIONREVIEWER", "TEACHER", "PRINCIPAL"))
+        {
+            reviewer = await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) AS Value FROM dbo.AccreditationReviewAssignments
+                WHERE TenantId = {0} AND AssessmentId = {1} AND RevisionNo = {2} AND ReviewerUserId = {3}
+                """, access.TenantId, p.Id, p.CurrentRevision, access.UserId).SingleAsync(ct) > 0;
+        }
         return owner || reviewer ? (p, owner, reviewer) : (null, false, false);
     }
     private static ResearchEvidenceFileDto Map(FileRow f) => new()

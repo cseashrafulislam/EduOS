@@ -19,6 +19,7 @@ public sealed class AccreditationStandardCreateDto
     [Required, StringLength(2000, MinimumLength = 10)] public string Rubric { get; set; } = "";
     [Required, StringLength(2000, MinimumLength = 10)] public string RequiredEvidence { get; set; } = "";
     [Range(1, 3650)] public int ValidityDays { get; set; } = 365;
+    [Range(1, 3)] public int RequiredReviewerCount { get; set; } = 1;
 }
 
 public sealed class AccreditationFrameworkPublishDto
@@ -46,6 +47,7 @@ public sealed class AccreditationStandardDto
     public string Rubric { get; set; } = "";
     public string RequiredEvidence { get; set; } = "";
     public int ValidityDays { get; set; }
+    public int RequiredReviewerCount { get; set; }
 }
 
 public sealed class AccreditationAssessmentCreateDto
@@ -64,6 +66,7 @@ public sealed class AccreditationAssessmentCommandDto
     public Guid ClientRequestId { get; set; }
     [Required] public string RowVersion { get; set; } = "";
     public long? ReviewerUserId { get; set; }
+    public List<long>? ReviewerUserIds { get; set; }
     [StringLength(3000)] public string? EvidenceSummary { get; set; }
     [StringLength(500)] public string? Reason { get; set; }
     public bool? DeclaresNoConflict { get; set; }
@@ -80,6 +83,9 @@ public sealed class AccreditationAssessmentDto
     public int FrameworkVersion { get; set; }
     public long OwnerUserId { get; set; }
     public long? ReviewerUserId { get; set; }
+    public int RequiredReviewerCount { get; set; }
+    public int AssignedReviewerCount { get; set; }
+    public int ApprovalsReceived { get; set; }
     public DateTime PeriodStart { get; set; }
     public DateTime PeriodEnd { get; set; }
     public string? EvidenceSummary { get; set; }

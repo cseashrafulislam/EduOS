@@ -28,7 +28,7 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
     private static bool Checker(AssessmentRow row, IReadOnlySet<string> roles, long actor) =>
         ResearchWorkflowAccess.AccreditationCoordinator(roles) && row.OwnerUserId != actor;
     private static bool Reviewer(AssessmentRow row, IReadOnlySet<string> roles, long actor) =>
-        row.ReviewerUserId == actor && row.OwnerUserId != actor &&
+        row.ActorIsReviewer && row.OwnerUserId != actor &&
         ResearchWorkflowAccess.Has(roles, "ACCREDITATIONREVIEWER", "TEACHER", "PRINCIPAL");
     private static bool Visible(AssessmentRow row, IReadOnlySet<string> roles, long actor) =>
         Author(row, actor) || Checker(row, roles, actor) || Reviewer(row, roles, actor);
@@ -86,9 +86,23 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
     private const string AssessmentColumns = """
         SELECT a.Id, a.PublicId AS Reference, a.CampusId, a.AcademicProgramId,
           a.StandardId, s.Code AS StandardCode, f.Code AS FrameworkCode, f.VersionNo AS FrameworkVersion,
-          s.ValidityDays, a.OwnerUserId, a.ReviewerUserId, a.PeriodStart, a.PeriodEnd,
+          s.ValidityDays, s.RequiredReviewerCount, a.OwnerUserId, a.ReviewerUserId, a.PeriodStart, a.PeriodEnd,
           a.CurrentRevision, a.EvidenceSummary, a.EvidenceSha256, a.StateCode,
-          a.ApprovedAtUtc, a.ExpiresAtUtc, a.RowVersion, a.UpdatedAtUtc
+          a.ApprovedAtUtc, a.ExpiresAtUtc, a.RowVersion, a.UpdatedAtUtc,
+          (SELECT COUNT(*) FROM dbo.AccreditationReviewAssignments AS ra
+             WHERE ra.TenantId = a.TenantId AND ra.AssessmentId = a.Id
+               AND ra.RevisionNo = a.CurrentRevision) AS AssignedReviewerCount,
+          (SELECT COUNT(*) FROM dbo.AccreditationReviewAssignments AS ra
+             WHERE ra.TenantId = a.TenantId AND ra.AssessmentId = a.Id
+               AND ra.RevisionNo = a.CurrentRevision AND ra.DecisionCode = N'Approved') AS ApprovalsReceived,
+          CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.AccreditationReviewAssignments AS ra
+             WHERE ra.TenantId = a.TenantId AND ra.AssessmentId = a.Id
+               AND ra.RevisionNo = a.CurrentRevision AND ra.ReviewerUserId = {1})
+             THEN 1 ELSE 0 END AS bit) AS ActorIsReviewer,
+          CAST(CASE WHEN EXISTS (SELECT 1 FROM dbo.AccreditationReviewAssignments AS ra
+             WHERE ra.TenantId = a.TenantId AND ra.AssessmentId = a.Id
+               AND ra.RevisionNo = a.CurrentRevision AND ra.ReviewerUserId = {1}
+               AND ra.DecisionCode = N'Pending') THEN 1 ELSE 0 END AS bit) AS ActorReviewPending
         FROM dbo.AccreditationAssessments AS a
         JOIN dbo.AccreditationStandards AS s ON s.Id = a.StandardId AND s.TenantId = a.TenantId
         JOIN dbo.AccreditationFrameworks AS f ON f.Id = s.FrameworkId AND f.TenantId = s.TenantId
@@ -181,9 +195,9 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         var evidence = input.RequiredEvidence?.Trim() ?? "";
         if (input.ClientRequestId == Guid.Empty || input.FrameworkId <= 0 || !Code(code) ||
             !Text(title, 5, 200) || !Text(rubric, 10, 2000) || !Text(evidence, 10, 2000) ||
-            input.ValidityDays is < 1 or > 3650)
+            input.ValidityDays is < 1 or > 3650 || input.RequiredReviewerCount is < 1 or > 3)
             return ApiResponse<AccreditationStandardDto>.ErrorResponse("Invalid standard configuration.", 400);
-        var hash = Hash(JsonSerializer.Serialize(new object[] { input.FrameworkId, code, title, rubric, evidence, input.ValidityDays }));
+        var hash = Hash(JsonSerializer.Serialize(new object[] { input.FrameworkId, code, title, rubric, evidence, input.ValidityDays, input.RequiredReviewerCount }));
         try
         {
             return await db.ExecuteInTransactionAsync(async token =>
@@ -205,9 +219,9 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
                 await db.Database.ExecuteSqlInterpolatedAsync($"""
                     INSERT INTO dbo.AccreditationStandards
                       (TenantId, FrameworkId, CreateRequestId, CreateSha256,
-                       Code, Title, Rubric, RequiredEvidence, ValidityDays)
+                       Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount)
                     VALUES ({access.TenantId}, {input.FrameworkId}, {input.ClientRequestId}, {hash},
-                            {code}, {title}, {rubric}, {evidence}, {input.ValidityDays})
+                            {code}, {title}, {rubric}, {evidence}, {input.ValidityDays}, {input.RequiredReviewerCount})
                     """, token);
                 var row = (await db.Database.SqlQueryRaw<StandardCreateRow>("""
                     SELECT Id, CreateSha256 FROM dbo.AccreditationStandards
@@ -222,7 +236,7 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
 
     private async Task<AccreditationStandardDto?> StandardAsync(long id, CancellationToken ct) =>
         (await db.Database.SqlQueryRaw<AccreditationStandardDto>("""
-            SELECT Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays
+            SELECT Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount
             FROM dbo.AccreditationStandards WHERE TenantId = {0} AND Id = {1}
             """, access.TenantId, id).ToListAsync(ct)).SingleOrDefault();
 
@@ -234,7 +248,7 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         if (framework == null || (framework.StateCode != "Published" && !ResearchWorkflowAccess.AccreditationCoordinator(roles)))
             return Denied<List<AccreditationStandardDto>>();
         var rows = await db.Database.SqlQueryRaw<AccreditationStandardDto>("""
-            SELECT TOP(200) Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays
+            SELECT TOP(200) Id, FrameworkId, Code, Title, Rubric, RequiredEvidence, ValidityDays, RequiredReviewerCount
             FROM dbo.AccreditationStandards WHERE TenantId = {0} AND FrameworkId = {1}
             ORDER BY Code, Id
             """, access.TenantId, frameworkId).ToListAsync(ct);
@@ -325,6 +339,8 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         StandardId = row.StandardId, StandardCode = row.StandardCode,
         FrameworkCode = row.FrameworkCode, FrameworkVersion = row.FrameworkVersion,
         OwnerUserId = row.OwnerUserId, ReviewerUserId = row.ReviewerUserId,
+        RequiredReviewerCount = row.RequiredReviewerCount, AssignedReviewerCount = row.AssignedReviewerCount,
+        ApprovalsReceived = row.ApprovalsReceived,
         PeriodStart = row.PeriodStart, PeriodEnd = row.PeriodEnd,
         CurrentRevision = row.CurrentRevision, EvidenceSummary = Sensitive(row, roles, actor) ? row.EvidenceSummary : null,
         EvidenceSha256 = row.EvidenceSha256, StateCode = row.StateCode,
@@ -333,7 +349,8 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
         AllowedActions = new[] { "edit", "submit", "assign", "approve", "reject", "request-revision", "revise", "withdraw" }
             .Where(action => Next(row.StateCode, action) != null &&
                 (action == "assign" ? Checker(row, roles, actor) :
-                 action is "approve" or "reject" or "request-revision" ? Reviewer(row, roles, actor) : Author(row, actor)))
+                 action is "approve" or "reject" or "request-revision" ?
+                     Reviewer(row, roles, actor) && row.ActorReviewPending : Author(row, actor)))
             .ToList()
     };
     private async Task<AssessmentEventRow?> PreviousAsync(Guid id, CancellationToken ct) =>
@@ -447,8 +464,12 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
             return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("Reason of at least 10 characters required.", 400);
         if ((action is "approve" or "reject" or "request-revision") && input.DeclaresNoConflict != true)
             return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("Conflict-of-interest declaration required.", 400);
+        var reviewerIds = input.ReviewerUserIds?.OrderBy(id => id).ToArray() ??
+            (input.ReviewerUserId is > 0 ? new[] { input.ReviewerUserId.Value } : Array.Empty<long>());
+        // Preserve hashes of pre-panel commands so retries remain valid after rolling deployment.
+        var reviewerPayload = input.ReviewerUserIds == null ? (object?)input.ReviewerUserId : reviewerIds;
         var hash = Hash(JsonSerializer.Serialize(new object?[] { reference, action, input.RowVersion,
-            input.ReviewerUserId, evidence, reason, input.DeclaresNoConflict }));
+            reviewerPayload, evidence, reason, input.DeclaresNoConflict }));
         try
         {
             return await db.ExecuteInTransactionAsync(async token =>
@@ -466,18 +487,27 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
                 if (!CryptographicOperations.FixedTimeEquals(expected, row.RowVersion)) return Conflict<AccreditationAssessmentDto>();
                 var next = Next(row.StateCode, action);
                 if (next == null) return Conflict<AccreditationAssessmentDto>();
-                if (action == "assign" && (input.ReviewerUserId is not > 0 ||
-                    input.ReviewerUserId == row.OwnerUserId ||
-                    !await access.EligibleAsync(input.ReviewerUserId.Value, row.CampusId,
-                        new[] { "ACCREDITATIONREVIEWER", "TEACHER", "PRINCIPAL" }, token)))
-                    return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("Choose an eligible independent campus reviewer.", 400);
-                var reviewer = action == "assign" ? input.ReviewerUserId :
+                if (reviewerAction && !row.ActorReviewPending) return Conflict<AccreditationAssessmentDto>();
+                if (action == "assign")
+                {
+                    if (reviewerIds.Length != row.RequiredReviewerCount || reviewerIds.Distinct().Count() != reviewerIds.Length ||
+                        reviewerIds.Any(id => id <= 0 || id == row.OwnerUserId || id == access.UserId))
+                        return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("Select the required number of distinct independent reviewers.", 400);
+                    foreach (var id in reviewerIds)
+                        if (!await access.EligibleAsync(id, row.CampusId,
+                            new[] { "ACCREDITATIONREVIEWER", "TEACHER", "PRINCIPAL" }, token))
+                            return ApiResponse<AccreditationAssessmentDto>.ErrorResponse("Reviewer not eligible for this campus.", 400);
+                }
+                // All assigned reviewers must approve; a single reject/revision request vetoes the panel.
+                if (action == "approve" && row.ApprovalsReceived + 1 < row.RequiredReviewerCount)
+                    next = "Assigned";
+                var reviewer = action == "assign" ? (long?)null :
                     action == "revise" ? null : row.ReviewerUserId;
                 var revision = row.CurrentRevision + (action is "submit" or "revise" ? 1 : 0);
                 var summary = content ? evidence : row.EvidenceSummary;
                 var contentHash = content ? Hash(evidence) : row.EvidenceSha256;
-                var approval = action == "approve" ? Now : row.ApprovedAtUtc;
-                var expiry = action == "approve" ? Now.AddDays(row.ValidityDays) : row.ExpiresAtUtc;
+                var approval = action == "approve" && next == "Approved" ? Now : row.ApprovedAtUtc;
+                var expiry = action == "approve" && next == "Approved" ? Now.AddDays(row.ValidityDays) : row.ExpiresAtUtc;
                 var changed = await db.Database.ExecuteSqlInterpolatedAsync($"""
                     UPDATE dbo.AccreditationAssessments
                     SET CurrentRevision = {revision}, EvidenceSummary = {summary}, EvidenceSha256 = {contentHash},
@@ -486,6 +516,28 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
                     WHERE TenantId = {access.TenantId} AND Id = {row.Id} AND RowVersion = {expected}
                     """, token);
                 if (changed != 1) return Conflict<AccreditationAssessmentDto>();
+                if (action == "assign")
+                    foreach (var id in reviewerIds)
+                        await db.Database.ExecuteSqlInterpolatedAsync($"""
+                            INSERT INTO dbo.AccreditationReviewAssignments
+                              (TenantId, AssessmentId, RevisionNo, ReviewerUserId, AssignedByUserId, AssignedAtUtc, DecisionCode)
+                            VALUES ({access.TenantId}, {row.Id}, {row.CurrentRevision}, {id}, {access.UserId}, {Now}, {"Pending"})
+                            """, token);
+                if (reviewerAction)
+                {
+                    var decision = action switch
+                    {
+                        "approve" => "Approved", "reject" => "Rejected", _ => "ChangesRequested"
+                    };
+                    var recorded = await db.Database.ExecuteSqlInterpolatedAsync($"""
+                        UPDATE dbo.AccreditationReviewAssignments SET DecisionCode = {decision},
+                            DecisionReason = {reason}, DecidedAtUtc = {Now}
+                        WHERE TenantId = {access.TenantId} AND AssessmentId = {row.Id}
+                          AND RevisionNo = {row.CurrentRevision} AND ReviewerUserId = {access.UserId}
+                          AND DecisionCode = {"Pending"}
+                        """, token);
+                    if (recorded != 1) return Conflict<AccreditationAssessmentDto>();
+                }
                 if (action is "submit" or "revise")
                     await db.Database.ExecuteSqlInterpolatedAsync($"""
                         INSERT INTO dbo.AccreditationEvidenceVersions
@@ -525,7 +577,7 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
             return Denied<PagedResult<AccreditationAssessmentDto>>();
         var filter = " AND " + CampusGrant + " AND ({2} = 0 OR a.CampusId = {2})" +
             (ResearchWorkflowAccess.AccreditationCoordinator(roles) ? "" :
-                " AND (a.OwnerUserId = {1} OR a.ReviewerUserId = {1})");
+                " AND (a.OwnerUserId = {1} OR EXISTS (SELECT 1 FROM dbo.AccreditationReviewAssignments AS ra WHERE ra.TenantId = a.TenantId AND ra.AssessmentId = a.Id AND ra.RevisionNo = a.CurrentRevision AND ra.ReviewerUserId = {1}))");
         var count = await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value FROM dbo.AccreditationAssessments AS a WHERE a.TenantId = {0}" + filter,
             access.TenantId, access.UserId, campusId ?? 0).SingleAsync(ct);
         var rows = await db.Database.SqlQueryRaw<AssessmentRow>(AssessmentColumns + filter +
@@ -587,6 +639,11 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
     {
         public long Id { get; set; }
         public int ValidityDays { get; set; }
+        public int RequiredReviewerCount { get; set; }
+        public int AssignedReviewerCount { get; set; }
+        public int ApprovalsReceived { get; set; }
+        public bool ActorIsReviewer { get; set; }
+        public bool ActorReviewPending { get; set; }
     }
     private sealed class AssessmentEventRow
     {

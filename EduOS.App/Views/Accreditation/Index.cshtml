@@ -43,6 +43,8 @@
                             <textarea id="accStandardRequired" class="form-control mb-2" minlength="10" maxlength="2000" required rows="2"></textarea>
                             <label for="accStandardValidity" class="form-label" data-a-en="Approval validity (days)" data-a-bn="অনুমোদনের মেয়াদ (দিন)">Approval validity (days)</label>
                             <input id="accStandardValidity" type="number" class="form-control mb-2" min="1" max="3650" value="365" required />
+                            <label for="accStandardQuorum" class="form-label" data-a-en="Independent reviewers required" data-a-bn="প্রয়োজনীয় স্বাধীন পর্যালোচক">Independent reviewers required</label>
+                            <select id="accStandardQuorum" class="form-select mb-2"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
                             <button id="accStandardSave" class="btn btn-outline-primary" type="submit" data-a-en="Add standard" data-a-bn="মানদণ্ড যোগ">Add standard</button>
                         </form>
                         <button id="accFrameworkPublish" class="btn btn-outline-success mt-3" type="button" data-a-en="Independent publish" data-a-bn="স্বতন্ত্র প্রকাশ অনুমোদন">Independent publish</button>
@@ -104,8 +106,8 @@
                             <textarea id="accEditEvidence" class="form-control mb-2" rows="4" minlength="30" maxlength="3000"></textarea>
                         </div>
                         <div id="accReviewerBox" class="d-none">
-                            <label for="accReviewer" class="form-label" data-a-en="Independent reviewer" data-a-bn="স্বতন্ত্র পর্যালোচক">Independent reviewer</label>
-                            <select id="accReviewer" class="form-select mb-2"></select>
+                            <label for="accReviewer" class="form-label" data-a-en="Independent reviewers (Ctrl/Shift to select multiple)" data-a-bn="স্বতন্ত্র পর্যালোচক (একাধিক নির্বাচনের জন্য Ctrl/Shift)">Independent reviewers (Ctrl/Shift to select multiple)</label>
+                            <select id="accReviewer" class="form-select mb-2" multiple size="5"></select>
                         </div>
                         <label for="accReason" class="form-label" data-a-en="Decision reason" data-a-bn="সিদ্ধান্তের কারণ">Decision reason</label>
                         <textarea id="accReason" class="form-control mb-2" maxlength="500" rows="2"></textarea>

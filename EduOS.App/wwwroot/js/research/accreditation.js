@@ -218,7 +218,8 @@
             const detail = await api('/api/accreditation/assessments/' + encodeURIComponent(reference));
             if (generation !== detailGeneration || !sessionValid()) return;
             selected = detail; get('accDetail').classList.remove('d-none');
-            get('accSummary').textContent = `${detail.frameworkCode} v${detail.frameworkVersion} · ${detail.standardCode} · ${detail.stateCode} · v${detail.currentRevision} · ${detail.reference}`;
+            get('accSummary').textContent = `${detail.frameworkCode} v${detail.frameworkVersion} · ${detail.standardCode} · ${detail.stateCode} · v${detail.currentRevision} · ${detail.reference}` +
+                ` · ${t('Independent review', 'স্বতন্ত্র মূল্যায়ন')}: ${detail.approvalsReceived}/${detail.requiredReviewerCount}`;
             get('accSensitive').textContent = detail.evidenceSummary || t('Evidence visible only to its owner or assigned reviewer.', 'প্রমাণ শুধু মালিক বা নিযুক্ত পর্যালোচক দেখতে পারবেন।');
             get('accEditEvidence').value = detail.evidenceSummary || '';
             const action = get('accAction'); action.replaceChildren(); option(action, '', t('Choose action', 'কার্যক্রম নির্বাচন'));
@@ -239,11 +240,11 @@
         const action = get('accAction').value;
         get('accEditBox').classList.toggle('d-none', !['edit', 'revise'].includes(action));
         get('accReviewerBox').classList.toggle('d-none', action !== 'assign');
+        get('accReviewer').required = action === 'assign';
         get('accConflictLabel').classList.toggle('d-none', !['approve', 'reject', 'request-revision'].includes(action));
         if (action === 'assign' && selected) {
             const reference = selected.reference, generation = detailGeneration;
             const target = get('accReviewer'); target.replaceChildren();
-            option(target, '', t('Choose reviewer', 'পর্যালোচক নির্বাচন'));
             try {
                 const reviewers = await api('/api/accreditation/reviewers?campusId=' + selected.campusId);
                 if (generation !== detailGeneration || selected?.reference !== reference || get('accAction').value !== 'assign') return;
@@ -284,11 +285,18 @@
         if (!action || !window.confirm(t('Confirm this accreditation decision?', 'স্বীকৃতির এই সিদ্ধান্ত নিশ্চিত করবেন?'))) return;
         const body = {
             clientRequestId: actionRetry ||= crypto.randomUUID(), rowVersion: selected.rowVersion,
-            reviewerUserId: action === 'assign' ? Number(get('accReviewer').value) : null,
+            reviewerUserId: null,
+            reviewerUserIds: action === 'assign' ? Array.from(get('accReviewer').selectedOptions, x => Number(x.value)) : null,
             evidenceSummary: ['edit', 'revise'].includes(action) ? get('accEditEvidence').value.trim() : null,
             reason: get('accReason').value.trim(),
             declaresNoConflict: ['approve', 'reject', 'request-revision'].includes(action) ? get('accConflict').checked : null
         };
+        if (action === 'assign' && body.reviewerUserIds.length !== selected.requiredReviewerCount) {
+            actionRetry = null;
+            notice(t(`Select exactly ${selected.requiredReviewerCount} independent reviewers.`,
+                `ঠিক ${selected.requiredReviewerCount} জন স্বতন্ত্র পর্যালোচক নির্বাচন করুন।`), true);
+            return;
+        }
         busy = true; controls();
         try {
             await api('/api/accreditation/assessments/' + encodeURIComponent(reference) + '/' + encodeURIComponent(action), body);
@@ -320,7 +328,8 @@
                 clientRequestId: standardRetry ||= crypto.randomUUID(), frameworkId: Number(get('accFrameworkManage').value),
                 code: get('accStandardCode').value.trim().toUpperCase(), title: get('accStandardTitle').value.trim(),
                 rubric: get('accStandardRubric').value.trim(), requiredEvidence: get('accStandardRequired').value.trim(),
-                validityDays: Number(get('accStandardValidity').value)
+                validityDays: Number(get('accStandardValidity').value),
+                requiredReviewerCount: Number(get('accStandardQuorum').value)
             });
             standardRetry = null; get('accStandardForm').reset();
             notice(t('Standard added to the draft.', 'খসড়ায় মানদণ্ড যোগ হয়েছে।'));
