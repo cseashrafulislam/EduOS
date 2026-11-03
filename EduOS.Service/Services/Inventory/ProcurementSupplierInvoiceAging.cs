@@ -129,8 +129,9 @@ public sealed partial class ProcurementSupplierInvoiceService
             var days=Math.Max(0,reference.DayNumber-x.DueDate.DayNumber);
             decimal posted=0m, pending=0m;
             decimal credited=0m, pendingCredit=0m, refundReceivable=0m;
+            var hasSourceLines = invoiceLinesByJournal.TryGetValue(x.JournalId ?? 0, out var sourceLines);
             var conflicted = !verifiedInvoiceIds.Contains(x.Id) ||
-                !invoiceLinesByJournal.TryGetValue(x.JournalId ?? 0, out var sourceLines) ||
+                !hasSourceLines ||
                 sourceLines.Sum(l => l.DebitAmount) != sourceLines.Sum(l => l.CreditAmount) ||
                 sourceLines.Any(l => l.CampusId != x.CampusId ||
                     l.DebitAmount < 0m || l.CreditAmount < 0m ||
