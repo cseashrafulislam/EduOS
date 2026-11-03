@@ -12,7 +12,7 @@ test('single-session revoke requires password for other devices and never render
   assert.match(handler, /if \(!session\.isCurrent && !currentPassword\)/);
   assert.match(handler, /currentPassword: session\.isCurrent \? null : currentPassword/);
   assert.match(handler, /sessionId: session\.sessionId/);
-  assert.match(handler, /if \(session\.isCurrent\) window\.location\.assign/);
+  assert.match(handler, /if \(session\.isCurrent\) \{\s*lockProfile\(\);\s*window\.location\.assign\('\/Account\/Login'\);/);
   assert.doesNotMatch(handler, /textContent\s*=\s*session\.sessionId/);
   assert.match(view, /data-password-required="@T\["SessionPasswordRequired"\]"/);
   assert.match(view, /<details class="position-relative">/);
