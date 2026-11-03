@@ -352,9 +352,9 @@ public sealed class ResearchProposalService(
                     action == "revise" ? null : row.RiskCode;
                 var changed = await db.Database.ExecuteSqlInterpolatedAsync($"""
                     UPDATE dbo.ResearchProposals SET
-                        Title = {isContent ? title : row.Title},
-                        Abstract = {isContent ? abstractText : row.Abstract},
-                        Protocol = {isContent ? protocol : row.Protocol},
+                        Title = {(isContent ? title : row.Title)},
+                        Abstract = {(isContent ? abstractText : row.Abstract)},
+                        Protocol = {(isContent ? protocol : row.Protocol)},
                         ContentSha256 = {contentHash}, CurrentRevision = {newRevision},
                         StateCode = {next}, SupervisorUserId = {supervisor},
                         ReviewerUserId = {reviewer}, RiskCode = {risk}, UpdatedAtUtc = {Now}
@@ -367,9 +367,9 @@ public sealed class ResearchProposalService(
                         (TenantId, ProposalId, RevisionNo, Title, Abstract, Protocol,
                          ContentSha256, SubmittedByUserId, SubmittedAtUtc)
                         VALUES ({user.TenantId}, {row.Id}, {newRevision},
-                                {action == "revise" ? title : row.Title},
-                                {action == "revise" ? abstractText : row.Abstract},
-                                {action == "revise" ? protocol : row.Protocol},
+                                {(action == "revise" ? title : row.Title)},
+                                {(action == "revise" ? abstractText : row.Abstract)},
+                                {(action == "revise" ? protocol : row.Protocol)},
                                 {contentHash}, {user.UserId}, {Now})
                         """, token);
                 var updated = await GetAsync(reference, token) ?? throw new InvalidOperationException("Research update missing row.");
