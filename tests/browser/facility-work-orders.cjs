@@ -14,6 +14,10 @@ const record = { id: 7, campusId: 12, facilitySpaceId: 5, summary: 'Broken light
     priorityCode: 'High', stateCode: 'Approved', requesterUserId: 1, triagedByUserId: 2,
     workOrderId: 17, workOrderState: 'Approved', workOrderRowVersion: 'AQIDBA==', rowVersion: 'AQIDBA==' };
 const ok = data => ({ success: true, data });
+// Keep schedule acceptance future-dated regardless of when CI runs. The old
+// literal 2026-11-03 10:00 silently became past mid-run and broke availability.
+const scheduleDate = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+const scheduleTime = hhmm => scheduleDate + 'T' + hhmm;
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 function html(bn, manager, approver = false) {
     const a = view.indexOf('<section class="container-fluid py-3" id="facilityWorkflow"');
@@ -42,7 +46,7 @@ async function setup(browser, bn = false, manager = true, mobile = false,
     const page = await context.newPage();
     const state = { calls: [], errors: [], delayed: null, started: null,
         revoked: false, emptyAfterPost: false, empty: false, locationDelayed: null, locationStarted: null,
-        vendorDelayed: null, vendorStarted: null,
+        vendorDelayed: null, vendorStarted: null, partsRows: [],
         visibleRecord };
     page.on('pageerror', error => state.errors.push(error.message));
     await page.addInitScript(() => {
@@ -111,6 +115,7 @@ async function setup(browser, bn = false, manager = true, mobile = false,
         }
         if (url.pathname.endsWith('/dashboard')) return reply({});
         if (url.pathname.endsWith('/history')) return reply({ items: [], totalPages: 1 });
+        if (url.pathname.endsWith('/parts')) return reply({ items: state.partsRows, totalPages: 1 });
         if (state.delayed && url.searchParams.get('campusId') === '12') {
             state.started.resolve();
             await state.delayed.promise;
@@ -407,8 +412,8 @@ async function fillSchedule(page) {
     // Empty history still renders an attached <ol>, but it has no visible box.
     await page.locator('#wfHistory ol').waitFor({ state: 'attached' });
     await page.locator('#wfAction').selectOption('schedule');
-    await page.locator('#wfStart').fill('2026-11-03T10:00');
-    await page.locator('#wfEnd').fill('2026-11-03T11:00');
+    await page.locator('#wfStart').fill(scheduleTime('10:00'));
+    await page.locator('#wfEnd').fill(scheduleTime('11:00'));
     await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
     await page.locator('#wfTechSelect').selectOption('42');
     assert.equal(await page.locator('#wfTech').inputValue(), '42');
@@ -419,17 +424,17 @@ async function availabilityRecheck(browser) {
         await page.locator('#wfRows button').click();
         await page.locator('#wfAction').selectOption('schedule');
         assert.equal(state.calls.filter(x => x.url.includes('/technicians?')).length, 0);
-        await page.locator('#wfStart').fill('2026-11-03T10:00');
-        await page.locator('#wfEnd').fill('2026-11-03T11:00');
+        await page.locator('#wfStart').fill(scheduleTime('10:00'));
+        await page.locator('#wfEnd').fill(scheduleTime('11:00'));
         await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
         await page.locator('#wfTechSelect').selectOption('42');
-        await page.locator('#wfStart').fill('2026-11-03T09:00');
+        await page.locator('#wfStart').fill(scheduleTime('09:00'));
         await page.locator('#wfTechPage').filter({ hasText: 'no available technicians' }).waitFor();
         assert.equal(await page.locator('#wfTech').inputValue(), '');
         assert.equal(await page.locator('#wfTechSelect').isDisabled(), true);
         await page.locator('#wfTransition button[type="submit"]').click();
         assert.equal(state.calls.filter(x => x.method === 'POST').length, 0);
-        await page.locator('#wfStart').fill('2026-11-03T10:00');
+        await page.locator('#wfStart').fill(scheduleTime('10:00'));
         await page.locator('#wfTechSelect option[value="42"]').waitFor({ state: 'attached' });
         await page.locator('#wfTechSelect').selectOption('42');
         await page.locator('#wfTransition button[type="submit"]').click();
@@ -523,6 +528,24 @@ async function selectionAfterTransition(browser) {
         assert.deepEqual(state.errors, []);
     } finally { await context.close(); }
 }
+async function canonicalPartsReport(browser) {
+    const { context, page, state } = await setup(browser);
+    try {
+        await page.locator('#wfRows button').click();
+        await page.locator('#wfParts').filter({ hasText: 'No parts issued' }).waitFor();
+        state.partsRows = [{ movementNumber: 'IM-TEST-01', stateCode: 'Posted',
+            netCost: 25, financeState: 'Unlinked', lines: [{ inventoryItemId: 17,
+                quantity: 2, lotOrBatchNo: 'LOT-CI' }] }];
+        await page.locator('#wfPartsRefresh').click();
+        await page.locator('#wfParts').filter({ hasText: 'Actual net cost: 25.00' }).waitFor();
+        assert.match(await page.locator('#wfParts').innerText(), /Unlinked.*#17 × 2 \[LOT-CI\]/);
+        state.partsRows = [{ ...state.partsRows[0], stateCode: 'Reversed', netCost: 0 }];
+        await page.locator('#wfPartsRefresh').click();
+        await page.locator('#wfParts').filter({ hasText: 'Actual net cost: 0.00' }).waitFor();
+        assert.match(await page.locator('#wfParts').innerText(), /Reversed/);
+        assert.deepEqual(state.errors, []);
+    } finally { await context.close(); }
+}
 (async () => {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
@@ -534,6 +557,7 @@ async function selectionAfterTransition(browser) {
         await vendorPreview(browser);
         await vendorStaleWindow(browser);
         await vendorIndependentApproval(browser);
+        await canonicalPartsReport(browser);
         await availabilityRecheck(browser);
         await incompatibleWindows(browser);
         await revokedCampus(browser);
