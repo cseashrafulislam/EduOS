@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Globalization;
 using System.Text;
 using EduOS.App.Authorization;
 using EduOS.App.Security;
@@ -123,6 +124,10 @@ public sealed class AccreditationApiController(IAccreditationService service,
     [HttpGet("reports.csv")]
     public async Task<IActionResult> Csv(long campusId, DateTime from, DateTime to, CancellationToken ct)
     {
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = User.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
+            return Unauthorized();
         var result = await service.ReportAsync(campusId, from, to, ct);
         if (!result.Success || result.Data == null) return Reply(result);
         static string Escape(string input)
@@ -140,7 +145,51 @@ public sealed class AccreditationApiController(IAccreditationService service,
         Response.Headers.CacheControl = "no-store, private";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         Response.Headers["Referrer-Policy"] = "no-referrer";
+        Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+        Response.Headers["X-EduOS-Tenant-Id"] = tenant;
         return File(new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(),
             "text/csv; charset=utf-8", "accreditation-summary.csv");
+    }
+
+    // Same tenant/campus and date checks as the JSON gap report. Export only audit
+    // aggregate fields; no reviewer rationale, student data or private file URLs.
+    [HttpGet("reports/gaps.csv")]
+    public async Task<IActionResult> ComplianceGapsCsv(long campusId, long? programId, DateTime asOf,
+        int renewWithinDays = 30, CancellationToken ct = default)
+    {
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = User.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
+            return Unauthorized();
+        var result = await service.ComplianceGapsAsync(campusId, programId, asOf, renewWithinDays, ct);
+        if (!result.Success || result.Data == null) return Reply(result);
+        static string Safe(string? value)
+        {
+            var text = value ?? "";
+            if (text.Length > 0 && "=+-@\t\r\n".Contains(text[0])) text = "'" + text;
+            return "\"" + text.Replace("\"", "\"\"") + "\"";
+        }
+        static string Day(DateTime? value) => value.HasValue ?
+            value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "";
+        var csv = new StringBuilder("CampusId,AcademicProgramId,AsOfDate,Framework,FrameworkVersion,Standard,Status,ApprovedOn,ExpiresOn,OutcomeMappingRequired,MappedOutcomes,AcademicEvidenceRequired,AcademicEvidenceRecords\r\n");
+        foreach (var row in result.Data)
+        {
+            csv.Append(campusId).Append(',').Append(programId?.ToString(CultureInfo.InvariantCulture) ?? "")
+                .Append(',').Append(asOf.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))
+                .Append(',').Append(Safe(row.FrameworkCode)).Append(',').Append(row.FrameworkVersion)
+                .Append(',').Append(Safe(row.StandardCode)).Append(',').Append(Safe(row.StatusCode))
+                .Append(',').Append(Day(row.ApprovedAtUtc)).Append(',').Append(Day(row.ExpiresAtUtc))
+                .Append(',').Append(row.RequiresOutcomeMapping ? "Yes" : "No")
+                .Append(',').Append(row.MappedOutcomes)
+                .Append(',').Append(row.RequiresPublishedAcademicEvidence ? "Yes" : "No")
+                .Append(',').Append(row.AcademicEvidenceRecords).Append("\r\n");
+        }
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+        Response.Headers["X-EduOS-Tenant-Id"] = tenant;
+        var bytes = new UTF8Encoding(true).GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+        return File(bytes, "text/csv; charset=utf-8", "accreditation-compliance-gaps.csv");
     }
 }

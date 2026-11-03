@@ -24,6 +24,19 @@ review panels, confidential files and reporting workflows remain unchanged.
   configurable renewal warning interval (1–365 days). States include Missing,
   Pending, Current, RenewSoon, Expired and EvidenceGap. A withdrawn academic result
   is no longer counted as currently published evidence.
+- The `asOf` date is an **end-of-day UTC snapshot** for approved assessment and
+  academic evidence. An academic publication contributes only if its version was
+  published by that date, the evidence link had already been recorded and that
+  version had not yet been withdrawn. Withdrawn publications use their frozen
+  `UpdatedAt` withdrawal timestamp, not their current withdrawn state, to keep
+  earlier reports reproducible. Current reports exclude withdrawn evidence.
+- `GET /api/accreditation/reports/gaps.csv` exports the same checked campus/program,
+  as-of and renewal-day scope as the JSON gap report. The bounded CSV contains
+  framework/standard IDs, status, date and aggregate evidence counts only: no
+  confidential text, reviewer rationale, student identities or file URLs. Both
+  summary and gap CSV are now fetched through session-verified no-store blobs;
+  stale institution/session or superseded report responses are discarded before
+  download. Invalid or unauthorized requests return a real error, never partial CSV.
 
 ## Research grant Finance reconciliation
 
@@ -54,4 +67,7 @@ are backfilled or modified. SQL regression tests cover independent review/mappin
 budget reconciliation and reversal; exact-commit CI results must be checked before
 claiming Development acceptance. Real institute configuration, browser role/campus
 checks, finance audit of flow/account classifications, migration rollback and capacity
-tests remain distinct operational gates.
+tests remain distinct operational gates. The later gap-report correction requires **no
+new schema, migration, evidence rewrite or finance posting**; Node regression exercises
+real CSV session shielding. The SQL as-of query and C# CSV route still require exact-SHA
+CI and disposable SQL/browser verification before being called release-ready.

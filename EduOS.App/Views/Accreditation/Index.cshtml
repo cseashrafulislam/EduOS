@@ -8,7 +8,7 @@
     body * { visibility: hidden !important; }
     #accReport, #accReport * { visibility: visible !important; }
     #accReport { position: absolute; left: 0; top: 0; width: 100%; border: 0 !important; box-shadow: none !important; }
-    #accReportForm, #accCsv, #accPrint { display: none !important; }
+    #accReportForm, #accCsv, #accGapCsv, #accPrint { display: none !important; }
     #accGapRun { display: none !important; }
 </style>
 <div class="container-fluid py-4" id="accreditationWorkspace">
@@ -199,6 +199,7 @@
                         </table></div>
                     </div>
                     <a id="accCsv" href="#" class="btn btn-sm btn-outline-success d-none" download data-a-en="Download verified CSV" data-a-bn="যাচাইকৃত CSV ডাউনলোড">Download verified CSV</a>
+                    <a id="accGapCsv" href="#" class="btn btn-sm btn-outline-success d-none" download data-a-en="Download compliance gaps CSV" data-a-bn="কমপ্লায়েন্স ঘাটতির CSV ডাউনলোড">Download compliance gaps CSV</a>
                     <button id="accPrint" type="button" class="btn btn-sm btn-outline-secondary d-none" data-a-en="Print / Save PDF" data-a-bn="প্রিন্ট / PDF সংরক্ষণ">Print / Save PDF</button>
                 </div>
             </section>

@@ -1,0 +1,73 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var maker = User.IsInRole("TenantAdmin") || User.IsInRole("Accountant");
+    var checker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+    ViewData["Title"] = bn ? "যন্ত্রাংশের হিসাব সমন্বয়" : "Facilities Parts Finance Reconciliation";
+}
+<section id="fpfPage" class="container-fluid py-3" data-bn="@bn.ToString().ToLowerInvariant()"
+         data-maker="@maker.ToString().ToLowerInvariant()" data-checker="@checker.ToString().ToLowerInvariant()">
+    <h2 class="h4">@(bn ? "রক্ষণাবেক্ষণ যন্ত্রাংশের হিসাব" : "Facilities Parts Finance")</h2>
+    <div id="fpfStatus" class="alert alert-info" role="status" aria-live="polite"></div>
+    <section class="card mb-3"><div class="card-body">
+        <form id="fpfSearchForm" class="row g-2 align-items-end">
+            <div class="col-md-8"><label for="fpfSearch" class="form-label">@(bn ? "স্টক মুভমেন্ট নম্বর বা সার্ভিস অনুরোধ আইডি" : "Stock movement number or service request ID")</label>
+                <input id="fpfSearch" class="form-control" maxlength="80" /></div>
+            <div class="col-md-4"><button class="btn btn-outline-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+        </form>
+        <div class="table-responsive mt-3"><table class="table table-sm table-striped">
+            <thead><tr><th>@(bn ? "মুভমেন্ট" : "Movement")</th><th>@(bn ? "সার্ভিস অনুরোধ" : "Service request")</th><th>@(bn ? "মূল্য (টাকা)" : "Cost BDT")</th><th>@(bn ? "স্টক" : "Stock")</th><th>@(bn ? "হিসাব" : "Finance")</th><th></th></tr></thead>
+            <tbody id="fpfRows"></tbody>
+        </table></div>
+        <div class="d-flex gap-2 align-items-center"><button id="fpfPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পূর্ববর্তী" : "Previous")</button>
+            <span id="fpfPageNumber" aria-live="polite"></span>
+            <button id="fpfNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরবর্তী" : "Next")</button></div>
+    </div></section>
+    <section id="fpfDetails" class="card d-none"><div class="card-body">
+        <h3 class="h5" id="fpfChosen"></h3>
+        <div id="fpfEvidence" class="mb-3" aria-live="polite"></div>
+        @if (maker)
+        {
+            <section id="fpfRecognitionPanel" class="mb-3">
+                <h4 class="h6">@(bn ? "যন্ত্রাংশ ব্যয় জার্নাল জমা" : "Submit stock expense journal")</h4>
+                <div class="row g-2 mb-2"><div class="col-md-4"><label for="fpfExpenseSearch" class="form-label">@(bn ? "ব্যয় খাত খুঁজুন (কোড/নাম)" : "Find expense account (code/name)")</label>
+                    <input id="fpfExpenseSearch" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-4"><label for="fpfStockSearch" class="form-label">@(bn ? "স্টক সম্পদ খাত খুঁজুন" : "Find stock asset account")</label>
+                    <input id="fpfStockSearch" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-4 d-flex align-items-end"><button id="fpfAccountsReload" type="button" class="btn btn-outline-secondary">@(bn ? "হিসাব খাত লোড" : "Load accounts")</button></div></div>
+                <form id="fpfRecognitionForm" class="row g-2">
+                    <div class="col-md-3"><label for="fpfPeriod" class="form-label">@(bn ? "খোলা হিসাবকাল" : "Open accounting period")</label><select id="fpfPeriod" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="fpfDate" class="form-label">@(bn ? "জার্নাল তারিখ" : "Journal date")</label><input id="fpfDate" class="form-control" type="date" required /></div>
+                    <div class="col-md-3"><label for="fpfExpense" class="form-label">@(bn ? "মেরামত ব্যয় (Dr)" : "Repairs expense (Dr)")</label><select id="fpfExpense" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="fpfStock" class="form-label">@(bn ? "ইনভেন্টরি সম্পদ (Cr)" : "Inventory asset (Cr)")</label><select id="fpfStock" class="form-select" required></select></div>
+                    <div class="col-md-9"><label for="fpfReason" class="form-label">@(bn ? "জার্নালের প্রমাণ ও কারণ" : "Journal evidence and reason")</label><input id="fpfReason" class="form-control" minlength="10" maxlength="800" required /></div>
+                    <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary" type="submit">@(bn ? "অনুমোদনে জমা" : "Submit for review")</button></div>
+                </form>
+            </section>
+            <section id="fpfReversePanel" class="mb-3 d-none">
+                <h4 class="h6">@(bn ? "স্টক ও GL যৌথ প্রত্যাবর্তন" : "Joint stock and GL reversal")</h4>
+                <form id="fpfReverseForm" class="row g-2">
+                    <div class="col-md-3"><label for="fpfReversePeriod" class="form-label">@(bn ? "খোলা হিসাবকাল" : "Open accounting period")</label><select id="fpfReversePeriod" class="form-select" required></select></div>
+                    <div class="col-md-3"><label for="fpfReverseDate" class="form-label">@(bn ? "প্রত্যাবর্তনের তারিখ" : "Reversal date")</label><input id="fpfReverseDate" class="form-control" type="date" required /></div>
+                    <div class="col-md-4"><label for="fpfReverseReason" class="form-label">@(bn ? "প্রত্যাবর্তনের কারণ" : "Reversal reason")</label><input id="fpfReverseReason" class="form-control" minlength="10" maxlength="800" required /></div>
+                    <div class="col-md-2 d-flex align-items-end"><button class="btn btn-outline-danger" type="submit">@(bn ? "জমা দিন" : "Request reversal")</button></div>
+                </form>
+            </section>
+        }
+        @if (checker)
+        {
+            <div id="fpfReviewPanel" class="d-none mb-3">
+                <h4 class="h6">@(bn ? "স্বতন্ত্র হিসাব অনুমোদন" : "Independent Finance review")</h4>
+                <button id="fpfApprove" type="button" class="btn btn-success">@(bn ? "অনুমোদন ও পোস্ট" : "Approve and post")</button>
+                <button id="fpfReject" type="button" class="btn btn-outline-danger">@(bn ? "প্রত্যাখ্যান" : "Reject")</button>
+            </div>
+            <div id="fpfReverseReviewPanel" class="d-none mb-3">
+                <h4 class="h6">@(bn ? "স্টক ও GL প্রত্যাবর্তন অনুমোদন" : "Review joint GL and stock reversal")</h4>
+                <button id="fpfReverseApprove" type="button" class="btn btn-danger">@(bn ? "দুটিই প্রত্যাবর্তন করুন" : "Approve joint reversal")</button>
+                <button id="fpfReverseReject" type="button" class="btn btn-outline-secondary">@(bn ? "প্রত্যাখ্যান" : "Reject")</button>
+            </div>
+        }
+    </div></section>
+</section>
+@section Scripts {
+    <script type="module" src="~/js/inventory/facility-parts-finance.js" asp-append-version="true"></script>
+}

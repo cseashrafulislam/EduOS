@@ -50,14 +50,24 @@ public sealed partial class FacilityWorkflowService
             .Select(m => new { m.ReversalOfMovementId, m.PublicId }).ToListAsync(ct);
         var journals = await db.Journals.AsNoTracking().Where(j => j.TenantId == user.TenantId &&
             j.SourceType == "InventoryMovement" && j.SourceId.HasValue &&
-            ids.Contains(j.SourceId.Value) && !j.IsDeleted)
+            ids.Contains(j.SourceId.Value) && !j.IsDeleted &&
+            j.State != EduOS.Core.Enums.Domain.JournalState.Rejected &&
+            j.State != EduOS.Core.Enums.Domain.JournalState.Cancelled)
             .Select(j => new { j.Id, j.SourceId, j.State }).ToListAsync(ct);
+        var journalIds = journals.Select(x => x.Id).ToArray();
+        var financeReversals = await db.Journals.AsNoTracking().Where(j => j.TenantId == user.TenantId &&
+            j.SourceType == "FacilityPartsExpenseReversal" && j.ReversalOfJournalId.HasValue &&
+            journalIds.Contains(j.ReversalOfJournalId.Value) && !j.IsDeleted &&
+            j.State == EduOS.Core.Enums.Domain.JournalState.Posted)
+            .Select(j => new { j.ReversalOfJournalId, j.PublicId }).ToListAsync(ct);
 
         var rows = movements.Select(m =>
         {
             var reversal = reversals.FirstOrDefault(r => r.ReversalOfMovementId == m.Id);
             var journal = journals.Where(j => j.SourceId == m.Id)
                 .OrderByDescending(j => j.State.ToString() == "Posted").ThenByDescending(j => j.Id).FirstOrDefault();
+            var financeReversal = journal == null ? null :
+                financeReversals.FirstOrDefault(r => r.ReversalOfJournalId == journal.Id);
             var detail = lines.Where(l => l.InventoryMovementId == m.Id)
                 .Select(l => new FacilityPartsIssueLineDto { InventoryItemId = l.InventoryItemId,
                     Quantity = l.Quantity, PostedUnitCost = l.UnitCost, LotOrBatchNo = l.LotOrBatchNo ?? "" }).ToArray();
@@ -68,7 +78,10 @@ public sealed partial class FacilityWorkflowService
                 FromLocationId = m.FromLocationId!.Value, CreatedAtUtc = m.CreatedAt,
                 PostedAtUtc = m.PostedAt, ReversalReference = reversal?.PublicId,
                 FinanceJournalId = journal?.Id,
-                FinanceState = m.StateCode != "Posted" ? "NotPosted" : journal == null ? "Unlinked" : journal.State.ToString(),
+                FinanceReversalReference = financeReversal?.PublicId,
+                FinanceState = m.StateCode != "Posted" ? "NotPosted" :
+                    journal != null && ((reversal != null) != (financeReversal != null)) ? "OutOfSync" :
+                    financeReversal != null ? "Reversed" : journal == null ? "Unlinked" : journal.State.ToString(),
                 GrossCost = cost, NetCost = reversal == null ? cost : 0m, Lines = detail
             };
         }).ToList();

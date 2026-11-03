@@ -33,6 +33,7 @@ public sealed class FacilityPartsIssueDto
     public DateTime? PostedAtUtc { get; set; }
     public Guid? ReversalReference { get; set; }
     public long? FinanceJournalId { get; set; }
+    public Guid? FinanceReversalReference { get; set; }
     public string FinanceState { get; set; } = "NotPosted";
     public decimal GrossCost { get; set; }
     public decimal NetCost { get; set; }

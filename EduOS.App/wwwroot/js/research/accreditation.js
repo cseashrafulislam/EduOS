@@ -28,6 +28,7 @@
         reportGeneration++; get('accReportRows').replaceChildren();
         get('accGapRows').replaceChildren();
         get('accCsv').classList.add('d-none'); get('accCsv').removeAttribute('href');
+        get('accGapCsv').classList.add('d-none'); get('accGapCsv').removeAttribute('href');
         get('accPrint').classList.add('d-none');
     }
     function clearDetail() {
@@ -487,6 +488,9 @@
             });
             if (!rows.length) { const tr = document.createElement('tr');
                 td(tr, t('No published standards.', 'প্রকাশিত মানদণ্ড নেই।')).colSpan = 6; get('accGapRows').appendChild(tr); }
+            const exportLink = get('accGapCsv');
+            exportLink.href = '/api/accreditation/reports/gaps.csv?' + query;
+            exportLink.classList.remove('d-none');
             get('accPrint').classList.remove('d-none');
         } catch (e) { if (generation === reportGeneration) notice(e.message, true); }
     });
@@ -512,6 +516,41 @@
         if (!sessionValid()) { clearReport(); return; }
         window.print();
     });
+    async function downloadScopedCsv(url, filename, generation) {
+        if (!url || !sessionValid()) { clearReport(); throw Error(t('Session changed.', 'সেশন পরিবর্তিত।')); }
+        if (typeof window.EduOSVerifySessionContext !== 'function') {
+            clearReport(); throw Error(t('Session verification unavailable.', 'সেশন যাচাই করা যাচ্ছে না।'));
+        }
+        try { await window.EduOSVerifySessionContext(); }
+        catch { clearReport(); throw Error(t('Session verification failed.', 'সেশন যাচাই ব্যর্থ।')); }
+        if (!sessionValid()) { clearReport(); throw Error(t('Session changed.', 'সেশন পরিবর্তিত।')); }
+        const response = await fetch(url, { method: 'GET', credentials: 'same-origin', cache: 'no-store',
+            headers: { Accept: 'text/csv' } });
+        if (!sessionValid() || response.headers.get('X-EduOS-Tenant-Id') !== tenant ||
+            response.headers.get('X-EduOS-Session-Reference') !== session) {
+            clearReport(); throw Error(t('Session verification failed.', 'সেশন যাচাই ব্যর্থ।'));
+        }
+        if (!response.ok) throw Error(t('CSV export unavailable.', 'CSV রপ্তানি করা যাচ্ছে না।'));
+        const bytes = await response.blob();
+        try { await window.EduOSVerifySessionContext(); }
+        catch { clearReport(); throw Error(t('Session verification failed.', 'সেশন যাচাই ব্যর্থ।')); }
+        if (generation !== reportGeneration || !sessionValid() ||
+            response.headers.get('X-EduOS-Session-Reference') !== session) {
+            clearReport(); throw Error(t('Session changed; CSV discarded.', 'সেশন বদলেছে; CSV বাতিল করা হয়েছে।'));
+        }
+        const objectUrl = URL.createObjectURL(bytes);
+        const a = document.createElement('a'); a.href = objectUrl; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+    }
+    for (const [id, file] of [['accCsv', 'accreditation-summary.csv'],
+        ['accGapCsv', 'accreditation-compliance-gaps.csv']]) {
+        get(id).addEventListener('click', event => {
+            event.preventDefault();
+            const url = get(id).getAttribute('href'), generation = reportGeneration;
+            downloadScopedCsv(url, file, generation).catch(e => notice(e.message, true));
+        });
+    }
     const today = new Date().toISOString().slice(0, 10);
     get('accReportTo').value = today; get('accReportFrom').value = today.slice(0, 4) + '-01-01';
     loadCampuses(); loadFrameworks(); loadList();

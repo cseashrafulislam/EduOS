@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.Facilities;
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.SaaS;
@@ -28,6 +29,7 @@ public sealed class SqlServerFacilityWorkOrderTestsParts
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
         long tenantId, campusId, requestId, stockLocationId, itemId, makerId, checkerId, managerId;
+        long periodId, expenseId, assetAccountId;
         await using (var setup = new EduOSDbContext(options))
         {
             var tenant = new Tenant { Code = "CI-PART-" + suffix, Name = "Parts CI",
@@ -56,6 +58,14 @@ public sealed class SqlServerFacilityWorkOrderTestsParts
                 var item = new InventoryItem { TenantId = tenantId, Code = "PART-" + suffix,
                     Name = "Replacement Filter", IsActive = true, IsStockTracked = true, UnitCode = "Each" };
                 setup.AddRange(space, location, item);
+                var day = DateOnly.FromDateTime(DateTime.UtcNow);
+                var period = new AccountingPeriod { TenantId = tenantId, Name = "Facility Finance " + suffix,
+                    StartDate = day.AddDays(-5), EndDate = day.AddDays(5), IsClosed = false };
+                var repairs = new Account { TenantId = tenantId, Code = "REPAIR-" + suffix,
+                    Name = "Facility Repairs", AccountType = AccountType.Expense, AllowsPosting = true };
+                var stockAsset = new Account { TenantId = tenantId, Code = "STOCK-" + suffix,
+                    Name = "Inventory Asset", AccountType = AccountType.Asset, AllowsPosting = true };
+                setup.AddRange(period, repairs, stockAsset);
                 setup.UserCampusAccesses.AddRange(new UserCampusAccess {
                     TenantId = tenantId, CampusId = campusId, UserId = checkerId, IsActive = true
                 }, new UserCampusAccess {
@@ -63,6 +73,7 @@ public sealed class SqlServerFacilityWorkOrderTestsParts
                 });
                 await setup.SaveChangesAsync();
                 stockLocationId = location.Id; itemId = item.Id;
+                periodId = period.Id; expenseId = repairs.Id; assetAccountId = stockAsset.Id;
                 var facility = new FacilityServiceRequest { TenantId = tenantId,
                     ClientRequestId = Guid.NewGuid(), CampusId = campusId, FacilitySpaceId = space.Id,
                     RequesterUserId = managerId, CategoryCode = "Repair", PriorityCode = "Normal",
@@ -160,6 +171,122 @@ public sealed class SqlServerFacilityWorkOrderTestsParts
             Assert.Equal(0m, line.NetCost);
             Assert.NotNull(line.ReversalReference);
         }
+        Guid financeMovement;
+        string financeMovementVersion;
+        await using (var issueDb = Db(options, tenantId, makerId, "StoreKeeper"))
+        {
+            input.ClientRequestId = Guid.NewGuid();
+            var issue = await Inventory(issueDb, makerId, "StoreKeeper")
+                .CreateFacilityPartsIssueAsync(requestId, input);
+            Assert.True(issue.Success, issue.Message);
+            financeMovement = issue.Data!.Reference;
+            financeMovementVersion = issue.Data.RowVersion;
+        }
+        await using (var postDb = Db(options, tenantId, checkerId, "InventoryManager"))
+        {
+            var issue = await Inventory(postDb, checkerId, "InventoryManager")
+                .PostMovementAsync(financeMovement, new PostInventoryMovementRequestDto { RowVersion = financeMovementVersion });
+            Assert.True(issue.Success, issue.Message);
+        }
+        FacilityPartsFinanceService Finance(EduOSDbContext db, long actor, string role) =>
+            new(db, new Principal(tenantId, actor, role), TimeProvider.System,
+                Inventory(db, actor, role), NullLogger<FacilityPartsFinanceService>.Instance);
+        var dayOfJournal = DateOnly.FromDateTime(DateTime.UtcNow);
+        var financeInput = new FacilityPartsFinanceRequestDto { ClientRequestId = Guid.NewGuid(),
+            AccountingPeriodId = periodId, JournalDate = dayOfJournal,
+            RepairsExpenseAccountId = expenseId, InventoryAssetAccountId = assetAccountId,
+            Reason = "Approved filter replacement charged to Facility repairs" };
+        Guid journalRef;
+        string financeVersion;
+        await using (var makerDb = Db(options, tenantId, makerId, "Accountant"))
+        {
+            var service = Finance(makerDb, makerId, "Accountant");
+            var requestFinance = await service.RequestAsync(financeMovement, financeInput);
+            Assert.True(requestFinance.Success, requestFinance.Message);
+            Assert.Equal("Submitted", requestFinance.Data!.State);
+            Assert.Equal(25m, requestFinance.Data.AmountBdt);
+            journalRef = requestFinance.Data.JournalReference;
+            financeVersion = requestFinance.Data.RowVersion;
+            var replay = await service.RequestAsync(financeMovement, financeInput);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(journalRef, replay.Data!.JournalReference);
+            var conflicting = new FacilityPartsFinanceRequestDto {
+                ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+                JournalDate = dayOfJournal, RepairsExpenseAccountId = expenseId,
+                InventoryAssetAccountId = assetAccountId,
+                Reason = "Another expense request for the exact same stock issue" };
+            Assert.Equal(409, (await service.RequestAsync(financeMovement, conflicting)).StatusCode);
+            Assert.Equal(403, (await service.ReviewAsync(journalRef,
+                new FacilityPartsFinanceReviewDto { RowVersion = financeVersion, Approve = true })).StatusCode);
+        }
+        await using (var samePersonDb = Db(options, tenantId, makerId, "TenantAdmin"))
+            Assert.Equal(403, (await Finance(samePersonDb, makerId, "TenantAdmin")
+                .ReviewAsync(journalRef, new FacilityPartsFinanceReviewDto {
+                    RowVersion = financeVersion, Approve = true })).StatusCode);
+        await using (var differentTenantDb = Db(options, tenantId + 100000, makerId, "TenantAdmin"))
+            Assert.Equal(404, (await Finance(differentTenantDb, makerId, "TenantAdmin")
+                .GetAsync(financeMovement)).StatusCode);
+        await using (var reviewerDb = Db(options, tenantId, managerId, "Principal"))
+        {
+            var finance = Finance(reviewerDb, managerId, "Principal");
+            var approved = await finance.ReviewAsync(journalRef,
+                new FacilityPartsFinanceReviewDto { RowVersion = financeVersion, Approve = true });
+            Assert.True(approved.Success, approved.Message);
+            Assert.Equal("Posted", approved.Data!.State);
+            var journal = await reviewerDb.Journals.AsNoTracking().SingleAsync(j =>
+                j.TenantId == tenantId && j.PublicId == journalRef);
+            var lines = await reviewerDb.JournalLines.AsNoTracking().Where(l =>
+                l.TenantId == tenantId && l.JournalId == journal.Id).OrderBy(l => l.LineNo).ToListAsync();
+            Assert.Equal(2, lines.Count);
+            Assert.Equal((expenseId, 25m, 0m), (lines[0].AccountId, lines[0].DebitAmount, lines[0].CreditAmount));
+            Assert.Equal((assetAccountId, 0m, 25m), (lines[1].AccountId, lines[1].DebitAmount, lines[1].CreditAmount));
+            var stock = await Inventory(reviewerDb, managerId, "Principal").GetMovementAsync(financeMovement);
+            Assert.Equal(409, (await Inventory(reviewerDb, managerId, "Principal")
+                .ReverseMovementAsync(financeMovement, new ReverseInventoryMovementRequestDto {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = stock.Data!.RowVersion,
+                    Reason = "Finance linked stock must reverse together" })).StatusCode);
+        }
+        Guid jointReversal;
+        string jointVersion;
+        await using (var makerDb = Db(options, tenantId, makerId, "Accountant"))
+        {
+            var reversalRequest = await Finance(makerDb, makerId, "Accountant")
+                .RequestReversalAsync(journalRef, new FacilityPartsFinanceReversalRequestDto {
+                    ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+                    JournalDate = dayOfJournal, Reason = "Unused filter parts returned after correction" });
+            Assert.True(reversalRequest.Success, reversalRequest.Message);
+            Assert.Equal("Submitted", reversalRequest.Data!.ReversalState);
+            jointReversal = reversalRequest.Data.FinanceReversalReference!.Value;
+            jointVersion = reversalRequest.Data.ReversalRowVersion!;
+        }
+        await using (var reviewerDb = Db(options, tenantId, managerId, "Principal"))
+        {
+            var approved = await Finance(reviewerDb, managerId, "Principal")
+                .ReviewReversalAsync(jointReversal, new FacilityPartsFinanceReviewDto {
+                    RowVersion = jointVersion, Approve = true });
+            Assert.True(approved.Success, approved.Message);
+            Assert.Equal("Reversed", approved.Data!.State);
+            Assert.Equal("Posted", approved.Data.ReversalState);
+            Assert.NotNull(approved.Data.StockReversalReference);
+            var balance = await Inventory(reviewerDb, managerId, "Principal")
+                .GetItemBalanceAsync(itemId, stockLocationId, null);
+            Assert.Equal(10m, balance.Data!.QuantityOnHand);
+            var journal = await reviewerDb.Journals.AsNoTracking().SingleAsync(j =>
+                j.TenantId == tenantId && j.PublicId == jointReversal);
+            var entries = await reviewerDb.JournalLines.AsNoTracking().Where(l =>
+                l.TenantId == tenantId && l.JournalId == journal.Id).OrderBy(l => l.LineNo).ToListAsync();
+            Assert.Equal((expenseId, 0m, 25m), (entries[0].AccountId, entries[0].DebitAmount, entries[0].CreditAmount));
+            Assert.Equal((assetAccountId, 25m, 0m), (entries[1].AccountId, entries[1].DebitAmount, entries[1].CreditAmount));
+            var report = await Service(reviewerDb, tenantId, managerId, "Principal")
+                .PartsAsync(requestId, 1, 25);
+            Assert.Contains(report.Data!.Items, x => x.Reference == financeMovement &&
+                x.FinanceState == "Reversed" && x.NetCost == 0m && x.FinanceReversalReference == jointReversal);
+        }
+        await using (var makerDb = Db(options, tenantId, makerId, "Accountant"))
+            Assert.Equal(409, (await Finance(makerDb, makerId, "Accountant")
+                .RequestReversalAsync(journalRef, new FacilityPartsFinanceReversalRequestDto {
+                    ClientRequestId = Guid.NewGuid(), AccountingPeriodId = periodId,
+                    JournalDate = dayOfJournal, Reason = "Cannot reverse the same stock issue a second time" })).StatusCode);
         await using (var makerDb = Db(options, tenantId, makerId, "StoreKeeper"))
         {
             input.ClientRequestId = Guid.NewGuid();
@@ -180,7 +307,7 @@ public sealed class SqlServerFacilityWorkOrderTestsParts
         {
             var report = await Service(reportDb, tenantId, managerId, "FacilitiesManager")
                 .PartsAsync(requestId, 1, 25);
-            Assert.Equal(2, report.Data!.TotalCount);
+            Assert.Equal(3, report.Data!.TotalCount);
             Assert.Contains(report.Data.Items, x => x.StateCode == "Voided" && x.NetCost == 0m);
         }
     }

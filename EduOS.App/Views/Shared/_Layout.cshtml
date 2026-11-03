@@ -690,6 +690,14 @@
                             <span>@(currentCulture == "bn-BD" ? inventoryTask.Bn : inventoryTask.En)</span>
                         </a>
                     }
+                    @if (showFinance && showFacilities && (User?.IsInRole("TenantAdmin") == true ||
+                         User?.IsInRole("Principal") == true || User?.IsInRole("Accountant") == true))
+                    {
+                        <a class="nav-link @ActiveFor("/InventoryMovements/FacilityFinance")" href="/InventoryMovements/FacilityFinance">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "যন্ত্রাংশের হিসাব ও প্রত্যাবর্তন" : "Facilities Parts Finance")</span>
+                        </a>
+                    }
                     <a class="nav-link @ActiveFor("/AssetLifecycle")" href="/AssetLifecycle/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>@(currentCulture == "bn-BD" ? "স্থায়ী সম্পদ ও রক্ষণাবেক্ষণ" : "Fixed Assets & Maintenance")</span>

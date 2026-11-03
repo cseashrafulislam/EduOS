@@ -2821,6 +2821,14 @@ namespace EduOS.Persistence.Migrations
                         .HasDatabaseName("UX_Journals_ProcurementSupplierInvoice")
                         .HasFilter("[SourceType] = N'ProcurementSupplierInvoice' AND [SourceId] IS NOT NULL");
 
+                    b.HasIndex("TenantId", "SourceId", "UX_Journals_FacilityPartsExpense")
+                        .IsUnique()
+                        .HasFilter("[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+
+                    b.HasIndex("TenantId", "SourceId", "UX_Journals_FacilityPartsReversal")
+                        .IsUnique()
+                        .HasFilter("[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+
                     b.HasIndex("TenantId", "JournalDate", "State");
 
                     b.HasIndex("TenantId", "SourceType", "SourceId")

@@ -170,6 +170,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<InventoryMovementService>();
             s.AddScoped<IInventoryMovementService, InventoryMovementService>();
             s.AddScoped<AssetAccountingService>();
+            s.AddScoped<FacilityPartsFinanceService>();
             s.AddScoped<ILeaveEntitlementService, LeaveEntitlementService>();
             s.AddScoped<ILibraryBranchService, LibraryBranchService>();
             s.AddScoped<ILibraryReservationService, LibraryReservationService>();

@@ -91,4 +91,9 @@ public sealed class InventoryMovementsController : Controller
 
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Reports() => TaskPage("reports");
+
+    [HttpGet, RequireModule("FINANCE"), RequireModule("FACILITIES"),
+     Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult FacilityFinance() => View();
 }

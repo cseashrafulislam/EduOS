@@ -19,6 +19,13 @@ public sealed partial class InventoryMovementService
                 x.PublicId == movementReference && !x.IsDeleted, ct);
             if (original == null || !await LocationsAllowed(original.FromLocationId, original.ToLocationId, ct))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Movement not found.", 404);
+            if (original.SourceType == "FacilityWorkOrder" && await db.Journals.AsNoTracking().AnyAsync(j =>
+                j.TenantId == user.TenantId && j.SourceType == "InventoryMovement" &&
+                j.SourceId == original.Id && !j.IsDeleted &&
+                j.State != EduOS.Core.Enums.Domain.JournalState.Rejected &&
+                j.State != EduOS.Core.Enums.Domain.JournalState.Cancelled, ct))
+                return ApiResponse<InventoryMovementDto>.ErrorResponse(
+                    "Finance-linked facility stock must use the independently reviewed joint GL/stock reversal.", 409);
             var conflict = await ReversalConflictAsync(original, request, ct);
             if (conflict != null) return conflict;
             var (error, lines) = await CheckReversalAsync(original, ct);

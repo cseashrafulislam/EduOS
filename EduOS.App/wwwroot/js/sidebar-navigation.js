@@ -96,7 +96,7 @@
         ],
         'management:inventory': [
             ['settings', 'Settings', 'সেটিংস', ['/InventoryCatalog']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/InventoryMovements/Transactions', '/InventoryMovements/Adjustments', '/InventoryMovements/StockCounts', '/InventoryMovements/Index', '/AssetLifecycle']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/InventoryMovements/Transactions', '/InventoryMovements/Adjustments', '/InventoryMovements/StockCounts', '/InventoryMovements/FacilityFinance', '/InventoryMovements/Index', '/AssetLifecycle']],
             ['reports', 'Reports', 'রিপোর্ট', ['/InventoryMovements/Reports']]
         ],
         'management:library': [

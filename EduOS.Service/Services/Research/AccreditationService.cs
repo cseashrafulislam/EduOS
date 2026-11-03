@@ -706,8 +706,12 @@ public sealed class AccreditationService(EduOSDbContext db, ResearchWorkflowAcce
                  AND outcome.AcademicProgramId = {2}) AS MappedOutcomes,
               (SELECT COUNT(*) FROM dbo.AccreditationAcademicEvidenceLinks AS ev
                JOIN dbo.ResultPublications AS p ON p.TenantId = ev.TenantId
-                 AND p.Id = ev.ResultPublicationId AND p.State = 2 AND p.IsDeleted = 0
-               WHERE ev.TenantId = s.TenantId AND ev.AssessmentId = approved.Id) AS AcademicEvidenceRecords
+                 AND p.Id = ev.ResultPublicationId AND p.IsDeleted = 0
+                 AND p.VersionNo = ev.PublicationVersionNo
+                 AND p.PublishedAt < {3}
+                 AND (p.State = 2 OR (p.State = 3 AND p.UpdatedAt >= {3}))
+               WHERE ev.TenantId = s.TenantId AND ev.AssessmentId = approved.Id
+                 AND ev.CreatedAtUtc < {3} AND ev.PublishedAtUtc < {3}) AS AcademicEvidenceRecords
             FROM dbo.AccreditationStandards AS s
             JOIN dbo.AccreditationFrameworks AS f ON f.TenantId = s.TenantId AND f.Id = s.FrameworkId
             OUTER APPLY (SELECT TOP(1) a.Id, a.ApprovedAtUtc, a.ExpiresAtUtc
