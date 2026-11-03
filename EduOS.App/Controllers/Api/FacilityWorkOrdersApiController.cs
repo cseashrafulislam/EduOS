@@ -22,8 +22,9 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
     // cookie-session reference. Missing context must fail before a write action.
     private bool BindCurrentSession()
     {
-        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
-        var tenant = User.FindFirstValue("TenantId");
+        var principal = ControllerContext?.HttpContext?.User;
+        var sid = principal?.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = principal?.FindFirstValue("TenantId");
         if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
             return false;
         Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
@@ -34,6 +35,7 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
     private IActionResult SessionUnavailable() =>
         Unauthorized(new { success = false, message = "Session unavailable; sign in again." });
 
+    [NonAction]
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         if (!BindCurrentSession())

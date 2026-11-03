@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Claims;
+using EduOS.App.Security;
+using Microsoft.AspNetCore.Http;
 using System.Text;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Common;
@@ -34,7 +37,7 @@ public sealed class FacilityWorkOrdersCsvExportTests
         {
             CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
             var file = Assert.IsType<FileContentResult>(
-                await new FacilityWorkOrdersApiController(service.Object)
+                await Controller(service.Object)
                     .Export(null, null, false, CancellationToken.None));
             var csv = Encoding.UTF8.GetString(file.FileContents);
             Assert.StartsWith("\uFEFF" + heading, csv);
@@ -62,7 +65,7 @@ public sealed class FacilityWorkOrdersCsvExportTests
         service.Setup(x => x.ExportSnapshotAsync(3, "Approved", true, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ApiResponse<IReadOnlyList<FacilityRequestDto>>
                 .ErrorResponse("Export rejected.", code));
-        var result = Assert.IsType<ObjectResult>(await new FacilityWorkOrdersApiController(service.Object)
+        var result = Assert.IsType<ObjectResult>(await Controller(service.Object)
             .Export(3, "Approved", true, CancellationToken.None));
         Assert.Equal(code, result.StatusCode);
     }
@@ -79,6 +82,34 @@ public sealed class FacilityWorkOrdersCsvExportTests
         var csv = Encoding.UTF8.GetString(file.FileContents);
         Assert.Contains("\"101\"", csv);
         Assert.Equal(102, csv.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);
+    }
+
+    [Fact]
+    public async Task Export_without_authenticated_session_does_not_read_private_snapshot()
+    {
+        var service = new Mock<IFacilityWorkflowService>();
+        var controller = new FacilityWorkOrdersApiController(service.Object)
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
+        var denied = await controller.Export(null, null, false, CancellationToken.None);
+        Assert.IsType<UnauthorizedObjectResult>(denied);
+        service.Verify(x => x.ExportSnapshotAsync(It.IsAny<long?>(), It.IsAny<string>(),
+            It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static FacilityWorkOrdersApiController Controller(IFacilityWorkflowService service)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("TenantId", "12"),
+             new Claim(AuthSessionRegistry.ClaimType, new string('A', 48))], "Test"));
+        return new FacilityWorkOrdersApiController(service)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = principal }
+            }
+        };
     }
 
     private static ApiResponse<IReadOnlyList<FacilityRequestDto>> Ok(params FacilityRequestDto[] rows) =>
