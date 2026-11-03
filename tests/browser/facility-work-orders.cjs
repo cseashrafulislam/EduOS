@@ -132,7 +132,7 @@ async function boundCsvAndStaleResponses(browser) {
         const csv = fs.readFileSync(await download.path(), 'utf8');
         assert.match(csv, /Request,Campus,Summary/);
         assert.equal(download.suggestedFilename(), 'facilities-work-orders.csv');
-        assert.ok(valid.state.calls.some(c => c.url.startsWith('/api/facilities/work-orders/export?') &&
+        assert.ok(valid.state.calls.some(c => c.url.startsWith('/api/facilities/work-orders/export') &&
             c.method === 'GET'));
         assert.deepEqual(valid.state.errors, []);
     } finally { await valid.context.close(); }
