@@ -514,6 +514,20 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.Equal(409, deniedHold.StatusCode);
             hold.Value = "false";
             await db.SaveChangesAsync();
+            // An older incident remains a privacy/legal evidence hold even when
+            // the campus-wide hold is off and the nominal period has elapsed.
+            var incidentVisit = await db.FacilityVisitorVisits.AsNoTracking()
+                .SingleAsync(x => x.Id == first.Id);
+            var blockedIncident = await Service(db, tenantId, managerId, "FacilitiesManager", retentionClock)
+                .TransitionAsync(first.Id, "redactrequest", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(),
+                    RowVersion = Convert.ToBase64String(incidentVisit.RowVersion),
+                    Reason = "Visitor retention period expired"
+                });
+            Assert.Equal(409, blockedIncident.StatusCode);
+            Assert.Equal(0, await db.FacilityVisitorEvents.CountAsync(x =>
+                x.FacilityVisitorVisitId == first.Id && x.ActionCode == "redactrequest"));
             var applied = await Service(db, tenantId, managerId, "FacilitiesManager", retentionClock)
                 .TransitionAsync(third.Id, "redactrequest", request);
             Assert.True(applied.Success, applied.Message);
