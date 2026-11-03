@@ -24,7 +24,7 @@ public sealed class ResearchEthicsWorkflow : Migration
             OwnerUserId = table.Column<long>(type: "bigint", nullable: false),
             Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
             Abstract = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
-            Protocol = table.Column<string>(type: "nvarchar(6000)", maxLength: 6000, nullable: false),
+            Protocol = table.Column<string>(type: "nvarchar(max)", nullable: false),
             ContentSha256 = table.Column<string>(type: "char(64)", maxLength: 64, nullable: false),
             CurrentRevision = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
             StateCode = table.Column<string>(type: "nvarchar(24)", maxLength: 24, nullable: false),
@@ -61,7 +61,7 @@ public sealed class ResearchEthicsWorkflow : Migration
             RevisionNo = table.Column<int>(type: "int", nullable: false),
             Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
             Abstract = table.Column<string>(type: "nvarchar(3000)", maxLength: 3000, nullable: false),
-            Protocol = table.Column<string>(type: "nvarchar(6000)", maxLength: 6000, nullable: false),
+            Protocol = table.Column<string>(type: "nvarchar(max)", nullable: false),
             ContentSha256 = table.Column<string>(type: "char(64)", maxLength: 64, nullable: false),
             SubmittedByUserId = table.Column<long>(type: "bigint", nullable: false),
             SubmittedAtUtc = table.Column<DateTime>(type: "datetime2", nullable: false)
