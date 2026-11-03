@@ -469,6 +469,101 @@ public sealed class SqlServerFacilityVisitorTests
                 Assert.Null(row.NewValue);
             });
         }
+
+        // Privacy redaction is a separate two-person, no-default retention
+        // workflow. It never erases an active visit or an incident/legal hold.
+        var third = await PreregisterAsync("Guest Three");
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+        {
+            var rejected = await Service(db, tenantId, hostId, "Staff")
+                .TransitionAsync(third.Id, "hostreject", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = third.RowVersion,
+                    Reason = "Appointment declined."
+                });
+            Assert.True(rejected.Success, rejected.Message);
+            third = rejected.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var retentionClock = new ShiftedClock(TimeSpan.FromDays(40));
+            var request = new FacilityVisitorTransitionDto
+            {
+                ClientCommandId = Guid.NewGuid(), RowVersion = third.RowVersion,
+                Reason = "Visitor retention period expired"
+            };
+            var noPolicy = await Service(db, tenantId, managerId, "FacilitiesManager", retentionClock)
+                .TransitionAsync(third.Id, "redactrequest", request);
+            Assert.Equal(409, noPolicy.StatusCode);
+            db.TenantSettings.Add(new TenantSetting
+            {
+                TenantId = tenantId, Key = "Facilities.Visitor.RetentionDays." + campusId,
+                Value = "30", Category = "Facilities", CreatedAt = DateTime.UtcNow,
+                CreatedBy = managerId
+            });
+            var hold = new TenantSetting
+            {
+                TenantId = tenantId, Key = "Facilities.Visitor.LegalHold." + campusId,
+                Value = "true", Category = "Facilities", CreatedAt = DateTime.UtcNow,
+                CreatedBy = managerId
+            };
+            db.TenantSettings.Add(hold);
+            await db.SaveChangesAsync();
+            var deniedHold = await Service(db, tenantId, managerId, "FacilitiesManager", retentionClock)
+                .TransitionAsync(third.Id, "redactrequest", request);
+            Assert.Equal(409, deniedHold.StatusCode);
+            hold.Value = "false";
+            await db.SaveChangesAsync();
+            var applied = await Service(db, tenantId, managerId, "FacilitiesManager", retentionClock)
+                .TransitionAsync(third.Id, "redactrequest", request);
+            Assert.True(applied.Success, applied.Message);
+            third = applied.Data!;
+            var selfApproval = await Service(db, tenantId, managerId, "FacilitiesManager", retentionClock)
+                .TransitionAsync(third.Id, "redactapprove", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = third.RowVersion,
+                    Reason = "Independent retention approval"
+                });
+            Assert.Equal(403, selfApproval.StatusCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            db.TenantMemberships.Add(new TenantMembership
+            { TenantId = tenantId, UserId = outsiderId, Status = MembershipStatus.Active });
+            db.UserCampusAccesses.Add(new UserCampusAccess
+            { TenantId = tenantId, CampusId = campusId, UserId = outsiderId, IsActive = true });
+            var approverRole = new ApplicationRole
+            { TenantId = tenantId, Name = "Principal", NormalizedName = "PRINCIPAL", IsActive = true };
+            db.Roles.Add(approverRole);
+            await db.SaveChangesAsync();
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = outsiderId, RoleId = approverRole.Id });
+            await db.SaveChangesAsync();
+        }
+        await using (var db = Db(options, tenantId, outsiderId, "Principal"))
+        {
+            var checker = Service(db, tenantId, outsiderId, "Principal",
+                new ShiftedClock(TimeSpan.FromDays(40)));
+            var approval = new FacilityVisitorTransitionDto
+            {
+                ClientCommandId = Guid.NewGuid(), RowVersion = third.RowVersion,
+                Reason = "Independent retention approval"
+            };
+            var result = await checker.TransitionAsync(third.Id, "redactapprove", approval);
+            Assert.True(result.Success, result.Message);
+            Assert.Equal("[redacted]", result.Data!.VisitorName);
+            Assert.Equal("[redacted]", result.Data.Purpose);
+            Assert.Null(result.Data.BadgeCode);
+            var replay = await checker.TransitionAsync(third.Id, "redactapprove", approval);
+            Assert.True(replay.Success, replay.Message);
+            var events = await db.FacilityVisitorEvents.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.FacilityVisitorVisitId == third.Id)
+                .OrderBy(x => x.Id).ToListAsync();
+            Assert.Contains(events, x => x.ActionCode == "redactrequest");
+            Assert.Contains(events, x => x.ActionCode == "redactapprove");
+            Assert.All(events, x => Assert.Null(x.BadgeCode));
+            Assert.DoesNotContain(events, x => x.Reason == "Appointment declined.");
+            Assert.Equal(1, events.Count(x => x.ActionCode == "redactapprove"));
+        }
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options,
