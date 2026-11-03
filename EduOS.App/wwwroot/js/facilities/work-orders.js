@@ -86,13 +86,6 @@
         pending.set(key, { id, fingerprint });
         return id;
     };
-    // Every private JSON and CSV response must belong to the original institution
-    // and public cookie session. The shield alone cannot authenticate a stale 200.
-    const responseMatchesSession = response =>
-        sessionCurrent() && /^[0-9A-F]{64}$/.test(session.reference) &&
-        /^[1-9][0-9]*$/.test(session.tenant) &&
-        response?.headers?.get('X-EduOS-Session-Reference') === session.reference &&
-        response?.headers?.get('X-EduOS-Tenant-Id') === session.tenant;
     function lockPage() {
         if (blocked) return;
         blocked = true;
@@ -136,6 +129,13 @@
             document.body?.dataset.authSessionReference === session.reference &&
             document.body?.dataset.authTenantId === session.tenant;
     }
+    // Every private JSON and CSV response must belong to the original institution
+    // and public cookie session. The shield alone cannot authenticate a stale 200.
+    const responseMatchesSession = response =>
+        sessionCurrent() && /^[0-9A-F]{64}$/.test(session.reference) &&
+        /^[1-9][0-9]*$/.test(session.tenant) &&
+        response?.headers?.get('X-EduOS-Session-Reference') === session.reference &&
+        response?.headers?.get('X-EduOS-Tenant-Id') === session.tenant;
     async function verifySession() {
         if (!sessionCurrent() || !window.EduOSVerifySessionContext || !shield) {
             lockPage();
