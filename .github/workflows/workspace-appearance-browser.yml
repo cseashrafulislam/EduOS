@@ -13,6 +13,7 @@ on:
       - 'EduOS.App/Views/WorkspacePreferences/Index.cshtml'
       - 'tests/browser/workspace-appearance.cjs'
       - 'tests/browser/workspace-institute-branding.cjs'
+      - 'tests/browser/branding-setup-lifecycle.cjs'
       - 'tests/browser/workspace-appearance-live.cjs'
       - 'tests/browser/workspace-appearance-live-contract.cjs'
       - 'EduOS.App/Views/Account/Login.cshtml'
@@ -55,6 +56,8 @@ jobs:
           test "$result" -eq 2
       - name: Exercise TenantAdmin branding summary in Chromium with synthetic session and tenant switch
         run: node tests/browser/workspace-institute-branding.cjs
+      - name: Exercise onboarding Branding Setup pagehide and restored-document privacy in Chromium
+        run: node tests/browser/branding-setup-lifecycle.cjs
       - name: Exercise real appearance editor with isolated synthetic session/API in Chromium
         run: node tests/browser/workspace-appearance.cjs
       - name: Exercise bilingual Login, institution selection and public Help Drawer in Chromium
