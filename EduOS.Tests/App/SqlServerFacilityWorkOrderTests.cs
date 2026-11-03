@@ -102,18 +102,15 @@ public sealed class SqlServerFacilityWorkOrderTests
                     TenantId = tenantId, Name = "FacilitiesManager",
                     NormalizedName = "FACILITIESMANAGER", IsActive = true
                 };
-                var approverRole = new ApplicationRole
-                {
-                    TenantId = tenantId, Name = "FacilitiesApprover",
-                    NormalizedName = "FACILITIESAPPROVER", IsActive = true
-                };
+                // Reuse the existing tenant-scoped approver role; creating a
+                // second identical normalized role would violate Identity uniqueness.
                 setup.Roles.AddRange(technicianRole, globalTechnicianRole,
-                    secondFacilitiesApproverRole, managerRole, approverRole);
+                    secondFacilitiesApproverRole, managerRole);
                 await setup.SaveChangesAsync();
                 setup.UserRoles.Add(new IdentityUserRole<long>
                 { UserId = managerId, RoleId = managerRole.Id });
                 setup.UserRoles.Add(new IdentityUserRole<long>
-                { UserId = approverId, RoleId = approverRole.Id });
+                { UserId = approverId, RoleId = secondFacilitiesApproverRole.Id });
                 setup.UserRoles.Add(new IdentityUserRole<long>
                 { UserId = techId, RoleId = technicianRole.Id });
                 setup.UserRoles.Add(new IdentityUserRole<long>
