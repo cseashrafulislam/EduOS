@@ -170,7 +170,7 @@ public sealed class ResearchGrantService(EduOSDbContext db, ResearchWorkflowAcce
         if (input == null || input.ClientRequestId == Guid.Empty || input.ProposalReference == Guid.Empty || input.SchemeId <= 0 ||
             (input.Title?.Trim().Length ?? 0) is < 5 or > 200 || input.RequestedAmount <= 0)
             return ApiResponse<ResearchGrantDto>.ErrorResponse("Invalid grant application.", 400);
-        var title = input.Title.Trim();
+        var title = input.Title?.Trim() ?? "";
         var hash = Hash(JsonSerializer.Serialize(new object[] { "create", input.ProposalReference, input.SchemeId, title, input.RequestedAmount }));
         try
         {
