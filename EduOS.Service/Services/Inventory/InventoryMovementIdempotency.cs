@@ -13,7 +13,8 @@ public sealed partial class InventoryMovementService
             x.InventoryMovementId == existing.Id && !x.IsDeleted).OrderBy(x => x.LineNo).ToListAsync(ct);
         var same = existing.MovementTypeCode == request.MovementTypeCode.Trim() &&
             existing.FromLocationId == request.FromLocationId && existing.ToLocationId == request.ToLocationId &&
-            existing.SourceType == request.SourceType?.Trim() && existing.Remarks == request.Remarks!.Trim() &&
+            existing.SourceType == request.SourceType?.Trim() && existing.SourceId == request.SourceId &&
+            existing.Remarks == request.Remarks!.Trim() &&
             old.Count == request.Lines.Count && old.Select((x, i) =>
                 x.InventoryItemId == request.Lines[i].InventoryItemId && x.Quantity == request.Lines[i].Quantity &&
                 (existing.StateCode == "Posted" || x.UnitCost == request.Lines[i].UnitCost) &&

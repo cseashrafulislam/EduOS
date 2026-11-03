@@ -26,6 +26,8 @@ public sealed partial class InventoryMovementService
                 (!m.CreatedBy.HasValue || m.CreatedBy.Value == user.UserId))
                 return Denied<InventoryMovementDto>();
             if (m.StateCode == "Posted") return ApiResponse<InventoryMovementDto>.SuccessResponse(await MapAsync(m, ct), "Already posted.");
+            if (!await FacilityIssuePostingAllowedAsync(m, ct))
+                return ApiResponse<InventoryMovementDto>.ErrorResponse("Facility parts require an active authorized work order and a different inventory poster.", 409);
             if (m.StateCode is not ("Draft" or "Reserved") || !Version(m.RowVersion, request.RowVersion) ||
                 m.MovementTypeCode is not ("Receipt" or "Issue" or "Transfer"))
                 return ApiResponse<InventoryMovementDto>.ErrorResponse("Movement changed or cannot be posted.", 409);

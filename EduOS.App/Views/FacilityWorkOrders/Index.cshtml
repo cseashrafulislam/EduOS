@@ -114,6 +114,14 @@
                 <div class="col-12"><p class="small text-muted mb-0">@(bn ? "অনুমোদিত সরবরাহকারী বুকিং থাকলে টেকনিশিয়ানের সময়সূচির সঙ্গে অন্তত কিছু সময় মিলতে হবে। দুটি সময়সীমা সম্পূর্ণ আলাদা হলে নতুন বুকিং বা সময়সূচি সংরক্ষণ করা যাবে না।" : "An approved vendor booking and technician schedule must overlap. Disjoint windows cannot be proposed, approved or scheduled.")</p></div>
                 <div class="col-12"><button type="submit" class="btn btn-primary">@(bn ? "পরিবর্তন সংরক্ষণ" : "Apply transition")</button></div>
             </form>
+            <hr /><section aria-label="@(bn ? "যন্ত্রাংশ ব্যবহারের হিসাব" : "Parts issue ledger")">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                    <h4 class="h6 mb-0">@(bn ? "যন্ত্রাংশ ইস্যু ও প্রকৃত খরচ" : "Parts issued and actual cost")</h4>
+                    <button class="btn btn-outline-secondary btn-sm" id="wfPartsRefresh" type="button" disabled>@(bn ? "রিফ্রেশ" : "Refresh")</button>
+                </div>
+                <p class="small text-muted">@(bn ? "Inventory-তে অনুমোদিত কাজের জন্য issue draft তৈরি করে অন্য অনুমোদিত ব্যবহারকারী পোস্ট করবেন। নিচের মূল্য Inventory ledger থেকে; Finance journal তৈরি না হলে Unlinked দেখাবে।" : "Create a work-order issue draft in Inventory and have a different authorized user post it. Actual cost comes from the Inventory ledger; Unlinked means no posted Finance journal is associated.")</p>
+                <div id="wfParts" class="small" aria-live="polite"></div>
+            </section>
             <hr /><h4 class="h6">@(bn ? "পরিবর্তনের ইতিহাস" : "Transition history")</h4>
             <div id="wfHistory" class="small" aria-live="polite"></div>
         </div></div></div>

@@ -18,6 +18,9 @@ namespace EduOS.App.Controllers.Api;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService service) : ControllerBase, IAsyncActionFilter
 {
+    [HttpGet("{id:long}/parts"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesApprover,FacilitiesTechnician,FacilitiesRequester")]
+    public async Task<IActionResult> Parts(long id, int page = 1, int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.PartsAsync(id, page, pageSize, ct));
     // Bind every private API response to the authenticated institution and public
     // cookie-session reference. Missing context must fail before a write action.
     private bool BindCurrentSession()

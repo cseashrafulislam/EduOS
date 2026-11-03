@@ -1,10 +1,13 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
+using EduOS.Core.DTOs.Facilities;
 
 namespace EduOS.Core.Interfaces.IServices;
 
 public interface IInventoryMovementService
 {
+    Task<ApiResponse<InventoryMovementDto>> CreateFacilityPartsIssueAsync(long facilityRequestId, CreateFacilityPartsIssueDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InventoryMovementDto>> VoidFacilityPartsIssueAsync(Guid movementReference, VoidFacilityPartsIssueDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<ProcurementGoodsReceiptDto>>> GetGoodsReceiptsAsync(long? purchaseOrderId, string? state, int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<ProcurementGoodsReceiptDto>> GetGoodsReceiptAsync(Guid reference, CancellationToken cancellationToken = default);
     Task<ApiResponse<ProcurementGoodsReceiptDto>> CreateGoodsReceiptAsync(CreateProcurementGoodsReceiptRequest request, CancellationToken cancellationToken = default);

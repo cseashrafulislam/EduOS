@@ -39,7 +39,7 @@
     const shield = el('eduosSessionShield');
     let blocked = false, creating = false, transitioning = false;
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
-    let listGeneration = 0, historyGeneration = 0, locationGeneration = 0, technicianGeneration = 0;
+    let listGeneration = 0, historyGeneration = 0, partsGeneration = 0, partsPage = 1, locationGeneration = 0, technicianGeneration = 0;
     let locationPage = 1, locationPages = 1, chosenLocation = null;
     let locationChoices = new Map();
     let technicianPage = 1, technicianPages = 1, technicianChoices = new Map();
@@ -91,6 +91,7 @@
         blocked = true;
         listGeneration++;
         historyGeneration++;
+        partsGeneration++;
         locationGeneration++;
         technicianGeneration++;
         vendorGeneration++;
@@ -109,7 +110,8 @@
         locationChoices.clear();
         selected = null;
         pending.clear();
-        for (const id of ['wfRows', 'wfDashboard', 'wfHistory']) el(id).replaceChildren();
+        for (const id of ['wfRows', 'wfDashboard', 'wfHistory', 'wfParts']) el(id).replaceChildren();
+        el('wfPartsRefresh').disabled = true;
         el('wfSelected').textContent = t('Select a request', 'কাজ নির্বাচন করুন');
         el('wfDetails').textContent = '';
         for (const id of ['wfCreate', 'wfTransition']) {
@@ -283,6 +285,9 @@
         el('wfEnd').value = row.scheduledEndUtc ? toLocal(row.scheduledEndUtc) : '';
         toggleFields();
         historyPage = 1;
+        partsPage = 1;
+        el('wfPartsRefresh').disabled = !row.workOrderId;
+        parts();
         history();
     }
     function toLocal(iso) {
@@ -684,6 +689,52 @@
             notice(error.message);
         }
     }
+    async function parts() {
+        if (!selected || blocked) return;
+        const generation = ++partsGeneration, requestId = selected.id, requestedPage = partsPage;
+        const box = el('wfParts');
+        box.textContent = t('Loading parts ledger…', 'যন্ত্রাংশের হিসাব লোড হচ্ছে…');
+        try {
+            const data = await api('/' + requestId + '/parts?page=' + requestedPage + '&pageSize=10');
+            if (generation !== partsGeneration || selected?.id !== requestId || blocked) return;
+            box.replaceChildren();
+            if (!data.items?.length) {
+                box.textContent = t('No parts issued for this work order.', 'এই কাজের জন্য কোনো যন্ত্রাংশ ইস্যু নেই।');
+                return;
+            }
+            const list = document.createElement('ol');
+            list.className = 'list-group list-group-numbered';
+            for (const move of data.items) {
+                const entry = document.createElement('li');
+                entry.className = 'list-group-item py-2';
+                const cost = Number(move.netCost ?? 0).toFixed(2);
+                const items = (move.lines || []).map(l =>
+                    '#' + l.inventoryItemId + ' × ' + l.quantity + (l.lotOrBatchNo ? ' [' + l.lotOrBatchNo + ']' : '')).join(', ');
+                entry.textContent = move.movementNumber + ' | ' + move.stateCode + ' | ' +
+                    t('Actual net cost', 'প্রকৃত নিট খরচ') + ': ' + cost + ' | Finance: ' + move.financeState +
+                    ' | ' + items;
+                list.append(entry);
+            }
+            box.append(list);
+            if (requestedPage > 1) {
+                const prev = document.createElement('button');
+                prev.type = 'button'; prev.className = 'btn btn-outline-secondary btn-sm mt-2 me-2';
+                prev.textContent = t('Previous', 'আগের');
+                prev.addEventListener('click', () => { partsPage--; parts(); });
+                box.append(prev);
+            }
+            if (data.hasNextPage) {
+                const next = document.createElement('button');
+                next.type = 'button'; next.className = 'btn btn-outline-secondary btn-sm mt-2';
+                next.textContent = t('Next', 'পরের');
+                next.addEventListener('click', () => { partsPage++; parts(); });
+                box.append(next);
+            }
+        } catch (error) {
+            if (generation !== partsGeneration || selected?.id !== requestId || blocked || error.message === 'session-changed') return;
+            box.textContent = error.message;
+        }
+    }
     function clearSelection() {
         vendorGeneration++;
         vendorAvailabilityWindowKey = null;
@@ -697,6 +748,7 @@
         vendorChoices.clear();
         if (el('wfVendorSelected')) el('wfVendorSelected').value = '';
         historyGeneration++;
+        partsGeneration++;
         technicianGeneration++;
         technicianChoices.clear();
         el('wfTech').value = '';
@@ -706,7 +758,12 @@
         el('wfDetails').textContent = '';
         el('wfTransition').classList.add('d-none');
         el('wfHistory').replaceChildren();
+        el('wfParts').replaceChildren();
+        el('wfPartsRefresh').disabled = true;
     }
+    el('wfPartsRefresh').addEventListener('click', () => {
+        if (!blocked && selected) { partsPage = 1; parts(); }
+    });
     el('wfLocationFind').addEventListener('click', () => {
         if (blocked) return;
         locationPage = 1;

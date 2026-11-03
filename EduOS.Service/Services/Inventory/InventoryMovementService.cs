@@ -13,8 +13,10 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
     private readonly ICurrentUserService user;
     private readonly TimeProvider clock;
     private readonly ILogger<InventoryMovementService> logger;
-    public InventoryMovementService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock, ILogger<InventoryMovementService> logger)
-    { this.db = db; this.user = user; this.clock = clock; this.logger = logger; }
+    private readonly ITenantModuleService? modules;
+    public InventoryMovementService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
+        ILogger<InventoryMovementService> logger, ITenantModuleService? modules = null)
+    { this.db = db; this.user = user; this.clock = clock; this.logger = logger; this.modules = modules; }
     private bool Readable => user.IsAuthenticated && user.TenantId > 0 && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager") || user.IsInRole("StoreKeeper") || user.IsInRole("Accountant"));
     private bool Writable => user.IsAuthenticated && user.TenantId > 0 && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager") || user.IsInRole("StoreKeeper"));
     private bool Postable => user.IsAuthenticated && user.TenantId > 0 && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager"));

@@ -1,9 +1,21 @@
 using EduOS.Core.DTOs.Inventory;
+using EduOS.Core.DTOs.Facilities;
+using EduOS.App.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace EduOS.App.Controllers.Api;
 public sealed partial class InventoryMovementsController
 {
+    [HttpPost("facility-issues/{facilityRequestId:long}"), RequireModule("FACILITIES"),
+     Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    public async Task<IActionResult> CreateFacilityIssue(long facilityRequestId,
+        [FromBody] CreateFacilityPartsIssueDto request, CancellationToken ct)
+        => Reply(await service.CreateFacilityPartsIssueAsync(facilityRequestId, request, ct));
+    [HttpPost("facility-issues/{reference:guid}/void"), RequireModule("FACILITIES"),
+     Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper")]
+    public async Task<IActionResult> VoidFacilityIssue(Guid reference,
+        [FromBody] VoidFacilityPartsIssueDto request, CancellationToken ct)
+        => Reply(await service.VoidFacilityPartsIssueAsync(reference, request, ct));
     [HttpGet, Authorize(Roles = "TenantAdmin,Principal,InventoryManager,StoreKeeper,Accountant")]
     public async Task<IActionResult> List(DateTime? fromUtc, DateTime? toUtc, int page = 1, int pageSize = 25, CancellationToken ct = default)
         => Reply(await service.GetMovementsAsync(fromUtc, toUtc, page, pageSize, ct));

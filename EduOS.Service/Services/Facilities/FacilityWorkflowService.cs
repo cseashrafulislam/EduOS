@@ -15,7 +15,7 @@ namespace EduOS.Service.Services.Facilities;
 /// Campus-isolated maintenance workflow. One approved request has one work order.
 /// Stock and Finance are intentionally NOT posted by this service.
 /// </summary>
-public sealed class FacilityWorkflowService(
+public sealed partial class FacilityWorkflowService(
     EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
     ILogger<FacilityWorkflowService> logger) : IFacilityWorkflowService
 {
@@ -833,6 +833,9 @@ public sealed class FacilityWorkflowService(
                     string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "Pending cancellation and independent decision reason (10-500 characters) required.", 409);
+                if (action == "cancelapprove" && await HasUnsettledPartsAsync(order.Id, includePosted: true, ct))
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Reverse all issued parts and resolve unposted drafts before cancelling the work order.", 409);
                 order!.StateCode = action == "cancelapprove" ? "Cancelled" : "Approved";
                 break;
             case "vendorpropose":
@@ -1088,6 +1091,9 @@ public sealed class FacilityWorkflowService(
             case "verify":
                 if (order?.StateCode != "PendingVerification" || string.IsNullOrWhiteSpace(note))
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Independent verification note required.");
+                if (await HasUnsettledPartsAsync(order.Id, includePosted: false, ct))
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Unposted parts drafts must be resolved before verified closure.", 409);
                 order.VerifiedAtUtc = now; order.VerifiedByUserId = user.UserId;
                 order.StateCode = "Closed";
                 break;
