@@ -2,16 +2,18 @@
 @{
     var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
     var manager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("FacilitiesManager");
+    var privacyReviewer = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
     ViewData["Title"] = bn ? "ক্যাম্পাস ভিজিটর নিবন্ধন" : "Campus Visitor Visits";
 }
 <section class="container-fluid py-3" id="facilityVisitors"
          data-bn="@bn.ToString().ToLowerInvariant()" data-manager="@manager.ToString().ToLowerInvariant()"
+         data-privacy-reviewer="@privacyReviewer.ToString().ToLowerInvariant()"
          data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
     <header class="mb-3">
         <h2 class="h4">@(bn ? "ভিজিটর প্রি-রেজিস্ট্রেশন ও প্রবেশ নিয়ন্ত্রণ" : "Visitor Preregistration & Access Control")</h2>
         <p class="text-muted small">@(bn
-            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। ঘটনা নথিভুক্ত করা যায়; retention deletion এখনো চালু নয়; ক্যাম্পাসভিত্তিক উপস্থিতির সীমা ও ঐচ্ছিক আগাম প্রবেশ/ভিজিটের সময়সীমা কার্যকর হয়। পরিচয়বিহীন উপস্থিতি প্রতিবেদনে সময় পার হওয়া ভিজিটের সংখ্যা দেখা যায়; ডেস্ক যাচাই ছাড়া স্বয়ংক্রিয় প্রস্থান হয় না। অনুমতি বাতিল হলে পরবর্তী প্রত্যাখ্যাত অনুরোধে সংবেদনশীল তালিকা মুছে যায়। ডেস্ক কর্মকর্তা পরিচয়বিহীন সীমিত সারাংশ CSV নিতে পারবেন; প্রতিটি সফল এক্সপোর্টের অ্যাক্সেস অডিট সংরক্ষিত হয়।"
-            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. The desk can record an incident; retention deletion remains unavailable; a configured occupancy ceiling and optional early-entry/duration limits are enforced. The PII-free occupancy view flags overdue checked-in visits for desk review, never automatic checkout. Revoked host/desk access blocks further writes and clears sensitive cards on the next denied request. Managers may export a bounded summary without visitor identity or incident narrative; each successful snapshot records an access audit.")</p>
+            ? "ডেস্ক কর্মকর্তা ভবিষ্যৎ ভিজিট নিবন্ধন করবেন; আলাদা হোস্ট অনুমোদন দেবেন; অনুমোদিত সময়ের মধ্যে ব্যাজ দিয়ে প্রবেশ এবং পরে প্রস্থান নথিভুক্ত হবে। জাতীয় পরিচয়পত্র, ফোন বা ছবি সংগ্রহ করা হয় না। ঘটনা নথিভুক্ত করা যায়; স্বয়ংক্রিয় ডিলিট বন্ধ; ক্যাম্পাসের retention policy এবং legal hold/incident না থাকলে আলাদা কর্মকর্তার অনুমোদনে তথ্য মুছতে পারবেন; ক্যাম্পাসভিত্তিক উপস্থিতির সীমা ও ঐচ্ছিক আগাম প্রবেশ/ভিজিটের সময়সীমা কার্যকর হয়। পরিচয়বিহীন উপস্থিতি প্রতিবেদনে সময় পার হওয়া ভিজিটের সংখ্যা দেখা যায়; ডেস্ক যাচাই ছাড়া স্বয়ংক্রিয় প্রস্থান হয় না। অনুমতি বাতিল হলে পরবর্তী প্রত্যাখ্যাত অনুরোধে সংবেদনশীল তালিকা মুছে যায়। ডেস্ক কর্মকর্তা পরিচয়বিহীন সীমিত সারাংশ CSV নিতে পারবেন; প্রতিটি সফল এক্সপোর্টের অ্যাক্সেস অডিট সংরক্ষিত হয়।"
+            : "The desk preregisters a future visit, a separate host approves it, and the desk records badge check-in and check-out within the approved window. No ID document, phone or photo is collected. The desk can record an incident; automatic deletion is disabled; manual two-person redaction requires a configured campus retention policy and no legal hold or incident; a configured occupancy ceiling and optional early-entry/duration limits are enforced. The PII-free occupancy view flags overdue checked-in visits for desk review, never automatic checkout. Revoked host/desk access blocks further writes and clears sensitive cards on the next denied request. Managers may export a bounded summary without visitor identity or incident narrative; each successful snapshot records an access audit.")</p>
     </header>
     @Html.AntiForgeryToken()
     <div id="fvStatus" class="alert alert-secondary small" role="status" aria-live="polite">
