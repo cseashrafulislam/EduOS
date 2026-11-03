@@ -952,10 +952,11 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     Assert.Equal(1, await reconciler.JournalLines
                         .Where(x => x.JournalId == invoiceJournalId.Value && x.LineNo == 3)
                         .ExecuteUpdateAsync(u => u.SetProperty(x => x.CreditAmount, 1m)));
-                    var lines = await reconciler.JournalLines.AsNoTracking()
+                    var balancedJournalLines = await reconciler.JournalLines.AsNoTracking()
                         .Where(x => x.JournalId == invoiceJournalId.Value).ToListAsync();
-                    Assert.Equal(lines.Sum(x => x.DebitAmount), lines.Sum(x => x.CreditAmount));
-                    Assert.Equal(18m, lines.Single(x => x.LineNo == 2).CreditAmount);
+                    Assert.Equal(balancedJournalLines.Sum(x => x.DebitAmount),
+                        balancedJournalLines.Sum(x => x.CreditAmount));
+                    Assert.Equal(18m, balancedJournalLines.Single(x => x.LineNo == 2).CreditAmount);
                     var invalid = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
                     var conflict = Assert.Single(invalid.Items,x => x.InvoiceReference == second.Reference);
                     Assert.Equal("EvidenceConflict", conflict.SettlementIntegrityStatus);
