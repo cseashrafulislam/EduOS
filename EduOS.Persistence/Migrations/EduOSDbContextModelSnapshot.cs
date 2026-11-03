@@ -2823,11 +2823,11 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex(new[] { "TenantId", "SourceId" }, "UX_Journals_FacilityPartsExpense")
                         .IsUnique()
-                        .HasFilter("[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+                        .HasFilter("[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
 
                     b.HasIndex(new[] { "TenantId", "SourceId" }, "UX_Journals_FacilityPartsReversal")
                         .IsUnique()
-                        .HasFilter("[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+                        .HasFilter("[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
 
                     b.HasIndex("TenantId", "JournalDate", "State");
 

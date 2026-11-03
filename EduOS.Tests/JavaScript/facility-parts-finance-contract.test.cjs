@@ -46,3 +46,17 @@ test('Finance desk has bounded source discovery, tenant-session proof and biling
     assert.match(html, /fpfReverseReviewPanel/);
     assert.match(guide, /'\/inventorymovements\/facilityfinance\/index'/);
 });
+
+test('Facility Finance filtered unique indexes use SQL Server supported predicates in migration and model', () => {
+    for (const file of [
+        'EduOS.Persistence/Context/EduOSDbContext.cs',
+        'EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs',
+        'EduOS.Persistence/Migrations/20261103214000_FacilityPartsFinanceLineage.cs'
+    ]) {
+        const source = read(file);
+        for (const entity of ['InventoryMovement', 'FacilityPartsExpenseReversal']) {
+            assert.match(source, new RegExp(`\\[SourceType\\] = N'${entity}' AND \\[SourceId\\] IS NOT NULL AND \\[IsDeleted\\] = 0 AND \\[State\\] <> 5 AND \\[State\\] <> 7`), file);
+        }
+        assert.doesNotMatch(source, /\[State\] NOT IN \(5,7\)/, `${file}: invalid filtered-index predicate`);
+    }
+});

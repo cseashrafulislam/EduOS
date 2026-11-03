@@ -31,10 +31,10 @@ IF EXISTS (
 ");
         m.CreateIndex("UX_Journals_FacilityPartsExpense", "Journals",
             new[] { "TenantId", "SourceId" }, unique: true,
-            filter: "[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+            filter: "[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
         m.CreateIndex("UX_Journals_FacilityPartsReversal", "Journals",
             new[] { "TenantId", "SourceId" }, unique: true,
-            filter: "[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+            filter: "[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
     }
 
     protected override void Down(MigrationBuilder m)

@@ -1718,9 +1718,9 @@ public class EduOSDbContext :
             .HasDatabaseName("UX_Journals_ProcurementSupplierInvoice").IsUnique()
             .HasFilter("[SourceType] = N'ProcurementSupplierInvoice' AND [SourceId] IS NOT NULL");
         modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceId }, "UX_Journals_FacilityPartsExpense")
-            .IsUnique().HasFilter("[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+            .IsUnique().HasFilter("[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
         modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceId }, "UX_Journals_FacilityPartsReversal")
-            .IsUnique().HasFilter("[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] NOT IN (5,7)");
+            .IsUnique().HasFilter("[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
         modelBuilder.Entity<AccountingPeriod>().HasIndex(x => new { x.TenantId, x.StartDate, x.EndDate });
         modelBuilder.Entity<BankReconciliationBatch>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
             .HasDatabaseName("UX_BankReconciliationBatches_Tenant_Request").IsUnique();
