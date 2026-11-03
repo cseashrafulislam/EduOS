@@ -152,6 +152,19 @@ async function boundCsvAndStaleResponses(browser) {
         assert.deepEqual(staleJson.state.errors, []);
     } finally { await staleJson.context.close(); }
 
+    const missingHeaders = await setup(browser, false, true, false);
+    try {
+        await missingHeaders.page.route('http://localhost/api/facilities/work-orders?*', route =>
+            route.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify(ok({ items: [record], totalPages: 1 })) }));
+        await missingHeaders.page.locator('#workflowSearch button[type="submit"]').click();
+        await missingHeaders.page.locator('#workflowAlert')
+            .filter({ hasText: 'Institution session changed' }).waitFor();
+        assert.equal(await missingHeaders.page.locator('#wfRows tr').count(), 0);
+        assert.equal(await missingHeaders.page.locator('#facilityExport').isDisabled(), true);
+        assert.deepEqual(missingHeaders.state.errors, []);
+    } finally { await missingHeaders.context.close(); }
+
     const staleCsv = await setup(browser, false, true, false);
     try {
         let downloads = 0;
