@@ -8,6 +8,7 @@ on:
       - 'EduOS.App/Controllers/AccountController.cs'
       - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
       - 'EduOS.Tests/JavaScript/account-profile-ui.test.cjs'
+      - 'EduOS.Tests/JavaScript/account-session-private-revoke.test.cjs'
       - 'EduOS.Tests/JavaScript/account-session-readback-isolation.test.cjs'
       - 'EduOS.Tests/JavaScript/task-focused-operations-library-learning.test.cjs'
       - 'tests/browser/account-profile.cjs'
@@ -28,7 +29,7 @@ jobs:
         with:
           node-version: '22'
       - name: Verify bilingual profile source and privacy contracts
-        run: node --test EduOS.Tests/JavaScript/account-profile-ui.test.cjs
+        run: node --test EduOS.Tests/JavaScript/account-profile-ui.test.cjs EduOS.Tests/JavaScript/account-session-private-revoke.test.cjs
       - name: Install pinned Playwright
         run: npm install --no-save --no-audit --no-fund playwright@1.56.0
       - name: Install Chromium
