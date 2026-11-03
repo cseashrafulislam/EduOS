@@ -199,7 +199,7 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.Equal(4000m, withExpense.Data!.Expenses);
             Assert.Equal(36000m, withExpense.Data!.AvailableBudget);
 
-            journal.State = JournalState.Reversed;
+            // Posted originals are immutable; a separate posted contra journal reverses their net GL effect.
             var reversal = new Journal
             { TenantId = tenantId, AccountingPeriodId = period.Id, JournalNumber = "RAC-R-" + suffix,
                 JournalDate = DateOnly.FromDateTime(DateTime.UtcNow), State = JournalState.Posted,
