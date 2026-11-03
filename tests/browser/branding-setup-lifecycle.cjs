@@ -15,7 +15,7 @@ function html(lang) {
         'removeLogoBtn','removeFaviconBtn','primaryColor','primaryColorText',
         'secondaryColor','secondaryColorText','accentColor','accentColorText'];
     const nodes = ids.map(id => {
-        if (id.endsWith('Input')) return '<input id="' + id + '" type="file" disabled>';
+        if (id === 'logoInput' || id === 'faviconInput') return '<input id="' + id + '" type="file" disabled>';
         if (id.endsWith('Color') || id.endsWith('ColorText') || id === 'subdomainInput')
             return '<input id="' + id + '" value="" disabled>';
         if (id === 'availabilityMsg' || id === 'alertContainer') return '<div id="' + id + '"></div>';
