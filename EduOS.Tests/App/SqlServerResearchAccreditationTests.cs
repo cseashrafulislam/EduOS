@@ -434,7 +434,7 @@ public sealed class SqlServerResearchAccreditationTests
             Assert.Equal(0, panelAssessment.ApprovalsReceived);
             Assert.Null(panelAssessment.EvidenceSummary);
             var retry = await service.CommandAsync(panelAssessment.Reference, "assign", new()
-            { ClientRequestId = assignedId, RowVersion = assigned.Data.RowVersion,
+            { ClientRequestId = assignedId, RowVersion = panelAssessment.RowVersion,
                 ReviewerUserIds = [identities[5], identities[6]] });
             Assert.False(retry.Success); // A different concurrency token cannot reuse the request ID.
         }
@@ -476,8 +476,8 @@ public sealed class SqlServerResearchAccreditationTests
                 Reason = "Second independent reviewer confirms the audit evidence.", DeclaresNoConflict = true });
             Assert.True(approved.Success, approved.Message);
             Assert.Equal("Approved", approved.Data!.StateCode);
-            Assert.Equal(2, approved.Data.ApprovalsReceived);
-            Assert.NotNull(approved.Data.ApprovedAtUtc);
+            Assert.Equal(2, approved.Data!.ApprovalsReceived);
+            Assert.NotNull(approved.Data!.ApprovedAtUtc);
         }
 
         var rejectedProposal = Guid.NewGuid();
