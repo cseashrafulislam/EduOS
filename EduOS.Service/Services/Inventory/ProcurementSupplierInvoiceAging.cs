@@ -28,7 +28,7 @@ public sealed partial class ProcurementSupplierInvoiceService
             .Skip((page-1)*pageSize).Take(pageSize)
             .Select(x=>new {
                 x.Id,x.PublicId,x.SupplierInvoiceNumber,x.SupplierId,x.CampusId,x.DueDate,
-                x.TotalAmount,x.JournalId,x.ReversalJournalId,
+                x.TotalAmount,x.StockValue,x.PriceVariance,x.JournalId,x.ReversalJournalId,
                 JournalReference=db.Journals.Where(j=>j.TenantId==user.TenantId && j.Id==x.JournalId)
                     .Select(j=>j.PublicId).FirstOrDefault(),
                 OrderNumber=db.ProcurementPurchaseOrders.Where(p=>p.TenantId==user.TenantId &&
@@ -57,10 +57,17 @@ public sealed partial class ProcurementSupplierInvoiceService
         var invoiceJournalLines = await db.JournalLines.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
                 postedInvoiceJournalIds.Contains(x.JournalId))
-            .Select(x => new { x.JournalId, x.CampusId, x.DebitAmount, x.CreditAmount })
+            .Select(x => new { x.JournalId, x.LineNo, x.AccountId, x.CampusId, x.DebitAmount, x.CreditAmount })
             .ToListAsync(ct);
         var invoiceLinesByJournal = invoiceJournalLines.GroupBy(x => x.JournalId)
             .ToDictionary(x => x.Key, x => x.ToArray());
+        // Historical GL accounts may be inactive now; validate tenant, currency
+        // and accounting type without requiring current posting eligibility.
+        var invoiceAccountIds = invoiceJournalLines.Select(x => x.AccountId).Distinct().ToArray();
+        var invoiceAccounts = await db.Accounts.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
+                x.CurrencyCode == "BDT" && invoiceAccountIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.AccountType }).ToDictionaryAsync(x => x.Id, ct);
         var payments = await db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
             !x.IsDeleted && x.SourceType == SettlementSource && x.SourceId.HasValue &&
             invoiceIds.Contains(x.SourceId.Value) &&
@@ -128,6 +135,35 @@ public sealed partial class ProcurementSupplierInvoiceService
                 sourceLines.Any(l => l.CampusId != x.CampusId ||
                     l.DebitAmount < 0m || l.CreditAmount < 0m ||
                     (l.DebitAmount > 0m && l.CreditAmount > 0m));
+            // A balanced GL with the correct payable credit is still corrupt if
+            // stock valuation, signed price variance or account type has drifted.
+            // Posting requires stock asset debit, payable liability credit and
+            // one expense variance line (debit positive, credit negative).
+            if (!conflicted && sourceLines is not null)
+            {
+                var source = sourceLines.OrderBy(l => l.LineNo).ToArray();
+                var expectedCount = x.PriceVariance == 0m ? 2 : 3;
+                if (x.TotalAmount <= 0m || x.StockValue <= 0m ||
+                    x.PriceVariance != x.TotalAmount - x.StockValue ||
+                    source.Length != expectedCount ||
+                    source[0].LineNo != 1 || source[1].LineNo != 2 ||
+                    source[0].DebitAmount != x.StockValue || source[0].CreditAmount != 0m ||
+                    source[1].DebitAmount != 0m || source[1].CreditAmount != x.TotalAmount ||
+                    source[0].AccountId == source[1].AccountId ||
+                    !invoiceAccounts.TryGetValue(source[0].AccountId, out var stockAccount) ||
+                    stockAccount.AccountType != AccountType.Asset ||
+                    !invoiceAccounts.TryGetValue(source[1].AccountId, out var payableAccount) ||
+                    payableAccount.AccountType != AccountType.Liability ||
+                    (expectedCount == 3 &&
+                        (source[2].LineNo != 3 ||
+                         source[2].AccountId == source[0].AccountId ||
+                         source[2].AccountId == source[1].AccountId ||
+                         !invoiceAccounts.TryGetValue(source[2].AccountId, out var varianceAccount) ||
+                         varianceAccount.AccountType != AccountType.Expense ||
+                         source[2].DebitAmount != Math.Max(0m, x.PriceVariance) ||
+                         source[2].CreditAmount != Math.Max(0m, -x.PriceVariance))))
+                    conflicted = true;
+            }
             if (creditsByInvoice.TryGetValue(x.Id,out var linkedCredits))
                 foreach (var credit in linkedCredits)
                 {

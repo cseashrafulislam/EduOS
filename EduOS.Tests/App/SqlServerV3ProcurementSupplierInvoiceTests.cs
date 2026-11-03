@@ -942,6 +942,59 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     Assert.Equal(409, deniedMissing.StatusCode);
                     await missingJournal.RollbackAsync();
                 }
+                // The GL can remain balanced with the correct liability credit
+                // while its stock/variance split is corrupted.
+                await using (var balancedValuationDrift = await reconciler.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await reconciler.JournalLines
+                        .Where(x => x.JournalId == invoiceJournalId.Value && x.LineNo == 1)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.DebitAmount, 19m)));
+                    Assert.Equal(1, await reconciler.JournalLines
+                        .Where(x => x.JournalId == invoiceJournalId.Value && x.LineNo == 3)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.CreditAmount, 1m)));
+                    var lines = await reconciler.JournalLines.AsNoTracking()
+                        .Where(x => x.JournalId == invoiceJournalId.Value).ToListAsync();
+                    Assert.Equal(lines.Sum(x => x.DebitAmount), lines.Sum(x => x.CreditAmount));
+                    Assert.Equal(18m, lines.Single(x => x.LineNo == 2).CreditAmount);
+                    var invalid = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                    var conflict = Assert.Single(invalid.Items,x => x.InvoiceReference == second.Reference);
+                    Assert.Equal("EvidenceConflict", conflict.SettlementIntegrityStatus);
+                    Assert.Null(conflict.SourceLinkedOutstandingAmount);
+                    Assert.Equal(409, Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(paymentReportService)
+                            .AgingExport(date,null,false,CancellationToken.None)).StatusCode);
+                    await balancedValuationDrift.RollbackAsync();
+                }
+                // Account reclassification must not be hidden by a balanced GL.
+                await using (var wrongAccountType = await reconciler.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await reconciler.JournalLines
+                        .Where(x => x.JournalId == invoiceJournalId.Value && x.LineNo == 1)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.AccountId, payableAccountId)));
+                    var invalid = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                    var conflict = Assert.Single(invalid.Items,x => x.InvoiceReference == second.Reference);
+                    Assert.Equal("EvidenceConflict", conflict.SettlementIntegrityStatus);
+                    Assert.Null(conflict.SourceLinkedOutstandingAmount);
+                    Assert.Equal(409, Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(paymentReportService)
+                            .AgingExport(date,null,false,CancellationToken.None)).StatusCode);
+                    await wrongAccountType.RollbackAsync();
+                }
+                // Signed variance must stay in its expense account, not stock.
+                await using (var wrongVarianceAccount = await reconciler.Database.BeginTransactionAsync())
+                {
+                    Assert.Equal(1, await reconciler.JournalLines
+                        .Where(x => x.JournalId == invoiceJournalId.Value && x.LineNo == 3)
+                        .ExecuteUpdateAsync(u => u.SetProperty(x => x.AccountId, assetAccountId)));
+                    var invalid = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
+                    var conflict = Assert.Single(invalid.Items,x => x.InvoiceReference == second.Reference);
+                    Assert.Equal("EvidenceConflict", conflict.SettlementIntegrityStatus);
+                    Assert.Null(conflict.SourceLinkedOutstandingAmount);
+                    Assert.Equal(409, Assert.IsType<ObjectResult>(
+                        await new ProcurementSupplierInvoicesController(paymentReportService)
+                            .AgingExport(date,null,false,CancellationToken.None)).StatusCode);
+                    await wrongVarianceAccount.RollbackAsync();
+                }
                 var restoredAging = (await paymentReportService.AgingAsync(date,null,false,1,100)).Data!;
                 var restoredRow = Assert.Single(restoredAging.Items,x=>x.InvoiceReference==second.Reference);
                 Assert.Equal("SourceLinked",restoredRow.SettlementIntegrityStatus);
