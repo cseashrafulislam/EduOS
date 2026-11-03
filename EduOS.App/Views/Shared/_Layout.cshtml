@@ -690,7 +690,7 @@
                             <span>@(currentCulture == "bn-BD" ? inventoryTask.Bn : inventoryTask.En)</span>
                         </a>
                     }
-                    @if (showFinance && showFacilities && (User?.IsInRole("TenantAdmin") == true ||
+                    @if (showFacilities && (User?.IsInRole("TenantAdmin") == true ||
                          User?.IsInRole("Principal") == true || User?.IsInRole("Accountant") == true))
                     {
                         <a class="nav-link @ActiveFor("/InventoryMovements/FacilityFinance")" href="/InventoryMovements/FacilityFinance">
