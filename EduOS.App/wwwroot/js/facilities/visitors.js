@@ -3,6 +3,7 @@
     const root = document.getElementById('facilityVisitors');
     if (!root) return;
     const bn = root.dataset.bn === 'true', manager = root.dataset.manager === 'true';
+    const privacyReviewer = root.dataset.privacyReviewer === 'true';
     const actor = Number(root.dataset.userId || 0);
     const $ = id => document.getElementById(id);
     const label = (en, bangla) => bn ? bangla : en;
@@ -87,7 +88,9 @@
         b.textContent = name; b.addEventListener('click', () => handler(row, action)); return b;
     };
     const act = async (row, action) => {
-        const reason = $('fvReason').value.trim();
+        const reason = action === 'redactrequest' ? 'Visitor retention period expired' :
+            action === 'redactapprove' ? 'Independent retention approval' :
+            $('fvReason').value.trim();
         const badgeCode = $('fvBadge').value.trim().toUpperCase();
         if (action === 'checkin' && !/^[A-Z0-9-]{4,20}$/.test(badgeCode)) {
             status(label('Enter a valid badge code.', 'সঠিক ব্যাজ কোড দিন।')); return;
@@ -165,6 +168,17 @@
                     actions.append(button(label('Check out', 'প্রস্থান'), 'checkout', row, act));
                 if (manager && (row.stateCode === 'CheckedIn' || row.stateCode === 'CheckedOut'))
                     actions.append(button(label('Report incident', 'ঘটনা নথিভুক্ত'), 'incident', row, act));
+                // Retention requires an administrator-configured 30–3650 day
+                // policy, no legal hold/incident, and a separate live checker.
+                if (manager && (row.stateCode === 'CheckedOut' || row.stateCode === 'Rejected') &&
+                    !row.privacyRedacted) {
+                    if (row.redactionRequested && privacyReviewer)
+                        actions.append(button(label('Approve redaction', 'তথ্য অপসারণ অনুমোদন'),
+                            'redactapprove', row, act));
+                    else if (!row.redactionRequested)
+                        actions.append(button(label('Request redaction', 'তথ্য অপসারণ অনুরোধ'),
+                            'redactrequest', row, act));
+                }
                 actions.append(button(label('History', 'ইতিহাস'), 'history', row, () => history(row, card)));
                 card.append(actions); holder.append(card);
             }
