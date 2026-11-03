@@ -453,6 +453,22 @@ public sealed class SqlServerFacilityVisitorTests
         await using (var db = Db(options, otherTenantId, outsiderId, "FacilitiesManager"))
             Assert.Equal(403, (await Service(db, otherTenantId, outsiderId, "FacilitiesManager")
                 .ExportSnapshotAsync(campusId, start.AddMinutes(-1), end)).StatusCode);
+
+        // Generic entity audit must retain actor/action metadata, NEVER the
+        // visitor name, purpose, badge or free-text incident payload.
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var auditRows = await db.AuditLogs.AsNoTracking().Where(a =>
+                a.TenantId == tenantId &&
+                (a.EntityName == nameof(FacilityVisitorVisit) ||
+                 a.EntityName == nameof(FacilityVisitorEvent))).ToListAsync();
+            Assert.NotEmpty(auditRows);
+            Assert.All(auditRows, row =>
+            {
+                Assert.Null(row.OldValue);
+                Assert.Null(row.NewValue);
+            });
+        }
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options,
