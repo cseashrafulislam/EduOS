@@ -311,7 +311,10 @@ public sealed class FacilityVisitorService(
                 // Case dispositions, legal holds and redaction approvals are
                 // private desk information: never expose them to a visiting host.
                 var ids = items.Select(x => x.Id).ToArray();
-                var dispositions = await db.Set<FacilityVisitorEvent>().AsNoTracking()
+                // SQL computes one latest event ID per visit and case category.
+                // A decades-old appointment may have thousands of history events;
+                // never load all of them into the list process.
+                var candidates = db.Set<FacilityVisitorEvent>().AsNoTracking()
                     .Where(x => x.TenantId == user.TenantId &&
                         ids.Contains(x.FacilityVisitorVisitId) && !x.IsDeleted &&
                         (x.ActionCode == "redactrequest" || x.ActionCode == "redactapprove" ||
@@ -319,6 +322,18 @@ public sealed class FacilityVisitorService(
                          x.ActionCode == "incidentclose" || x.ActionCode == "holdrequest" ||
                          x.ActionCode == "holdapprove" || x.ActionCode == "holdreject" ||
                          x.ActionCode == "holdreleaserequest" || x.ActionCode == "holdrelease"))
+                    .Select(x => new
+                    {
+                        x.Id, x.FacilityVisitorVisitId,
+                        Bucket = x.ActionCode == "redactrequest" || x.ActionCode == "redactapprove" ? 1 :
+                            x.ActionCode == "incident" || x.ActionCode == "incidentresolve" ||
+                            x.ActionCode == "incidentclose" ? 2 : 3
+                    });
+                var latestIds = await candidates.GroupBy(x =>
+                        new { x.FacilityVisitorVisitId, x.Bucket })
+                    .Select(g => g.Max(x => x.Id)).ToListAsync(ct);
+                var dispositions = await db.Set<FacilityVisitorEvent>().AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId && latestIds.Contains(x.Id) && !x.IsDeleted)
                     .OrderByDescending(x => x.Id)
                     .Select(x => new { x.FacilityVisitorVisitId, x.ActionCode }).ToListAsync(ct);
                 var latestByVisit = dispositions.GroupBy(x => x.FacilityVisitorVisitId)
