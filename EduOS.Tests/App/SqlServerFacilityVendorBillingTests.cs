@@ -230,6 +230,13 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.False(payment.BankStatementCleared);
             Assert.True((await service.CreatePaymentAsync(bill.Reference, instruction)).Success);
             Assert.Equal(800m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
+            Assert.Equal(409, (await service.CreatePaymentAsync(bill.Reference,
+                new FacilityVendorPaymentInstructionRequest {
+                    ClientRequestId = Guid.NewGuid(), BillRowVersion = bill.RowVersion,
+                    BankAccountId = bankId, AccountingPeriodId = periodId,
+                    PlannedDate = invoiceDate, Amount = 900m,
+                    Reason = "A second instruction must not overreserve the same payable."
+                })).StatusCode);
             Assert.Equal(409, (await service.RequestReversalAsync(bill.Reference,
                 new FacilityVendorBillReversalRequestDto {
                     ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
@@ -303,6 +310,19 @@ public sealed class SqlServerFacilityVendorBillingTests
                 x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference);
             Assert.Equal(0m, due.NetPostedPayments);
             Assert.Equal(1200m, due.OpenBalance);
+            var payments = await db.Journals.AsNoTracking().Where(x =>
+                x.TenantId == tenantId && x.State == JournalState.Posted &&
+                (x.SourceType == "FacilityVendorServicePayment" ||
+                 x.SourceType == "FacilityVendorServicePaymentReversal"))
+                .Select(x => x.Id).ToListAsync();
+            Assert.Equal(2, payments.Count);
+            var net = await db.JournalLines.AsNoTracking().Where(x =>
+                x.TenantId == tenantId && payments.Contains(x.JournalId))
+                .GroupBy(x => x.AccountId)
+                .Select(g => new { AccountId = g.Key,
+                    Net = g.Sum(x => x.DebitAmount - x.CreditAmount) }).ToListAsync();
+            Assert.Equal(2, net.Count);
+            Assert.All(net, x => Assert.Equal(0m, x.Net));
         }
         await using (var db = Db(options, tenantId, makerId, "Accountant"))
         {
