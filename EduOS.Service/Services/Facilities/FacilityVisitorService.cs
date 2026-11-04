@@ -306,8 +306,10 @@ public sealed class FacilityVisitorService(
                     return Denied<PagedResult<FacilityVisitorDto>>();
             // One bounded query for the page, never a per-visitor event lookup.
             var items = rows.Select(Map).ToList();
-            if (items.Count > 0)
+            if (items.Count > 0 && Manager)
             {
+                // Case dispositions, legal holds and redaction approvals are
+                // private desk information: never expose them to a visiting host.
                 var ids = items.Select(x => x.Id).ToArray();
                 var dispositions = await db.Set<FacilityVisitorEvent>().AsNoTracking()
                     .Where(x => x.TenantId == user.TenantId &&
@@ -815,13 +817,25 @@ public sealed class FacilityVisitorService(
                 return Denied<PagedResult<FacilityVisitorEventDto>>();
             var query = db.Set<FacilityVisitorEvent>().AsNoTracking()
             .Where(e => e.TenantId == user.TenantId && e.FacilityVisitorVisitId == id && !e.IsDeleted);
+            // A host can see admission/visit history, but not case investigation,
+            // legal-hold or personal-data retention decisions.
+            if (!Manager)
+                query = query.Where(e => e.ActionCode != "incidentresolve" &&
+                    e.ActionCode != "incidentclose" && e.ActionCode != "holdrequest" &&
+                    e.ActionCode != "holdapprove" && e.ActionCode != "holdreject" &&
+                    e.ActionCode != "holdreleaserequest" && e.ActionCode != "holdrelease" &&
+                    e.ActionCode != "redactrequest" && e.ActionCode != "redactapprove");
         var count = await query.CountAsync(ct);
         var rows = await query.OrderBy(e => e.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(e => new FacilityVisitorEventDto
             {
                 ActionCode = e.ActionCode, FromState = e.FromState, ToState = e.ToState,
                 ActorUserId = e.ActorUserId, OccurredAtUtc = e.CreatedAt,
-                Reason = Manager && e.ActionCode == "incident" ? e.Reason : null
+                Reason = Manager && (e.ActionCode == "incident" ||
+                    e.ActionCode == "incidentresolve" || e.ActionCode == "incidentclose" ||
+                    e.ActionCode == "holdrequest" || e.ActionCode == "holdapprove" ||
+                    e.ActionCode == "holdreject" || e.ActionCode == "holdreleaserequest" ||
+                    e.ActionCode == "holdrelease") ? e.Reason : null
             }).ToListAsync(ct);
             if (tx != null) await tx.CommitAsync(ct);
             return ApiResponse<PagedResult<FacilityVisitorEventDto>>.SuccessResponse(new()
