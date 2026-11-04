@@ -65,6 +65,16 @@ public sealed class FacilityVendorServiceBillsApiController(
         [FromBody] FacilityVendorBillSubmitDto request, CancellationToken ct) =>
         Reply(await service.SubmitAsync(reference, request, ct));
 
+    [HttpPost("{reference:guid}/reversal"), Authorize(Roles = "TenantAdmin,Accountant")]
+    public async Task<IActionResult> RequestReversal(Guid reference,
+        [FromBody] FacilityVendorBillReversalRequestDto request, CancellationToken ct) =>
+        Reply(await service.RequestReversalAsync(reference, request, ct));
+
+    [HttpPost("{reference:guid}/reversal/review"), Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> ReviewReversal(Guid reference,
+        [FromBody] FacilityVendorBillReversalReviewDto request, CancellationToken ct) =>
+        Reply(await service.ReviewReversalAsync(reference, request, ct));
+
     [HttpPost("{reference:guid}/review"), Authorize(Roles = "TenantAdmin,Principal")]
     public async Task<IActionResult> Review(Guid reference,
         [FromBody] FacilityVendorBillReviewDto request, CancellationToken ct) =>
