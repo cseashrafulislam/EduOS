@@ -41,18 +41,37 @@ public sealed class FacilityLabourCostService(
     private static bool Plain(string s) => s.All(x => !char.IsControl(x));
     private static string? Clean(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    private Task<bool> LiveGlobalRole(CancellationToken ct) =>
+        db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
+            db.Roles.IgnoreQueryFilters().Any(r => r.Id == ur.RoleId &&
+                r.IsActive && !r.IsDeleted &&
+                (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
+                (r.NormalizedName == "TENANTADMIN" || r.NormalizedName == "PRINCIPAL")), ct);
+    private Task<bool> LiveAccountantRole(CancellationToken ct) =>
+        db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
+            db.Roles.IgnoreQueryFilters().Any(r => r.Id == ur.RoleId &&
+                r.IsActive && !r.IsDeleted &&
+                (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
+                r.NormalizedName == "ACCOUNTANT"), ct);
     private IQueryable<FacilityLabourCostAllocation> Visible() =>
         db.FacilityLabourCostAllocations.AsNoTracking().Where(a =>
             a.TenantId == user.TenantId && !a.IsDeleted &&
-            (AllCampuses || db.UserCampusAccesses.Any(g =>
+            (db.UserRoles.Any(ur => ur.UserId == user.UserId &&
+                db.Roles.IgnoreQueryFilters().Any(r => r.Id == ur.RoleId &&
+                    r.IsActive && !r.IsDeleted &&
+                    (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
+                    (r.NormalizedName == "TENANTADMIN" || r.NormalizedName == "PRINCIPAL"))) ||
+             db.UserCampusAccesses.Any(g =>
                 g.TenantId == user.TenantId && g.UserId == user.UserId &&
                 g.CampusId == a.CampusId && g.IsActive && !g.IsDeleted)));
     private async Task<bool> ActiveActor(long campusId, bool reviewer, CancellationToken ct)
     {
         if (!(reviewer ? Reviewer : Maker)) return false;
+        var global = await LiveGlobalRole(ct);
+        if (!(reviewer ? global : global || await LiveAccountantRole(ct))) return false;
         return await db.Campuses.AsNoTracking().AnyAsync(c => c.Id == campusId &&
                 c.TenantId == user.TenantId && !c.IsDeleted && c.IsActive &&
-                (AllCampuses || db.UserCampusAccesses.Any(a => a.UserId == user.UserId &&
+                (global || db.UserCampusAccesses.Any(a => a.UserId == user.UserId &&
                     a.TenantId == user.TenantId && a.CampusId == campusId &&
                     a.IsActive && !a.IsDeleted)), ct) &&
             await db.Users.AsNoTracking().AnyAsync(x => x.Id == user.UserId &&
@@ -71,9 +90,11 @@ public sealed class FacilityLabourCostService(
     private async Task<bool> ActiveReader(long campusId, CancellationToken ct)
     {
         if (!Reader) return false;
+        var global = await LiveGlobalRole(ct);
+        if (!global && !await LiveAccountantRole(ct)) return false;
         return await db.Campuses.AsNoTracking().AnyAsync(c => c.Id == campusId &&
                 c.TenantId == user.TenantId && c.IsActive && !c.IsDeleted &&
-                (AllCampuses || db.UserCampusAccesses.Any(a =>
+                (global || db.UserCampusAccesses.Any(a =>
                     a.TenantId == user.TenantId && a.UserId == user.UserId &&
                     a.CampusId == campusId && a.IsActive && !a.IsDeleted)), ct) &&
             await db.Users.AsNoTracking().AnyAsync(x => x.Id == user.UserId &&
@@ -197,7 +218,8 @@ public sealed class FacilityLabourCostService(
                 return Error<PagedResult<FacilityLabourAllocationDto>>("Campus denied.", 403);
             query = query.Where(x => x.CampusId == campusId);
         }
-        else if (!await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
+        else if ((!await LiveGlobalRole(ct) && !await LiveAccountantRole(ct)) ||
+            !await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
             x.TenantId == user.TenantId && x.UserId == user.UserId &&
             x.Status == MembershipStatus.Active && !x.IsDeleted, ct) ||
             !await db.Users.AsNoTracking().AnyAsync(x => x.Id == user.UserId &&
