@@ -20,10 +20,11 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
     private async Task VerifyPostedProcurementAssetFacilityChainAsync(
         DbContextOptions<EduOSDbContext> options, long tenantId, long makerId,
         long checkerId, long poId, long locationId, long periodId,
-        long inventoryAccountId, Guid receiptReference, Guid invoiceReference,
+        long inventoryAccountId, long payableAccountId, long varianceAccountId,
+        Guid receiptReference, Guid invoiceReference,
         Guid assetReference, DateOnly accountingDate, string suffix)
     {
-        long campusId, itemId, requestId, receiptId, originalMovementId;
+        long campusId, itemId, requestId, originalMovementId;
         await using (var check = Open(options, tenantId, makerId))
         {
             var po = await check.ProcurementPurchaseOrders.AsNoTracking()
@@ -35,7 +36,6 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(po.CampusId, receipt.CampusId);
             Assert.Equal("Posted", receipt.StateCode);
             Assert.NotNull(receipt.PostedMovementId);
-            receiptId = receipt.Id;
             campusId = receipt.CampusId;
             var receiptLine = await check.ProcurementGoodsReceiptLines.AsNoTracking()
                 .SingleAsync(l => l.GoodsReceiptId == receipt.Id);
@@ -86,6 +86,53 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 .GetItemBalanceAsync(itemId, locationId, null);
             Assert.True(balance.Success, balance.Message);
             Assert.Equal(2m, balance.Data!.QuantityOnHand); // GR 4 - supplier return 1 - asset 1.
+        }
+
+        // The earlier invoice reversal released two accepted but uninvoiced
+        // receipt units. Approve the replacement bill before comparing total
+        // inventory GL value with physical stock; without it the difference is
+        // a genuine unbilled-GR reconciliation exception, not an arithmetic fix.
+        var replacementBill = new CreateProcurementSupplierInvoiceRequest {
+            ClientRequestId = Guid.NewGuid(), PurchaseOrderId = poId,
+            SupplierInvoiceNumber = "CHAIN-INV-" + suffix,
+            InvoiceDate = accountingDate, DueDate = accountingDate.AddDays(15),
+            PriceMode = "Automatic", Reason = "Recognize two previously unbilled accepted units",
+            Lines = [new PreviewProcurementInvoiceLineRequest {
+                GoodsReceiptReference = receiptReference, ReceiptLineNo = 1, Quantity = 2m }] };
+        Guid replacementReference;
+        string replacementVersion;
+        await using (var maker = Open(options, tenantId, makerId))
+        {
+            var invoice = Invoices(maker, tenantId, makerId);
+            var draft = await invoice.CreateAsync(replacementBill);
+            Assert.True(draft.Success, draft.Message);
+            replacementReference = draft.Data!.Reference;
+            var submitted = await invoice.SubmitAsync(replacementReference,
+                new SubmitProcurementSupplierInvoiceRequest { ClientRequestId = Guid.NewGuid(),
+                    RowVersion = draft.Data.RowVersion });
+            Assert.True(submitted.Success, submitted.Message);
+            replacementVersion = submitted.Data!.RowVersion;
+        }
+        await using (var reviewer = Open(options, tenantId, checkerId))
+        {
+            var approval = await Invoices(reviewer, tenantId, checkerId)
+                .ReviewAsync(replacementReference, new ReviewProcurementSupplierInvoiceRequest {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = replacementVersion,
+                    Decision = "Approve", AccountingPeriodId = periodId,
+                    InventoryAccountId = inventoryAccountId, PayableAccountId = payableAccountId,
+                    PriceVarianceAccountId = varianceAccountId,
+                    Reason = "Independent posting of the residual received supplier stock" });
+            Assert.True(approval.Success, approval.Message);
+            Assert.Equal("Posted", approval.Data!.StateCode);
+            Assert.Equal(20m, approval.Data.TotalAmount);
+            Assert.Equal(20m, approval.Data.StockValue);
+            var journal = await reviewer.Journals.AsNoTracking()
+                .SingleAsync(j => j.PublicId == approval.Data.JournalReference);
+            Assert.Equal(JournalState.Posted, journal.State);
+            Assert.Equal("ProcurementSupplierInvoice", journal.SourceType);
+            Assert.Equal(20m, await reviewer.JournalLines.AsNoTracking()
+                .Where(l => l.JournalId == journal.Id && l.AccountId == inventoryAccountId)
+                .SumAsync(l => l.DebitAmount));
         }
 
         long expenseAccountId;
@@ -175,6 +222,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 check, new Actor(tenantId, makerId)).GetAsync(issueReference);
             Assert.True(trace.Success, trace.Message);
             Assert.Equal("FacilityWorkOrder", trace.Data!.SourceType);
+            Assert.Equal("VerifiedFacilityWorkOrder", trace.Data.SourceEvidenceStatus);
             Assert.Equal("NoExplicitReference", trace.Data.FinanceEvidenceStatus);
             Assert.Equal(10m, trace.Data.RecordedMovementValue);
             Assert.Equal(200, (await new V3EnterpriseLedgerTraceService(
@@ -239,6 +287,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             var trace = await new V3EnterpriseLedgerTraceService(
                 reviewer, new Actor(tenantId, checkerId)).GetAsync(issueReference);
             Assert.True(trace.Success, trace.Message);
+            Assert.Equal("VerifiedFacilityWorkOrder", trace.Data!.SourceEvidenceStatus);
             Assert.Equal("ExplicitBalancedReference", trace.Data!.FinanceEvidenceStatus);
             Assert.Equal(journalReference, Assert.Single(trace.Data.Journals).Reference);
         }
@@ -263,6 +312,20 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(tampered.Success, tampered.Message);
             Assert.Equal("JournalImbalance", tampered.Data!.FinanceEvidenceStatus);
             await tx.RollbackAsync();
+            await using var orphaned = await probe.Database.BeginTransactionAsync();
+            var orderId = await probe.InventoryMovements.AsNoTracking()
+                .Where(m => m.Id == issueId).Select(m => m.SourceId!.Value).SingleAsync();
+            await probe.FacilityWorkOrders.Where(w => w.Id == orderId)
+                .ExecuteUpdateAsync(s => s.SetProperty(w => w.IsDeleted, true));
+            Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(
+                probe, new Actor(tenantId, makerId)).GetAsync(issueReference)).StatusCode);
+            var register = await new V3EnterpriseReconciliationRegisterService(
+                probe, new Actor(tenantId, makerId))
+                .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
+            Assert.True(register.Success, register.Message);
+            Assert.Contains(register.Data!.Items, row => row.Reference == issueReference &&
+                row.EvidenceStatus == "EvidenceConflict");
+            await orphaned.RollbackAsync();
         }
         await using (var locked = Open(options, tenantId, makerId))
         {
@@ -336,6 +399,18 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 j.ReversalOfJournalId == original.Id && j.State == JournalState.Posted));
             Assert.Equal(1, await reviewer.InventoryMovements.CountAsync(m =>
                 m.ReversalOfMovementId == issueId && m.StateCode == "Posted"));
+            var inventoryNet = await (from line in reviewer.JournalLines.AsNoTracking()
+                join journal in reviewer.Journals.AsNoTracking() on line.JournalId equals journal.Id
+                where line.AccountId == inventoryAccountId &&
+                    (journal.State == JournalState.Posted || journal.State == JournalState.Reversed)
+                select line.DebitAmount - line.CreditAmount).SumAsync();
+            var payableNet = await (from line in reviewer.JournalLines.AsNoTracking()
+                join journal in reviewer.Journals.AsNoTracking() on line.JournalId equals journal.Id
+                where line.AccountId == payableAccountId &&
+                    (journal.State == JournalState.Posted || journal.State == JournalState.Reversed)
+                select line.CreditAmount - line.DebitAmount).SumAsync();
+            Assert.Equal(20m, inventoryNet); // Two physical units at BDT 10 after joint contra.
+            Assert.Equal(29m, payableNet); // BDT 9 credit-adjusted bill + BDT 20 replacement bill.
         }
     }
 }

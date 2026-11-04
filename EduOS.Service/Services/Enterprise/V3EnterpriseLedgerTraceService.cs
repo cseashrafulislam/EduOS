@@ -8,8 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace EduOS.Service.Services.Enterprise;
 
 // Reconciles only explicit InventoryMovement -> Journal source references.
-// Item-to-Asset matches, purchase order matches and facility consumption are NOT
-// financial provenance; those contracts belong to their domain owners.
+// Item-to-Asset matches are NOT financial provenance; only the canonical domain
+// source and explicit InventoryMovement -> Journal link can be trusted.
 public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUserService user)
 {
     public async Task<ApiResponse<V3EnterpriseLedgerTraceDto>> GetAsync(
@@ -26,6 +26,7 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             .Select(x => new {
                 x.Id, x.PublicId, x.MovementNumber, x.MovementTypeCode, x.StateCode,
                 x.PostedAt, x.SourceType, x.SourceId, x.ReversalOfMovementId,
+                x.CreatedBy, x.PostedByUserId,
                 x.FromLocationId, x.ToLocationId
             }).SingleOrDefaultAsync(ct);
         if (movement == null)
@@ -67,6 +68,20 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             if (!receiptEvidence.Verified.TryGetValue(movement.Id, out procurementSource))
                 return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                     "Canonical procurement receipt, purchase order or posted stock evidence requires reconciliation.", 409);
+        }
+        var verifiedFacility = false;
+        if (movement.SourceType == "FacilityWorkOrder")
+        {
+            var facility = await V3EnterpriseFacilityEvidenceValidator.InspectAsync(
+                db, user.TenantId,
+                [new V3EnterpriseFacilityEvidenceValidator.Movement(
+                    movement.Id, movement.SourceId, movement.FromLocationId,
+                    movement.ToLocationId, movement.StateCode, movement.MovementTypeCode,
+                    movement.CreatedBy, movement.PostedByUserId)], ct);
+            if (!facility.Verified.Contains(movement.Id))
+                return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                    "Facility work order, campus or posted stock evidence requires reconciliation.", 409);
+            verifiedFacility = true;
         }
 
         // Historical tombstones are integrity failures, never silently excluded.
@@ -158,7 +173,8 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             TransferDispatchReference = dispatch, ReversalReference = reversal,
             RecordedMovementValue = amount?.Value ?? 0m, MovementLineCount = amount?.Count ?? 0,
             FinanceEvidenceStatus = financeStatus,
-            SourceEvidenceStatus = procurementSource == null ? "NotApplicable" : "VerifiedProcurementReceipt",
+            SourceEvidenceStatus = procurementSource != null ? "VerifiedProcurementReceipt" :
+                verifiedFacility ? "VerifiedFacilityWorkOrder" : "NotApplicable",
             ProcurementGoodsReceiptReference = procurementSource?.GoodsReceiptReference,
             ProcurementPurchaseOrderReference = procurementSource?.PurchaseOrderReference,
             Journals = evidence

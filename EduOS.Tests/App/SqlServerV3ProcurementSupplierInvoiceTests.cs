@@ -1765,6 +1765,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             // Facilities consumption and jointly approved Finance/stock contra.
             await VerifyPostedProcurementAssetFacilityChainAsync(options, tenantId,
                 makerId, checkerId, poId, locationId, periodId, assetAccountId,
+                payableAccountId, varianceAccountId,
                 receiptReference, second.Reference, assetReference, date, suffix);
             // Run the foreign-tenant request LAST: the test fixture uses ambient
             // tenant identity and must not poison the original maker context.
