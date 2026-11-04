@@ -48,6 +48,10 @@ public sealed class FacilityVisitorsApiController(IFacilityVisitorService servic
     public async Task<IActionResult> Occupancy(long campusId, CancellationToken ct = default) =>
         Reply(await service.OccupancyAsync(campusId, ct));
 
+    [HttpGet("privacy-audit"), Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> PrivacyAudit(CancellationToken ct = default) =>
+        Reply(await service.PrivacyAuditReportAsync(ct));
+
     [HttpGet("policies"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
     public async Task<IActionResult> Policies(long campusId, int page = 1, int pageSize = 25,
         CancellationToken ct = default) =>
