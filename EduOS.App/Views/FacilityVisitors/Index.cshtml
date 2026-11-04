@@ -19,6 +19,20 @@
     <div id="fvStatus" class="alert alert-secondary small" role="status" aria-live="polite">
         @(bn ? "অনুমোদিত ভিজিট লোড হচ্ছে…" : "Loading authorized visits…")
     </div>
+    @if (privacyReviewer)
+    {
+        <section class="card card-body mb-3">
+            <h3 class="h6">@(bn ? "ভিজিটর তথ্য গোপনীয়তা যাচাই" : "Visitor Privacy Acceptance Audit")</h3>
+            <p class="text-muted small">@(bn ? "শুধু বর্তমান প্রতিষ্ঠানের মোট সংখ্যা দেখাবে; কোনো পুরোনো নাম, ব্যাজ বা ঘটনার বিবরণ দেখাবে না। অনুমোদনবিহীন কোনো রেকর্ড মুছবে না।" :
+                "Tenant-only aggregate counts. No raw legacy name, badge or incident evidence is exposed. This read does not remove any records.")</p>
+            <div class="d-flex align-items-center gap-2">
+                <button id="fvPrivacyAudit" type="button" class="btn btn-outline-secondary btn-sm">
+                    @(bn ? "পুরোনো অডিট তথ্য যাচাই" : "Check legacy audit privacy")
+                </button>
+            </div>
+            <div id="fvPrivacyAuditResult" class="small mt-2" role="status" aria-live="polite"></div>
+        </section>
+    }
     @if (manager)
     {
         <form id="fvCreate" class="card card-body mb-3">
