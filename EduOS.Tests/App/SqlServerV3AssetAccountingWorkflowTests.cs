@@ -231,6 +231,36 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Guid.NewGuid(), disposalRequest)).StatusCode);
             Assert.Single(await db.AssetDisposals.AsNoTracking().ToListAsync());
         }
+        // Closing the period after maker submission must stop the checker from
+        // creating any disposal GL. The same pending source can be reviewed
+        // only after an authorized period reopen, with no synthetic reversal.
+        await using (var close = Open(opts, tenantId, makerId))
+            Assert.Equal(1, await close.AccountingPeriods.Where(x => x.Id == periodId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsClosed, true)));
+        await using (var restricted = Open(opts, tenantId + 99999, checkerId))
+            Assert.Equal(404, (await AssetFinance(restricted, tenantId + 99999, checkerId)
+                .ReviewDisposalAsync(disposalId, new AssetReviewRequest
+                {
+                    RowVersion = disposalVersion, Approve = true,
+                    Reason = "Foreign institution cannot approve the disposal"
+                })).StatusCode);
+        await using (var blocked = Open(opts, tenantId, checkerId))
+        {
+            var denied = await AssetFinance(blocked, tenantId, checkerId)
+                .ReviewDisposalAsync(disposalId, new AssetReviewRequest
+                {
+                    RowVersion = disposalVersion, Approve = true,
+                    Reason = "Closed financial period must prevent disposal posting"
+                });
+            Assert.Equal(409, denied.StatusCode);
+            Assert.Equal("Submitted", (await blocked.AssetDisposals.AsNoTracking()
+                .SingleAsync(x => x.Id == disposalId)).StateCode);
+            Assert.False(await blocked.Journals.AsNoTracking()
+                .AnyAsync(x => x.SourceType == "AssetDisposal"));
+        }
+        await using (var reopen = Open(opts, tenantId, makerId))
+            Assert.Equal(1, await reopen.AccountingPeriods.Where(x => x.Id == periodId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsClosed, false)));
         await using (var db = Open(opts, tenantId, checkerId))
         {
             var result = await AssetFinance(db, tenantId, checkerId).ReviewDisposalAsync(

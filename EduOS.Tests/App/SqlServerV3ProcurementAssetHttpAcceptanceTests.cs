@@ -1,11 +1,13 @@
 using System.Net;
 using System.Net.Http;
+using System.Data;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using EduOS.App.Authorization;
 using EduOS.App.Controllers.Api;
+using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
@@ -22,6 +24,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -32,6 +35,50 @@ namespace EduOS.Tests.App;
 
 public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
 {
+    [Fact]
+    public async Task SQL_supplier_finance_multi_page_CSV_uses_one_serializable_transaction()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        await using var db = new EduOSDbContext(options);
+        var invoices = Enumerable.Range(0, 101).Select(i => new ProcurementSupplierPayableAgingRowDto
+        {
+            InvoiceReference = Guid.NewGuid(), JournalReference = Guid.NewGuid(),
+            SupplierInvoiceNumber = $"SQL-SNAPSHOT-{i:000}", OrderNumber = "PO-SNAPSHOT",
+            SupplierId = 1, CampusId = 1, DueDate = new DateOnly(2026, 11, 1),
+            GrossPostedAmount = 10m, SourceLinkedOutstandingAmount = 10m,
+            SettlementIntegrityStatus = "SourceLinked", AgingBucket = "1-30"
+        }).ToList();
+        var transactionIds = new List<Guid>();
+        var mock = new Mock<IProcurementSupplierInvoiceService>();
+        mock.Setup(x => x.AgingAsync(null, null, false, It.IsAny<int>(), 100,
+                It.IsAny<CancellationToken>()))
+            .Returns((DateOnly? _, long? _, bool _, int page, int _, CancellationToken _) =>
+            {
+                var transaction = db.Database.CurrentTransaction;
+                Assert.NotNull(transaction);
+                Assert.Equal(IsolationLevel.Serializable,
+                    transaction.GetDbTransaction().IsolationLevel);
+                transactionIds.Add(transaction.TransactionId);
+                return Task.FromResult(ApiResponse<PagedResult<ProcurementSupplierPayableAgingRowDto>>
+                    .SuccessResponse(new PagedResult<ProcurementSupplierPayableAgingRowDto>
+                    {
+                        Page = page, PageSize = 100, TotalCount = invoices.Count,
+                        Items = invoices.Skip((page - 1) * 100).Take(100).ToList()
+                    }));
+            });
+        var controller = new ProcurementSupplierInvoicesController(mock.Object, db);
+        var response = await controller.AgingExport(null, null, false, CancellationToken.None);
+        var csv = Assert.IsType<FileContentResult>(response);
+        var body = Encoding.UTF8.GetString(csv.FileContents);
+        Assert.Contains("SQL-SNAPSHOT-000", body, StringComparison.Ordinal);
+        Assert.Contains("SQL-SNAPSHOT-100", body, StringComparison.Ordinal);
+        Assert.Equal(4, transactionIds.Count);
+        Assert.Single(transactionIds.Distinct());
+        Assert.Null(db.Database.CurrentTransaction);
+    }
+
     // Real disposable SQL and MVC authorization, with TEST-ONLY header identity
     // and synthetic module grants. Not a real cookie/Chromium acceptance claim.
     private sealed class SqlHttpFinanceActor(IHttpContextAccessor accessor) : ICurrentUserService

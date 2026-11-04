@@ -1,21 +1,48 @@
+using System.Data;
 using System.Text;
 using System.Text.Json;
 using EduOS.App.Authorization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Inventory;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.App.Controllers.Api;
 
 [ApiController, Route("api/procurement/supplier-invoices"), Authorize, RequireModule("INVENTORY"), RequireModule("FINANCE"),
  AutoValidateAntiforgeryToken, EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierInvoiceService service) : ControllerBase
+public sealed class ProcurementSupplierInvoicesController(
+    IProcurementSupplierInvoiceService service, EduOSDbContext? db = null) : ControllerBase
 {
     private IActionResult Reply<T>(ApiResponse<T> response) => StatusCode(response.StatusCode, response);
+
+    // The real request's scoped DbContext is also used by the supplier invoice
+    // service. Hold one bounded SQL Server SERIALIZABLE view across every page,
+    // source-journal check and Finance CSV before making the file public.
+    // The optional context preserves pure controller-contract test construction;
+    // runtime DI supplies the registered scoped context.
+    private async Task<IActionResult> FinanceExportSnapshotAsync(
+        Func<Task<IActionResult>> read, CancellationToken ct)
+    {
+        if (db == null) return await read();
+        try
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var result = await read();
+            if (result is FileContentResult) await tx.CommitAsync(ct);
+            return result;
+        }
+        catch (SqlException ex) when (ex.Number is 1205 or 1222 or 3960 or -2)
+        {
+            return StatusCode(409, new { message = "Supplier finance snapshot was busy; retry the export." });
+        }
+    }
 
     [HttpGet, Authorize(Roles="TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> List(long? purchaseOrderId, string? state, int page=1, int pageSize=25,
@@ -176,8 +203,8 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
 
     // Freeze the first authorized read BEFORE rechecking. Services or caches
     // may reuse mutable DTO instances across both reads; comparing two live
-    // lists would incorrectly accept an in-place financial mutation.
-    // This remains drift detection, NOT SQL transaction-level snapshot isolation.
+    // lists would incorrectly accept an in-place financial mutation. Runtime
+    // exports additionally use a bounded serializable database transaction.
     private async Task<IActionResult?> RecheckExportAsync<T>(
         string frozenSignature, int total,
         Func<int, Task<ApiResponse<PagedResult<T>>>> readPage, Func<T, Guid> key)
@@ -204,8 +231,12 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
         => Reply(await service.AgingAsync(dueDateReference,supplierId,overdueOnly,page,pageSize,ct));
 
     [HttpGet("aging/export"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> AgingExport(DateOnly? dueDateReference,long? supplierId,
-        bool overdueOnly=false,CancellationToken ct=default)
+    public Task<IActionResult> AgingExport(DateOnly? dueDateReference,long? supplierId,
+        bool overdueOnly=false,CancellationToken ct=default) => FinanceExportSnapshotAsync(
+            () => AgingExportCore(dueDateReference,supplierId,overdueOnly,ct),ct);
+
+    private async Task<IActionResult> AgingExportCore(DateOnly? dueDateReference,long? supplierId,
+        bool overdueOnly,CancellationToken ct)
     {
         var first=await service.AgingAsync(dueDateReference,supplierId,overdueOnly,1,100,ct);
         if (!first.Success) return ExportFailure(first);
@@ -265,7 +296,10 @@ public sealed class ProcurementSupplierInvoicesController(IProcurementSupplierIn
     }
 
     [HttpGet("export"), RequireModule("FINANCE"), Authorize(Roles="TenantAdmin,Principal,Accountant")]
-    public async Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct)
+    public Task<IActionResult> Export(long? purchaseOrderId, string? state, CancellationToken ct) =>
+        FinanceExportSnapshotAsync(() => ExportCore(purchaseOrderId,state,ct),ct);
+
+    private async Task<IActionResult> ExportCore(long? purchaseOrderId, string? state, CancellationToken ct)
     {
         var first = await service.ListAsync(purchaseOrderId,state,1,100,ct);
         if (!first.Success) return ExportFailure(first);
