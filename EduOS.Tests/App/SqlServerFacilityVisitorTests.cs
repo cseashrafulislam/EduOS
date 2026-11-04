@@ -882,7 +882,14 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.Contains(immutable, x => x.ActionCode == "incidentclose");
             Assert.Contains(immutable, x => x.ActionCode == "holdapprove");
             Assert.Contains(immutable, x => x.ActionCode == "holdrelease");
-            Assert.All(immutable, x => { Assert.Null(x.BadgeCode); Assert.Null(x.Reason); });
+            Assert.All(immutable, x =>
+            {
+                Assert.Null(x.BadgeCode);
+                if (x.ActionCode == "redactapprove")
+                    Assert.Equal("Independent retention approval", x.Reason);
+                else
+                    Assert.Null(x.Reason);
+            });
         }
         // Assigned hosts may read their own visit status, never private case
         // review, legal hold or independently approved retention decisions.

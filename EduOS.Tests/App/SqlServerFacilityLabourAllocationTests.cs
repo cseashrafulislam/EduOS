@@ -99,8 +99,7 @@ public sealed class SqlServerFacilityLabourAllocationTests
                     ClientRequestId = Guid.NewGuid(), RunNumber = "PAY-" + suffix,
                     CampusId = campusId, Year = day.Year, Month = day.Month,
                     PeriodStart = day.AddDays(-3), PeriodEnd = day.AddDays(3),
-                    State = PayrollRunState.Posted, ApprovedByUserId = principalId,
-                    ApprovedAt = DateTime.UtcNow, PostedAt = DateTime.UtcNow };
+                    State = PayrollRunState.Draft };
                 setup.PayrollRuns.Add(run);
                 await setup.SaveChangesAsync();
                 runId = run.Id;
@@ -129,6 +128,10 @@ public sealed class SqlServerFacilityLabourAllocationTests
                         AccountId = payable.Id, CampusId = campusId, LineNo = 2,
                         DebitAmount = 0m, CreditAmount = 10000m });
                 run.JournalId = journal.Id;
+                run.State = PayrollRunState.Posted;
+                run.ApprovedByUserId = principalId;
+                run.ApprovedAt = DateTime.UtcNow;
+                run.PostedAt = DateTime.UtcNow;
                 var serviceRequest = new FacilityServiceRequest {
                     TenantId = tenantId, CampusId = campusId, FacilitySpaceId = space.Id,
                     ClientRequestId = Guid.NewGuid(), RequesterUserId = requesterId,
