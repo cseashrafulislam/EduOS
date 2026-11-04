@@ -129,6 +129,11 @@ test('visitor incident and per-visit legal hold require reasoned independent cas
     const sql = read('EduOS.Tests/App/SqlServerFacilityVisitorTests.cs');
     assert.match(service, /LastIncidentDispositionAsync/);
     assert.match(service, /LastHoldDispositionAsync/);
+    // Bounded page projection: SQL returns at most one latest action per
+    // visit/category, not all retained history for each matching visit.
+    assert.match(service, /candidates.GroupBy/);
+    assert.match(service, /Select\(g => g.Max\(x => x.Id\)\)/);
+    assert.match(service, /latestIds.Contains\(x.Id\)/);
     assert.match(service, /"incidentresolve" or "incidentclose"/);
     assert.match(service, /"holdreleaserequest" or "holdrelease"/);
     assert.match(service, /latestIncident\.ActorUserId == user\.UserId/);
