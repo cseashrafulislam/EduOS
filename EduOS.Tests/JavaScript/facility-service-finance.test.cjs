@@ -58,9 +58,11 @@ test('Facilities labour allocation is posted PayrollRun-derived and never books 
     assert.match(model, /PayrollGrossSnapshotBdt/);
     assert.doesNotMatch(service, /db\.Journals\.Add/);
     assert.doesNotMatch(service, /db\.JournalLines\.Add/);
-    assert.match(migration, /AK_PayrollEmployees_TenantId_Id/);
-    assert.match(migration, /AK_PayrollRuns_TenantId_Id/);
-    assert.match(migration, /AK_Employees_TenantId_Id/);
+    const initial = read('EduOS.Persistence/Migrations/20261010084739_Initials.cs');
+    for (const key of ['AK_PayrollEmployees_TenantId_Id', 'AK_PayrollRuns_TenantId_Id', 'AK_Employees_TenantId_Id']) {
+        assert.match(initial, new RegExp(key));
+        assert.doesNotMatch(migration, new RegExp(`m\\.(Add|Drop)UniqueConstraint\\("${key}"`));
+    }
 });
 
 test('Facilities financial API is tenant-session/CSRF protected and SQL smoke includes real tests', () => {
