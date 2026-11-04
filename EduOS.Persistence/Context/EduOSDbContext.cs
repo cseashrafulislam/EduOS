@@ -2006,12 +2006,13 @@ public class EduOSDbContext :
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.SubmitRequestId }).IsUnique().HasFilter("[SubmitRequestId] IS NOT NULL");
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.ReviewRequestId }).IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
+        modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.ReversalReviewRequestId }).IsUnique().HasFilter("[ReversalReviewRequestId] IS NOT NULL");
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.SupplierId, x.NormalizedSupplierInvoiceNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.FacilityWorkOrderId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.InvoiceDate });
         modelBuilder.Entity<FacilityVendorServiceBill>().ToTable(t => t.HasCheckConstraint(
             "CK_FacilityVendorServiceBills_StateAmount",
-            "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected') AND [AmountBdt] > 0"));
+            "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected',N'Reversed') AND [AmountBdt] > 0"));
         modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.ClientCommandId }).IsUnique();
         modelBuilder.Entity<FacilityWorkflowEvent>().HasIndex(x => new { x.TenantId, x.FacilityServiceRequestId, x.CreatedAt });
         modelBuilder.Entity<FacilityVisitorVisit>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
