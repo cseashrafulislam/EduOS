@@ -603,7 +603,12 @@
                 });
             });
         }
-        el('fcAgingDate').value = new Date().toISOString().slice(0, 10);
+        const localToday = new Date();
+        el('fcAgingDate').value = [
+            localToday.getFullYear(),
+            String(localToday.getMonth() + 1).padStart(2, '0'),
+            String(localToday.getDate()).padStart(2, '0')
+        ].join('-');
         await Promise.all([listBills(), listLabour(), listAging()]);
         notice(t('Facilities Finance data is scoped to your active institution.',
             'রক্ষণাবেক্ষণ ব্যয়ের তথ্য বর্তমান প্রতিষ্ঠানের অনুমতি অনুযায়ী দেখানো হচ্ছে।'), true);
