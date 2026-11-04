@@ -1,3 +1,4 @@
+using System.Globalization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Facilities;
 using EduOS.Core.Entities.Auth;
@@ -33,6 +34,64 @@ public sealed partial class FacilityWorkflowService(
             (Admin || db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
                 a.UserId == user.UserId && a.CampusId == c.Id && a.IsActive && !a.IsDeleted)))
         .Select(c => c.Id);
+    // Effective SLA policy lives only in TenantSettings. A missing rule retains
+    // manual triage; a malformed or sensitive configured rule fails closed.
+    private async Task<(bool Valid, int? Hours)> SlaHoursAsync(
+        long campusId, string priority, CancellationToken ct)
+    {
+        var key = "Facilities.SlaHours." + priority + "." +
+            campusId.ToString(CultureInfo.InvariantCulture);
+        var setting = await db.TenantSettings.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && x.Key == key && !x.IsDeleted)
+            .Select(x => new { x.Value, x.IsSensitive }).SingleOrDefaultAsync(ct);
+        if (setting == null) return (true, null);
+        if (setting.IsSensitive ||
+            !int.TryParse(setting.Value, NumberStyles.None, CultureInfo.InvariantCulture, out var hours) ||
+            hours is < 1 or > 720)
+            return (false, null);
+        return (true, hours);
+    }
+
+    public async Task<ApiResponse<FacilitySlaRecommendationDto>> SlaRecommendationAsync(
+        long facilityRequestId, CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Manager || facilityRequestId <= 0)
+            return Denied<FacilitySlaRecommendationDto>();
+        await using var tx = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct) : null;
+        try
+        {
+            var source = await db.FacilityServiceRequests.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.Id == facilityRequestId &&
+                !x.IsDeleted && x.StateCode == "Submitted" &&
+                x.RequesterUserId != user.UserId, ct);
+            if (source == null)
+                return ApiResponse<FacilitySlaRecommendationDto>.ErrorResponse(
+                    "Submitted maintenance request not found.", 404);
+            if (!await LockLiveVendorActorAsync(source.CampusId, false, ct))
+                return Denied<FacilitySlaRecommendationDto>();
+            var policy = await SlaHoursAsync(source.CampusId, source.PriorityCode, ct);
+            if (!policy.Valid)
+                return ApiResponse<FacilitySlaRecommendationDto>.ErrorResponse(
+                    "Invalid campus SLA priority policy; contact an administrator.", 409);
+            var result = new FacilitySlaRecommendationDto
+            {
+                FacilityRequestId = source.Id, CampusId = source.CampusId,
+                PriorityCode = source.PriorityCode, ConfiguredHours = policy.Hours,
+                RecommendedDueUtc = policy.Hours.HasValue
+                    ? Now.AddHours(policy.Hours.Value) : null
+            };
+            if (tx != null) await tx.CommitAsync(ct);
+            return ApiResponse<FacilitySlaRecommendationDto>.SuccessResponse(result);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Facilities SLA policy preview contention");
+            return ApiResponse<FacilitySlaRecommendationDto>.ErrorResponse(
+                "SLA policy is busy; retry.", 409);
+        }
+    }
+
 
 
     // Vendor decisions must not trust a stale manager/approver cookie. Hold the
@@ -735,15 +794,15 @@ public sealed partial class FacilityWorkflowService(
             "vendorreject" or "vendorrelease";
         // Lock authorization before reading idempotent success. A revoked actor
         // cannot replay an old approved vendor decision after their grant is gone.
-        await using var scheduleTransaction = (action == "schedule" || workerMutation ||
-            vendorMutation) && db.Database.IsSqlServer()
+        await using var scheduleTransaction = (action == "schedule" || action == "triage" ||
+            workerMutation || vendorMutation) && db.Database.IsSqlServer()
             ? await db.Database.BeginTransactionAsync(
-                workerMutation || vendorMutation
+                workerMutation || vendorMutation || action == "triage"
                     ? System.Data.IsolationLevel.Serializable
                     : System.Data.IsolationLevel.ReadCommitted, ct)
             : null;
-        if (vendorMutation && !await LockLiveVendorActorAsync(
-            request.CampusId, action != "vendorpropose", ct))
+        if ((vendorMutation || action == "triage") && !await LockLiveVendorActorAsync(
+            request.CampusId, vendorMutation && action != "vendorpropose", ct))
             return Denied<FacilityRequestDto>();
         if (workerMutation && (!await EligibleTechnicians(request.CampusId)
                 .AnyAsync(candidate => candidate.Id == user.UserId, ct) ||
@@ -786,18 +845,29 @@ public sealed partial class FacilityWorkflowService(
         switch (action)
         {
             case "triage":
-                if (request.StateCode != "Submitted" || command.SlaDueAtUtc is not DateTime due ||
-                    due.Kind != DateTimeKind.Utc || due <= now)
-                    return ApiResponse<FacilityRequestDto>.ErrorResponse("Triage needs a future UTC SLA deadline.");
-                if (note?.Length > 500)
+            {
+                if (request.StateCode != "Submitted" || note?.Length > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
-                        "Triage note must be at most 500 characters.");
-                auditNote = $"SLA due UTC={due:O}" +
+                        "Submitted request and a note of at most 500 characters are required.", 409);
+                var policy = await SlaHoursAsync(request.CampusId, request.PriorityCode, ct);
+                if (!policy.Valid)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Invalid campus SLA priority policy; contact an administrator.", 409);
+                var due = command.SlaDueAtUtc;
+                if (!due.HasValue && policy.Hours.HasValue)
+                    due = Now.AddHours(policy.Hours.Value);
+                if (!due.HasValue || due.Value.Kind != DateTimeKind.Utc || due.Value <= Now)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Provide a future UTC SLA deadline or configure a campus priority policy.", 400);
+                auditNote = $"SLA due UTC={due.Value:O}; basis=" +
+                    (command.SlaDueAtUtc.HasValue ? "manual" :
+                     $"configured {policy.Hours}h {request.PriorityCode}") +
                     (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}");
-                request.SlaDueAtUtc = due;
+                request.SlaDueAtUtc = due.Value;
                 request.TriagedByUserId = user.UserId;
                 request.StateCode = "Triaged";
                 break;
+            }
             case "approve":
                 if (request.StateCode != "Triaged" || order != null)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Request is not awaiting approval.", 409);
