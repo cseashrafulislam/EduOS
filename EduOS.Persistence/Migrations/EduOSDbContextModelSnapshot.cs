@@ -2829,6 +2829,24 @@ namespace EduOS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
 
+                    b.HasIndex(new[] { "TenantId", "SourceId" }, "UX_Journals_FacilityVendorServiceBill")
+                        .IsUnique()
+                        .HasFilter("[SourceType] = N'FacilityVendorServiceBill' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+
+                    b.HasIndex(new[] { "TenantId", "SourceId" }, "UX_Journals_FacilityVendorServiceBillReversal")
+                        .IsUnique()
+                        .HasFilter("[SourceType] = N'FacilityVendorServiceBillReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+
+                    b.HasIndex(new[] { "TenantId", "SourceId" }, "UX_Journals_FacilityVendorPaymentReversal")
+                        .IsUnique()
+                        .HasFilter("[SourceType] = N'FacilityVendorServicePaymentReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+
+                    b.HasIndex(new[] { "TenantId", "ReferenceNumber" }, "UX_Journals_FacilityVendorPaymentBankReference")
+                        .IsUnique()
+                        .HasFilter("[SourceType] = N'FacilityVendorServicePayment' AND [ReferenceNumber] IS NOT NULL AND [IsDeleted] = 0 AND [State] = 4");
+
+                    b.HasIndex(new[] { "TenantId", "SourceType", "SourceId", "State", "JournalDate" }, "IX_Journals_FacilityVendorPaymentLineage");
+
                     b.HasIndex("TenantId", "JournalDate", "State");
 
                     b.HasIndex("TenantId", "SourceType", "SourceId")
