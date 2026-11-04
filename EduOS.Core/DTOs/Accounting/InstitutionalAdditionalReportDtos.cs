@@ -89,3 +89,39 @@ public sealed class IncomeExpenseBreakdownRowDto
     public decimal Expenses { get; set; }
     public decimal NetSurplus { get; set; }
 }
+
+// Read-only posted GL drill-down. This is accrual income/expense, not the Cash Book.
+public sealed class InstitutionalIncomeExpenseDetailPageDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string Category { get; set; } = "all";
+    public long? AccountId { get; set; }
+    public string? SourceType { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public decimal TotalIncome { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal NetSurplus { get; set; }
+    public PagedResult<InstitutionalIncomeExpenseLineDto> Entries { get; set; } = new();
+}
+
+public sealed class InstitutionalIncomeExpenseLineDto
+{
+    public Guid JournalReference { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public DateOnly Date { get; set; }
+    public long? CampusId { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string? SourceType { get; set; }
+    public long? SourceId { get; set; }
+    public string? ReferenceNumber { get; set; }
+    public int LineNo { get; set; }
+    public string? Description { get; set; }
+    public bool IsReversal { get; set; }
+    public bool IsReversedOriginal { get; set; }
+    public decimal DebitAmount { get; set; }
+    public decimal CreditAmount { get; set; }
+    public decimal Amount { get; set; }
+}

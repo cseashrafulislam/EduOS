@@ -1,13 +1,18 @@
 @{
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
-    ViewData["Title"] = bn ? "প্রতিষ্ঠানের হিসাব প্রতিবেদন" : "Institutional Accounting Reports";
+    ViewData["Title"] = bn ? "কেন্দ্রীয় হিসাব ও অর্থ বিভাগ" : "Central Accounts & Finance";
 }
 <section class="container-fluid py-3" id="institutionAccountingReports">
-    <h2>@(bn ? "প্রতিষ্ঠানের হিসাব প্রতিবেদন" : "Institutional Accounting Reports")</h2>
-    <p class="text-muted">@(bn ? "শুধু পোস্ট করা প্রতিষ্ঠানের জার্নাল; SaaS সাবস্ক্রিপশন বিলিং এখানে নেই।" : "Posted institutional journals only. SaaS subscription billing is excluded.")</p>
+    <h2>@(bn ? "কেন্দ্রীয় হিসাব ও অর্থ বিভাগ" : "Central Accounts & Finance")</h2>
+    <p class="text-muted">@(bn ? "ফি, বেতন, ক্রয়, সম্পদ ও অন্যান্য বিভাগের হিসাব একটি কেন্দ্রীয় GL থেকে। আলাদা হিসাবখাতা নয়; SaaS সাবস্ক্রিপশন বিলিং এখানে নেই।" : "One institutional General Ledger for fees, payroll, procurement, assets and other operations. No parallel ledgers; SaaS subscription billing is excluded.")</p>
+    <p class="small text-muted">@(bn ? "আয়-ব্যয় রিপোর্ট হলো পোস্ট করা উপার্জন ও খরচের হিসাব। বাস্তবে নগদ/ব্যাংকে টাকা আসা-যাওয়া দেখতে Bank Book ব্যবহার করুন; দুটো এক নয়।" : "Income/expense reports show posted earnings and costs; use the Bank Book for actual bank movements. Accrual earnings and cash receipts are not the same.")</p>
     <div id="reportNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <ul class="nav nav-tabs mb-3">
-        <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#ledgerPanel">General Ledger</button></li>
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#incomeDetailsPanel">Income &amp; Cost Details</button></li>
+        }
+        <li class="nav-item"><button type="button" class="nav-link @(!User.IsInRole("TenantAdmin") ? "active" : "")" data-bs-toggle="tab" data-bs-target="#ledgerPanel">General Ledger</button></li>
         <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#trialPanel">Trial Balance</button></li>
         @if (User.IsInRole("TenantAdmin"))
         {
@@ -23,7 +28,47 @@
         }
     </ul>
     <div class="tab-content">
-        <div class="tab-pane fade show active" id="ledgerPanel">
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <div class="tab-pane fade show active" id="incomeDetailsPanel">
+                <p class="text-muted">@(bn ? "প্রতিটি আয়ের উৎস ও খরচের খাত, মূল জার্নাল, বিভাগীয় উৎস ও রেফারেন্স দেখুন। এখানে শুধু পোস্ট করা GL লাইন আসে; বকেয়া ও অপরিশোধিত লেনদেনের জন্য নিচের Source/Subledger রিপোর্ট দেখুন।" : "Trace every posted revenue and cost to its GL account, source module, journal and reference. Unposted invoices and outstanding balances remain in their source/subledger reports below.")</p>
+                <form id="incomeDetailsForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-lg-2 col-md-3"><label for="incomeDetailsFrom" class="form-label">From</label><input type="date" id="incomeDetailsFrom" class="form-control" required /></div>
+                    <div class="col-lg-2 col-md-3"><label for="incomeDetailsTo" class="form-label">To</label><input type="date" id="incomeDetailsTo" class="form-control" required /></div>
+                    <div class="col-lg-2 col-md-3"><label for="incomeDetailsCategory" class="form-label">Transaction type</label><select id="incomeDetailsCategory" class="form-select"><option value="all">All income &amp; expenses</option><option value="income">Income only</option><option value="expense">Expense only</option></select></div>
+                    <div class="col-lg-3 col-md-3"><label for="incomeDetailsAccount" class="form-label">GL account</label><select id="incomeDetailsAccount" class="form-select"><option value="">All income / expense accounts</option></select></div>
+                    <div class="col-lg-3 col-md-5"><label for="incomeDetailsSource" class="form-label">Journal source (exact, optional)</label><input id="incomeDetailsSource" class="form-control" maxlength="100" placeholder="e.g. PayrollRun" /></div>
+                    <div class="col-md-3"><button id="incomeDetailsRun" type="submit" class="btn btn-primary w-100">Run Central Report</button></div>
+                    <div class="col-md-3"><button id="incomeDetailsCsv" type="button" class="btn btn-outline-secondary w-100" disabled>Export Visible Page CSV</button></div>
+                </form>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4"><div class="border rounded p-3 h-100"><div class="small text-muted">Posted Income (BDT)</div><strong id="incomeDetailsIncome" class="h5">—</strong></div></div>
+                    <div class="col-md-4"><div class="border rounded p-3 h-100"><div class="small text-muted">Posted Expenses (BDT)</div><strong id="incomeDetailsExpenses" class="h5">—</strong></div></div>
+                    <div class="col-md-4"><div class="border rounded p-3 h-100"><div class="small text-muted">Surplus / Deficit (BDT)</div><strong id="incomeDetailsNet" class="h5">—</strong></div></div>
+                </div>
+                <p id="incomeDetailsSummary" class="small fw-semibold" role="status" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Date</th><th>Type</th><th>GL account</th><th>Source</th><th>Source ID</th><th>Journal</th><th>Reference</th><th>Campus ID</th><th>Description</th><th>Status</th><th class="text-end">Signed Amount BDT</th><th>Details</th></tr></thead>
+                    <tbody id="incomeDetailsRows"></tbody>
+                </table></div>
+                <div class="d-flex align-items-center justify-content-end gap-2">
+                    <button id="incomeDetailsPrevious" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                    <span id="incomeDetailsPage" class="small" aria-live="polite"></span>
+                    <button id="incomeDetailsNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                </div>
+                <section id="incomeDetailsJournalPanel" class="border rounded p-3 mt-3 d-none" aria-label="Central income or expense source journal">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h4 id="incomeDetailsJournalTitle" class="h6 mb-0">Posted journal details</h4>
+                        <button id="incomeDetailsJournalClose" class="btn btn-outline-secondary btn-sm" type="button">Close</button>
+                    </div>
+                    <div class="table-responsive"><table class="table table-sm">
+                        <thead><tr><th>Line</th><th>Account code</th><th>Account</th><th>Description</th><th class="text-end">Debit</th><th class="text-end">Credit</th></tr></thead>
+                        <tbody id="incomeDetailsJournalRows"></tbody>
+                    </table></div>
+                </section>
+            </div>
+        }
+        <div class="tab-pane fade @(!User.IsInRole("TenantAdmin") ? "show active" : "")" id="ledgerPanel">
             <form id="ledgerForm" class="row g-2 align-items-end mb-3">
                 <div class="col-md-4"><label for="ledgerAccount" class="form-label">Account</label>
                     <select id="ledgerAccount" class="form-select" required><option value="">Loading accounts...</option></select></div>

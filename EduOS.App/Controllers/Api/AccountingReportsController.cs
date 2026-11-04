@@ -34,6 +34,13 @@ public sealed class AccountingReportsController : ControllerBase
     public async Task<IActionResult> IncomeExpenseBreakdown([FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, [FromQuery] string groupBy, CancellationToken ct)
         => Reply(await service.GetIncomeExpenseBreakdownAsync(fromDate, toDate, groupBy, ct));
+    [HttpGet("income-expense-details"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> IncomeExpenseDetails([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] string category = "all",
+        [FromQuery] long? accountId = null, [FromQuery] string? sourceType = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetInstitutionalIncomeExpenseDetailsAsync(
+            fromDate, toDate, category, accountId, sourceType, page, pageSize, ct));
     [HttpGet("ledger/{accountId:long}/activity"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> LedgerActivity(long accountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, [FromQuery] int page = 1,

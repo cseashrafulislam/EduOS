@@ -3,7 +3,7 @@ const root = document.getElementById('institutionAccountingReports');
 if (root && document.getElementById('dayBookForm')) {
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     const cents = value => {
         const s = String(value ?? '0');
         if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw new Error('Invalid financial amount precision.');
@@ -45,6 +45,160 @@ if (root && document.getElementById('dayBookForm')) {
     const yearStart = today.slice(0,4) + '-01-01';
     const previousYear = date => String(Number(date.slice(0,4)) - 1) + date.slice(4);
     const validPeriod = (from, to) => !!from && !!to && from <= to;
+
+    // Central institution-wide income/cost detail: posted GL line is the single
+    // monetary truth; source metadata preserves drill-down to the original module.
+    $('incomeDetailsFrom').value = yearStart;
+    $('incomeDetailsTo').value = today;
+    let incomeDetails = null, incomeDetailsPage = 1, incomeDetailsRevision = 0,
+        incomeDetailsSignature = '', incomeDetailAccounts = [];
+    const incomeDetailsKey = () => ['incomeDetailsFrom','incomeDetailsTo',
+        'incomeDetailsCategory','incomeDetailsAccount','incomeDetailsSource'].map(id => $(id).value).join('|');
+    const resetIncomeDetails = () => {
+        ++incomeDetailsRevision;
+        incomeDetails = null;
+        $('incomeDetailsCsv').disabled = true;
+        $('incomeDetailsPrevious').disabled = true;
+        $('incomeDetailsNext').disabled = true;
+        $('incomeDetailsRows').replaceChildren();
+        $('incomeDetailsJournalPanel').classList.add('d-none');
+        $('incomeDetailsPage').textContent = '';
+        $('incomeDetailsSummary').textContent = '';
+        for (const id of ['incomeDetailsIncome','incomeDetailsExpenses','incomeDetailsNet'])
+            $(id).textContent = '—';
+    };
+    const renderIncomeAccounts = () => {
+        const category = $('incomeDetailsCategory').value, selected = $('incomeDetailsAccount').value;
+        const active = incomeDetailAccounts.filter(x => !x.isGroup && (x.accountType === 4 || x.accountType === 5) &&
+            (category === 'all' || (category === 'income' ? x.accountType === 4 : x.accountType === 5)));
+        $('incomeDetailsAccount').innerHTML = '<option value="">All income / expense accounts</option>' +
+            active.map(x => '<option value="' + esc(x.id) + '">' + esc(x.code + ' — ' + x.name +
+                (x.isActive ? '' : ' (inactive)')) + '</option>').join('');
+        if (active.some(x => String(x.id) === selected)) $('incomeDetailsAccount').value = selected;
+    };
+    const loadIncomeAccounts = async () => {
+        let page = 1, totalPages = 1, items = [];
+        do {
+            const data = await get('/api/finance/accounting/setup/accounts?' +
+                new URLSearchParams({page:String(page),pageSize:'100'}));
+            items.push(...(data.items || [])); totalPages = data.totalPages || 1; page++;
+            if (totalPages > 100) throw new Error('More than 10,000 accounts; use the Chart of Accounts to search.');
+        } while (page <= totalPages);
+        incomeDetailAccounts = items;
+        renderIncomeAccounts();
+    };
+    for (const id of ['incomeDetailsFrom','incomeDetailsTo','incomeDetailsAccount','incomeDetailsSource']) {
+        $(id).addEventListener('input', resetIncomeDetails);
+        $(id).addEventListener('change', resetIncomeDetails);
+    }
+    $('incomeDetailsCategory').addEventListener('change', () => {
+        renderIncomeAccounts(); resetIncomeDetails();
+    });
+    const loadIncomeDetails = async page => {
+        const from = $('incomeDetailsFrom').value, to = $('incomeDetailsTo').value;
+        const category = $('incomeDetailsCategory').value, accountId = $('incomeDetailsAccount').value;
+        const sourceType = $('incomeDetailsSource').value.trim();
+        if (!validPeriod(from,to) || !['all','income','expense'].includes(category) ||
+            accountId && (!/^\d+$/.test(accountId) || BigInt(accountId) <= 0n))
+            throw new Error('Select valid income/cost report filters.');
+        const signature = incomeDetailsKey(), revision = ++incomeDetailsRevision;
+        $('incomeDetailsRun').disabled = true;
+        incomeDetails = null;
+        $('incomeDetailsCsv').disabled = true;
+        $('incomeDetailsPrevious').disabled = true;
+        $('incomeDetailsNext').disabled = true;
+        $('incomeDetailsJournalPanel').classList.add('d-none');
+        try {
+            const query = {fromDate:from,toDate:to,category,page:String(page),pageSize:'25'};
+            if (accountId) query.accountId = accountId;
+            if (sourceType) query.sourceType = sourceType;
+            const data = await get('/api/finance/accounting/reports/income-expense-details?' +
+                new URLSearchParams(query));
+            if (revision !== incomeDetailsRevision || signature !== incomeDetailsKey()) return;
+            if (cents(data.totalIncome) - cents(data.totalExpenses) !== cents(data.netSurplus))
+                throw new Error('Central income/cost totals do not reconcile.');
+            $('incomeDetailsRows').innerHTML = (data.entries.items || []).map(x => {
+                const signed = x.category === 'Income'
+                    ? cents(x.creditAmount) - cents(x.debitAmount)
+                    : cents(x.debitAmount) - cents(x.creditAmount);
+                if (!['Income','Expense'].includes(x.category) || signed !== cents(x.amount))
+                    throw new Error('Central financial line classification or amount is invalid.');
+                return '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.category) +
+                    '</td><td>' + esc(x.accountCode + ' — ' + x.accountName) +
+                    '</td><td>' + esc(x.sourceType) + '</td><td>' + esc(x.sourceId) +
+                    '</td><td>' + esc(x.journalNumber) + '</td><td>' + esc(x.referenceNumber) +
+                    '</td><td>' + esc(x.campusId) + '</td><td>' + esc(x.description) +
+                    '</td><td>' + (x.isReversal ? 'Reversal' : x.isReversedOriginal ? 'Reversed original' : 'Posted') +
+                    '</td><td class="text-end">' + money(signed) +
+                    '</td><td><button type="button" class="btn btn-outline-primary btn-sm" data-central-journal="' +
+                    esc(x.journalReference) + '">Journal</button></td></tr>';
+            }).join('') || '<tr><td colspan="12">No posted income or expense in the selected scope.</td></tr>';
+            $('incomeDetailsIncome').textContent = money(data.totalIncome);
+            $('incomeDetailsExpenses').textContent = money(data.totalExpenses);
+            $('incomeDetailsNet').textContent = money(data.netSurplus);
+            $('incomeDetailsSummary').textContent = data.entries.totalCount +
+                ' posted income/expense lines in selected scope. Totals cover all filtered pages.';
+            $('incomeDetailsPage').textContent = 'Page ' + page + ' / ' + Math.max(1,data.entries.totalPages);
+            $('incomeDetailsPrevious').disabled = page <= 1;
+            $('incomeDetailsNext').disabled = page >= data.entries.totalPages;
+            incomeDetails = data; incomeDetailsPage = page; incomeDetailsSignature = signature;
+            $('incomeDetailsCsv').disabled = false;
+            alert('Central income/cost details loaded from the posted institutional GL.');
+        } finally { $('incomeDetailsRun').disabled = false; }
+    };
+    $('incomeDetailsForm').addEventListener('submit', event => { event.preventDefault(); run(async () => {
+        resetIncomeDetails(); await loadIncomeDetails(1);
+    }); });
+    $('incomeDetailsPrevious').addEventListener('click', () => run(async () => {
+        if (incomeDetails && incomeDetailsPage > 1) await loadIncomeDetails(incomeDetailsPage - 1);
+    }));
+    $('incomeDetailsNext').addEventListener('click', () => run(async () => {
+        if (incomeDetails && incomeDetailsPage < incomeDetails.entries.totalPages)
+            await loadIncomeDetails(incomeDetailsPage + 1);
+    }));
+    $('incomeDetailsCsv').addEventListener('click', () => {
+        if (!incomeDetails || incomeDetailsSignature !== incomeDetailsKey()) return;
+        const rows = [['Date','Category','Account Code','Account Name','Source Type','Source ID',
+            'Journal','Reference','Campus ID','Line','Description','Status','Debit','Credit','Signed Amount']];
+        for (const x of incomeDetails.entries.items)
+            rows.push([x.date,x.category,x.accountCode,x.accountName,x.sourceType,x.sourceId,x.journalNumber,
+                x.referenceNumber,x.campusId,x.lineNo,x.description,
+                x.isReversal ? 'Reversal' : x.isReversedOriginal ? 'Reversed original' : 'Posted',
+                money(x.debitAmount),money(x.creditAmount),money(x.amount)]);
+        rows.push(['FILTERED PERIOD TOTAL','','','','','','','','','','','',
+            money(incomeDetails.totalIncome),money(incomeDetails.totalExpenses),money(incomeDetails.netSurplus)]);
+        csv('institution-central-income-cost-page-' + incomeDetailsPage + '-' +
+            incomeDetails.fromDate + '-' + incomeDetails.toDate + '.csv',rows);
+    });
+    $('incomeDetailsRows').addEventListener('click', event => run(async () => {
+        const button = event.target.closest('button[data-central-journal]');
+        if (!button || !incomeDetails) return;
+        const reference = button.dataset.centralJournal;
+        if (!incomeDetails.entries.items.some(x => x.journalReference === reference)) return;
+        const revision = incomeDetailsRevision;
+        button.disabled = true;
+        try {
+            const detail = await get('/api/finance/accounting/journals/' + encodeURIComponent(reference));
+            if (revision !== incomeDetailsRevision || !incomeDetails ||
+                !incomeDetails.entries.items.some(x => x.journalReference === reference)) return;
+            let debit = 0n, credit = 0n;
+            $('incomeDetailsJournalRows').innerHTML = (detail.lines || []).map(x => {
+                debit += cents(x.debitAmount); credit += cents(x.creditAmount);
+                return '<tr><td>' + esc(x.lineNo) + '</td><td>' + esc(x.accountCode) +
+                    '</td><td>' + esc(x.accountName) + '</td><td>' + esc(x.description) +
+                    '</td><td class="text-end">' + money(x.debitAmount) +
+                    '</td><td class="text-end">' + money(x.creditAmount) + '</td></tr>';
+            }).join('');
+            if (!detail.lines?.length || debit <= 0n || debit !== credit ||
+                debit !== cents(detail.totalDebit) || credit !== cents(detail.totalCredit))
+                throw new Error('Selected journal details are not balanced.');
+            $('incomeDetailsJournalTitle').textContent = detail.journalNumber + ' — ' + detail.journalDate;
+            $('incomeDetailsJournalPanel').classList.remove('d-none');
+        } finally { button.disabled = false; }
+    }));
+    $('incomeDetailsJournalClose').addEventListener('click', () =>
+        $('incomeDetailsJournalPanel').classList.add('d-none'));
+    run(loadIncomeAccounts);
 
     $('dayBookFrom').value = yearStart;
     $('dayBookTo').value = today;

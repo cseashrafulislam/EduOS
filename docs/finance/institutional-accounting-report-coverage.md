@@ -15,6 +15,7 @@
 | General Ledger / Posted Activity | Posted GL journal lines, tenant-wide TenantAdmin | Existing; audit activity is paged and reconciled for the full selected period |
 | Trial Balance | Posted GL through date | Existing; debits equal credits, detects invalid historical entries |
 | Income Statement | Posted GL Income/Expense accounts | Existing; signed contra balances preserved |
+| **Central Income & Cost Details** | Single tenant-scoped posted GL, restricted to Income/Expense journal lines with source ID, reference, account and campus | **Added**; default institutional Finance view. Category/account/source filters, SQL-bounded pages, full filtered-period totals, signed reversals, P&L reconciliation, read-only journal drill-down and page-only CSV |
 | Balance Sheet | Posted GL Asset/Liability/Equity accounts | Existing; lifetime unclosed surplus is displayed separately |
 | Bank Book, Bank Liquidity, Bank Statement Comparison/Reconciliation | Explicit BankAccount → GL mapping | Existing; liquidity excludes unconfigured physical cash and is not a classified cash-flow statement |
 | **Posted Day Book** | Posted/reversed GL journal headers and lines | **Added**; pagination is by whole journal; full-period Debit/Credit totals stay equal across pages; page-only CSV |
@@ -27,6 +28,8 @@
 | Payroll Reconciliation | Existing Payroll workflow | Existing independent report, linked to canonical posted GL |
 
 ## Open design decisions / release gates
+
+**Accrual vs. collection:** posted revenue or cost does not prove the corresponding fee/supplier amount has been paid. Use existing Fee Receivables, Payables, Bank Book and individual module settlements for outstanding and actual bank movements. Never add source invoice totals to these GL-derived income/cost totals: that would double-count. Report CSV includes only the visible page; aggregate cards reflect every matching page.
 
 1. **Statement of Cash Flows (Operating/Investing/Financing) and consolidated Cash Book:** not valid without an explicit tenant-scoped Cash-in-Hand/Equivalent account designation, journal classification policy including cash/non-cash and internal transfers, opening-balance migration and end-to-end cash reconciliation. Bank Liquidity must not be relabelled Cash Flow. Add additive schema/configuration and independent SQL transaction fixtures before offering these statements.
 2. **Budget vs Actual / Fund / Department / Project statements:** require authoritative approved budgets, accounting dimensions and historical journal-line attribution; no guessed joins or account-code heuristics. Define dimensions on canonical journal lines and migrate older history conservatively, with 'unassigned' remaining visible.

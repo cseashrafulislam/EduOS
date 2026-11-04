@@ -11,6 +11,7 @@ const api = read('EduOS.App/Controllers/Api/AccountingReportsController.cs');
 const service = read('EduOS.Service/Services/Accounting/AccountingReportingAdditionalStatements.cs');
 const mainService = read('EduOS.Service/Services/Accounting/AccountingReportingService.cs');
 const ledgerActivity = read('EduOS.Service/Services/Accounting/AccountingReportingLedgerActivity.cs');
+const incomeDetails = read('EduOS.Service/Services/Accounting/AccountingReportingIncomeExpenseDetails.cs');
 
 test('new accounting reports have tenant-restricted read-only API and matching view/JS', () => {
     for (const [route, method, panel] of [
@@ -66,4 +67,31 @@ test('core ledger and income reports reject malformed lines before rendering amo
     assert.match(mainService, /Invalid debit\/credit journal line prevents financial reporting/);
     assert.match(mainService, /a\.IsGroup \|\| !a\.AllowsPosting/);
     assert.match(ledgerActivity, /A posted journal has an invalid line or posting account/);
+});
+
+test('central income and costs use one posted GL and preserve original source references', () => {
+    assert.ok(api.includes('[HttpGet("income-expense-details"), Authorize(Roles = "TenantAdmin")]'));
+    assert.match(view, /id="incomeDetailsPanel"/);
+    assert.match(view, /Income &amp; Cost Details/);
+    assert.match(js, /api\/finance\/accounting\/reports\/income-expense-details/);
+    assert.match(incomeDetails, /join journal in Posted on line\.JournalId equals journal\.Id/);
+    assert.match(incomeDetails, /join account in db\.Accounts\.AsNoTracking\(\)/);
+    assert.match(incomeDetails, /journal\.SourceType, journal\.SourceId/);
+    assert.match(incomeDetails, /journal\.ReferenceNumber/);
+    assert.match(incomeDetails, /GetIncomeStatementAsync\(fromDate, toDate, ct\)/);
+    assert.match(incomeDetails, /totalIncome != statement\.Data\.TotalIncome/);
+    assert.match(incomeDetails, /Take\(pageSize\)/);
+    assert.doesNotMatch(incomeDetails, /SaveChangesAsync|AddAsync|ExecuteUpdate/);
+});
+
+test('central income/cost UI keeps signed reversals and full-period totals separate from page export', () => {
+    assert.match(js, /signed !== cents\(x\.amount\)/);
+    assert.match(js, /isReversedOriginal/);
+    assert.match(js, /incomeDetails\.entries\.items/);
+    assert.match(js, /data\.entries\.totalCount/);
+    assert.match(js, /incomeDetails\.totalIncome/);
+    assert.match(js, /detail\.lines \|\| \[\]/);
+    assert.match(js, /debit !== credit/);
+    assert.match(view, /Export Visible Page CSV/);
+    assert.match(view, /Accrual earnings and cash receipts are not the same/);
 });
