@@ -11,8 +11,11 @@
         <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#trialPanel">Trial Balance</button></li>
         @if (User.IsInRole("TenantAdmin"))
         {
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#dayBookPanel">Day Book</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomePanel">Income Statement</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#balancePanel">Balance Sheet</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#compareIncomePanel">Income Comparison</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#compareBalancePanel">Balance Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankBookPanel">Bank Book</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankStatementPanel">Bank Statement Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankLiquidityPanel">Bank Liquidity</button></li>
@@ -68,6 +71,36 @@
         </div>
         @if (User.IsInRole("TenantAdmin"))
         {
+            <div class="tab-pane fade" id="dayBookPanel">
+                <p class="text-muted">Posted and reversed-original journal entries, including compensating reversals. One row per journal; totals cover the full selected period, independent of page.</p>
+                <form id="dayBookForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label for="dayBookFrom" class="form-label">From</label><input id="dayBookFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="dayBookTo" class="form-label">To</label><input id="dayBookTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><button id="dayBookRun" type="submit" class="btn btn-primary">Run Day Book</button></div>
+                    <div class="col-md-3"><button id="dayBookCsv" type="button" class="btn btn-outline-secondary" disabled>Export Page CSV</button></div>
+                </form>
+                <p id="dayBookSummary" class="fw-semibold" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Date</th><th>Journal</th><th>Campus ID</th><th>Source</th><th>Reference</th><th>Description</th><th>Status</th><th class="text-end">Lines</th><th class="text-end">Debit</th><th class="text-end">Credit</th><th>Action</th></tr></thead>
+                    <tbody id="dayBookRows"></tbody>
+                    <tfoot><tr><th colspan="8">Full-period total</th><th id="dayBookDebit" class="text-end"></th><th id="dayBookCredit" class="text-end"></th><th></th></tr></tfoot>
+                </table></div>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <button id="dayBookPrevious" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                    <span id="dayBookPage" class="small" aria-live="polite"></span>
+                    <button id="dayBookNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                </div>
+                <section id="dayBookDetail" class="border rounded p-3 mt-3 d-none" aria-label="Selected posted journal detail">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h4 id="dayBookDetailTitle" class="h6 mb-0">Journal details</h4>
+                        <button type="button" id="dayBookDetailClose" class="btn btn-outline-secondary btn-sm">Close</button>
+                    </div>
+                    <div class="table-responsive"><table class="table table-sm">
+                        <thead><tr><th>Line</th><th>Ledger code</th><th>Ledger account</th><th>Description</th><th class="text-end">Debit</th><th class="text-end">Credit</th></tr></thead>
+                        <tbody id="dayBookDetailRows"></tbody>
+                    </table></div>
+                </section>
+            </div>
             <div class="tab-pane fade" id="incomePanel">
                 <p class="text-muted">Institution-wide BDT income and expenses from posted institutional journals, including compensating reversals. Contra balances may be negative.</p>
                 <form id="incomeForm" class="row g-2 align-items-end mb-3">
@@ -105,6 +138,34 @@
                 </table></div>
             </div>
 
+            <div class="tab-pane fade" id="compareIncomePanel">
+                <p class="text-muted">Compare two separately reconciled posted-journal income statements. Signed contra accounts and prior-only accounts are included. Variance = current minus comparison.</p>
+                <form id="compareIncomeForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-2"><label for="compareIncomeFrom" class="form-label">Current from</label><input id="compareIncomeFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="compareIncomeTo" class="form-label">Current to</label><input id="compareIncomeTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="compareIncomePreviousFrom" class="form-label">Compare from</label><input id="compareIncomePreviousFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="compareIncomePreviousTo" class="form-label">Compare to</label><input id="compareIncomePreviousTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><button id="compareIncomeRun" class="btn btn-primary" type="submit">Compare</button></div>
+                    <div class="col-md-2"><button id="compareIncomeCsv" class="btn btn-outline-secondary" type="button" disabled>Export CSV</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Section</th><th>Account code</th><th>Account</th><th class="text-end">Current BDT</th><th class="text-end">Comparison BDT</th><th class="text-end">Variance BDT</th></tr></thead>
+                    <tbody id="compareIncomeRows"></tbody><tfoot id="compareIncomeTotals"></tfoot>
+                </table></div>
+            </div>
+            <div class="tab-pane fade" id="compareBalancePanel">
+                <p class="text-muted">Compare two independently reconciled balance-sheet dates. Unclosed surplus remains separate from posted equity; it is not counted twice.</p>
+                <form id="compareBalanceForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label for="compareBalanceAsOf" class="form-label">Current as of</label><input id="compareBalanceAsOf" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="compareBalancePreviousAsOf" class="form-label">Comparison as of</label><input id="compareBalancePreviousAsOf" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><button id="compareBalanceRun" class="btn btn-primary" type="submit">Compare</button></div>
+                    <div class="col-md-3"><button id="compareBalanceCsv" class="btn btn-outline-secondary" type="button" disabled>Export CSV</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Section</th><th>Account code</th><th>Account</th><th class="text-end">Current BDT</th><th class="text-end">Comparison BDT</th><th class="text-end">Variance BDT</th></tr></thead>
+                    <tbody id="compareBalanceRows"></tbody><tfoot id="compareBalanceTotals"></tfoot>
+                </table></div>
+            </div>
             <div class="tab-pane fade" id="bankLiquidityPanel">
                 <p class="text-muted">Consolidated BDT bank movements, including posted reversals. Internal bank-to-bank transfers are shown separately and cancel in the institution total. Non-bank counterparties can include cash-in-hand transfers, not necessarily external institutional cash flow. This excludes unconfigured cash-in-hand and is NOT a classified cash-flow statement.</p>
                 <form id="bankLiquidityForm" class="row g-2 align-items-end mb-3">
@@ -277,7 +338,24 @@
             </div>
         }
     </div>
+    @if (User.IsInRole("TenantAdmin"))
+    {
+        <section class="border rounded p-3 mt-4" aria-label="Related accounting subledger reports">
+            <h3 class="h6">Related Source / Subledger Reports</h3>
+            <p class="small text-muted mb-2">Fees, supplier invoices, payroll and facilities retain their own source-level reports. Their posted amounts must reconcile to the canonical journal ledger; availability depends on the enabled module.</p>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-outline-secondary btn-sm" href="/AccountingJournals/Index">Journal / Voucher Register</a>
+                <a class="btn btn-outline-secondary btn-sm" href="/FeeReceivablesAging/Index">Fee Receivables Aging</a>
+                <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Ledger">Student Fee Collection</a>
+                <a class="btn btn-outline-secondary btn-sm" href="/ProcurementSupplierInvoiceMatching/Index">Supplier Payables &amp; Aging</a>
+                <a class="btn btn-outline-secondary btn-sm" href="/FacilityCosts/Index">Facilities Supplier Bills</a>
+                <a class="btn btn-outline-secondary btn-sm" href="/PayrollReconciliation/Index">Payroll Reconciliation</a>
+                <a class="btn btn-outline-secondary btn-sm" href="/AccountingSetup/Index">Chart of Accounts &amp; Periods</a>
+            </div>
+        </section>
+    }
 </section>
 @section Scripts { <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script><script type="module" src="~/js/finance/bank-reconciliation-candidates.js" asp-append-version="true"></script>
 <script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script>
+<script type="module" src="~/js/finance/accounting-additional-reports.js" asp-append-version="true"></script>
 <script type="module" src="~/js/finance/bank-statement-preview.js" asp-append-version="true"></script> }

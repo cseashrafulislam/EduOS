@@ -17,6 +17,19 @@ public sealed class AccountingReportsController : ControllerBase
     private readonly IAccountingReportingService service;
     public AccountingReportsController(IAccountingReportingService implementation) => service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> result) => StatusCode(result.StatusCode, result);
+    [HttpGet("day-book"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> DayBook([FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetPostedDayBookAsync(fromDate, toDate, page, pageSize, ct));
+    [HttpGet("comparative-income-statement"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ComparativeIncomeStatement([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] DateOnly comparisonFrom,
+        [FromQuery] DateOnly comparisonTo, CancellationToken ct)
+        => Reply(await service.GetComparativeIncomeStatementAsync(fromDate, toDate, comparisonFrom, comparisonTo, ct));
+    [HttpGet("comparative-balance-sheet"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> ComparativeBalanceSheet([FromQuery] DateOnly asOfDate,
+        [FromQuery] DateOnly comparisonAsOfDate, CancellationToken ct)
+        => Reply(await service.GetComparativeBalanceSheetAsync(asOfDate, comparisonAsOfDate, ct));
     [HttpGet("ledger/{accountId:long}/activity"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> LedgerActivity(long accountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, [FromQuery] int page = 1,
