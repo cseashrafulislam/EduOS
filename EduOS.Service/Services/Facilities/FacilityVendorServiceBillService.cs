@@ -125,7 +125,7 @@ public sealed partial class FacilityVendorServiceBillService(
                     ) THROW 53501, 'Service bill actor authorization changed', 1;
                     """, ct);
             }
-            catch (SqlException ex) when (ex.Number is 53501 or 1205 or 1222)
+            catch (SqlException ex) when (ex.Number == 53501)
             {
                 logger.LogWarning(ex, "Facility service bill actor rejected for tenant {TenantId}", user.TenantId);
                 return false;
@@ -258,15 +258,24 @@ public sealed partial class FacilityVendorServiceBillService(
         var raw = await query.OrderByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var choices = new List<FacilityVerifiedVendorChoiceDto>(raw.Count);
-        foreach (var row in raw)
+        try
         {
-            if (!await LiveActor(row.CampusId, false, ct)) continue;
-            var source = await VerifiedSource(row.Id, ct);
-            if (source?.CampusId != row.CampusId) continue;
-            choices.Add(new FacilityVerifiedVendorChoiceDto {
-                WorkOrderId = row.Id, CampusId = row.CampusId,
-                RequestSummary = row.Summary, SupplierName = row.SupplierName
-            });
+            foreach (var row in raw)
+            {
+                if (!await LiveActor(row.CampusId, false, ct)) continue;
+                var source = await VerifiedSource(row.Id, ct);
+                if (source?.CampusId != row.CampusId) continue;
+                choices.Add(new FacilityVerifiedVendorChoiceDto {
+                    WorkOrderId = row.Id, CampusId = row.CampusId,
+                    RequestSummary = row.Summary, SupplierName = row.SupplierName
+                });
+            }
+        }
+        catch (SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "Facility vendor discovery lock conflict tenant {TenantId}", user.TenantId);
+            return Error<PagedResult<FacilityVerifiedVendorChoiceDto>>(
+                "Concurrent vendor authorization change; retry discovery.", 409);
         }
         // Selected pages can contain no-longer-eligible rows; do not misreport
         // an exhaustive total, which would imply that source checks were skipped.
