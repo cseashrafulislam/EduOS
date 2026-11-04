@@ -1,3 +1,4 @@
+using EduOS.Core.Common;
 using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Facilities;
