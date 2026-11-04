@@ -27,6 +27,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify Facilities Finance / Visitor Privacy source contracts
+        run: |
+          node --test \
+            EduOS.Tests/JavaScript/facility-vendor-settlement-privacy.test.cjs \
+            EduOS.Tests/JavaScript/facility-service-finance.test.cjs \
+            EduOS.Tests/JavaScript/facility-costs-workspace.test.cjs
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
