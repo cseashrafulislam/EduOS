@@ -116,12 +116,30 @@ public sealed class FacilityVisitorService(
             .Select(x => new { x.Value, x.IsSensitive }).SingleOrDefaultAsync(ct);
         if (hold != null && (hold.IsSensitive || !bool.TryParse(hold.Value, out var isHeld) || isHeld))
             return false;
-        // Incident evidence must be resolved under an explicit retention/legal
-        // process; never erase it merely because the appointment is old.
-        return !await db.Set<FacilityVisitorEvent>().AsNoTracking().AnyAsync(x =>
-            x.TenantId == user.TenantId && x.FacilityVisitorVisitId == visit.Id &&
-            x.ActionCode == "incident" && !x.IsDeleted, ct);
+        // The latest incident disposition is authoritative. New incidents after
+        // closure reopen the case. Pending/resolved-unapproved requests still block.
+        var incident = await LastIncidentDispositionAsync(visit.Id, ct);
+        if (incident != null && incident.ActionCode != "incidentclose") return false;
+        // A visit-specific legal hold is independent of the campus-wide setting.
+        // Pending hold/release always blocks; only reject or approved release clears it.
+        var holdEvent = await LastHoldDispositionAsync(visit.Id, ct);
+        return holdEvent == null || holdEvent.ActionCode is "holdreject" or "holdrelease";
     }
+
+    private Task<FacilityVisitorEvent?> LastIncidentDispositionAsync(long visitId, CancellationToken ct) =>
+        db.Set<FacilityVisitorEvent>().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.FacilityVisitorVisitId == visitId &&
+                !x.IsDeleted && (x.ActionCode == "incident" ||
+                 x.ActionCode == "incidentresolve" || x.ActionCode == "incidentclose"))
+            .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+
+    private Task<FacilityVisitorEvent?> LastHoldDispositionAsync(long visitId, CancellationToken ct) =>
+        db.Set<FacilityVisitorEvent>().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.FacilityVisitorVisitId == visitId &&
+                !x.IsDeleted && (x.ActionCode == "holdrequest" ||
+                x.ActionCode == "holdapprove" || x.ActionCode == "holdreject" ||
+                x.ActionCode == "holdreleaserequest" || x.ActionCode == "holdrelease"))
+            .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
 
     private Task<bool> ReviewerLiveAsync(CancellationToken ct) =>
         db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
@@ -291,17 +309,44 @@ public sealed class FacilityVisitorService(
             if (items.Count > 0)
             {
                 var ids = items.Select(x => x.Id).ToArray();
-                var privacy = await db.Set<FacilityVisitorEvent>().AsNoTracking()
+                var dispositions = await db.Set<FacilityVisitorEvent>().AsNoTracking()
                     .Where(x => x.TenantId == user.TenantId &&
                         ids.Contains(x.FacilityVisitorVisitId) && !x.IsDeleted &&
-                        (x.ActionCode == "redactrequest" || x.ActionCode == "redactapprove"))
+                        (x.ActionCode == "redactrequest" || x.ActionCode == "redactapprove" ||
+                         x.ActionCode == "incident" || x.ActionCode == "incidentresolve" ||
+                         x.ActionCode == "incidentclose" || x.ActionCode == "holdrequest" ||
+                         x.ActionCode == "holdapprove" || x.ActionCode == "holdreject" ||
+                         x.ActionCode == "holdreleaserequest" || x.ActionCode == "holdrelease"))
                     .OrderByDescending(x => x.Id)
                     .Select(x => new { x.FacilityVisitorVisitId, x.ActionCode }).ToListAsync(ct);
-                var latest = privacy.GroupBy(x => x.FacilityVisitorVisitId)
-                    .ToDictionary(x => x.Key, x => x.First().ActionCode);
+                var latestByVisit = dispositions.GroupBy(x => x.FacilityVisitorVisitId)
+                    .ToDictionary(x => x.Key, x => x.ToList());
                 foreach (var item in items)
-                    item.RedactionRequested = latest.TryGetValue(item.Id, out var actionCode) &&
-                        actionCode == "redactrequest" && !item.PrivacyRedacted;
+                {
+                    if (!latestByVisit.TryGetValue(item.Id, out var actions)) continue;
+                    var privacy = actions.FirstOrDefault(x => x.ActionCode is "redactrequest" or "redactapprove");
+                    item.RedactionRequested = privacy?.ActionCode == "redactrequest" && !item.PrivacyRedacted;
+                    var incident = actions.FirstOrDefault(x =>
+                        x.ActionCode is "incident" or "incidentresolve" or "incidentclose");
+                    item.IncidentStateCode = incident?.ActionCode switch
+                    {
+                        "incident" => "Open",
+                        "incidentresolve" => "PendingReview",
+                        "incidentclose" => "Closed",
+                        _ => "None"
+                    };
+                    var hold = actions.FirstOrDefault(x =>
+                        x.ActionCode is "holdrequest" or "holdapprove" or "holdreject" or
+                        "holdreleaserequest" or "holdrelease");
+                    item.LegalHoldStateCode = hold?.ActionCode switch
+                    {
+                        "holdrequest" => "Pending",
+                        "holdapprove" => "Active",
+                        "holdreleaserequest" => "ReleasePending",
+                        "holdreject" or "holdrelease" => "Clear",
+                        _ => "None"
+                    };
+                }
             }
             if (tx != null) await tx.CommitAsync(ct);
             return ApiResponse<PagedResult<FacilityVisitorDto>>.SuccessResponse(new()
@@ -449,7 +494,9 @@ public sealed class FacilityVisitorService(
         action = (action ?? "").Trim().ToLowerInvariant();
         if (id <= 0 || command == null || command.ClientCommandId == Guid.Empty ||
             string.IsNullOrWhiteSpace(command.RowVersion) ||
-            action is not ("hostapprove" or "hostreject" or "checkin" or "checkout" or "incident" or "redactrequest" or "redactapprove"))
+            action is not ("hostapprove" or "hostreject" or "checkin" or "checkout" or "incident" or "redactrequest" or "redactapprove" or
+                "incidentresolve" or "incidentclose" or "holdrequest" or "holdapprove" or "holdreject" or
+                "holdreleaserequest" or "holdrelease"))
             return ApiResponse<FacilityVisitorDto>.ErrorResponse("Invalid visitor transition.", 400);
         var badge = command.BadgeCode?.Trim().ToUpperInvariant();
         var reason = command.Reason?.Trim();
@@ -538,6 +585,58 @@ public sealed class FacilityVisitorService(
                 visit.BadgeCode = badge;
                 visit.CheckedInAtUtc = now;
                 visit.StateCode = "CheckedIn";
+            }
+            else if (action is "incidentresolve" or "incidentclose")
+            {
+                if (visit.StateCode != "CheckedOut" || visit.VisitorName == RedactedVisitor ||
+                    reason is not { Length: >= 10 and <= 200 })
+                    return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                        "Checked-out visit and reasoned incident disposition required.", 409);
+                var latestIncident = await LastIncidentDispositionAsync(id, ct);
+                if (action == "incidentresolve")
+                {
+                    if (latestIncident?.ActionCode != "incident")
+                        return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                            "No unresolved incident awaiting a resolution request.", 409);
+                }
+                else
+                {
+                    if (!Admin || !await ReviewerLiveAsync(ct))
+                        return Denied<FacilityVisitorDto>();
+                    if (latestIncident?.ActionCode != "incidentresolve" ||
+                        latestIncident.ActorUserId == user.UserId)
+                        return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                            "Independent pending incident resolution required.", 409);
+                }
+            }
+            else if (action is "holdrequest" or "holdapprove" or "holdreject" or
+                     "holdreleaserequest" or "holdrelease")
+            {
+                if (visit.VisitorName == RedactedVisitor || reason is not { Length: >= 10 and <= 200 })
+                    return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                        "Unredacted visit and recorded legal basis required.", 409);
+                var lastHold = await LastHoldDispositionAsync(id, ct);
+                if (action == "holdrequest")
+                {
+                    if (lastHold != null && lastHold.ActionCode is not ("holdreject" or "holdrelease"))
+                        return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                            "A visit-specific hold is already pending or active.", 409);
+                }
+                else if (action == "holdreleaserequest")
+                {
+                    if (lastHold?.ActionCode != "holdapprove")
+                        return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                            "An independently approved active hold is required.", 409);
+                }
+                else
+                {
+                    if (!Admin || !await ReviewerLiveAsync(ct))
+                        return Denied<FacilityVisitorDto>();
+                    var expected = action == "holdrelease" ? "holdreleaserequest" : "holdrequest";
+                    if (lastHold?.ActionCode != expected || lastHold.ActorUserId == user.UserId)
+                        return ApiResponse<FacilityVisitorDto>.ErrorResponse(
+                            "Independent current hold decision required.", 409);
+                }
             }
             else if (action is "redactrequest" or "redactapprove")
             {
