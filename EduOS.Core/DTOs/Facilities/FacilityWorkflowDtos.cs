@@ -61,6 +61,8 @@ public sealed class FacilityRequestDto
     public string? VendorStateCode { get; set; }
     public long? VendorProposedByUserId { get; set; }
     public long? VendorApprovedByUserId { get; set; }
+    // Work evidence is independently attested; the booking itself is never a bill.
+    public string VendorAcceptanceStateCode { get; set; } = "None";
     public DateTime? VendorStartUtc { get; set; }
     public DateTime? VendorEndUtc { get; set; }
     public DateTime? ScheduledStartUtc { get; set; }
