@@ -68,7 +68,7 @@ test('visitor transitions enforce independent host approval and active badge uni
     assert.match(service, /HostLiveAsync/);
     assert.match(service, /action == "incident"/);
     assert.match(service, /CheckedOutAtUtc\.Value\.AddHours\(24\)/);
-    assert.match(service, /Manager && e\.ActionCode == "incident"/);
+    assert.match(service, /Reason = Manager && \(e\.ActionCode == "incident"/);
     assert.match(service, /ExportSnapshotAsync/);
     assert.match(service, /\.Take\(501\)/);
     assert.match(service, /Action = "VisitorSummaryExport"/);
