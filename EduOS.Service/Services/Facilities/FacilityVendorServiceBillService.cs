@@ -52,16 +52,26 @@ public sealed partial class FacilityVendorServiceBillService(
             request.Reason.Trim();
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
     }
+    // Current DB role, not a stale Principal/TenantAdmin cookie, grants
+    // institution-wide visibility. An Accountant still needs a campus grant.
+    private IQueryable<bool> LiveGlobalGrant() =>
+        db.UserRoles.Where(ur => ur.UserId == user.UserId &&
+            db.Roles.IgnoreQueryFilters().Any(role =>
+                role.Id == ur.RoleId && role.IsActive && !role.IsDeleted &&
+                (role.TenantId == user.TenantId ||
+                 (role.TenantId == null && role.IsSystemRole)) &&
+                (role.NormalizedName == "TENANTADMIN" ||
+                 role.NormalizedName == "PRINCIPAL"))).Select(ur => true);
     private IQueryable<FacilityVendorServiceBill> Visible() =>
         db.FacilityVendorServiceBills.AsNoTracking().Where(b =>
             b.TenantId == user.TenantId && !b.IsDeleted &&
-            (AllCampuses || db.UserCampusAccesses.Any(a =>
+            (LiveGlobalGrant().Any() || db.UserCampusAccesses.Any(a =>
                 a.TenantId == user.TenantId && a.UserId == user.UserId &&
                 a.CampusId == b.CampusId && a.IsActive && !a.IsDeleted)));
     private async Task<bool> CampusAllowed(long campusId, CancellationToken ct) =>
         await db.Campuses.AsNoTracking().AnyAsync(c => c.TenantId == user.TenantId &&
             c.Id == campusId && !c.IsDeleted && c.IsActive &&
-            (AllCampuses || db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
+            (LiveGlobalGrant().Any() || db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
                 a.UserId == user.UserId && a.CampusId == campusId &&
                 a.IsActive && !a.IsDeleted)), ct);
 
@@ -234,7 +244,7 @@ public sealed partial class FacilityVendorServiceBillService(
 
     // A campus-less Accountant may still read only currently granted campuses.
     private async Task<long> DefaultCampusId(CancellationToken ct) =>
-        AllCampuses
+        await LiveGlobalGrant().AnyAsync(ct)
             ? await db.Campuses.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
                 x.IsActive && !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct)
             : await db.UserCampusAccesses.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
