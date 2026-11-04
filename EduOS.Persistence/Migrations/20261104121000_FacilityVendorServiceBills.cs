@@ -49,6 +49,8 @@ IF EXISTS (
             ReviewedByUserId = t.Column<long>(type: "bigint", nullable: true),
             ReviewReason = t.Column<string>(type: "nvarchar(800)", maxLength: 800, nullable: true),
             JournalId = t.Column<long>(type: "bigint", nullable: true),
+            ReversalReviewRequestId = t.Column<Guid>(type: "uniqueidentifier", nullable: true),
+            ReversalReviewFingerprint = t.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
             CreatedAt = t.Column<DateTime>(type: "datetime2", nullable: false),
             CreatedBy = t.Column<long>(type: "bigint", nullable: true),
             UpdatedAt = t.Column<DateTime>(type: "datetime2", nullable: true),
@@ -83,6 +85,9 @@ IF EXISTS (
         m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_ReviewRequestId",
             "FacilityVendorServiceBills", new[] { "TenantId", "ReviewRequestId" }, unique: true,
             filter: "[ReviewRequestId] IS NOT NULL");
+        m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_ReversalReviewRequestId",
+            "FacilityVendorServiceBills", new[] { "TenantId", "ReversalReviewRequestId" }, unique: true,
+            filter: "[ReversalReviewRequestId] IS NOT NULL");
         m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_FacilityWorkOrderId",
             "FacilityVendorServiceBills", new[] { "TenantId", "FacilityWorkOrderId" }, unique: true,
             filter: "[IsDeleted] = 0");
@@ -92,14 +97,18 @@ IF EXISTS (
         m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_CampusId_StateCode_InvoiceDate",
             "FacilityVendorServiceBills", new[] { "TenantId", "CampusId", "StateCode", "InvoiceDate" });
         m.AddCheckConstraint("CK_FacilityVendorServiceBills_StateAmount", "FacilityVendorServiceBills",
-            "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected') AND [AmountBdt] > 0");
+            "[StateCode] IN (N'Draft',N'Submitted',N'Posted',N'Rejected',N'Reversed') AND [AmountBdt] > 0");
         m.CreateIndex("UX_Journals_FacilityVendorServiceBill", "Journals",
             new[] { "TenantId", "SourceId" }, unique: true,
             filter: "[SourceType] = N'FacilityVendorServiceBill' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+        m.CreateIndex("UX_Journals_FacilityVendorServiceBillReversal", "Journals",
+            new[] { "TenantId", "SourceId" }, unique: true,
+            filter: "[SourceType] = N'FacilityVendorServiceBillReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
     }
 
     protected override void Down(MigrationBuilder m)
     {
+        m.DropIndex("UX_Journals_FacilityVendorServiceBillReversal", "Journals");
         m.DropIndex("UX_Journals_FacilityVendorServiceBill", "Journals");
         m.DropTable("FacilityVendorServiceBills");
     }
