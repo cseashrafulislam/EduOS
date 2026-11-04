@@ -274,17 +274,26 @@ public sealed partial class FacilityWorkflowService(
             .Select(g => g.Max(x => x.Id)).ToListAsync(ct);
         var statuses = await db.FacilityWorkflowEvents.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && newest.Contains(x.Id) && !x.IsDeleted)
-            .Select(x => new { x.FacilityServiceRequestId, x.ActionCode }).ToListAsync(ct);
-        var lookup = statuses.ToDictionary(x => x.FacilityServiceRequestId, x => x.ActionCode);
+            .Select(x => new { x.Id, x.FacilityServiceRequestId, x.ActionCode }).ToListAsync(ct);
+        var corrections = await db.FacilityWorkflowEvents.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId &&
+                ids.Contains(x.FacilityServiceRequestId) && x.ActionCode == "return" && !x.IsDeleted)
+            .GroupBy(x => x.FacilityServiceRequestId)
+            .Select(g => new { RequestId = g.Key, LastReturnId = g.Max(x => x.Id) })
+            .ToListAsync(ct);
+        var lastReturn = corrections.ToDictionary(x => x.RequestId, x => x.LastReturnId);
+        var lookup = statuses.ToDictionary(x => x.FacilityServiceRequestId);
         foreach (var row in rows)
-            if (lookup.TryGetValue(row.Id, out var action))
-                row.VendorAcceptanceStateCode = action switch
-                {
-                    "vendorattest" => "Submitted",
-                    "vendorverify" => "Verified",
-                    "vendorreturn" => "Returned",
-                    _ => "None"
-                };
+            if (lookup.TryGetValue(row.Id, out var status))
+                row.VendorAcceptanceStateCode =
+                    lastReturn.TryGetValue(row.Id, out var correctedAfter) && correctedAfter > status.Id
+                        ? "Stale" : status.ActionCode switch
+                        {
+                            "vendorattest" => "Submitted",
+                            "vendorverify" => "Verified",
+                            "vendorreturn" => "Returned",
+                            _ => "None"
+                        };
     }
     private async Task<FacilityRequestDto> ReadAsync(FacilityServiceRequest request, CancellationToken ct)
     {
@@ -1073,16 +1082,29 @@ public sealed partial class FacilityWorkflowService(
                         !x.IsDeleted && (x.ActionCode == "vendorattest" ||
                             x.ActionCode == "vendorverify" || x.ActionCode == "vendorreturn"))
                     .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+                var lastWorkReturnId = await db.FacilityWorkflowEvents.AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId && x.FacilityServiceRequestId == id &&
+                        x.ActionCode == "return" && !x.IsDeleted)
+                    .OrderByDescending(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync(ct);
+                var lastCompletionId = await db.FacilityWorkflowEvents.AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId && x.FacilityServiceRequestId == id &&
+                        x.ActionCode == "complete" && !x.IsDeleted)
+                    .OrderByDescending(x => x.Id).Select(x => x.Id).FirstOrDefaultAsync(ct);
+                if (lastCompletionId == 0 || lastCompletionId <= lastWorkReturnId)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Current technician completion evidence is required.", 409);
                 if (action == "vendorattest")
                 {
-                    if (latest != null && latest.ActionCode != "vendorreturn")
+                    if (latest != null && latest.ActionCode != "vendorreturn" &&
+                        latest.Id > lastWorkReturnId)
                         return ApiResponse<FacilityRequestDto>.ErrorResponse(
-                            "Vendor service evidence already awaiting review or verified.", 409);
+                            "Vendor evidence already pending or accepted for this work.", 409);
                 }
                 else if (latest?.ActionCode != "vendorattest" ||
-                         latest.ActorUserId == user.UserId)
+                         latest.ActorUserId == user.UserId ||
+                         latest.Id <= lastWorkReturnId || latest.Id <= lastCompletionId)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
-                        "Independent review of the latest vendor evidence is required.", 409);
+                        "Independent review of the latest completed-work evidence required.", 409);
                 // No supplier invoice, payable, payment or GL is created here.
                 // Source-linked independent service acceptance is operational proof.
                 break;
