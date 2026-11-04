@@ -13,6 +13,16 @@ public sealed class CreateFacilityRequestDto
     [MaxLength(2000)] public string? Description { get; set; }
 }
 
+/// <summary>Manager-only, non-authoritative preview; the approved triage stores the actual UTC SLA.</summary>
+public sealed class FacilitySlaRecommendationDto
+{
+    public long FacilityRequestId { get; set; }
+    public long CampusId { get; set; }
+    public string PriorityCode { get; set; } = string.Empty;
+    public int? ConfiguredHours { get; set; }
+    public DateTime? RecommendedDueUtc { get; set; }
+}
+
 public sealed class FacilityTransitionDto
 {
     public Guid ClientCommandId { get; set; }
