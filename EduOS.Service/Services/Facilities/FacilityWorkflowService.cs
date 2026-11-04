@@ -257,11 +257,42 @@ public sealed partial class FacilityWorkflowService(
             SlaBreached = order?.VerifiedAtUtc == null || request.SlaDueAtUtc == null
                 ? null : order.VerifiedAtUtc > request.SlaDueAtUtc
         };
+    // Derive acceptance from immutable work-order events. Never treat approved
+    // vendor booking as evidence of an accepted service or financial liability.
+    private async Task ApplyVendorAcceptanceAsync(
+        List<FacilityRequestDto> rows, CancellationToken ct)
+    {
+        if (!(Manager || Approver)) return;
+        var ids = rows.Where(x => x.WorkOrderId.HasValue && x.VendorStateCode == "Approved")
+            .Select(x => x.Id).ToArray();
+        if (ids.Length == 0) return;
+        var candidate = db.FacilityWorkflowEvents.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && ids.Contains(x.FacilityServiceRequestId) &&
+                !x.IsDeleted && (x.ActionCode == "vendorattest" ||
+                    x.ActionCode == "vendorverify" || x.ActionCode == "vendorreturn"));
+        var newest = await candidate.GroupBy(x => x.FacilityServiceRequestId)
+            .Select(g => g.Max(x => x.Id)).ToListAsync(ct);
+        var statuses = await db.FacilityWorkflowEvents.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && newest.Contains(x.Id) && !x.IsDeleted)
+            .Select(x => new { x.FacilityServiceRequestId, x.ActionCode }).ToListAsync(ct);
+        var lookup = statuses.ToDictionary(x => x.FacilityServiceRequestId, x => x.ActionCode);
+        foreach (var row in rows)
+            if (lookup.TryGetValue(row.Id, out var action))
+                row.VendorAcceptanceStateCode = action switch
+                {
+                    "vendorattest" => "Submitted",
+                    "vendorverify" => "Verified",
+                    "vendorreturn" => "Returned",
+                    _ => "None"
+                };
+    }
     private async Task<FacilityRequestDto> ReadAsync(FacilityServiceRequest request, CancellationToken ct)
     {
         var order = await db.Set<FacilityWorkOrder>().AsNoTracking().FirstOrDefaultAsync(
             x => x.TenantId == user.TenantId && x.FacilityServiceRequestId == request.Id && !x.IsDeleted, ct);
-        return Map(request, order);
+        var row = Map(request, order);
+        await ApplyVendorAcceptanceAsync(new List<FacilityRequestDto> { row }, ct);
+        return row;
     }
 
     /// <summary>
@@ -636,10 +667,11 @@ public sealed partial class FacilityWorkflowService(
         var orders = await db.Set<FacilityWorkOrder>().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && ids.Contains(x.FacilityServiceRequestId) && !x.IsDeleted)
             .ToDictionaryAsync(x => x.FacilityServiceRequestId, ct);
+        var items = requests.Select(x => Map(x, orders.GetValueOrDefault(x.Id))).ToList();
+        await ApplyVendorAcceptanceAsync(items, ct);
         return ApiResponse<PagedResult<FacilityRequestDto>>.SuccessResponse(new()
         {
-            Page = page, PageSize = pageSize, TotalCount = count,
-            Items = requests.Select(x => Map(x, orders.GetValueOrDefault(x.Id))).ToList()
+            Page = page, PageSize = pageSize, TotalCount = count, Items = items
         });
     }
 
@@ -685,6 +717,7 @@ public sealed partial class FacilityWorkflowService(
                     ids.Contains(x.FacilityServiceRequestId) && !x.IsDeleted)
                 .ToDictionaryAsync(x => x.FacilityServiceRequestId, ct);
             var rows = requests.Select(x => Map(x, orders.GetValueOrDefault(x.Id))).ToList();
+            await ApplyVendorAcceptanceAsync(rows, ct);
             if (tx != null) await tx.CommitAsync(ct);
             return ApiResponse<IReadOnlyList<FacilityRequestDto>>.SuccessResponse(rows);
         }
@@ -745,7 +778,8 @@ public sealed partial class FacilityWorkflowService(
         if (action is not ("triage" or "approve" or "reject" or "schedule" or "start" or
                            "pause" or "resume" or "complete" or "verify" or "return" or "unschedule" or "escalate" or
                             "cancelrequest" or "cancelapprove" or "cancelreject" or
-                            "vendorpropose" or "vendorapprove" or "vendorreject" or "vendorrelease"))
+                            "vendorpropose" or "vendorapprove" or "vendorreject" or "vendorrelease" or
+                             "vendorattest" or "vendorverify" or "vendorreturn"))
             return ApiResponse<FacilityRequestDto>.ErrorResponse("Unsupported transition.", 404);
         // Ignore neither a changed business deadline nor an unrelated assignment
         // payload on retry: non-applicable fields cannot be silently accepted.
@@ -789,6 +823,13 @@ public sealed partial class FacilityWorkflowService(
                 user.UserId != request.RequesterUserId &&
                 user.UserId != order?.VendorProposedByUserId &&
                 user.UserId != order?.VendorApprovedByUserId,
+            "vendorattest" => Manager &&
+                user.UserId != request.RequesterUserId &&
+                user.UserId != order?.VendorApprovedByUserId,
+            "vendorverify" or "vendorreturn" => Approver &&
+                user.UserId != request.RequesterUserId &&
+                user.UserId != request.TriagedByUserId &&
+                user.UserId != order?.VendorProposedByUserId,
             "cancelapprove" or "cancelreject" => Approver &&
                 user.UserId != request.RequesterUserId &&
                 user.UserId != request.TriagedByUserId &&
@@ -802,7 +843,8 @@ public sealed partial class FacilityWorkflowService(
         if (!allowed) return Denied<FacilityRequestDto>();
         var workerMutation = action is "start" or "pause" or "resume" or "complete";
         var vendorMutation = action is "vendorpropose" or "vendorapprove" or
-            "vendorreject" or "vendorrelease";
+            "vendorreject" or "vendorrelease" or "vendorattest" or
+            "vendorverify" or "vendorreturn";
         // Lock authorization before reading idempotent success. A revoked actor
         // cannot replay an old approved vendor decision after their grant is gone.
         await using var scheduleTransaction = (action == "schedule" || action == "triage" ||
@@ -813,7 +855,7 @@ public sealed partial class FacilityWorkflowService(
                     : System.Data.IsolationLevel.ReadCommitted, ct)
             : null;
         if ((vendorMutation || action == "triage") && !await LockLiveVendorActorAsync(
-            request.CampusId, vendorMutation && action != "vendorpropose", ct))
+            request.CampusId, vendorMutation && action is not ("vendorpropose" or "vendorattest"), ct))
             return Denied<FacilityRequestDto>();
         if (workerMutation && (!await EligibleTechnicians(request.CampusId)
                 .AnyAsync(candidate => candidate.Id == user.UserId, ct) ||
@@ -1016,6 +1058,35 @@ public sealed partial class FacilityWorkflowService(
                         "An unstarted approved vendor booking and independent release reason are required.", 409);
                 order.VendorStateCode = "Released";
                 break;
+            case "vendorattest":
+            case "vendorverify":
+            case "vendorreturn":
+            {
+                if (order?.StateCode is not ("PendingVerification" or "Closed") ||
+                    order.VendorStateCode != "Approved" || order.VendorSupplierId is not > 0 ||
+                    order.StartedAtUtc == null || order.CompletedAtUtc == null ||
+                    string.IsNullOrWhiteSpace(note) || note.Length is < 10 or > 500)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Completed work, approved vendor booking and 10–500 character evidence required.", 409);
+                var latest = await db.FacilityWorkflowEvents.AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId && x.FacilityServiceRequestId == id &&
+                        !x.IsDeleted && (x.ActionCode == "vendorattest" ||
+                            x.ActionCode == "vendorverify" || x.ActionCode == "vendorreturn"))
+                    .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
+                if (action == "vendorattest")
+                {
+                    if (latest != null && latest.ActionCode != "vendorreturn")
+                        return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                            "Vendor service evidence already awaiting review or verified.", 409);
+                }
+                else if (latest?.ActionCode != "vendorattest" ||
+                         latest.ActorUserId == user.UserId)
+                    return ApiResponse<FacilityRequestDto>.ErrorResponse(
+                        "Independent review of the latest vendor evidence is required.", 409);
+                // No supplier invoice, payable, payment or GL is created here.
+                // Source-linked independent service acceptance is operational proof.
+                break;
+            }
             case "schedule":
                 if (note?.Length > 500)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse("Scheduling note must be at most 500 characters.");
