@@ -41,6 +41,12 @@ public sealed partial class ProcurementSupplierInvoiceService
             var now = clock.GetUtcNow().UtcDateTime;
             if (request.Decision == "Approve")
             {
+                if (await db.FacilityVendorServiceBills.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.SupplierId == invoice.SupplierId &&
+                    x.NormalizedSupplierInvoiceNumber == invoice.NormalizedSupplierInvoiceNumber &&
+                    !x.IsDeleted, ct))
+                    return Err<ProcurementSupplierInvoiceDto>(
+                        "Supplier invoice number is reserved by a Facilities service bill.",409);
                 var lines = await db.ProcurementSupplierInvoiceLines.AsNoTracking().Where(x =>
                     x.TenantId == user.TenantId && x.SupplierInvoiceId == invoice.Id && !x.IsDeleted).ToListAsync(ct);
                 var error = await RevalidateAsync(invoice, lines, ct);
