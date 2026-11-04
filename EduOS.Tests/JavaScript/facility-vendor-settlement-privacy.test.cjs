@@ -69,6 +69,11 @@ test('approved visitor redaction cleans only source-linked legacy audit JSON and
     assert.match(sql, /Action == "SeparateCase"/);
     assert.match(sql, /Assert.NotNull\(separate.OldValue\)/);
     assert.match(sql, /Assert.Equal\(1, await db.AuditLogs.CountAsync/);
+    assert.match(sql, /PrivacyAuditReportAsync\(\)/);
+    assert.match(sql, /FullyRedactedVisitsWithLegacyPayloads/);
+    const retention = read('EduOS.BackgroundJobs/Jobs/AuditLogCleanupJob.cs');
+    assert.match(retention, /a.EntityName != nameof\(FacilityVisitorVisit\)/);
+    assert.match(retention, /a.EntityName != nameof\(FacilityVisitorEvent\)/);
 });
 
 test('Finance UI and privacy reports require tenant session binding and user action', () => {
@@ -87,6 +92,12 @@ test('Finance UI and privacy reports require tenant session binding and user act
     assert.match(page, /fcPaymentPanel/);
     assert.match(page, /fcAgingRows/);
     assert.match(js, /loadPaymentPanel/);
+    assert.match(js, /listAging\(\)/);
+    assert.match(js, /BankTransactionReference|bankTransactionReference/);
+    const visitorUi = read('EduOS.App/wwwroot/js/facilities/visitors.js');
+    assert.match(visitorUi, /\/api\/facilities\/visitors\/privacy-audit/);
+    assert.match(visitorUi, /legacyVisitAuditPayloadRows/);
+    assert.match(visitorUi, /legacyEventAuditPayloadRows/);
     assert.match(js, /submitPaymentAction/);
     assert.match(js, /EduOSVerifySessionContext/);
     assert.doesNotMatch(js, /\.innerHTML\s*=/);
