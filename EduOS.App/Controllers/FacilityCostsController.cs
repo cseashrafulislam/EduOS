@@ -6,6 +6,7 @@ namespace EduOS.App.Controllers;
 
 [Authorize(Roles = "TenantAdmin,Principal,Accountant")]
 [RequireModule("FACILITIES")]
+[RequireModule("FINANCE")]
 public sealed class FacilityCostsController : Controller
 {
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
