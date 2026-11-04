@@ -169,12 +169,20 @@ public sealed partial class FacilityVendorServiceBillService(
             ? await db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
                 x.Id == id && !x.IsDeleted).Select(x => (Guid?)x.PublicId).FirstOrDefaultAsync(ct)
             : null;
+        var reversal = bill.JournalId is long originalId
+            ? await db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
+                x.SourceType == "FacilityVendorServiceBillReversal" &&
+                x.SourceId == originalId && !x.IsDeleted && x.State != JournalState.Rejected &&
+                x.State != JournalState.Cancelled)
+                .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct) : null;
         return new FacilityVendorBillDto {
             Reference = bill.PublicId, FacilityWorkOrderId = bill.FacilityWorkOrderId,
             CampusId = bill.CampusId, SupplierId = bill.SupplierId,
             SupplierInvoiceNumber = bill.SupplierInvoiceNumber, InvoiceDate = bill.InvoiceDate,
             DueDate = bill.DueDate, AmountBdt = bill.AmountBdt, StateCode = bill.StateCode,
             JournalReference = journal, RowVersion = Convert.ToBase64String(bill.RowVersion),
+            ReversalReference = reversal?.PublicId, ReversalState = reversal?.State.ToString() ?? "None",
+            ReversalRowVersion = reversal == null ? null : Convert.ToBase64String(reversal.RowVersion),
             ReviewReason = bill.ReviewReason,
             PreparedByUserId = bill.PreparedByUserId, ReviewedByUserId = bill.ReviewedByUserId
         };
