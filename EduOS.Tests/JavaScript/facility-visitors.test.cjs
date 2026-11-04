@@ -122,3 +122,25 @@ test('visitor privacy removal requires independent reviewer, explicit retention 
     assert.match(fixture, /Assert\.Equal\(403, selfApproval\.StatusCode\)/);
     assert.match(fixture, /Assert\.Equal\(1, events\.Count\(x => x\.ActionCode == "redactapprove"\)\)/);
 });
+
+test('visitor incident and per-visit legal hold require reasoned independent case disposition', () => {
+    const service = read('EduOS.Service/Services/Facilities/FacilityVisitorService.cs');
+    const page = read('EduOS.App/wwwroot/js/facilities/visitors.js');
+    const sql = read('EduOS.Tests/App/SqlServerFacilityVisitorTests.cs');
+    assert.match(service, /LastIncidentDispositionAsync/);
+    assert.match(service, /LastHoldDispositionAsync/);
+    assert.match(service, /"incidentresolve" or "incidentclose"/);
+    assert.match(service, /"holdreleaserequest" or "holdrelease"/);
+    assert.match(service, /latestIncident\.ActorUserId == user\.UserId/);
+    assert.match(service, /lastHold\.ActorUserId == user\.UserId/);
+    assert.match(service, /holdEvent\.ActionCode is "holdreject" or "holdrelease"/);
+    assert.match(service, /incident\.ActionCode != "incidentclose"/);
+    assert.match(page, /'incidentresolve'/);
+    assert.match(page, /'incidentclose'/);
+    assert.match(page, /'holdreleaserequest'/);
+    assert.match(page, /'holdrelease'/);
+    assert.match(sql, /"Closed", row\.IncidentStateCode/);
+    assert.match(sql, /"Clear", row\.LegalHoldStateCode/);
+    assert.match(sql, /"holdapprove"/);
+    assert.match(sql, /"holdrelease"/);
+});
