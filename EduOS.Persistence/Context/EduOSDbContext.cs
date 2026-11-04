@@ -446,6 +446,7 @@ public class EduOSDbContext :
     public DbSet<FacilityVisitorEvent> FacilityVisitorEvents => Set<FacilityVisitorEvent>();
     public DbSet<FacilityVisitorPolicyChange> FacilityVisitorPolicyChanges => Set<FacilityVisitorPolicyChange>();
     public DbSet<FacilityVendorServiceBill> FacilityVendorServiceBills => Set<FacilityVendorServiceBill>();
+    public DbSet<FacilityLabourCostAllocation> FacilityLabourCostAllocations => Set<FacilityLabourCostAllocation>();
     public DbSet<InventoryLocation> InventoryLocations => Set<InventoryLocation>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
@@ -1221,6 +1222,11 @@ public class EduOSDbContext :
         TenantReference<FacilityVendorServiceBill, FacilityWorkOrder>(modelBuilder, nameof(FacilityVendorServiceBill.FacilityWorkOrderId));
         TenantReference<FacilityVendorServiceBill, Campus>(modelBuilder, nameof(FacilityVendorServiceBill.CampusId));
         TenantReference<FacilityVendorServiceBill, ProcurementSupplier>(modelBuilder, nameof(FacilityVendorServiceBill.SupplierId));
+        TenantReference<FacilityLabourCostAllocation, FacilityWorkOrder>(modelBuilder, nameof(FacilityLabourCostAllocation.FacilityWorkOrderId));
+        TenantReference<FacilityLabourCostAllocation, Campus>(modelBuilder, nameof(FacilityLabourCostAllocation.CampusId));
+        TenantReference<FacilityLabourCostAllocation, PayrollEmployee>(modelBuilder, nameof(FacilityLabourCostAllocation.PayrollEmployeeId));
+        TenantReference<FacilityLabourCostAllocation, PayrollRun>(modelBuilder, nameof(FacilityLabourCostAllocation.PayrollRunId));
+        TenantReference<FacilityLabourCostAllocation, Employee>(modelBuilder, nameof(FacilityLabourCostAllocation.EmployeeId));
         TenantReference<FacilityWorkOrder, ProcurementSupplier>(modelBuilder, nameof(FacilityWorkOrder.VendorSupplierId));
         TenantReference<FacilityWorkflowEvent, FacilityServiceRequest>(modelBuilder, nameof(FacilityWorkflowEvent.FacilityServiceRequestId));
         TenantReference<FacilityVisitorVisit, Campus>(modelBuilder, nameof(FacilityVisitorVisit.CampusId));
@@ -2002,6 +2008,15 @@ public class EduOSDbContext :
         modelBuilder.Entity<FacilityWorkOrder>().ToTable(t => t.HasCheckConstraint(
             "CK_FacilityWorkOrders_VendorState",
             "([VendorStateCode] IS NULL AND [VendorSupplierId] IS NULL AND [VendorStartUtc] IS NULL AND [VendorEndUtc] IS NULL AND [VendorProposedByUserId] IS NULL) OR ([VendorStateCode] IS NOT NULL AND [VendorStateCode] IN (N'Proposed',N'Approved',N'Rejected',N'Released') AND [VendorSupplierId] IS NOT NULL AND [VendorStartUtc] IS NOT NULL AND [VendorEndUtc] IS NOT NULL AND [VendorStartUtc] < [VendorEndUtc] AND [VendorProposedByUserId] IS NOT NULL AND ([VendorStateCode] <> N'Approved' OR [VendorApprovedByUserId] IS NOT NULL))"));
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.PublicId }).IsUnique();
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.ReviewRequestId }).IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.FacilityWorkOrderId, x.PayrollEmployeeId }).IsUnique().HasFilter("[IsDeleted] = 0 AND [StateCode] <> N'Rejected'");
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.PayrollEmployeeId, x.StateCode });
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode });
+        modelBuilder.Entity<FacilityLabourCostAllocation>().ToTable(t => t.HasCheckConstraint(
+            "CK_FacilityLabourCostAllocations_StateAmount",
+            "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND [ActualWorkMinutes] > 0 AND [StandardPayrollMinutesSnapshot] >= [ActualWorkMinutes] AND [PayrollGrossSnapshotBdt] > 0 AND [AllocatedAmountBdt] > 0 AND [AllocatedAmountBdt] <= [PayrollGrossSnapshotBdt]"));
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.PublicId }).IsUnique();
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.SubmitRequestId }).IsUnique().HasFilter("[SubmitRequestId] IS NOT NULL");
