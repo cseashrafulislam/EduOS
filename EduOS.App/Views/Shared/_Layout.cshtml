@@ -659,6 +659,13 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>@(currentCulture == "bn-BD" ? "জার্নাল পোস্টিং ও প্রত্যাবর্তন" : "Journal Posting & Reversal")</span>
                     </a>
+                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/InstitutionBudgets")" href="/InstitutionBudgets/Index">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের বাজেট ও প্রকৃত আয়-ব্যয়" : "Institution Budget vs Actual")</span>
+                        </a>
+                    }
                     @if (User?.IsInRole("TenantAdmin") == true)
                     {
                         <a class="nav-link @ActiveFor("/AccountingReports")" href="/AccountingReports/Index">

@@ -120,6 +120,14 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
                 if (hasBankLink && (request.IsGroup || !request.IsActive))
                     return ApiResponse<AccountDto>.ErrorResponse(
                         "Bank-linked ledger must remain an active posting account.", 409);
+                var budgetLinked = await db.InstitutionBudgetLines.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.AccountId == row.Id && !x.IsDeleted &&
+                    db.InstitutionBudgets.Any(b => b.TenantId == user.TenantId && b.Id == x.InstitutionBudgetId &&
+                        !b.IsDeleted && b.StateCode != "Rejected"), ct);
+                if (budgetLinked && (row.Code != code || row.AccountType != request.AccountType ||
+                    row.ParentAccountId != request.ParentAccountId || request.IsGroup || !request.IsActive))
+                    return ApiResponse<AccountDto>.ErrorResponse(
+                        "Account belongs to a submitted/approved budget; classification and posting status are locked.", 409);
             }
             if (request.ParentAccountId.HasValue)
             {

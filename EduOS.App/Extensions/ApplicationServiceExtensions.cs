@@ -142,6 +142,7 @@ namespace EduOS.App.Extensions
             // the request scope instead of constructing concrete services themselves.
             s.AddScoped<IAccountingPostingService, AccountingPostingService>();
             s.AddScoped<IAccountingReportingService, AccountingReportingService>();
+            s.AddScoped<IInstitutionBudgetService, InstitutionBudgetService>();
             s.AddScoped<IAccountingSetupService, AccountingSetupService>();
             s.AddScoped<AssetLifecycleService>();
             s.AddScoped<IAssetLifecycleService, AssetLifecycleService>();

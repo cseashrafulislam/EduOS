@@ -1,0 +1,52 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    var reviewer = User.IsInRole("TenantAdmin");
+    ViewData["Title"] = bn ? "প্রতিষ্ঠানের অনুমোদিত বাজেট" : "Institution Budgets";
+}
+<section class="container-fluid py-3" id="institutionBudgets" data-reviewer="@reviewer.ToString().ToLowerInvariant()">
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+        <h2 class="h4 mb-0">@(bn ? "প্রতিষ্ঠানের বাজেট ও প্রকৃত আয়-ব্যয়" : "Institution Budget vs Actual")</h2>
+        <a class="btn btn-outline-secondary btn-sm" href="/AccountingReports/Index">@(bn ? "কেন্দ্রীয় হিসাব রিপোর্ট" : "Central Accounts")</a>
+    </div>
+    @Html.AntiForgeryToken()
+    <div id="budgetNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-xl-5">
+            <form id="budgetForm" class="card card-body" autocomplete="off">
+                <h3 class="h6">@(bn ? "নতুন বাজেট প্রস্তাব" : "Submit a new budget")</h3>
+                <div class="row g-2">
+                    <div class="col-12"><label class="form-label" for="budgetName">@(bn ? "নাম" : "Budget name")</label><input class="form-control" id="budgetName" maxlength="150" required /></div>
+                    <div class="col-sm-6"><label class="form-label" for="budgetFrom">@(bn ? "শুরুর তারিখ" : "Start date")</label><input class="form-control" id="budgetFrom" type="date" required /></div>
+                    <div class="col-sm-6"><label class="form-label" for="budgetTo">@(bn ? "শেষ তারিখ" : "End date")</label><input class="form-control" id="budgetTo" type="date" required /></div>
+                    <div class="col-sm-7"><label class="form-label" for="budgetAccount">@(bn ? "আয়/ব্যয় হিসাবখাত" : "Income / expense ledger")</label><select class="form-select" id="budgetAccount"><option value="">Select account</option></select></div>
+                    <div class="col-sm-5"><label class="form-label" for="budgetAmount">@(bn ? "পরিমাণ (BDT)" : "Planned BDT")</label><input class="form-control" id="budgetAmount" type="number" min="0.01" max="999999999999.99" step="0.01" /></div>
+                    <div class="col-12"><button class="btn btn-outline-primary btn-sm" id="budgetAddLine" type="button">@(bn ? "খাত যোগ করুন" : "Add line")</button></div>
+                </div>
+                <div class="table-responsive mt-3"><table class="table table-sm"><thead><tr><th>@(bn ? "খাত" : "Account")</th><th class="text-end">BDT</th><th></th></tr></thead><tbody id="budgetDraftRows"></tbody></table></div>
+                <button class="btn btn-primary" type="submit">@(bn ? "অনুমোদনের জন্য জমা" : "Submit for approval")</button>
+            </form>
+        </div>
+        <div class="col-xl-7">
+            <section class="card card-body">
+                <h3 class="h6">@(bn ? "প্রস্তাব ও অনুমোদন ইতিহাস" : "Budget proposals & approvals")</h3>
+                <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>@(bn ? "নাম" : "Budget")</th><th>@(bn ? "মেয়াদ" : "Dates")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কার্যক্রম" : "Action")</th></tr></thead><tbody id="budgetRows"></tbody></table></div>
+                <div class="d-flex gap-2 justify-content-end align-items-center"><button type="button" class="btn btn-outline-secondary btn-sm" id="budgetPrevious">Previous</button><span id="budgetPage" class="small"></span><button type="button" class="btn btn-outline-secondary btn-sm" id="budgetNext">Next</button></div>
+            </section>
+        </div>
+    </div>
+    <section id="budgetDetails" class="card card-body mt-3 d-none" aria-label="Budget review and variance">
+        <div class="d-flex justify-content-between align-items-center"><h3 id="budgetDetailsTitle" class="h6 mb-0"></h3><button class="btn btn-outline-secondary btn-sm" type="button" id="budgetDetailsClose">Close</button></div>
+        <p id="budgetDetailsState" class="small text-muted mt-2 mb-2"></p>
+        <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>GL code</th><th>Account</th><th>Type</th><th class="text-end">Budget BDT</th><th class="text-end">Posted actual BDT</th><th class="text-end">Variance BDT</th></tr></thead><tbody id="budgetDetailRows"></tbody></table></div>
+        <div id="budgetVarianceSummary" class="small fw-semibold" role="status"></div>
+        @if (reviewer)
+        {
+            <form class="row g-2 align-items-end mt-2 d-none" id="budgetReviewForm">
+                <div class="col-md-7"><label for="budgetReviewReason" class="form-label">Review reason (required for rejection)</label><input id="budgetReviewReason" class="form-control" maxlength="800" /></div>
+                <div class="col-md-5 d-flex gap-2"><button type="button" class="btn btn-success" id="budgetApprove">Approve</button><button type="button" class="btn btn-outline-danger" id="budgetReject">Reject</button></div>
+            </form>
+            <button type="button" id="budgetActualRun" class="btn btn-outline-primary btn-sm align-self-start mt-2 d-none">View actual vs budget</button>
+        }
+    </section>
+</section>
+@section Scripts { <script type="module" src="~/js/finance/institution-budgets.js" asp-append-version="true"></script> }

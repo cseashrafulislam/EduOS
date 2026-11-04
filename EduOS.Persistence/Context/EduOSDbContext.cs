@@ -343,6 +343,8 @@ public class EduOSDbContext :
 
     // Accounting
     public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<InstitutionBudget> InstitutionBudgets => Set<InstitutionBudget>();
+    public DbSet<InstitutionBudgetLine> InstitutionBudgetLines => Set<InstitutionBudgetLine>();
     public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
     public DbSet<BankReconciliationBatch> BankReconciliationBatches => Set<BankReconciliationBatch>();
@@ -1018,6 +1020,10 @@ public class EduOSDbContext :
         TenantReference<RefundAllocation, PaymentAllocation>(modelBuilder, nameof(RefundAllocation.PaymentAllocationId));
         // Accounting
         TenantReference<Account, Account>(modelBuilder, nameof(Account.ParentAccountId));
+        TenantReference<InstitutionBudgetLine, InstitutionBudget>(modelBuilder, nameof(InstitutionBudgetLine.InstitutionBudgetId));
+        TenantReference<InstitutionBudgetLine, Account>(modelBuilder, nameof(InstitutionBudgetLine.AccountId));
+        Reference<InstitutionBudget, ApplicationUser>(modelBuilder, nameof(InstitutionBudget.SubmittedByUserId));
+        Reference<InstitutionBudget, ApplicationUser>(modelBuilder, nameof(InstitutionBudget.ReviewedByUserId));
         TenantReference<BankAccount, Account>(modelBuilder, nameof(BankAccount.AccountId));
         TenantReference<BankAccount, Campus>(modelBuilder, nameof(BankAccount.CampusId));
         TenantReference<BankReconciliationBatch, BankAccount>(modelBuilder, nameof(BankReconciliationBatch.BankAccountId));
@@ -1716,6 +1722,11 @@ public class EduOSDbContext :
         modelBuilder.Entity<RefundAllocation>().Property(x => x.IsCreditNote)
             .HasDefaultValue(false);
         UniqueTenant<Account>(modelBuilder, nameof(Account.Code));
+        UniqueTenant<InstitutionBudget>(modelBuilder, nameof(InstitutionBudget.ClientRequestId));
+        modelBuilder.Entity<InstitutionBudget>().HasIndex(x => new { x.TenantId, x.ReviewRequestId })
+            .IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
+        modelBuilder.Entity<InstitutionBudget>().HasIndex(x => new { x.TenantId, x.StartDate, x.EndDate, x.StateCode });
+        UniqueTenant<InstitutionBudgetLine>(modelBuilder, nameof(InstitutionBudgetLine.InstitutionBudgetId), nameof(InstitutionBudgetLine.AccountId));
         modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.ParentAccountId, x.IsActive });
         UniqueTenant<NumberSeries>(modelBuilder, nameof(EduOS.Core.Entities.System.NumberSeries.Key));
         modelBuilder.Entity<Journal>().HasIndex(x => x.PublicId).IsUnique();
@@ -2237,6 +2248,13 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_AssessmentAttemptRegistration_Decision", "[Decision] BETWEEN 1 AND 3"));
         modelBuilder.Entity<AccountingPeriod>().ToTable(t =>
             t.HasCheckConstraint("CK_AccountingPeriod_DateRange", "[EndDate] >= [StartDate]"));
+        modelBuilder.Entity<InstitutionBudget>().ToTable(t => t.HasCheckConstraint("CK_InstitutionBudget_Valid",
+            "[EndDate] >= [StartDate] AND [StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND " +
+            "(([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL) OR " +
+            "([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL)) AND " +
+            "([ReviewedByUserId] IS NULL OR [ReviewedByUserId] <> [SubmittedByUserId])"));
+        modelBuilder.Entity<InstitutionBudgetLine>().ToTable(t => t.HasCheckConstraint("CK_InstitutionBudgetLine_Valid",
+            "[PlannedAmountBdt] > 0 AND [AccountTypeSnapshot] IN (4,5)"));
         modelBuilder.Entity<BankReconciliationBatch>().ToTable(t =>
             t.HasCheckConstraint("CK_BankReconciliationBatch_Valid",
                 "[ToDate] >= [FromDate] AND [MovementCount] BETWEEN 1 AND 500 AND [StateCode] = 1"));
