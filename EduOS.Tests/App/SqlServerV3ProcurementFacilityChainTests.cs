@@ -304,28 +304,32 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         {
             var original = await probe.Journals.AsNoTracking()
                 .SingleAsync(j => j.PublicId == journalReference);
-            await using var tx = await probe.Database.BeginTransactionAsync();
-            await probe.JournalLines.Where(l => l.JournalId == original.Id && l.LineNo == 2)
-                .ExecuteUpdateAsync(s => s.SetProperty(l => l.CreditAmount, 11m));
-            var tampered = await new V3EnterpriseLedgerTraceService(
-                probe, new Actor(tenantId, makerId)).GetAsync(issueReference);
-            Assert.True(tampered.Success, tampered.Message);
-            Assert.Equal("JournalImbalance", tampered.Data!.FinanceEvidenceStatus);
-            await tx.RollbackAsync();
-            await using var orphaned = await probe.Database.BeginTransactionAsync();
-            var orderId = await probe.InventoryMovements.AsNoTracking()
-                .Where(m => m.Id == issueId).Select(m => m.SourceId!.Value).SingleAsync();
-            await probe.FacilityWorkOrders.Where(w => w.Id == orderId)
-                .ExecuteUpdateAsync(s => s.SetProperty(w => w.IsDeleted, true));
-            Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(
-                probe, new Actor(tenantId, makerId)).GetAsync(issueReference)).StatusCode);
-            var register = await new V3EnterpriseReconciliationRegisterService(
-                probe, new Actor(tenantId, makerId))
-                .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
-            Assert.True(register.Success, register.Message);
-            Assert.Contains(register.Data!.Items, row => row.Reference == issueReference &&
-                row.EvidenceStatus == "EvidenceConflict");
-            await orphaned.RollbackAsync();
+            await using (var tx = await probe.Database.BeginTransactionAsync())
+            {
+                await probe.JournalLines.Where(l => l.JournalId == original.Id && l.LineNo == 2)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.CreditAmount, 11m));
+                var tampered = await new V3EnterpriseLedgerTraceService(
+                    probe, new Actor(tenantId, makerId)).GetAsync(issueReference);
+                Assert.True(tampered.Success, tampered.Message);
+                Assert.Equal("JournalImbalance", tampered.Data!.FinanceEvidenceStatus);
+                await tx.RollbackAsync();
+            }
+            await using (var orphaned = await probe.Database.BeginTransactionAsync())
+            {
+                var orderId = await probe.InventoryMovements.AsNoTracking()
+                    .Where(m => m.Id == issueId).Select(m => m.SourceId!.Value).SingleAsync();
+                await probe.FacilityWorkOrders.Where(w => w.Id == orderId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(w => w.IsDeleted, true));
+                Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(
+                    probe, new Actor(tenantId, makerId)).GetAsync(issueReference)).StatusCode);
+                var register = await new V3EnterpriseReconciliationRegisterService(
+                    probe, new Actor(tenantId, makerId))
+                    .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
+                Assert.True(register.Success, register.Message);
+                Assert.Contains(register.Data!.Items, row => row.Reference == issueReference &&
+                    row.EvidenceStatus == "EvidenceConflict");
+                await orphaned.RollbackAsync();
+            }
         }
         await using (var locked = Open(options, tenantId, makerId))
         {
