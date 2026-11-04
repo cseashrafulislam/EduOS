@@ -29,4 +29,6 @@ public sealed class FacilityVendorServiceBill : BaseTenantEntity
     public long? ReviewedByUserId { get; set; }
     [MaxLength(800)] public string? ReviewReason { get; set; }
     public long? JournalId { get; set; }
+    public Guid? ReversalReviewRequestId { get; set; }
+    [MaxLength(64)] public string? ReversalReviewFingerprint { get; set; }
 }
