@@ -696,7 +696,7 @@ public sealed class FacilityVisitorService(
                     // private Old/New JSON in the SAME transaction. Keep
                     // action, actor, occurred-at and source IDs as evidence.
                     var eventIds = events.Select(x => x.Id).ToArray();
-                    var legacyVisitPayloads = await db.AuditLogs
+                    var legacyVisitPayloads = await db.AuditLogs.IgnoreQueryFilters()
                         .Where(x => x.TenantId == user.TenantId &&
                             x.EntityName == nameof(FacilityVisitorVisit) &&
                             x.EntityId == visit.Id &&
@@ -705,7 +705,7 @@ public sealed class FacilityVisitorService(
                             .SetProperty(x => x.OldValue, (string?)null)
                             .SetProperty(x => x.NewValue, (string?)null), ct);
                     var legacyEventPayloads = eventIds.Length == 0 ? 0 :
-                        await db.AuditLogs.Where(x => x.TenantId == user.TenantId &&
+                        await db.AuditLogs.IgnoreQueryFilters().Where(x => x.TenantId == user.TenantId &&
                             x.EntityName == nameof(FacilityVisitorEvent) &&
                             x.EntityId.HasValue && eventIds.Contains(x.EntityId.Value) &&
                             (x.OldValue != null || x.NewValue != null))
