@@ -192,6 +192,54 @@ public sealed partial class FacilityVendorServiceBillService(
             x.TenantId == user.TenantId && x.SupplierId == supplierId &&
             x.NormalizedSupplierInvoiceNumber == normalized && !x.IsDeleted, ct);
 
+    /// <summary>Bounded discoverability; IDs never stand alone in Finance UI.</summary>
+    public async Task<ApiResponse<PagedResult<FacilityVerifiedVendorChoiceDto>>> VerifiedChoicesAsync(
+        long? campusId, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!CanMake) return Error<PagedResult<FacilityVerifiedVendorChoiceDto>>("Finance maker denied.", 403);
+        if (campusId is <= 0 || page is < 1 or > 10000 || pageSize is < 1 or > 30 ||
+            search?.Length > 100)
+            return Error<PagedResult<FacilityVerifiedVendorChoiceDto>>("Invalid source search.", 400);
+        var query = from w in db.FacilityWorkOrders.AsNoTracking()
+            join r in db.FacilityServiceRequests.AsNoTracking()
+                on new { w.TenantId, Id = w.FacilityServiceRequestId }
+                equals new { r.TenantId, r.Id }
+            join supplier in db.ProcurementSuppliers.AsNoTracking()
+                on new { w.TenantId, Id = w.VendorSupplierId!.Value }
+                equals new { supplier.TenantId, supplier.Id }
+            where w.TenantId == user.TenantId && !w.IsDeleted && !r.IsDeleted &&
+                !supplier.IsDeleted && supplier.StateCode == "Approved" &&
+                w.VendorSupplierId != null && w.VendorStateCode == "Approved" &&
+                w.StateCode == "Closed" && w.VerifiedAtUtc.HasValue &&
+                supplier.CampusId == r.CampusId &&
+                !db.FacilityVendorServiceBills.Any(b => b.TenantId == user.TenantId &&
+                    b.FacilityWorkOrderId == w.Id && !b.IsDeleted)
+            select new { w.Id, r.CampusId, r.Summary, SupplierName = supplier.Name };
+        if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.Summary.Contains(term) || x.SupplierName.Contains(term));
+        var raw = await query.OrderByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var choices = new List<FacilityVerifiedVendorChoiceDto>(raw.Count);
+        foreach (var row in raw)
+        {
+            if (!await LiveActor(row.CampusId, false, ct)) continue;
+            var source = await VerifiedSource(row.Id, ct);
+            if (source?.CampusId != row.CampusId) continue;
+            choices.Add(new FacilityVerifiedVendorChoiceDto {
+                WorkOrderId = row.Id, CampusId = row.CampusId,
+                RequestSummary = row.Summary, SupplierName = row.SupplierName
+            });
+        }
+        // Selected pages can contain no-longer-eligible rows; do not misreport
+        // an exhaustive total, which would imply that source checks were skipped.
+        return ApiResponse<PagedResult<FacilityVerifiedVendorChoiceDto>>.SuccessResponse(new() {
+            Page = page, PageSize = pageSize, TotalCount = choices.Count,
+            Items = choices
+        });
+    }
+
     private async Task<FacilityVendorBillDto> Map(FacilityVendorServiceBill bill, CancellationToken ct)
     {
         var journal = bill.JournalId is long id
@@ -204,7 +252,20 @@ public sealed partial class FacilityVendorServiceBillService(
                 x.SourceId == originalId && !x.IsDeleted && x.State != JournalState.Rejected &&
                 x.State != JournalState.Cancelled)
                 .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct) : null;
+        var labels = await (from w in db.FacilityWorkOrders.AsNoTracking()
+            join req in db.FacilityServiceRequests.AsNoTracking()
+                on new { w.TenantId, Id = w.FacilityServiceRequestId }
+                equals new { req.TenantId, req.Id }
+            join supplier in db.ProcurementSuppliers.AsNoTracking()
+                on new { w.TenantId, Id = w.VendorSupplierId!.Value }
+                equals new { supplier.TenantId, supplier.Id }
+            where w.TenantId == user.TenantId && w.Id == bill.FacilityWorkOrderId &&
+                !w.IsDeleted && !req.IsDeleted && !supplier.IsDeleted
+            select new { req.Summary, SupplierName = supplier.Name })
+            .FirstOrDefaultAsync(ct);
         return new FacilityVendorBillDto {
+            RequestSummary = labels?.Summary ?? string.Empty,
+            SupplierName = labels?.SupplierName ?? string.Empty,
             Reference = bill.PublicId, FacilityWorkOrderId = bill.FacilityWorkOrderId,
             CampusId = bill.CampusId, SupplierId = bill.SupplierId,
             SupplierInvoiceNumber = bill.SupplierInvoiceNumber, InvoiceDate = bill.InvoiceDate,
