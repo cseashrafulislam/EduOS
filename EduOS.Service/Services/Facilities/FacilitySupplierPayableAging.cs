@@ -1,0 +1,160 @@
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.Facilities;
+using EduOS.Core.Enums.Domain;
+using Microsoft.EntityFrameworkCore;
+
+namespace EduOS.Service.Services.Facilities;
+
+public sealed partial class FacilityVendorServiceBillService
+{
+    private sealed class AgingSource
+    {
+        public long Id { get; set; }
+        public long? JournalId { get; set; }
+        public string InvoiceSource { get; set; } = "";
+        public Guid Reference { get; set; }
+        public long SupplierId { get; set; }
+        public long CampusId { get; set; }
+        public string Number { get; set; } = "";
+        public DateOnly InvoiceDate { get; set; }
+        public DateOnly DueDate { get; set; }
+        public decimal Amount { get; set; }
+    }
+
+    /// <summary>
+    /// One read-only, tenant/campus-scoped stock + service payable aging.
+    /// All heavy filters and global paging run in SQL. Only at most 50 rows
+    /// are materialized; payment sums and contra lookups are batched by source.
+    /// A historical as-of date uses posting/contra dates, never current balance.
+    /// Totals explicitly describe the current page, not the entire tenant.
+    /// </summary>
+    public async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingAsync(
+        DateOnly asOf, long? campusId, int page, int pageSize,
+        CancellationToken ct = default)
+    {
+        if (!CanRead || asOf == default || asOf.Year is < 2000 or > 2100 ||
+            campusId is <= 0 || page is < 1 or > 100000 ||
+            pageSize is < 1 or > 50 || (long)(page - 1) * pageSize > int.MaxValue)
+            return Error<FacilitySupplierAgingTotalsDto>("Invalid supplier aging scope.", 400);
+        var sourceCampus = campusId ?? await DefaultCampusId(ct);
+        if (sourceCampus <= 0 || !await LiveReader(sourceCampus, ct))
+            return Error<FacilitySupplierAgingTotalsDto>("Inactive Finance role or campus denied.", 403);
+        var global = await LiveGlobalGrant().AnyAsync(ct);
+        var service = db.FacilityVendorServiceBills.AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && !x.IsDeleted &&
+                x.InvoiceDate <= asOf &&
+                (x.StateCode == "Posted" || x.StateCode == "Reversed") &&
+                (global || db.UserCampusAccesses.Any(g =>
+                    g.TenantId == user.TenantId && g.UserId == user.UserId &&
+                    g.CampusId == x.CampusId && g.IsActive && !g.IsDeleted)))
+            .Select(x => new AgingSource {
+                Id = x.Id, JournalId = x.JournalId, InvoiceSource = "Service",
+                Reference = x.PublicId, SupplierId = x.SupplierId, CampusId = x.CampusId,
+                Number = x.SupplierInvoiceNumber, InvoiceDate = x.InvoiceDate,
+                DueDate = x.DueDate, Amount = x.AmountBdt
+            });
+        var stock = db.ProcurementSupplierInvoices.AsNoTracking().Where(x =>
+                x.TenantId == user.TenantId && !x.IsDeleted &&
+                x.InvoiceDate <= asOf &&
+                (x.StateCode == "Posted" || x.StateCode == "Reversed") &&
+                (global || db.UserCampusAccesses.Any(g =>
+                    g.TenantId == user.TenantId && g.UserId == user.UserId &&
+                    g.CampusId == x.CampusId && g.IsActive && !g.IsDeleted)))
+            .Select(x => new AgingSource {
+                Id = x.Id, JournalId = x.JournalId, InvoiceSource = "Stock",
+                Reference = x.PublicId, SupplierId = x.SupplierId, CampusId = x.CampusId,
+                Number = x.SupplierInvoiceNumber, InvoiceDate = x.InvoiceDate,
+                DueDate = x.DueDate, Amount = x.TotalAmount
+            });
+        IQueryable<AgingSource> query = stock.Concat(service);
+        if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
+        var count = await query.CountAsync(ct);
+        var pageRows = await query.OrderBy(x => x.DueDate)
+            .ThenBy(x => x.InvoiceSource).ThenBy(x => x.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        if (pageRows.Count == 0)
+            return ApiResponse<FacilitySupplierAgingTotalsDto>.SuccessResponse(new() {
+                AsOf = asOf,
+                Page = new PagedResult<FacilitySupplierAgingRowDto> {
+                    Page = page, PageSize = pageSize, TotalCount = count,
+                    Items = new List<FacilitySupplierAgingRowDto>()
+                }
+            });
+        var serviceIds = pageRows.Where(x => x.InvoiceSource == "Service")
+            .Select(x => x.Id).ToArray();
+        var stockIds = pageRows.Where(x => x.InvoiceSource == "Stock")
+            .Select(x => x.Id).ToArray();
+        var origJournalIds = pageRows.Where(x => x.JournalId.HasValue)
+            .Select(x => x.JournalId!.Value).ToArray();
+        var invoiceReversals = await db.Journals.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && x.State == JournalState.Posted &&
+            x.JournalDate <= asOf && x.ReversalOfJournalId.HasValue &&
+            origJournalIds.Contains(x.ReversalOfJournalId.Value) &&
+            (x.SourceType == "FacilityVendorServiceBillReversal" ||
+             x.SourceType == "ProcurementSupplierInvoiceReversal"))
+            .Select(x => x.ReversalOfJournalId!.Value).ToListAsync(ct);
+        var reversedInvoices = invoiceReversals.ToHashSet();
+        // SQL first restricts to the selected page's invoice IDs. Posted contra
+        // journals neutralize a payment only on/after their actual journal date.
+        var payments = await (from j in db.Journals.AsNoTracking()
+            join l in db.JournalLines.AsNoTracking()
+                on new { j.TenantId, JournalId = j.Id }
+                equals new { l.TenantId, l.JournalId }
+            where j.TenantId == user.TenantId && !j.IsDeleted &&
+                j.State == JournalState.Posted && j.JournalDate <= asOf &&
+                ((j.SourceType == VendorPaymentSource && j.SourceId.HasValue &&
+                  serviceIds.Contains(j.SourceId.Value)) ||
+                 (j.SourceType == "ProcurementSupplierPayment" && j.SourceId.HasValue &&
+                  stockIds.Contains(j.SourceId.Value))) &&
+                l.TenantId == user.TenantId && !l.IsDeleted &&
+                l.LineNo == 1 && l.DebitAmount > 0m && l.CreditAmount == 0m &&
+                !db.Journals.Any(r => r.TenantId == user.TenantId && !r.IsDeleted &&
+                    r.State == JournalState.Posted && r.JournalDate <= asOf &&
+                    r.ReversalOfJournalId == j.Id &&
+                    ((j.SourceType == VendorPaymentSource &&
+                      r.SourceType == VendorPaymentReversalSource) ||
+                     (j.SourceType == "ProcurementSupplierPayment" &&
+                      r.SourceType == "ProcurementSupplierPaymentReversal")))
+            group l by new { j.SourceType, j.SourceId } into g
+            select new {
+                g.Key.SourceType, g.Key.SourceId,
+                Paid = g.Sum(x => x.DebitAmount)
+            }).ToListAsync(ct);
+        var paid = payments.ToDictionary(x =>
+            (Source: x.SourceType == VendorPaymentSource ? "Service" : "Stock",
+             Id: x.SourceId!.Value), x => x.Paid);
+        var rows = new List<FacilitySupplierAgingRowDto>(pageRows.Count);
+        foreach (var src in pageRows)
+        {
+            var isReversed = src.JournalId.HasValue &&
+                reversedInvoices.Contains(src.JournalId.Value);
+            var balance = isReversed ? 0m : src.Amount -
+                (paid.TryGetValue((src.InvoiceSource, src.Id), out var amount) ? amount : 0m);
+            if (balance < 0m || balance > src.Amount)
+                return Error<FacilitySupplierAgingTotalsDto>(
+                    "Supplier payment does not reconcile to its original payable.", 409);
+            rows.Add(new FacilitySupplierAgingRowDto {
+                InvoiceSource = src.InvoiceSource, InvoiceReference = src.Reference,
+                SupplierId = src.SupplierId, CampusId = src.CampusId,
+                SupplierInvoiceNumber = src.Number, InvoiceDate = src.InvoiceDate,
+                DueDate = src.DueDate, InvoiceAmount = src.Amount,
+                NetPostedPayments = isReversed ? 0m : src.Amount - balance,
+                OpenBalance = balance, InvoiceReversedAsOf = isReversed,
+                DaysOverdue = Math.Max(0, asOf.DayNumber - src.DueDate.DayNumber)
+            });
+        }
+        var result = new FacilitySupplierAgingTotalsDto {
+            AsOf = asOf,
+            OutstandingOnPage = rows.Sum(x => x.OpenBalance),
+            CurrentOnPage = rows.Where(x => x.DaysOverdue == 0).Sum(x => x.OpenBalance),
+            Days1To30OnPage = rows.Where(x => x.DaysOverdue is >= 1 and <= 30).Sum(x => x.OpenBalance),
+            Days31To60OnPage = rows.Where(x => x.DaysOverdue is >= 31 and <= 60).Sum(x => x.OpenBalance),
+            Days61To90OnPage = rows.Where(x => x.DaysOverdue is >= 61 and <= 90).Sum(x => x.OpenBalance),
+            Over90DaysOnPage = rows.Where(x => x.DaysOverdue > 90).Sum(x => x.OpenBalance),
+            Page = new PagedResult<FacilitySupplierAgingRowDto> {
+                Page = page, PageSize = pageSize, TotalCount = count, Items = rows
+            }
+        };
+        return ApiResponse<FacilitySupplierAgingTotalsDto>.SuccessResponse(result);
+    }
+}
