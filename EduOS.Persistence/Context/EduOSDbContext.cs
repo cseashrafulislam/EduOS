@@ -2004,6 +2004,8 @@ public class EduOSDbContext :
             "([VendorStateCode] IS NULL AND [VendorSupplierId] IS NULL AND [VendorStartUtc] IS NULL AND [VendorEndUtc] IS NULL AND [VendorProposedByUserId] IS NULL) OR ([VendorStateCode] IS NOT NULL AND [VendorStateCode] IN (N'Proposed',N'Approved',N'Rejected',N'Released') AND [VendorSupplierId] IS NOT NULL AND [VendorStartUtc] IS NOT NULL AND [VendorEndUtc] IS NOT NULL AND [VendorStartUtc] < [VendorEndUtc] AND [VendorProposedByUserId] IS NOT NULL AND ([VendorStateCode] <> N'Approved' OR [VendorApprovedByUserId] IS NOT NULL))"));
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.PublicId }).IsUnique();
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.SubmitRequestId }).IsUnique().HasFilter("[SubmitRequestId] IS NOT NULL");
+        modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.ReviewRequestId }).IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.SupplierId, x.NormalizedSupplierInvoiceNumber }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.FacilityWorkOrderId }).IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<FacilityVendorServiceBill>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.InvoiceDate });
