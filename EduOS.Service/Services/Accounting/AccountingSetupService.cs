@@ -256,17 +256,30 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
             request.AccountNumber.Trim().Length > 100 || (request.BranchName?.Length ?? 0) > 100 ||
             (request.RoutingNumber?.Length ?? 0) > 100 || request.CurrencyCode != "BDT")
             return ApiResponse<BankAccountDto>.ErrorResponse("Valid bank details and BDT currency required.");
-        var account = await Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.AccountId && x.IsActive &&
-            !x.IsGroup && x.AllowsPosting && x.AccountType == AccountType.Asset && x.CurrencyCode == "BDT", ct);
-        if (account == null) return ApiResponse<BankAccountDto>.ErrorResponse("An active BDT asset posting account is required.");
-        if (account.IsCashInHand) return ApiResponse<BankAccountDto>.ErrorResponse("Cash-in-hand ledger cannot be mapped as a bank.", 409);
         try
         {
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
+            var account = await Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.AccountId && x.IsActive &&
+                !x.IsGroup && x.AllowsPosting && x.AccountType == AccountType.Asset && x.CurrencyCode == "BDT", ct);
+            if (account == null) return ApiResponse<BankAccountDto>.ErrorResponse("An active BDT asset posting account is required.");
+            if (account.IsCashInHand) return ApiResponse<BankAccountDto>.ErrorResponse("Cash-in-hand ledger cannot be mapped as a bank.", 409);
             var row = bankAccountId.HasValue ? await Banks.FirstOrDefaultAsync(x => x.Id == bankAccountId.Value, ct) : null;
             if (bankAccountId.HasValue && row == null) return ApiResponse<BankAccountDto>.ErrorResponse("Bank account not found.", 404);
             if (row != null && !Version(row.RowVersion, request.RowVersion)) return ApiResponse<BankAccountDto>.ErrorResponse("Bank account changed; reload.", 409);
-            if (row != null && row.AccountId != request.AccountId && await db.StudentPayments.AnyAsync(x => x.TenantId == user.TenantId && x.BankAccountId == row.Id && !x.IsDeleted, ct))
-                return ApiResponse<BankAccountDto>.ErrorResponse("Bank ledger cannot change after payments reference it.", 409);
+            if (await Banks.AnyAsync(x => x.AccountId == request.AccountId && (row == null || x.Id != row.Id), ct))
+                return ApiResponse<BankAccountDto>.ErrorResponse("Ledger is already mapped to another bank account.", 409);
+            if (row != null && row.AccountId != request.AccountId)
+            {
+                // Either ledger may already contain historical movements. Changing
+                // their bank attribution would rewrite historical cash reporting.
+                var ids = new[] { row.AccountId, request.AccountId };
+                if (await db.JournalLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && ids.Contains(x.AccountId), ct) ||
+                    await db.StudentPayments.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == user.TenantId && x.BankAccountId == row.Id, ct))
+                    return ApiResponse<BankAccountDto>.ErrorResponse(
+                        "Bank ledger cannot change after linked payments or ledger history; audited remapping is required.", 409);
+            }
             var now = clock.GetUtcNow().UtcDateTime;
             if (row == null) { row = new BankAccount { TenantId = user.TenantId, CreatedAt = now, CreatedBy = user.UserId }; db.BankAccounts.Add(row); }
             else { row.UpdatedAt = now; row.UpdatedBy = user.UserId; }
@@ -274,6 +287,7 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
             row.AccountNumber = request.AccountNumber.Trim(); row.BranchName = request.BranchName?.Trim();
             row.RoutingNumber = request.RoutingNumber?.Trim(); row.CurrencyCode = "BDT"; row.IsActive = request.IsActive;
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
             return ApiResponse<BankAccountDto>.SuccessResponse(BankMap(row, account.Name), "Bank account saved.");
         }
         catch (DbUpdateConcurrencyException) { return ApiResponse<BankAccountDto>.ErrorResponse("Bank account changed; reload.", 409); }
