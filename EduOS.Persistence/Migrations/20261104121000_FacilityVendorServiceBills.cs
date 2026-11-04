@@ -44,6 +44,7 @@ IF EXISTS (
             SubmitRequestId = t.Column<Guid>(type: "uniqueidentifier", nullable: true),
             SubmittedAtUtc = t.Column<DateTime>(type: "datetime2", nullable: true),
             ReviewRequestId = t.Column<Guid>(type: "uniqueidentifier", nullable: true),
+            ReviewFingerprint = t.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
             ReviewedAtUtc = t.Column<DateTime>(type: "datetime2", nullable: true),
             ReviewedByUserId = t.Column<long>(type: "bigint", nullable: true),
             ReviewReason = t.Column<string>(type: "nvarchar(800)", maxLength: 800, nullable: true),
