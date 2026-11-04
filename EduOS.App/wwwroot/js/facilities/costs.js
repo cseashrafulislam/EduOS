@@ -324,9 +324,7 @@
         const reason = el('fcDecisionReason').value.trim();
         const finish = async result => {
             hideDecision();
-            await Promise.all([listBills(), listLabour()]);
-        el('fcAgingDate').value = new Date().toISOString().slice(0, 10);
-        await listAging();
+            await Promise.all([listBills(), listLabour(), listAging()]);
             if (result?.reference) selected = { kind: action.includes('labour') ? 'labour' : 'vendor', data: result };
         };
         let route, payload = { reason };
@@ -596,7 +594,8 @@
                 });
             });
         }
-        await Promise.all([listBills(), listLabour()]);
+        el('fcAgingDate').value = new Date().toISOString().slice(0, 10);
+        await Promise.all([listBills(), listLabour(), listAging()]);
         notice(t('Facilities Finance data is scoped to your active institution.',
             'রক্ষণাবেক্ষণ ব্যয়ের তথ্য বর্তমান প্রতিষ্ঠানের অনুমতি অনুযায়ী দেখানো হচ্ছে।'), true);
     }
