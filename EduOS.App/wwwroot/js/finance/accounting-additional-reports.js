@@ -3,7 +3,7 @@ const root = document.getElementById('institutionAccountingReports');
 if (root && document.getElementById('dayBookForm')) {
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|sourceAmount|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|sourceAmount|invoiceAmount|netPostedPayments|postedSupplierCredits|openBalance|outstandingOnPage|currentOnPage|days1To30OnPage|days31To60OnPage|days61To90OnPage|over90DaysOnPage|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     const cents = value => {
         const s = String(value ?? '0');
         if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw new Error('Invalid financial amount precision.');
@@ -45,6 +45,103 @@ if (root && document.getElementById('dayBookForm')) {
     const yearStart = today.slice(0,4) + '-01-01';
     const previousYear = date => String(Number(date.slice(0,4)) - 1) + date.slice(4);
     const validPeriod = (from, to) => !!from && !!to && from <= to;
+
+    // One combined Procurement + Facilities payable subledger already exists.
+    // Reuse its dated-payment/return/reversal policy instead of computing AP
+    // from two source tables or adding it to GL liabilities a second time.
+    $('supplierPayablesAsOf').value = today;
+    let supplierPayables = null, supplierPayablesPage = 1,
+        supplierPayablesRevision = 0, supplierPayablesDate = '';
+    const resetSupplierPayables = () => {
+        ++supplierPayablesRevision; supplierPayables = null; supplierPayablesDate = '';
+        $('supplierPayablesCsv').disabled = true;
+        $('supplierPayablesPrevious').disabled = true;
+        $('supplierPayablesNext').disabled = true;
+        $('supplierPayablesRows').replaceChildren();
+        $('supplierPayablesSummary').textContent = '';
+        $('supplierPayablesPage').textContent = '';
+    };
+    $('supplierPayablesAsOf').addEventListener('input', resetSupplierPayables);
+    $('supplierPayablesAsOf').addEventListener('change', resetSupplierPayables);
+    const loadSupplierPayables = async page => {
+        const asOf = $('supplierPayablesAsOf').value;
+        if (!asOf) throw new Error('Select a supplier aging date.');
+        const revision = ++supplierPayablesRevision;
+        supplierPayables = null;
+        $('supplierPayablesRun').disabled = true;
+        $('supplierPayablesCsv').disabled = true;
+        $('supplierPayablesPrevious').disabled = true;
+        $('supplierPayablesNext').disabled = true;
+        try {
+            const data = await get('/api/finance/accounting/reports/supplier-payables-aging?' +
+                new URLSearchParams({asOf,page:String(page),pageSize:'25'}));
+            if (revision !== supplierPayablesRevision || asOf !== $('supplierPayablesAsOf').value) return;
+            const items = data.page.items || [];
+            let open = 0n, current = 0n, days30 = 0n, days60 = 0n, days90 = 0n, over90 = 0n;
+            for (const x of items) {
+                const invoice = cents(x.invoiceAmount), paid = cents(x.netPostedPayments),
+                    credit = cents(x.postedSupplierCredits), remaining = cents(x.openBalance);
+                if (invoice < 0n || paid < 0n || credit < 0n || remaining < 0n ||
+                    (!x.invoiceReversedAsOf && invoice !== paid + credit + remaining) ||
+                    (x.invoiceReversedAsOf && (paid !== 0n || credit !== 0n || remaining !== 0n)))
+                    throw new Error('Supplier payable invoice does not reconcile to settlements.');
+                open += remaining;
+                if (x.daysOverdue <= 0) current += remaining;
+                else if (x.daysOverdue <= 30) days30 += remaining;
+                else if (x.daysOverdue <= 60) days60 += remaining;
+                else if (x.daysOverdue <= 90) days90 += remaining;
+                else over90 += remaining;
+            }
+            if (open !== cents(data.outstandingOnPage) || current !== cents(data.currentOnPage) ||
+                days30 !== cents(data.days1To30OnPage) || days60 !== cents(data.days31To60OnPage) ||
+                days90 !== cents(data.days61To90OnPage) || over90 !== cents(data.over90DaysOnPage))
+                throw new Error('Supplier aging buckets do not reconcile on the selected page.');
+            $('supplierPayablesRows').innerHTML = items.map(x => '<tr><td>' + esc(x.invoiceSource) +
+                '</td><td>' + esc(x.supplierId) + '</td><td>' + esc(x.campusId) +
+                '</td><td>' + esc(x.supplierInvoiceNumber) + '</td><td>' + esc(x.invoiceDate) +
+                '</td><td>' + esc(x.dueDate) + '</td><td class="text-end">' + money(x.invoiceAmount) +
+                '</td><td class="text-end">' + money(x.netPostedPayments) +
+                '</td><td class="text-end">' + money(x.postedSupplierCredits) +
+                '</td><td class="text-end">' + money(x.openBalance) + '</td><td>' +
+                esc(x.daysOverdue) + '</td><td>' +
+                (x.invoiceReversedAsOf ? 'Reversed' : remainingText(x.openBalance)) + '</td></tr>').join('') ||
+                '<tr><td colspan="12">No posted supplier invoices as of this date.</td></tr>';
+            $('supplierPayablesSummary').textContent = data.page.totalCount +
+                ' stock/service invoices (including settled or reversed). On THIS page: outstanding BDT ' +
+                money(data.outstandingOnPage) + ', current ' + money(data.currentOnPage) +
+                ', 1–30 days ' + money(data.days1To30OnPage) + ', 31–60 days ' +
+                money(data.days31To60OnPage) + ', 61–90 days ' + money(data.days61To90OnPage) +
+                ', 90+ days ' + money(data.over90DaysOnPage) + '.';
+            $('supplierPayablesPage').textContent = 'Page ' + page + ' / ' + Math.max(1,data.page.totalPages);
+            $('supplierPayablesPrevious').disabled = page <= 1;
+            $('supplierPayablesNext').disabled = page >= data.page.totalPages;
+            supplierPayables = data; supplierPayablesDate = asOf; supplierPayablesPage = page;
+            $('supplierPayablesCsv').disabled = false;
+            alert('Combined procurement and facility supplier aging loaded from existing posted subledgers.');
+        } finally { $('supplierPayablesRun').disabled = false; }
+    };
+    const remainingText = amount => cents(amount) === 0n ? 'Settled' : 'Open';
+    $('supplierPayablesForm').addEventListener('submit', event => { event.preventDefault(); run(async () => {
+        resetSupplierPayables(); await loadSupplierPayables(1);
+    }); });
+    $('supplierPayablesPrevious').addEventListener('click', () => run(async () => {
+        if (supplierPayables && supplierPayablesPage > 1) await loadSupplierPayables(supplierPayablesPage - 1);
+    }));
+    $('supplierPayablesNext').addEventListener('click', () => run(async () => {
+        if (supplierPayables && supplierPayablesPage < supplierPayables.page.totalPages)
+            await loadSupplierPayables(supplierPayablesPage + 1);
+    }));
+    $('supplierPayablesCsv').addEventListener('click', () => {
+        if (!supplierPayables || supplierPayablesDate !== $('supplierPayablesAsOf').value) return;
+        const rows = [['Source','Supplier ID','Campus ID','Invoice','Invoice Date','Due Date',
+            'Invoice BDT','Paid BDT','Supplier Credit BDT','Open BDT','Days Overdue','Status']];
+        for (const x of supplierPayables.page.items)
+            rows.push([x.invoiceSource,x.supplierId,x.campusId,x.supplierInvoiceNumber,x.invoiceDate,
+                x.dueDate,money(x.invoiceAmount),money(x.netPostedPayments),money(x.postedSupplierCredits),
+                money(x.openBalance),x.daysOverdue,x.invoiceReversedAsOf ? 'Reversed' : remainingText(x.openBalance)]);
+        csv('institution-supplier-payables-page-' + supplierPayablesPage + '-' +
+            supplierPayablesDate + '.csv',rows);
+    });
 
     // Reconciliation reads each operational source table separately and checks
     // the linked GL. The CSV is intentionally limited to the authorized page.

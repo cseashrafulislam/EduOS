@@ -59,12 +59,23 @@ public sealed class InstitutionalAdditionalAccountingReportsTests
         (await service.GetPostedDayBookAsync(from, to)).StatusCode.Should().Be(200);
         var credit = await db.JournalLines.SingleAsync(x => x.JournalId == 1 && x.AccountId == 2);
         credit.CreditAmount = 99m;
-        await db.SaveChangesAsync();
-        (await service.GetPostedDayBookAsync(from, to)).StatusCode.Should().Be(409);
-        credit.CreditAmount = 100m;
-        credit.IsDeleted = true;
-        await db.SaveChangesAsync();
-        (await service.GetPostedDayBookAsync(from, to)).StatusCode.Should().Be(409);
+        var rejectedEdit = await FluentActions.Invoking(() => db.SaveChangesAsync())
+            .Should().ThrowAsync<InvalidOperationException>();
+        rejectedEdit.Which.Message.Should().Contain("immutable");
+        // Test older imported corruption by creating a malformed posted
+        // fixture; changing a posted line via SaveChanges must remain blocked.
+        await using var unbalanced = Database();
+        SeedAccounts(unbalanced);
+        AddJournal(unbalanced, 1, October, 100m, 1, 2);
+        unbalanced.JournalLines.Local.Single(x => x.AccountId == 2).CreditAmount = 99m;
+        await unbalanced.SaveChangesAsync();
+        (await Service(unbalanced).GetPostedDayBookAsync(from, to)).StatusCode.Should().Be(409);
+        await using var deleted = Database();
+        SeedAccounts(deleted);
+        AddJournal(deleted, 1, October, 100m, 1, 2);
+        deleted.JournalLines.Local.Single(x => x.AccountId == 2).IsDeleted = true;
+        await deleted.SaveChangesAsync();
+        (await Service(deleted).GetPostedDayBookAsync(from, to)).StatusCode.Should().Be(409);
     }
 
     [Fact]

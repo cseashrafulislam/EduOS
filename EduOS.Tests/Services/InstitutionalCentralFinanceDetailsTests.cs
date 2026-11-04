@@ -80,8 +80,17 @@ public sealed class InstitutionalCentralFinanceDetailsTests
         (await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To, accountId:999)).StatusCode.Should().Be(404);
         (await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To, accountId:1)).StatusCode.Should().Be(404);
         db.JournalLines.Local.Single(x => x.JournalId == 1 && x.AccountId == 2).CreditAmount = 99m;
-        await db.SaveChangesAsync();
-        (await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To)).StatusCode.Should().Be(409);
+        var rejectedEdit = await FluentActions.Invoking(() => db.SaveChangesAsync())
+            .Should().ThrowAsync<InvalidOperationException>();
+        rejectedEdit.Which.Message.Should().Contain("immutable");
+        // A test must not mutate an already-posted journal to simulate bad
+        // historical imports. Seed the malformed legacy entry before first save.
+        await using var malformed = Database();
+        SeedAccounts(malformed);
+        Add(malformed, 1, From, JournalState.Posted, 1, 2, 100m, "StudentInvoice", 7);
+        malformed.JournalLines.Local.Single(x => x.JournalId == 1 && x.AccountId == 2).CreditAmount = 99m;
+        await malformed.SaveChangesAsync();
+        (await Service(malformed).GetInstitutionalIncomeExpenseDetailsAsync(From, To)).StatusCode.Should().Be(409);
     }
 
     private static void SeedAccounts(EduOSDbContext db) => db.Accounts.AddRange(

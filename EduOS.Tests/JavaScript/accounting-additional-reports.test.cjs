@@ -117,3 +117,15 @@ test('module posting reconciliation is read-only, tenant-scoped and paged by sou
     assert.match(js, /sourceAudit\.sources\.items/);
     assert.match(js, /sourceAuditKey !== sourceKey\(\)/);
 });
+
+test('central supplier aging reuses the existing procurement + facility payable subledger', () => {
+    assert.ok(api.includes('[HttpGet("supplier-payables-aging"), Authorize(Roles = "TenantAdmin")]'));
+    assert.match(api, /supplierPayables\.SupplierAgingAsync\(asOf, campusId, page, pageSize, ct\)/);
+    assert.match(view, /id="supplierPayablesPanel"/);
+    assert.match(view, /page, not the full institution/i);
+    assert.match(js, /api\/finance\/accounting\/reports\/supplier-payables-aging/);
+    assert.match(js, /invoice !== paid \+ credit \+ remaining/);
+    assert.match(js, /open !== cents\(data\.outstandingOnPage\)/);
+    assert.match(js, /supplierPayablesDate !== \$\('supplierPayablesAsOf'\)\.value/);
+    assert.match(js, /institution-supplier-payables-page/);
+});

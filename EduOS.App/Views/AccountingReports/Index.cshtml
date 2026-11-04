@@ -23,12 +23,35 @@
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#compareBalancePanel">Balance Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomeExpenseBreakdownPanel">Income / Expense Breakdown</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#sourcePostingAuditPanel">Module Posting Audit</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#supplierPayablesPanel">Supplier Payables</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankBookPanel">Bank Book</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankStatementPanel">Bank Statement Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankLiquidityPanel">Bank Liquidity</button></li>
         }
     </ul>
     <div class="tab-content">
+        @if (User.IsInRole("TenantAdmin"))
+        {
+            <div class="tab-pane fade" id="supplierPayablesPanel">
+                <h3 class="h6">Procurement + Facility Supplier Payables</h3>
+                <p class="small text-muted">One existing supplier subledger combines stock purchases and non-stock facility service bills. Only posted invoices and valid dated payments/credits are included. The aging totals are for the visible page, not the full institution. Fully settled or reversed invoices may appear with zero outstanding. These amounts are not added to GL expenses.</p>
+                <form id="supplierPayablesForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label for="supplierPayablesAsOf" class="form-label">As of date</label><input type="date" id="supplierPayablesAsOf" class="form-control" required /></div>
+                    <div class="col-md-3"><button id="supplierPayablesRun" type="submit" class="btn btn-primary w-100">Run Supplier Aging</button></div>
+                    <div class="col-md-3"><button id="supplierPayablesCsv" type="button" class="btn btn-outline-secondary w-100" disabled>Export Visible Page CSV</button></div>
+                </form>
+                <p id="supplierPayablesSummary" class="small fw-semibold" role="status" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Source</th><th>Supplier ID</th><th>Campus ID</th><th>Invoice</th><th>Invoice date</th><th>Due</th><th class="text-end">Invoice BDT</th><th class="text-end">Paid BDT</th><th class="text-end">Credit BDT</th><th class="text-end">Outstanding BDT</th><th>Days overdue</th><th>Status</th></tr></thead>
+                    <tbody id="supplierPayablesRows"></tbody>
+                </table></div>
+                <div class="d-flex justify-content-end gap-2 align-items-center">
+                    <button id="supplierPayablesPrevious" class="btn btn-outline-secondary btn-sm" type="button" disabled>Previous</button>
+                    <span id="supplierPayablesPage" class="small" aria-live="polite"></span>
+                    <button id="supplierPayablesNext" class="btn btn-outline-secondary btn-sm" type="button" disabled>Next</button>
+                </div>
+            </div>
+        }
         @if (User.IsInRole("TenantAdmin"))
         {
             <div class="tab-pane fade" id="sourcePostingAuditPanel">

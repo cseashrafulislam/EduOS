@@ -19,15 +19,20 @@ public sealed class CentralFinancePostingAuditTests
     [Fact]
     public async Task Fee_source_audit_separates_verified_pending_and_draft_without_double_counting()
     {
-        await using var db = Database();
+        var store = "finance-source-audit-"+Guid.NewGuid().ToString("N");
+        await using var db = Database(store);
         SeedAccounts(db);
         db.StudentInvoices.AddRange(
             Invoice(1, InvoiceState.Issued, 11),
             Invoice(2, InvoiceState.Issued, null),
-            Invoice(3, InvoiceState.Draft, null),
-            Invoice(4, InvoiceState.Issued, 99, tenant:42));
+            Invoice(3, InvoiceState.Draft, null));
         Journal(db, 11, "StudentInvoice", 1, 90m);
         await db.SaveChangesAsync();
+        await using (var outside = Database(store, 42))
+        {
+            outside.StudentInvoices.Add(Invoice(4, InvoiceState.Issued, 99, tenant:42));
+            await outside.SaveChangesAsync();
+        }
 
         var service = Service(db);
         var page = await service.GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices", 1, 2);
@@ -64,11 +69,16 @@ public sealed class CentralFinancePostingAuditTests
     [Fact]
     public async Task Cross_tenant_permission_date_scope_and_invalid_requests_are_denied()
     {
-        await using var db = Database();
+        var store = "finance-source-audit-"+Guid.NewGuid().ToString("N");
+        await using var db = Database(store);
         SeedAccounts(db);
         db.StudentInvoices.Add(Invoice(1, InvoiceState.Issued, 11));
-        Journal(db, 11, "StudentInvoice", 1, 90m, tenant:42);
         await db.SaveChangesAsync();
+        await using (var outside = Database(store, 42))
+        {
+            Journal(outside, 11, "StudentInvoice", 1, 90m, tenant:42);
+            await outside.SaveChangesAsync();
+        }
         var service = Service(db);
         (await Service(db, false).GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices"))
             .StatusCode.Should().Be(403);
@@ -109,12 +119,12 @@ public sealed class CentralFinancePostingAuditTests
     private static AccountingReportingService Service(EduOSDbContext db, bool admin=true) =>
         new(db, new TestUser(admin));
 
-    private static EduOSDbContext Database()
+    private static EduOSDbContext Database(string? storeName = null, long tenant = 41)
     {
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        accessor.HttpContext.Items["TenantId"] = 41L;
+        accessor.HttpContext.Items["TenantId"] = tenant;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("finance-source-audit-"+Guid.NewGuid().ToString("N")).Options, accessor);
+            .UseInMemoryDatabase(storeName ?? "finance-source-audit-"+Guid.NewGuid().ToString("N")).Options, accessor);
     }
 
     private sealed class TestUser(bool admin) : ICurrentUserService
