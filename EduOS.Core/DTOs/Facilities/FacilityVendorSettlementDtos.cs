@@ -36,7 +36,16 @@ public sealed class FacilityVendorPaymentReversalRequest
     [Required] public string RowVersion { get; set; } = string.Empty;
     public long AccountingPeriodId { get; set; }
     public DateOnly ReversalDate { get; set; }
+    [Required, MinLength(6), MaxLength(100)]
+    public string BankReversalReference { get; set; } = string.Empty;
     [Required, MinLength(10), MaxLength(500)]
+    public string Reason { get; set; } = string.Empty;
+}
+public sealed class FacilityVendorPaymentReversalReviewRequest
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    public bool Approve { get; set; }
+    [Required, MinLength(10), MaxLength(400)]
     public string Reason { get; set; } = string.Empty;
 }
 public sealed class FacilityVendorPaymentDto
