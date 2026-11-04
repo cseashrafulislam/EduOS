@@ -9,6 +9,13 @@
     const currentUserId = Number(root.dataset.userId);
     const el = id => document.getElementById(id);
     const t = (en, bd) => bn ? bd : en;
+    const vendorEvidenceLabel = code => ({
+        None: t('No evidence', 'প্রমাণ নেই'),
+        Submitted: t('Awaiting review', 'যাচাই অপেক্ষায়'),
+        Returned: t('Returned for correction', 'সংশোধনের জন্য ফেরত'),
+        Verified: t('Independently verified', 'স্বাধীনভাবে যাচাইকৃত'),
+        Stale: t('Invalidated by later correction', 'পরবর্তী সংশোধনে অকার্যকর')
+    })[code] || String(code || '—');
     const actionLabels = {
         triage: ['Triage request', 'অনুরোধ যাচাই'],
         approve: ['Approve request', 'অনুরোধ অনুমোদন'],
@@ -286,7 +293,7 @@
             t('Vendor booking', 'সরবরাহকারী বুকিং') + ': ' + (row.vendorStateCode || '—') +
                 (row.vendorSupplierId ? ' #' + row.vendorSupplierId : ''),
             t('Vendor work evidence', 'সরবরাহকারীর কাজের প্রমাণ') + ': ' +
-                (row.vendorAcceptanceStateCode || 'None'),
+                vendorEvidenceLabel(row.vendorAcceptanceStateCode),
             t('Breach', 'বিলম্ব') + ': ' + (row.slaBreached == null ? '—' : String(row.slaBreached))
         ].join(' | ');
         const options = actions(row), form = el('wfTransition'), selectAction = el('wfAction');
