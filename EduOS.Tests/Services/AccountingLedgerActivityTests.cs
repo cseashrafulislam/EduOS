@@ -71,6 +71,20 @@ public sealed class AccountingLedgerActivityTests
             .GetLedgerActivityAsync(1, From, To)).StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Ledger_statement_and_activity_reject_a_zero_value_counterpart_line()
+    {
+        await using var db = Database();
+        Seed(db);
+        Post(db, 1, From, JournalState.Posted, 50m);
+        db.JournalLines.Add(new JournalLine { Id = 13, TenantId = 41,
+            JournalId = 1, AccountId = 2, LineNo = 3 });
+        await db.SaveChangesAsync();
+        var service = new AccountingReportingService(db, new User());
+        (await service.GetLedgerActivityAsync(1, From, To)).StatusCode.Should().Be(409);
+        (await service.GetLedgerStatementAsync(1, From, To)).StatusCode.Should().Be(409);
+    }
+
     private static void Seed(EduOSDbContext db) => db.Accounts.AddRange(
         new Account { Id = 1, TenantId = 41, Code = "CASH", Name = "Cash account", AccountType = AccountType.Asset },
         new Account { Id = 2, TenantId = 41, Code = "INC", Name = "Income", AccountType = AccountType.Income });

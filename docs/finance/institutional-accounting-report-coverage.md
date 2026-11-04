@@ -6,6 +6,7 @@
 - Fee invoices/receipts, admissions, procurement supplier invoices/settlements, payroll, facility service bills and assets retain their **operational source/subledger history**. A source transaction must post to the canonical GL exactly once under its existing idempotent workflow; it must not be summed directly together with a GL entry in income, cash or balance statements.
 - `BankAccounts.AccountId` is an explicit account mapping and may be used for Bank Book and Bank Liquidity. `Accounts` currently has **no explicit Cash-in-Hand, cash-equivalent, fund, cost-centre or cash-flow-activity classification**. An account name or account-code prefix is not authoritative for these classifications.
 - Historical journals cannot be edited or deleted for reporting convenience. For incorrect postings use the existing controlled approval and compensating-reversal workflows; run source-to-GL reconciliation before any backfill.
+- General Ledger now applies the same account-scoped, posted-journal integrity preflight used by its paginated activity audit. Income Statement additionally rejects malformed zero/negative/dual-sided posting lines and invalid group/non-postable accounts; a balanced grand total cannot justify invalid source lines.
 
 ## Existing and added reports
 

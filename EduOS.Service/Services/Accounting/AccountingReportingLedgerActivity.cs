@@ -57,6 +57,12 @@ public sealed partial class AccountingReportingService
         // account subtotal. Check every line of journals touching the selected account.
         var affectedJournalIds = movements.Select(x => x.JournalId).Distinct();
         var affectedLines = Lines.Where(x => affectedJournalIds.Contains(x.JournalId));
+        if (await affectedLines.AnyAsync(l => l.DebitAmount < 0m || l.CreditAmount < 0m ||
+            (l.DebitAmount > 0m) == (l.CreditAmount > 0m) ||
+            !db.Accounts.AsNoTracking().Any(a => a.TenantId == tenant && !a.IsDeleted &&
+                a.Id == l.AccountId && a.CurrencyCode == "BDT" && !a.IsGroup && a.AllowsPosting), ct))
+            return ApiResponse<LedgerActivityPageDto>.ErrorResponse(
+                "A posted journal has an invalid line or posting account.", 409);
         if (await affectedLines.GroupBy(x => x.JournalId)
             .Select(g => new { Count = g.Count(), Debit = g.Sum(x => x.DebitAmount),
                 Credit = g.Sum(x => x.CreditAmount) })

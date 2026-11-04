@@ -83,6 +83,18 @@ public sealed class IncomeStatementServiceTests
         (await Service(db).GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(409);
     }
 
+    [Fact]
+    public async Task Zero_value_posted_line_is_rejected_even_when_debits_equal_credits()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        Journal(db, 1, JournalState.Posted, 100m, 0m);
+        db.JournalLines.Add(new JournalLine { Id=14, TenantId=41, JournalId=1,
+            AccountId=2, LineNo=4, DebitAmount=0m, CreditAmount=0m });
+        await db.SaveChangesAsync();
+        (await Service(db).GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(409);
+    }
+
     private static void SeedAccounts(EduOSDbContext db)
     {
         db.Accounts.AddRange(
@@ -95,13 +107,17 @@ public sealed class IncomeStatementServiceTests
         db.Journals.Add(new Journal { Id=id, TenantId=41, JournalNumber="J-"+id,
             JournalDate=From, AccountingPeriodId=1, State=state });
         var sign = reversed ? -1m : 1m;
-        db.JournalLines.AddRange(
+        var lines = new List<JournalLine>
+        {
             new JournalLine { Id=id*10+1, TenantId=41, JournalId=id, AccountId=1, LineNo=1,
                 CreditAmount=sign>0?revenue:0m, DebitAmount=sign<0?revenue:0m },
-            new JournalLine { Id=id*10+2, TenantId=41, JournalId=id, AccountId=2, LineNo=2,
-                DebitAmount=sign>0?expense:0m, CreditAmount=sign<0?expense:0m },
             new JournalLine { Id=id*10+3, TenantId=41, JournalId=id, AccountId=3, LineNo=3,
-                DebitAmount=sign>0?revenue-expense:0m, CreditAmount=sign<0?revenue-expense:0m });
+                DebitAmount=sign>0?revenue-expense:0m, CreditAmount=sign<0?revenue-expense:0m }
+        };
+        if (expense > 0m)
+            lines.Add(new JournalLine { Id=id*10+2, TenantId=41, JournalId=id, AccountId=2, LineNo=2,
+                DebitAmount=sign>0?expense:0m, CreditAmount=sign<0?expense:0m });
+        db.JournalLines.AddRange(lines);
     }
     private static AccountingReportingService Service(EduOSDbContext db, string role="TenantAdmin") =>
         new(db, new TestUser(role));

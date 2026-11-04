@@ -9,6 +9,8 @@ const view = read('EduOS.App/Views/AccountingReports/Index.cshtml');
 const js = read('EduOS.App/wwwroot/js/finance/accounting-additional-reports.js');
 const api = read('EduOS.App/Controllers/Api/AccountingReportsController.cs');
 const service = read('EduOS.Service/Services/Accounting/AccountingReportingAdditionalStatements.cs');
+const mainService = read('EduOS.Service/Services/Accounting/AccountingReportingService.cs');
+const ledgerActivity = read('EduOS.Service/Services/Accounting/AccountingReportingLedgerActivity.cs');
 
 test('new accounting reports have tenant-restricted read-only API and matching view/JS', () => {
     for (const [route, method, panel] of [
@@ -57,4 +59,11 @@ test('campus/source breakdown is based on posted journal-line attribution and re
     assert.match(service, /rows\.Sum\(x => x\.Income\) != statement\.Data\.TotalIncome/);
     assert.match(js, /groupBy:group/);
     assert.match(js, /Campus\/source breakdown does not match institutional P&L/);
+});
+
+test('core ledger and income reports reject malformed lines before rendering amounts', () => {
+    assert.match(mainService, /GetLedgerActivityAsync\(accountId, fromDate, toDate, 1, 1, ct\)/);
+    assert.match(mainService, /Invalid debit\/credit journal line prevents financial reporting/);
+    assert.match(mainService, /a\.IsGroup \|\| !a\.AllowsPosting/);
+    assert.match(ledgerActivity, /A posted journal has an invalid line or posting account/);
 });

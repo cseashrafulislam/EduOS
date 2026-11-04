@@ -29,6 +29,12 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
         var account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.TenantId == user.TenantId &&
             !x.IsDeleted && x.Id == accountId, ct);
         if (account == null) return ApiResponse<LedgerStatementDto>.ErrorResponse("Account not found.", 404);
+        // Reuse the account-scoped posted-journal integrity gate before constructing
+        // a running balance. The old statement path checked soft deletes only and
+        // could therefore display a balanced-looking but invalid posted journal.
+        var integrity = await GetLedgerActivityAsync(accountId, fromDate, toDate, 1, 1, ct);
+        if (!integrity.Success)
+            return ApiResponse<LedgerStatementDto>.ErrorResponse(integrity.Message, integrity.StatusCode);
         var historyError = await HistoricalPostingErrorAsync(null, toDate, new[] { accountId }, ct);
         if (historyError != null)
             return ApiResponse<LedgerStatementDto>.ErrorResponse(historyError, 409);
@@ -138,6 +144,9 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
         var entries = from l in Lines
             join j in journals on l.JournalId equals j.Id
             select new { j.Id, l.AccountId, l.DebitAmount, l.CreditAmount };
+        if (await entries.AnyAsync(l => l.DebitAmount < 0m || l.CreditAmount < 0m ||
+            (l.DebitAmount > 0m) == (l.CreditAmount > 0m), ct))
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("Invalid debit/credit journal line prevents financial reporting.", 409);
         var unbalanced = await (from l in entries
             group l by l.Id into g
             select new { Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
@@ -153,11 +162,11 @@ public sealed partial class AccountingReportingService : IAccountingReportingSer
         var accountIds = balances.Select(x => x.AccountId).ToArray();
         var accounts = await db.Accounts.AsNoTracking()
             .Where(a => a.TenantId == user.TenantId && !a.IsDeleted && accountIds.Contains(a.Id))
-            .Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.CurrencyCode }).ToListAsync(ct);
+            .Select(a => new { a.Id, a.Code, a.Name, a.AccountType, a.CurrencyCode, a.IsGroup, a.AllowsPosting }).ToListAsync(ct);
         if (accounts.Count != balances.Count)
             return ApiResponse<IncomeStatementDto>.ErrorResponse("Posted ledger contains missing or deleted account references.", 409);
-        if (accounts.Any(a => a.CurrencyCode != "BDT"))
-            return ApiResponse<IncomeStatementDto>.ErrorResponse("A posting account uses a different currency.", 409);
+        if (accounts.Any(a => a.CurrencyCode != "BDT" || a.IsGroup || !a.AllowsPosting))
+            return ApiResponse<IncomeStatementDto>.ErrorResponse("A posting account has invalid currency or posting configuration.", 409);
         var byId = accounts.ToDictionary(a => a.Id);
         var income = new List<IncomeStatementRowDto>();
         var expenses = new List<IncomeStatementRowDto>();
