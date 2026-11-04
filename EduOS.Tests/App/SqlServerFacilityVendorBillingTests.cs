@@ -28,7 +28,7 @@ public sealed class SqlServerFacilityVendorBillingTests
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
         long tenantId, outsiderTenantId, campusId, workOrderId, makerId, checkerId, requesterId;
-        long periodId, expenseId, payableId;
+        long periodId, expenseId, payableId, bankId;
         var invoiceDate = DateOnly.FromDateTime(DateTime.UtcNow);
         await using (var setup = new EduOSDbContext(options))
         {
@@ -67,6 +67,16 @@ public sealed class SqlServerFacilityVendorBillingTests
                 var payable = new Account { TenantId = tenantId, Code = "AP-" + suffix,
                     Name = "Supplier trade payable", AccountType = AccountType.Liability,
                     IsActive = true, AllowsPosting = true, CurrencyCode = "BDT" };
+                var bankLedger = new Account { TenantId = tenantId, Code = "BNK-" + suffix,
+                    Name = "Vendor settlement bank", AccountType = AccountType.Asset,
+                    IsActive = true, AllowsPosting = true, CurrencyCode = "BDT" };
+                setup.Accounts.Add(bankLedger);
+                await setup.SaveChangesAsync();
+                var bank = new BankAccount { TenantId = tenantId, CampusId = campusId,
+                    AccountId = bankLedger.Id, BankName = "CI Settlement Bank",
+                    AccountName = "Facilities Disbursements", AccountNumber = "TEST-" + suffix,
+                    IsActive = true, CurrencyCode = "BDT" };
+                setup.BankAccounts.Add(bank);
                 var period = new AccountingPeriod { TenantId = tenantId,
                     Name = "Facility test period " + suffix,
                     StartDate = invoiceDate.AddDays(-10), EndDate = invoiceDate.AddDays(20),
@@ -86,6 +96,7 @@ public sealed class SqlServerFacilityVendorBillingTests
                 }
                 await setup.SaveChangesAsync();
                 expenseId = expense.Id; payableId = payable.Id; periodId = period.Id;
+                bankId = bank.Id;
                 setup.UserRoles.AddRange(
                     new IdentityUserRole<long> { UserId = makerId, RoleId = accountantRole.Id },
                     new IdentityUserRole<long> { UserId = checkerId, RoleId = principalRole.Id });
@@ -196,6 +207,102 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.Equal(1200m, lines.Sum(x => x.CreditAmount));
             Assert.Equal(expenseId, lines[0].AccountId);
             Assert.Equal(payableId, lines[1].AccountId);
+        }
+        // Payment instruction is NOT a bank transfer; only independently
+        // approved and externally confirmed payment reduces payable aging.
+        FacilityVendorPaymentDto payment;
+        await using (var db = Db(options, tenantId, makerId, "Accountant"))
+        {
+            var service = Service(db, tenantId, makerId, "Accountant");
+            var optionsResult = await service.PaymentOptionsAsync(bill.Reference);
+            Assert.True(optionsResult.Success, optionsResult.Message);
+            Assert.Equal(1200m, optionsResult.Data!.AvailableAmount);
+            var instruction = new FacilityVendorPaymentInstructionRequest {
+                ClientRequestId = Guid.NewGuid(), BillRowVersion = bill.RowVersion,
+                BankAccountId = bankId, AccountingPeriodId = periodId,
+                PlannedDate = invoiceDate, Amount = 400m,
+                Reason = "Approved supplier invoice scheduled for partial bank disbursement."
+            };
+            var created = await service.CreatePaymentAsync(bill.Reference, instruction);
+            Assert.True(created.Success, created.Message);
+            payment = created.Data!;
+            Assert.Equal("Submitted", payment.State);
+            Assert.False(payment.BankStatementCleared);
+            Assert.True((await service.CreatePaymentAsync(bill.Reference, instruction)).Success);
+            Assert.Equal(800m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
+            Assert.Equal(409, (await service.RequestReversalAsync(bill.Reference,
+                new FacilityVendorBillReversalRequestDto {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
+                    ReversalDate = invoiceDate, AccountingPeriodId = periodId,
+                    Reason = "Cannot cancel invoice with a reserved supplier payment."
+                })).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, checkerId, "Principal"))
+        {
+            var approved = await Service(db, tenantId, checkerId, "Principal")
+                .ReviewPaymentAsync(bill.Reference, payment.Reference,
+                    new FacilityVendorPaymentReviewRequest {
+                        RowVersion = payment.RowVersion, Approve = true,
+                        Reason = "Independent checker verified approved supplier bank details."
+                    });
+            Assert.True(approved.Success, approved.Message);
+            payment = approved.Data!;
+            Assert.Equal("Approved", payment.State);
+        }
+        await using (var db = Db(options, tenantId, makerId, "Accountant"))
+        {
+            var service = Service(db, tenantId, makerId, "Accountant");
+            var post = new FacilityVendorPaymentPostRequest {
+                ClientRequestId = Guid.NewGuid(), RowVersion = payment.RowVersion,
+                ExecutedDate = invoiceDate, BankTransactionReference = "BANK-" + suffix
+            };
+            var postedPayment = await service.PostPaymentAsync(bill.Reference, payment.Reference, post);
+            Assert.True(postedPayment.Success, postedPayment.Message);
+            payment = postedPayment.Data!;
+            Assert.Equal("Posted", payment.State);
+            Assert.False(payment.BankStatementCleared);
+            Assert.True((await service.PostPaymentAsync(bill.Reference, payment.Reference, post)).Success);
+            var aging = await service.SupplierAgingAsync(invoiceDate, campusId, 1, 25);
+            Assert.True(aging.Success, aging.Message);
+            var due = aging.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference);
+            Assert.Equal(400m, due.NetPostedPayments);
+            Assert.Equal(800m, due.OpenBalance);
+            Assert.Equal(409, (await service.RequestReversalAsync(bill.Reference,
+                new FacilityVendorBillReversalRequestDto {
+                    ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
+                    ReversalDate = invoiceDate, AccountingPeriodId = periodId,
+                    Reason = "Must reverse posted bank disbursement before bill reversal."
+                })).StatusCode);
+            var refund = new FacilityVendorPaymentReversalRequest {
+                ClientRequestId = Guid.NewGuid(), RowVersion = payment.RowVersion,
+                ReversalDate = invoiceDate, AccountingPeriodId = periodId,
+                BankReversalReference = "BANK-REFUND-" + suffix,
+                Reason = "Bank transaction was refunded and confirmed by bank reference."
+            };
+            var reversal = await service.RequestPaymentReversalAsync(
+                bill.Reference, payment.Reference, refund);
+            Assert.True(reversal.Success, reversal.Message);
+            payment = reversal.Data!;
+            Assert.Equal("Submitted", payment.ReversalState);
+        }
+        await using (var db = Db(options, tenantId, checkerId, "Principal"))
+        {
+            var service = Service(db, tenantId, checkerId, "Principal");
+            var approved = await service.ReviewPaymentReversalAsync(bill.Reference,
+                payment.Reference, new FacilityVendorPaymentReversalReviewRequest {
+                    RowVersion = payment.ReversalRowVersion!, Approve = true,
+                    Reason = "Independently checked externally confirmed bank refund."
+                });
+            Assert.True(approved.Success, approved.Message);
+            payment = approved.Data!;
+            Assert.Equal("Posted", payment.ReversalState);
+            var aging = await service.SupplierAgingAsync(invoiceDate, campusId, 1, 25);
+            Assert.True(aging.Success, aging.Message);
+            var due = aging.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference);
+            Assert.Equal(0m, due.NetPostedPayments);
+            Assert.Equal(1200m, due.OpenBalance);
         }
         await using (var db = Db(options, tenantId, makerId, "Accountant"))
         {
