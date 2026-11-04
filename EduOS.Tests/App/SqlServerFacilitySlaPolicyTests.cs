@@ -95,7 +95,7 @@ public sealed class SqlServerFacilitySlaPolicyTests
         }
         await using (var db = Db(options, otherTenantId, managerId, "FacilitiesManager"))
             Assert.Equal(404, (await Service(db, otherTenantId, managerId, "FacilitiesManager")
-                .SlaRecommendationAsync(submitted.Id)).StatusCode is 403 or 404 ? 404 : 0);
+                .SlaRecommendationAsync(submitted.Id)).StatusCode);
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             var service = Service(db, tenantId, managerId, "FacilitiesManager");
