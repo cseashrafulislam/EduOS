@@ -86,7 +86,7 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
                 requestId = request.Id;
                 setup.FacilityWorkOrders.Add(new FacilityWorkOrder {
                     TenantId = tenantId, FacilityServiceRequestId = requestId,
-                    StateCode = "Scheduled", VendorSupplierId = vendor.Id,
+                    StateCode = "Approved", VendorSupplierId = vendor.Id,
                     VendorStateCode = "Approved", VendorProposedByUserId = managerId,
                     VendorApprovedByUserId = reviewerId,
                     VendorStartUtc = DateTime.UtcNow.AddHours(-5),
