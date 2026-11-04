@@ -24,6 +24,7 @@ public sealed class FacilityVendorServiceBill : BaseTenantEntity
     public Guid? SubmitRequestId { get; set; }
     public DateTime? SubmittedAtUtc { get; set; }
     public Guid? ReviewRequestId { get; set; }
+    [MaxLength(64)] public string? ReviewFingerprint { get; set; }
     public DateTime? ReviewedAtUtc { get; set; }
     public long? ReviewedByUserId { get; set; }
     [MaxLength(800)] public string? ReviewReason { get; set; }
