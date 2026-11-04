@@ -35,6 +35,9 @@ public sealed class FacilityVisitorDto
     public string RowVersion { get; set; } = string.Empty;
     public bool RedactionRequested { get; set; }
     public bool PrivacyRedacted { get; set; }
+    // Read-only projections derived from the existing source-linked event history.
+    public string IncidentStateCode { get; set; } = "None";
+    public string LegalHoldStateCode { get; set; } = "None";
 }
 public sealed class FacilityVisitorHostDto
 {
