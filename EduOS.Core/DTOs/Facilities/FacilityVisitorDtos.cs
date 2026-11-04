@@ -39,6 +39,19 @@ public sealed class FacilityVisitorDto
     public string IncidentStateCode { get; set; } = "None";
     public string LegalHoldStateCode { get; set; } = "None";
 }
+/// <summary>Aggregate-only privacy acceptance report. Never contains visitor PII or raw audit JSON.</summary>
+public sealed class FacilityVisitorPrivacyAuditReportDto
+{
+    public long TenantId { get; set; }
+    public DateTime CheckedAtUtc { get; set; }
+    public long VisitorVisits { get; set; }
+    public long FullyRedactedVisits { get; set; }
+    public long LegacyVisitAuditPayloadRows { get; set; }
+    public long LegacyEventAuditPayloadRows { get; set; }
+    public long FullyRedactedVisitsWithLegacyPayloads { get; set; }
+    public bool LegacyPrivatePayloadsRemain =>
+        LegacyVisitAuditPayloadRows > 0 || LegacyEventAuditPayloadRows > 0;
+}
 public sealed class FacilityVisitorHostDto
 {
     public long UserId { get; set; }
