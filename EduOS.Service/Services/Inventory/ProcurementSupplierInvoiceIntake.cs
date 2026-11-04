@@ -131,6 +131,13 @@ public sealed partial class ProcurementSupplierInvoiceService
             if (await db.ProcurementSupplierInvoices.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
                 x.SupplierId == data.SupplierId && x.NormalizedSupplierInvoiceNumber == normalized, ct))
                 return Err<ProcurementSupplierInvoiceDto>("Supplier invoice number already exists, including audit history.", 409);
+            // One supplier invoice number cannot simultaneously represent an
+            // inventory goods invoice and a non-stock Facilities service bill.
+            if (await db.FacilityVendorServiceBills.AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && x.SupplierId == data.SupplierId &&
+                x.NormalizedSupplierInvoiceNumber == normalized && !x.IsDeleted, ct))
+                return Err<ProcurementSupplierInvoiceDto>(
+                    "Supplier invoice number already assigned to a Facilities service bill.", 409);
             var refs = data.Lines.Select(x => x.GoodsReceiptReference).Distinct().ToArray();
             var receiptHeaders = await db.ProcurementGoodsReceipts.AsNoTracking().Where(x =>
                 x.TenantId == user.TenantId && refs.Contains(x.PublicId) && !x.IsDeleted)
