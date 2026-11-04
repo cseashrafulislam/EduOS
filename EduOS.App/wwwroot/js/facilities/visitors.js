@@ -205,8 +205,10 @@
                 }
                 // Retention requires an administrator-configured 30–3650 day
                 // policy, no legal hold/incident, and a separate live checker.
+                const caseBlocksRedaction = ['Open', 'PendingReview'].includes(row.incidentStateCode) ||
+                    ['Pending', 'Active', 'ReleasePending'].includes(row.legalHoldStateCode);
                 if (manager && (row.stateCode === 'CheckedOut' || row.stateCode === 'Rejected') &&
-                    !row.privacyRedacted) {
+                    !row.privacyRedacted && !caseBlocksRedaction) {
                     if (row.redactionRequested && privacyReviewer)
                         actions.append(button(label('Approve redaction', 'তথ্য অপসারণ অনুমোদন'),
                             'redactapprove', row, act));
