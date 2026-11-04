@@ -693,6 +693,144 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.Equal("false", (await checkerDb.TenantSettings.SingleAsync(x =>
                 x.Key == "Facilities.Visitor.LegalHold." + campusId)).Value);
         }
+
+        // One visit with an incident cannot be redacted until an independent
+        // case-resolution decision and separately approved per-visit hold release.
+        // All steps share the immutable event source and the original visit.
+        var caseClock = new ShiftedClock(TimeSpan.FromDays(80));
+        FacilityVisitorDto caseVisit;
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            caseVisit = (await Service(db, tenantId, managerId, "FacilitiesManager")
+                .ListAsync(campusId, 1, 50)).Data!.Items.Single(x => x.Id == first.Id);
+            Assert.Equal("Open", caseVisit.IncidentStateCode);
+            var held = await Service(db, tenantId, managerId, "FacilitiesManager", caseClock)
+                .TransitionAsync(first.Id, "holdrequest", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Preserve evidence for independent investigation"
+                });
+            Assert.True(held.Success, held.Message);
+            caseVisit = held.Data!;
+            Assert.Equal(409, (await Service(db, tenantId, managerId, "FacilitiesManager", caseClock)
+                .TransitionAsync(first.Id, "holdrequest", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Duplicate hold request must be rejected"
+                })).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, outsiderId, "Principal"))
+        {
+            var service = Service(db, tenantId, outsiderId, "Principal", caseClock);
+            var approved = await service.TransitionAsync(first.Id, "holdapprove",
+                new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Retain incident evidence for authorized inquiry"
+                });
+            Assert.True(approved.Success, approved.Message);
+            caseVisit = approved.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager", caseClock);
+            Assert.Equal(409, (await service.TransitionAsync(first.Id, "redactrequest",
+                new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Visitor retention period expired"
+                })).StatusCode);
+            var proposed = await service.TransitionAsync(first.Id, "incidentresolve",
+                new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Investigation completed and closure review requested"
+                });
+            Assert.True(proposed.Success, proposed.Message);
+            caseVisit = proposed.Data!;
+            Assert.Equal(403, (await service.TransitionAsync(first.Id, "incidentclose",
+                new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Manager cannot independently close case"
+                })).StatusCode);
+        }
+        await using (var db = Db(options, tenantId, outsiderId, "Principal"))
+        {
+            var approved = await Service(db, tenantId, outsiderId, "Principal", caseClock)
+                .TransitionAsync(first.Id, "incidentclose", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Independent review confirms final incident resolution"
+                });
+            Assert.True(approved.Success, approved.Message);
+            caseVisit = approved.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var service = Service(db, tenantId, managerId, "FacilitiesManager", caseClock);
+            Assert.Equal(409, (await service.TransitionAsync(first.Id, "redactrequest",
+                new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Visitor retention period expired"
+                })).StatusCode);
+            var requested = await service.TransitionAsync(first.Id, "holdreleaserequest",
+                new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Case resolved and evidence retention hold may end"
+                });
+            Assert.True(requested.Success, requested.Message);
+            caseVisit = requested.Data!;
+        }
+        await using (var db = Db(options, tenantId, outsiderId, "Principal"))
+        {
+            var service = Service(db, tenantId, outsiderId, "Principal", caseClock);
+            var released = await service.TransitionAsync(first.Id, "holdrelease",
+                new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Legal basis independently reviewed and released"
+                });
+            Assert.True(released.Success, released.Message);
+            caseVisit = released.Data!;
+            var page = await service.ListAsync(campusId, 1, 50);
+            Assert.True(page.Success, page.Message);
+            var row = page.Data!.Items.Single(x => x.Id == first.Id);
+            Assert.Equal("Closed", row.IncidentStateCode);
+            Assert.Equal("Clear", row.LegalHoldStateCode);
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var proposed = await Service(db, tenantId, managerId, "FacilitiesManager", caseClock)
+                .TransitionAsync(first.Id, "redactrequest", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Visitor retention period expired"
+                });
+            Assert.True(proposed.Success, proposed.Message);
+            caseVisit = proposed.Data!;
+        }
+        await using (var db = Db(options, tenantId, outsiderId, "Principal"))
+        {
+            var approved = await Service(db, tenantId, outsiderId, "Principal", caseClock)
+                .TransitionAsync(first.Id, "redactapprove", new FacilityVisitorTransitionDto
+                {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
+                    Reason = "Independent retention approval"
+                });
+            Assert.True(approved.Success, approved.Message);
+            Assert.Equal("[redacted]", approved.Data!.VisitorName);
+            var immutable = await db.FacilityVisitorEvents.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.FacilityVisitorVisitId == first.Id)
+                .ToListAsync();
+            Assert.Contains(immutable, x => x.ActionCode == "incident");
+            Assert.Contains(immutable, x => x.ActionCode == "incidentclose");
+            Assert.Contains(immutable, x => x.ActionCode == "holdapprove");
+            Assert.Contains(immutable, x => x.ActionCode == "holdrelease");
+            Assert.All(immutable, x => { Assert.Null(x.BadgeCode); Assert.Null(x.Reason); });
+        }
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options,
