@@ -2,6 +2,7 @@ using EduOS.Core.DTOs.Facilities;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -827,14 +828,14 @@ public sealed class SqlServerFacilityVisitorTests
                     ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
                     Reason = "Visitor retention period expired"
                 })).StatusCode);
-            var requested = await service.TransitionAsync(first.Id, "holdreleaserequest",
+            var releaseRequested = await service.TransitionAsync(first.Id, "holdreleaserequest",
                 new FacilityVisitorTransitionDto
                 {
                     ClientCommandId = Guid.NewGuid(), RowVersion = caseVisit.RowVersion,
                     Reason = "Case resolved and evidence retention hold may end"
                 });
-            Assert.True(requested.Success, requested.Message);
-            caseVisit = requested.Data!;
+            Assert.True(releaseRequested.Success, releaseRequested.Message);
+            caseVisit = releaseRequested.Data!;
         }
         await using (var db = Db(options, tenantId, outsiderId, "Principal"))
         {

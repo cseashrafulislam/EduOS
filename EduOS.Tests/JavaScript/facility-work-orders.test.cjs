@@ -315,7 +315,7 @@ test('work orders fail closed when tenant changes during an in-flight read', asy
                 if (switchOnVerify) { body.dataset.authTenantId = '99'; shield.hidden = false; }
             }
         }, shield, session: { reference: body.dataset.authSessionReference, tenant: '12' },
-        blocked: false, listGeneration: 0, historyGeneration: 0, partsGeneration: 0,
+        blocked: false, listGeneration: 0, historyGeneration: 0, partsGeneration: 0, slaGeneration: 0,
         locationGeneration: 0, technicianGeneration: 0, vendorGeneration: 0,
         technicianChoices: new Map(), vendorChoices: new Map(), chosenLocation: null, locationChoices: new Map(), selected: { id: 7 },
         pending: new Map([['7:verify', { id: 'pending' }]]),
@@ -339,6 +339,7 @@ test('work orders fail closed when tenant changes during an in-flight read', asy
     assert.equal(context.selected, null);
     assert.equal(context.pending.size, 0);
     assert.equal(context.locationGeneration, 1);
+    assert.equal(context.slaGeneration, 1);
     assert.equal(context.locationChoices.size, 0);
     assert.equal(el('wfRows').children.length, 0);
     assert.equal(el('facilityExport').disabled, true);
