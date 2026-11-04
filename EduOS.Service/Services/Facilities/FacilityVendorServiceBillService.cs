@@ -240,7 +240,8 @@ public sealed partial class FacilityVendorServiceBillService(
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.FacilityWorkOrderId <= 0 || !Money(request.AmountBdt) ||
             request.InvoiceDate == default || request.DueDate < request.InvoiceDate ||
-            request.DueDate == default || request.SupplierInvoiceNumber?.Trim().Length is < 1 or > 100 ||
+            request.DueDate == default || string.IsNullOrWhiteSpace(request.SupplierInvoiceNumber) ||
+            request.SupplierInvoiceNumber.Trim().Length > 100 ||
             !Plain(request.SupplierInvoiceNumber.Trim()) ||
             Clean(request.Reason) is not string reason || reason.Length is < 10 or > 800 ||
             !Plain(reason))
@@ -322,10 +323,11 @@ public sealed partial class FacilityVendorServiceBillService(
                 return Error<FacilityVendorBillDto>("Only the active bill maker may submit.", 403);
             if (bill.SubmitRequestId == request.ClientRequestId && bill.StateCode == "Submitted")
                 return ApiResponse<FacilityVendorBillDto>.SuccessResponse(await Map(bill, ct));
+            var source = await VerifiedSource(bill.FacilityWorkOrderId, ct);
             if (bill.StateCode != "Draft" ||
-                !Version(bill.RowVersion, request.RowVersion) ||
-                !await VerifiedSource(bill.FacilityWorkOrderId, ct) is { } source ||
-                source.SupplierId != bill.SupplierId || source.CampusId != bill.CampusId)
+                !Version(bill.RowVersion, request.RowVersion) || !source.HasValue ||
+                source.Value.SupplierId != bill.SupplierId ||
+                source.Value.CampusId != bill.CampusId)
                 return Error<FacilityVendorBillDto>("Bill changed or service proof expired.", 409);
             bill.SubmitRequestId = request.ClientRequestId;
             bill.StateCode = "Submitted"; bill.SubmittedAtUtc = Now;
