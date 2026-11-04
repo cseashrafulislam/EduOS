@@ -394,7 +394,7 @@
         ++paymentGeneration;
         activePayment = null;
         el('fcPaymentActionPanel').classList.add('d-none');
-        if (!bill || bill.stateCode !== 'Posted') {
+        if (!bill || !['Posted', 'Reversed'].includes(bill.stateCode)) {
             el('fcPaymentPanel').classList.add('d-none');
             return;
         }
@@ -404,25 +404,30 @@
             bill.supplierInvoiceNumber + ' — BDT ' + money(bill.amountBdt);
         try {
             const [options, data] = await Promise.all([
-                api(vendor + '/' + encodeURIComponent(bill.reference) + '/payment-options'),
+                bill.stateCode === 'Posted'
+                    ? api(vendor + '/' + encodeURIComponent(bill.reference) + '/payment-options')
+                    : Promise.resolve(null),
                 api(vendor + '/' + encodeURIComponent(bill.reference) +
                     '/payments?page=' + paymentPage + '&pageSize=25')
             ]);
             if (generation !== paymentGeneration || !sessionCurrent() ||
                 selected?.data?.reference !== bill.reference) return;
-            el('fcPaymentSummary').textContent =
-                t('Reserved BDT ', 'সংরক্ষিত টাকা ') + money(options.reservedAmount) +
-                ' · ' + t('Paid BDT ', 'পরিশোধিত টাকা ') +
-                money(options.postedNetPayments) + ' · ' +
-                t('Available BDT ', 'বাকি টাকা ') + money(options.availableAmount);
-            if (maker) {
+            el('fcPaymentSummary').textContent = options
+                ? t('Reserved BDT ', 'সংরক্ষিত টাকা ') + money(options.reservedAmount) +
+                    ' · ' + t('Paid BDT ', 'পরিশোধিত টাকা ') +
+                    money(options.postedNetPayments) + ' · ' +
+                    t('Available BDT ', 'বাকি টাকা ') + money(options.availableAmount)
+                : t('Historical bill reversed — payments are read-only.',
+                    'পুরোনো বিল রিভার্স হয়েছে — পরিশোধের ইতিহাস শুধু দেখা যাবে।');
+            if (maker && options) {
                 fillSelect('fcPaymentBank', options.banks || [], 'bankAccountId', x => x.name);
                 fillSelect('fcPaymentPeriod', options.periods || [], 'accountingPeriodId',
                     x => x.name + ' (' + x.startDate + ' – ' + x.endDate + ')');
                 el('fcPaymentAmount').max = String(options.availableAmount);
                 el('fcPaymentCreate').classList.toggle('d-none', options.availableAmount <= 0);
             }
-            fillSelect('fcPaymentActionPeriod', options.periods || [], 'accountingPeriodId',
+            if (maker && !options) el('fcPaymentCreate').classList.add('d-none');
+            fillSelect('fcPaymentActionPeriod', options?.periods || [], 'accountingPeriodId',
                 x => x.name + ' (' + x.startDate + ' – ' + x.endDate + ')');
             const body = el('fcPaymentsRows'); body.replaceChildren();
             for (const row of data.items || []) {
@@ -444,7 +449,11 @@
         } catch (error) { if (!locked) notice(error.message); }
     }
     function openPaymentAction(row) {
-        if (!selected?.data || selected.kind !== 'vendor') return;
+        if (!selected?.data || selected.kind !== 'vendor' ||
+            selected.data.stateCode !== 'Posted') {
+            notice(t('Historical payment is read-only.', 'পুরোনো পরিশোধের তথ্য শুধু দেখা যাবে।'), true);
+            return;
+        }
         const choices = [];
         if (checker && row.state === 'Submitted' &&
             row.makerId !== me && selected.data.preparedByUserId !== me)
