@@ -62,6 +62,10 @@ public sealed class FacilityWorkOrdersApiController(IFacilityWorkflowService ser
         int pageSize = 25, CancellationToken ct = default) =>
         Reply(await service.LocationsAsync(search, page, pageSize, ct));
 
+    [HttpGet("{id:long}/sla"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
+    public async Task<IActionResult> SlaRecommendation(long id, CancellationToken ct = default) =>
+        Reply(await service.SlaRecommendationAsync(id, ct));
+
     [HttpGet("technicians"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager")]
     public async Task<IActionResult> Technicians(long campusId, string? search = null,
         int page = 1, int pageSize = 25, DateTime? startUtc = null, DateTime? endUtc = null,
