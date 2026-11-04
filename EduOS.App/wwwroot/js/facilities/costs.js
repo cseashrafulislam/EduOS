@@ -370,8 +370,8 @@
                 note.textContent = t('Supplier #', 'সরবরাহকারী #') + row.supplierId;
                 first.appendChild(note);
                 tr.append(first, cell(money(row.invoiceAmount)),
-                    cell(money(row.netPostedPayments)), cell(money(row.openBalance)),
-                    cell(row.daysOverdue));
+                    cell(money(row.netPostedPayments)), cell(money(row.postedSupplierCredits)),
+                    cell(money(row.openBalance)), cell(row.daysOverdue));
                 tbody.appendChild(tr);
             }
             const total = Number(result.totalCount || 0);
