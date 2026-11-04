@@ -302,7 +302,10 @@ public sealed partial class FacilityVendorServiceBillService
                     replay.SourceId != bill.Id || replay.CreatedBy != user.UserId ||
                     replay.JournalDate != request.PlannedDate ||
                     replay.AccountingPeriodId != request.AccountingPeriodId ||
-                    replay.Description != reason || !match.HasValue ||
+                    !(replay.Description == reason ||
+                      (replay.Description ?? "").StartsWith(
+                          reason + " | Finance decision: ", StringComparison.Ordinal)) ||
+                    !match.HasValue ||
                     match.Value.BankId != request.BankAccountId ||
                     match.Value.Lines[0].DebitAmount != request.Amount)
                     return Error<FacilityVendorPaymentDto>("Payment command ID reused with different intent.", 409);
