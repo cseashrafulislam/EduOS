@@ -84,6 +84,10 @@ public sealed class FacilityLabourCostAllocations : Migration
             "FacilityLabourCostAllocations", new[] { "TenantId", "PayrollEmployeeId", "StateCode" });
         m.CreateIndex("IX_FacilityLabourCostAllocations_TenantId_CampusId_StateCode",
             "FacilityLabourCostAllocations", new[] { "TenantId", "CampusId", "StateCode" });
+        m.CreateIndex("IX_FacilityLabourCostAllocations_TenantId_EmployeeId",
+            "FacilityLabourCostAllocations", new[] { "TenantId", "EmployeeId" });
+        m.CreateIndex("IX_FacilityLabourCostAllocations_TenantId_PayrollRunId",
+            "FacilityLabourCostAllocations", new[] { "TenantId", "PayrollRunId" });
         m.AddCheckConstraint("CK_FacilityLabourCostAllocations_StateAmount",
             "FacilityLabourCostAllocations",
             "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND " +
