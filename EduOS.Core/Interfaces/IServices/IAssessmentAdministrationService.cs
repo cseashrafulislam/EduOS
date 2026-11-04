@@ -18,6 +18,9 @@ public interface IAssessmentAdministrationService
     Task<ApiResponse<PublishedGradeDistributionDto>> GetPublishedGradeDistributionAsync(PublishedGradeDistributionQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PublishedGradeDistributionComparisonDto>> ComparePublishedGradeDistributionsAsync(PublishedGradeDistributionComparisonQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PublishedTabulationPageDto>> SearchPublishedTabulationAsync(PublishedTabulationQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<ExamReportPageDto>> SearchExamReportAsync(ExamReportQueryDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<ExamReportSubjectDto>>> SearchExamReportSubjectsAsync(long publicationId, string? search, int page, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<ExamReportScopeDto>>> SearchExamReportScopesAsync(string? search, int page, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultFollowUpPageDto>> SearchResultFollowUpAsync(ResultFollowUpQueryDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultFollowUpSummaryDto>> GetResultFollowUpSummaryAsync(long publicationId, string? search, CancellationToken cancellationToken = default);
     Task<ApiResponse<ResultFollowUpExportDto>> ExportResultFollowUpAsync(ResultFollowUpQueryDto request, CancellationToken cancellationToken = default);

@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using EduOS.App.Authorization;
+using EduOS.App.Security;
 using EduOS.Core.DTOs.Assessment;
 using EduOS.Core.Interfaces.IServices;
 using Microsoft.AspNetCore.Authorization;
@@ -194,6 +196,23 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
     public async Task<IActionResult> PublishedTabulation(
         [FromQuery] PublishedTabulationQueryDto query, CancellationToken ct) =>
         Result(await _service.SearchPublishedTabulationAsync(query, ct));
+
+    [HttpGet("results/reports")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> ExamReport([FromQuery] ExamReportQueryDto query,
+        CancellationToken ct) => ReportResult(await _service.SearchExamReportAsync(query, ct));
+
+    [HttpGet("results/reports/subjects")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> ExamReportSubjects([FromQuery] long publicationId,
+        [FromQuery] string? search, [FromQuery] int page = 1, CancellationToken ct = default) =>
+        ReportResult(await _service.SearchExamReportSubjectsAsync(publicationId, search, page, ct));
+
+    [HttpGet("results/reports/scopes")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
+    public async Task<IActionResult> ExamReportScopes([FromQuery] string? search,
+        [FromQuery] int page = 1, CancellationToken ct = default) =>
+        ReportResult(await _service.SearchExamReportScopesAsync(search, page, ct));
 
     [HttpGet("results/publications/compare")]
     [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
@@ -421,4 +440,17 @@ public sealed class AssessmentAdministrationApiController : ControllerBase
 
     private IActionResult Result<T>(EduOS.Core.Common.ApiResponse<T> result) =>
         StatusCode(result.StatusCode, result);
+
+    // New private reporting APIs carry a public session/tenant binding so a
+    // response from a previous institution cannot populate the current page.
+    private IActionResult ReportResult<T>(EduOS.Core.Common.ApiResponse<T> result)
+    {
+        var sid = User.FindFirstValue(AuthSessionRegistry.ClaimType);
+        var tenant = User.FindFirstValue("TenantId");
+        if (sid is not { Length: 48 } || !long.TryParse(tenant, out var tenantId) || tenantId <= 0)
+            return Unauthorized(new { success = false, message = "Session unavailable; sign in again." });
+        Response.Headers["X-EduOS-Session-Reference"] = AuthSessionRegistry.ToPublicReference(sid);
+        Response.Headers["X-EduOS-Tenant-Id"] = tenant;
+        return Result(result);
+    }
 }

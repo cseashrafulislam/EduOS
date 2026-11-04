@@ -82,7 +82,7 @@
         'academics:assessments': [
             ['settings', 'Settings', 'সেটিংস', ['/AssessmentAdministration/Setup', '/AssessmentAdministration/AssessmentComponents', '/AssessmentAdministration/AssessmentSchedules', '/AssessmentAdministration/GradeSchemes', '/AssessmentAdministration/CertificateTemplates']],
             ['operations', 'Operations', 'কার্যক্রম', ['/AssessmentAdministration/Marks', '/AssessmentAdministration/Results', '/AssessmentAdministration/Index', '/AssessmentAdministration/MarkReviews', '/AssessmentAdministration/ComponentMarks', '/AssessmentAdministration/SubjectCompletions', '/AssessmentAdministration/Attempts', '/AssessmentAdministration/ResultRescrutiny', '/AssessmentAdministration/AdmitCards']],
-            ['reports', 'Reports', 'রিপোর্ট', ['/AssessmentAdministration/Publications', '/AssessmentAdministration/GradeDistribution', '/AssessmentAdministration/ResultFollowUp', '/AssessmentAdministration/Certificates', '/AssessmentAdministration/Transcripts']]
+            ['reports', 'Reports', 'রিপোর্ট', ['/AssessmentAdministration/ExamReports', '/AssessmentAdministration/Publications', '/AssessmentAdministration/GradeDistribution', '/AssessmentAdministration/ResultFollowUp', '/AssessmentAdministration/Certificates', '/AssessmentAdministration/Transcripts']]
         ],
         'academics:operations': [
             ['settings', 'Settings', 'সেটিংস', ['/AcademicCalendar']],

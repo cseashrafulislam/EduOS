@@ -57,6 +57,23 @@
             recovery: ['Reload versions after a conflict or uncertain withdrawal; verify state before retrying. If tabulation is blocked, resolve the recorded integrity issue.', 'সংঘাত বা অনিশ্চিত প্রত্যাহারে সংস্করণ রিফ্রেশ করে অবস্থা দেখে আবার চেষ্টা করুন। ট্যাবুলেশন আটকে গেলে সততার ত্রুটি সমাধান করুন।'],
             related: [['/AssessmentAdministration/Results', 'Result review and publication', 'ফলাফল যাচাই ও প্রকাশ'], ['/AssessmentAdministration/GradeDistribution', 'Grade distribution', 'গ্রেড বণ্টন']]
         },
+        '/assessmentadministration/examreports/index': {
+            version: 1, reviewed: true,
+            title: ['Examination & Result Reports', 'পরীক্ষা ও ফলাফলের রিপোর্ট'],
+            purpose: ['Search version-pinned examination reports, analyze students and subjects, and export or print an authorized page.', 'সংস্করণ-নির্ভর ফলাফলের রিপোর্টে শিক্ষার্থী ও বিষয় বিশ্লেষণ করুন এবং অনুমোদিত পৃষ্ঠা এক্সপোর্ট বা প্রিন্ট করুন।'],
+            before: ['EXAM module and TenantAdmin, Principal, VicePrincipal or ExamController permission. Results must have a finalized publication; subject reports need immutable course evidence.', 'EXAM মডিউল ও TenantAdmin, Principal, VicePrincipal বা ExamController অনুমতি দরকার। ফলাফলের চূড়ান্ত প্রকাশিত সংস্করণ থাকতে হবে; বিষয়ভিত্তিক রিপোর্টে অপরিবর্তনীয় কোর্স তথ্য প্রয়োজন।'],
+            steps: [
+                ['Find the assessment/batch, select a finalized publication version and choose one of the report types.', 'মূল্যায়ন/ব্যাচ খুঁজে প্রকাশিত সংস্করণ ও রিপোর্টের ধরন বেছে নিন।'],
+                ['For a subject-specific list, use Find subject and select a subject. Optionally filter by roll, code or name.', 'বিষয়ভিত্তিক তালিকায় Find subject দিয়ে বিষয় নির্বাচন করুন। চাইলে রোল, কোড বা নাম দিয়ে ফিল্টার করুন।'],
+                ['Select View report. Use Previous/Next for database-backed paging; Page CSV and Print page cover only the visible page.', 'View report চাপুন। Previous/Next দিয়ে পৃষ্ঠা বদলান; Page CSV ও Print page শুধু দৃশ্যমান পৃষ্ঠা নেয়।'],
+                ['For official Academic Transcript, open the separate Transcript Issue Register instead of treating this preview as an issued document.', 'আনুষ্ঠানিক Academic Transcript-এর জন্য আলাদা Transcript Issue Register খুলুন; এই রিপোর্টকে ইস্যুকৃত দলিল ভাববেন না।']
+            ],
+            example: ['Fictional example: choose Grade 9 Final, 2026 / Section A, published Version 2; choose Subject Wise Fail List, select Mathematics and export page 1.', 'কাল্পনিক উদাহরণ: নবম শ্রেণির Final 2026 / Section A, প্রকাশিত Version 2 বেছে গণিতের Subject Wise Fail List-এর প্রথম পৃষ্ঠা CSV করুন।'],
+            result: ['The selected authorized published snapshot is shown with version, matching-row count and report-specific columns.', 'অনুমোদিত প্রকাশিত সংস্করণের ফলাফল, সংস্করণ নম্বর, মোট মিল পাওয়া সারি ও প্রয়োজনীয় কলাম দেখা যায়।'],
+            rules: ['A withdrawn version is historical only. Counselling lists are referral candidates—not counselling attendance. A practical-only failure cannot be claimed until immutable component-level evidence exists. Old course names use the current authorized catalogue; historical marks and grades come from frozen publication snapshots.', 'প্রত্যাহারকৃত সংস্করণ শুধু ইতিহাস। কাউন্সেলিং তালিকা সম্ভাব্য শিক্ষার্থীর, সম্পন্ন কাউন্সেলিং নয়। অপরিবর্তনীয় ব্যবহারিক উপাদানের তথ্য ছাড়া ব্যবহারিক অংশে অনুত্তীর্ণ বলা যায় না। পুরোনো কোর্সের নাম বর্তমান অনুমোদিত ক্যাটালগ থেকে, নম্বর/গ্রেড সংরক্ষিত সংস্করণ থেকে আসে।'],
+            recovery: ['If no report appears, confirm the finalized version, chosen subject and campus access. If a snapshot integrity error appears, ask the exam controller to reconcile it; do not rebuild historic marks from editable registers.', 'রিপোর্ট না এলে প্রকাশিত সংস্করণ, বিষয় ও ক্যাম্পাস অনুমতি দেখুন। স্ন্যাপশট ত্রুটিতে পরীক্ষা নিয়ন্ত্রককে যাচাই করতে বলুন; সম্পাদনযোগ্য নম্বর থেকে পুরোনো ফল বানাবেন না।'],
+            related: [['/AssessmentAdministration/Publications', 'Publication history', 'প্রকাশনার ইতিহাস'], ['/AssessmentAdministration/Transcripts', 'Transcript issue register', 'ট্রান্সক্রিপ্ট ইস্যুর তালিকা']]
+        },
         '/assessmentadministration/setup/index': {
             version: 1, reviewed: true,
             title: ['Assessment Setup', 'মূল্যায়ন সেটআপ'],

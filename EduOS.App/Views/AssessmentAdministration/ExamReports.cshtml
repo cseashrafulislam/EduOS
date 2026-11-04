@@ -1,0 +1,98 @@
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "পরীক্ষা ও ফলাফল রিপোর্ট" : "Examination & Result Reports";
+}
+<section class="container-fluid py-3" id="examReportsWorkspace" data-lang="@(bn ? "bn" : "en")">
+    <header class="mb-3">
+        <p class="small text-muted mb-1">@(bn ? "পরীক্ষা ও ফলাফল / রিপোর্ট" : "Exams & Results / Reports")</p>
+        <h1 class="h4 mb-0">@(bn ? "পরীক্ষা ও ফলাফলের রিপোর্ট" : "Examination & Result Reports")</h1>
+    </header>
+    <div id="erNotice" class="d-none" role="alert" aria-live="polite"></div>
+    <form id="erFilters" class="card card-body mb-3" role="search">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label for="erScopeTerm" class="form-label">@(bn ? "মূল্যায়ন বা ব্যাচ খুঁজুন" : "Find assessment or batch")</label>
+                <div class="input-group">
+                    <input id="erScopeTerm" type="search" class="form-control" maxlength="100" />
+                    <button id="erScopeSearch" type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Find")</button>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label for="erScope" class="form-label">@(bn ? "মূল্যায়ন / ব্যাচ" : "Assessment / Batch")</label>
+                <select id="erScope" class="form-select" required></select>
+            </div>
+            <div class="col-md-2">
+                <label for="erVersion" class="form-label">@(bn ? "প্রকাশিত সংস্করণ" : "Finalized version")</label>
+                <select id="erVersion" class="form-select" disabled required></select>
+            </div>
+            <div class="col-md-2 d-flex align-items-center gap-2">
+                <button id="erScopePrev" type="button" class="btn btn-outline-secondary" aria-label="@(bn ? "আগের মূল্যায়ন" : "Previous scopes")" disabled>‹</button>
+                <button id="erScopeNext" type="button" class="btn btn-outline-secondary" aria-label="@(bn ? "পরের মূল্যায়ন" : "Next scopes")" disabled>›</button>
+            </div>
+        </div>
+        <div class="row g-2 align-items-end mt-1">
+            <div class="col-lg-4">
+                <label for="erKind" class="form-label">@(bn ? "রিপোর্ট নির্বাচন করুন" : "Report")</label>
+                <select id="erKind" class="form-select">
+                    <optgroup label="@(bn ? "ফলাফল ও মেধা" : "Result & Merit")">
+                        <option value="3">@(bn ? "ট্যাবুলেশন শিট" : "Tabulation Sheet")</option>
+                        <option value="4">@(bn ? "রোল অনুযায়ী ফলাফল" : "Roll Wise Results")</option>
+                        <option value="5">@(bn ? "শীর্ষ ২০ অবস্থানের রিপোর্ট" : "Top 20 Position Wise Report")</option>
+                        <option value="6">@(bn ? "রোল অনুযায়ী অনুত্তীর্ণ" : "Roll Wise Fail List")</option>
+                        <option value="7">@(bn ? "উত্তীর্ণের তালিকা" : "Pass List")</option>
+                        <option value="16">@(bn ? "GPA অনুযায়ী ফলাফল" : "GPA Wise Results")</option>
+                    </optgroup>
+                    <optgroup label="@(bn ? "বিষয় বিশ্লেষণ" : "Subject Analysis")">
+                        <option value="9">@(bn ? "বিষয় অনুযায়ী অবস্থান" : "Subject Wise Position")</option>
+                        <option value="10">@(bn ? "বিষয় অনুযায়ী অনুত্তীর্ণ" : "Subject Wise Fail List")</option>
+                        <option value="11">@(bn ? "বিষয় অনুযায়ী উত্তীর্ণ" : "Subject Wise Pass List")</option>
+                        <option value="12">@(bn ? "১ বিষয়ে অনুত্তীর্ণ" : "1 Subject Fail List")</option>
+                        <option value="13">@(bn ? "২ বিষয়ে অনুত্তীর্ণ" : "2 Subject Fail List")</option>
+                        <option value="14">@(bn ? "৩ বা বেশি বিষয়ে অনুত্তীর্ণ" : "3+ Subject Fail List")</option>
+                        <option value="15" disabled>@(bn ? "ব্যবহার অনুপলব্ধ: ব্যবহারিক বিষয়ের অনুত্তীর্ণ" : "Unavailable: Practical Subject Fail List")</option>
+                        <option value="19">@(bn ? "নম্বর ছাড়া বিষয়ভিত্তিক মার্কশিট" : "Subject Wise Mark Sheet Without Mark")</option>
+                    </optgroup>
+                    <optgroup label="@(bn ? "শিক্ষার্থীর একাডেমিক" : "Student Academic")">
+                        <option value="2">@(bn ? "একাডেমিক ট্রান্সক্রিপ্ট (ইস্যুর তালিকা)" : "Academic Transcript (issue register)")</option>
+                        <option value="17">@(bn ? "শিক্ষার্থী অনুযায়ী বিষয়" : "Student Wise Subject")</option>
+                        <option value="18">@(bn ? "শিক্ষার্থী অনুযায়ী বিষয় (মোট)" : "Student Wise Subject (Total)")</option>
+                    </optgroup>
+                    <optgroup label="@(bn ? "ব্যবস্থাপনা ও কাউন্সেলিং" : "Management & Counselling")">
+                        <option value="1">@(bn ? "কাউন্সেলিংয়ের সম্ভাব্য শিক্ষার্থী" : "Counselling Report (referral candidates)")</option>
+                        <option value="8">@(bn ? "গ্রুপ অনুযায়ী সারসংক্ষেপ" : "Group Wise Summary")</option>
+                    </optgroup>
+                </select>
+            </div>
+            <div class="col-lg-3" id="erSubjectWrap" hidden>
+                <label for="erSubjectTerm" class="form-label">@(bn ? "বিষয় খুঁজুন" : "Find subject")</label>
+                <input id="erSubjectTerm" type="search" class="form-control" maxlength="100" />
+                <div class="d-flex gap-1 mt-1"><button id="erSubjectFind" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "খুঁজুন" : "Find")</button><button id="erSubjectPrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>‹</button><button id="erSubjectNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>›</button></div>
+                <select id="erSubject" class="form-select mt-1" aria-label="@(bn ? "বিষয়" : "Subject")"></select>
+            </div>
+            <div class="col-lg-3">
+                <label for="erSearch" class="form-label">@(bn ? "রোল, কোড বা নাম" : "Roll, code or name")</label>
+                <input id="erSearch" type="search" class="form-control" maxlength="100" />
+            </div>
+            <div class="col-auto"><button id="erLoad" class="btn btn-primary" type="button" disabled>@(bn ? "রিপোর্ট দেখুন" : "View report")</button></div>
+            <div class="col-auto"><button id="erCsv" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "বর্তমান পৃষ্ঠার CSV" : "Page CSV")</button></div>
+            <div class="col-auto"><button id="erPrint" class="btn btn-outline-secondary" type="button" disabled>@(bn ? "পৃষ্ঠার প্রিন্ট" : "Print page")</button></div>
+        </div>
+    </form>
+    <section class="card" aria-label="@(bn ? "রিপোর্টের ফলাফল" : "Report results")">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h2 class="h6 mb-0" id="erTitle">@(bn ? "রিপোর্ট নির্বাচন করুন" : "Choose a report")</h2>
+            <span id="erInfo" class="small text-muted" role="status" aria-live="polite"></span>
+        </div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
+            <thead id="erHead"></thead><tbody id="erRows"><tr><td>@(bn ? "প্রকাশিত সংস্করণ নির্বাচন করুন।" : "Select a finalized publication.")</td></tr></tbody>
+        </table></div>
+        <div class="card-footer d-flex gap-2 align-items-center">
+            <button id="erPrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "আগের পৃষ্ঠা" : "Previous")</button>
+            <button id="erNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "পরের পৃষ্ঠা" : "Next")</button>
+            <span id="erPage" class="small text-muted" role="status" aria-live="polite"></span>
+        </div>
+    </section>
+</section>
+<style>@@media print { #erFilters,#erNotice,#erPrev,#erNext,header .btn { display:none!important; } #examReportsWorkspace .card { border:0!important; } }</style>
+@section Scripts { <script src="~/js/assessment/exam-reports.js" asp-append-version="true"></script> }

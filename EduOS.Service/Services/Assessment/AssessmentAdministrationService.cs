@@ -27,6 +27,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<ResultRescrutinyEvent> _rescrutinyEvents;
     private readonly IGenericRepository<ResultCorrectionEvent>? _corrections;
     private readonly IGenericRepository<StudentResultCourseSnapshot>? _courseSnapshots;
+    private readonly IGenericRepository<AcademicTrack>? _academicTracks;
     private readonly IGenericRepository<AssessmentSchedule> _schedules;
     private readonly IGenericRepository<StudentAssessmentMark> _marks;
     private readonly IGenericRepository<ResultPublication> _publications;
@@ -89,12 +90,14 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<StudentResultCourseSnapshot>? courseSnapshots = null,
         IDataProtectionProvider? transcriptProtection = null,
         IGenericRepository<Tenant>? issuingTenants = null,
-        IGenericRepository<AssessmentAttemptRegistration>? attemptRegistrations = null)
+        IGenericRepository<AssessmentAttemptRegistration>? attemptRegistrations = null,
+        IGenericRepository<AcademicTrack>? academicTracks = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
         _rescrutinyEvents = rescrutinyEvents;
         _corrections = corrections;
         _courseSnapshots = courseSnapshots;
+        _academicTracks = academicTracks;
         _rescrutinyGuardians = rescrutinyGuardians;
         _rescrutinyStudentGuardians = rescrutinyStudentGuardians;
         _schedules = schedules;
