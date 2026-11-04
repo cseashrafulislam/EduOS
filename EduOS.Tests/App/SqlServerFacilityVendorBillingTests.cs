@@ -248,12 +248,19 @@ public sealed class SqlServerFacilityVendorBillingTests
                 return attempted.Success ? attempted.Data : null;
             }
             var concurrent = await Task.WhenAll(
-                ReserveRemainingAsync(Guid.NewGuid()),
-                ReserveRemainingAsync(Guid.NewGuid()));
+                Task.Run(() => ReserveRemainingAsync(Guid.NewGuid())),
+                Task.Run(() => ReserveRemainingAsync(Guid.NewGuid())));
             var reservedPayment = Assert.Single(concurrent, x => x != null)!;
-            var reservedBalance = await service.PaymentOptionsAsync(bill.Reference);
-            Assert.True(reservedBalance.Success, reservedBalance.Message);
-            Assert.Equal(0m, reservedBalance.Data!.AvailableAmount);
+            // IHttpContextAccessor uses ambient AsyncLocal state. Parallel
+            // fixture contexts intentionally must not be followed by reads
+            // through the earlier request's accessor; open a fresh request.
+            await using (var readbackDb = Db(options, tenantId, makerId, "Accountant"))
+            {
+                var reservedBalance = await Service(readbackDb, tenantId, makerId, "Accountant")
+                    .PaymentOptionsAsync(bill.Reference);
+                Assert.True(reservedBalance.Success, reservedBalance.Message);
+                Assert.Equal(0m, reservedBalance.Data!.AvailableAmount);
+            }
             await using (var foreignDb = Db(options, outsiderTenantId, makerId, "Accountant"))
             {
                 var foreignService = Service(foreignDb, outsiderTenantId, makerId, "Accountant");
@@ -271,20 +278,26 @@ public sealed class SqlServerFacilityVendorBillingTests
                 Assert.True(declined.Success, declined.Message);
                 Assert.Equal("Rejected", declined.Data!.State);
             }
-            Assert.Equal(800m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
-            Assert.Equal(409, (await service.CreatePaymentAsync(bill.Reference,
-                new FacilityVendorPaymentInstructionRequest {
-                    ClientRequestId = Guid.NewGuid(), BillRowVersion = bill.RowVersion,
-                    BankAccountId = bankId, AccountingPeriodId = periodId,
-                    PlannedDate = invoiceDate, Amount = 900m,
-                    Reason = "A second instruction must not overreserve the same payable."
-                })).StatusCode);
-            Assert.Equal(409, (await service.RequestReversalAsync(bill.Reference,
-                new FacilityVendorBillReversalRequestDto {
-                    ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
-                    ReversalDate = invoiceDate, AccountingPeriodId = periodId,
-                    Reason = "Cannot cancel invoice with a reserved supplier payment."
-                })).StatusCode);
+            await using (var readbackDb = Db(options, tenantId, makerId, "Accountant"))
+            {
+                var readbackService = Service(readbackDb, tenantId, makerId, "Accountant");
+                var available = await readbackService.PaymentOptionsAsync(bill.Reference);
+                Assert.True(available.Success, available.Message);
+                Assert.Equal(800m, available.Data!.AvailableAmount);
+                Assert.Equal(409, (await readbackService.CreatePaymentAsync(bill.Reference,
+                    new FacilityVendorPaymentInstructionRequest {
+                        ClientRequestId = Guid.NewGuid(), BillRowVersion = bill.RowVersion,
+                        BankAccountId = bankId, AccountingPeriodId = periodId,
+                        PlannedDate = invoiceDate, Amount = 900m,
+                        Reason = "A second instruction must not overreserve the same payable."
+                    })).StatusCode);
+                Assert.Equal(409, (await readbackService.RequestReversalAsync(bill.Reference,
+                    new FacilityVendorBillReversalRequestDto {
+                        ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
+                        ReversalDate = invoiceDate, AccountingPeriodId = periodId,
+                        Reason = "Cannot cancel invoice with a reserved supplier payment."
+                    })).StatusCode);
+            }
         }
         await using (var db = Db(options, tenantId, checkerId, "Principal"))
         {
