@@ -1,0 +1,100 @@
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    ViewData["Title"] = bn ? "ফ্যাসিলিটিজ খরচ ও সরবরাহকারীর বিল" : "Facilities Costs & Vendor Billing";
+    var maker = User.IsInRole("TenantAdmin") || User.IsInRole("Accountant");
+    var checker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+}
+<section class="container-fluid py-3" id="facilityCosts"
+         data-bn="@bn.ToString().ToLowerInvariant()"
+         data-maker="@maker.ToString().ToLowerInvariant()"
+         data-checker="@checker.ToString().ToLowerInvariant()"
+         data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
+    <header class="mb-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+            <h1 class="h4 mb-1">@(bn ? "ফ্যাসিলিটিজ খরচ ও ভেন্ডর বিল" : "Facilities Cost Management")</h1>
+            <p class="text-muted small mb-0">@(bn ? "যাচাইকৃত কাজের বিপরীতে নন-স্টক সেবা বিল; প্রকৃত Payable কেবল স্বতন্ত্র Finance অনুমোদনে পোস্ট হয়। Labour allocation আগেই পোস্টকৃত Payroll থেকে আসে—দ্বিতীয়বার Salary Expense পোস্ট হয় না।" : "Non-stock vendor bills require independently verified work and separate Finance approval. Labour allocations use already posted Payroll; they never book a second salary expense.")</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary btn-sm" asp-controller="FacilityWorkOrders" asp-action="Index">@(bn ? "ওয়ার্ক অর্ডার" : "Work Orders")</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-controller="FacilityVisitors" asp-action="Index">@(bn ? "ভিজিটর" : "Visitors")</a>
+        </div>
+    </header>
+    <div id="fcNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="row g-3">
+        <div class="col-12 col-xl-6">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">@(bn ? "বাইরের সরবরাহকারীর সেবা বিল" : "External Vendor Service Invoices")</h2>
+                <p class="small text-muted">@(bn ? "স্টক রিসিপ্ট তৈরি নয়; যাচাইকৃত সার্ভিস গ্রহণের পরে সরাসরি Expense → Supplier Payable।" : "No inventory receipt. Verified service costs post Expense to Supplier Payable.")</p>
+                @if (maker)
+                {
+                    <form id="fcVendorCreate" class="row g-2 mb-3">
+                        <div class="col-12"><label class="form-label" for="fcVendorSearch">@(bn ? "যাচাইকৃত ওয়ার্ক অর্ডার খুঁজুন" : "Find verified service work")</label>
+                            <div class="input-group"><input id="fcVendorSearch" class="form-control" maxlength="100" placeholder="@(bn ? "কাজের নাম বা সরবরাহকারী" : "Work summary or supplier")" />
+                                <button type="button" id="fcFindVendor" class="btn btn-outline-secondary">@(bn ? "খুঁজুন" : "Find")</button></div>
+                            <select id="fcVendorSource" class="form-select mt-2" required><option value="">@(bn ? "প্রথমে যাচাইকৃত কাজ খুঁজুন" : "Search verified work first")</option></select>
+                        </div>
+                        <div class="col-md-6"><label class="form-label" for="fcVendorNumber">@(bn ? "সরবরাহকারীর বিল নম্বর" : "Supplier invoice number")</label><input id="fcVendorNumber" class="form-control" maxlength="100" required /></div>
+                        <div class="col-md-6"><label class="form-label" for="fcVendorAmount">@(bn ? "টাকা (BDT)" : "Amount (BDT)")</label><input id="fcVendorAmount" type="number" step="0.01" min="0.01" class="form-control" required /></div>
+                        <div class="col-md-6"><label class="form-label" for="fcVendorDate">@(bn ? "বিলের তারিখ" : "Invoice date")</label><input id="fcVendorDate" type="date" class="form-control" required /></div>
+                        <div class="col-md-6"><label class="form-label" for="fcVendorDue">@(bn ? "পরিশোধের শেষ তারিখ" : "Due date")</label><input id="fcVendorDue" type="date" class="form-control" required /></div>
+                        <div class="col-12"><label class="form-label" for="fcVendorReason">@(bn ? "বিলের প্রমাণ/কারণ (কমপক্ষে ১০ অক্ষর)" : "Service bill evidence (10+ characters)")</label><textarea id="fcVendorReason" rows="2" minlength="10" maxlength="800" class="form-control" required></textarea></div>
+                        <div class="col-12"><button class="btn btn-primary" type="submit">@(bn ? "ড্রাফট বিল তৈরি" : "Create draft invoice")</button></div>
+                    </form>
+                }
+                <form id="fcVendorFilter" class="row g-2 mb-2">
+                    <div class="col-sm-6"><label class="form-label" for="fcVendorState">@(bn ? "বিলের অবস্থা" : "Invoice state")</label>
+                        <select id="fcVendorState" class="form-select"><option value="">@(bn ? "সব" : "All")</option><option>Draft</option><option>Submitted</option><option>Posted</option><option>Rejected</option><option>Reversed</option></select></div>
+                    <div class="col-sm-6 d-flex align-items-end"><button class="btn btn-outline-secondary w-100" type="submit">@(bn ? "রিফ্রেশ" : "Refresh")</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr>
+                    <th>@(bn ? "সরবরাহকারী / বিল" : "Supplier / Invoice")</th><th>@(bn ? "টাকা" : "BDT")</th><th>@(bn ? "অবস্থা" : "State")</th><th>@(bn ? "অ্যাকশন" : "Action")</th>
+                </tr></thead><tbody id="fcVendorRows"></tbody></table></div>
+                <div class="d-flex gap-2 align-items-center"><button type="button" id="fcVendorPrev" class="btn btn-sm btn-outline-secondary">@(bn ? "পূর্ববর্তী" : "Previous")</button><span id="fcVendorPage" class="small" aria-live="polite"></span><button type="button" id="fcVendorNext" class="btn btn-sm btn-outline-secondary">@(bn ? "পরবর্তী" : "Next")</button></div>
+            </div></section>
+        </div>
+        <div class="col-12 col-xl-6">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h5">@(bn ? "ভেতরের টেকনিশিয়ানের Payroll খরচ" : "Internal Payroll Labour Allocation")</h2>
+                <p class="small text-muted">@(bn ? "মূল Payroll posted থাকতে হবে। এই হিসাব শুধু Work Order-এ খরচের বরাদ্দ, নতুন Journal নয়।" : "Source Payroll must already be posted. This allocation is reporting-only, never a new GL journal.")</p>
+                @if (maker)
+                {
+                    <form id="fcLabourCreate" class="row g-2 mb-3">
+                        <div class="col-12"><label class="form-label" for="fcLabourSearch">@(bn ? "কাজ বা কর্মী খুঁজুন" : "Find work or employee")</label>
+                            <div class="input-group"><input id="fcLabourSearch" class="form-control" maxlength="100" placeholder="@(bn ? "কাজ / কর্মী / Payroll" : "Work / employee / payroll")" />
+                                <button type="button" id="fcFindLabour" class="btn btn-outline-secondary">@(bn ? "খুঁজুন" : "Find")</button></div>
+                            <select id="fcLabourSource" class="form-select mt-2" required><option value="">@(bn ? "প্রথমে Payroll উৎস খুঁজুন" : "Search payroll work source first")</option></select>
+                        </div>
+                        <div class="col-12"><label for="fcLabourMinutes" class="form-label">@(bn ? "প্রকৃত কাজের সময় (মিনিট)" : "Actual work minutes")</label><input id="fcLabourMinutes" class="form-control" type="number" min="1" max="60000" step="1" required /></div>
+                        <div class="col-12"><label for="fcLabourEvidence" class="form-label">@(bn ? "সময়/কাজের প্রমাণ (কমপক্ষে ১০ অক্ষর)" : "Time and task evidence (10+ characters)")</label><textarea id="fcLabourEvidence" rows="2" class="form-control" required minlength="10" maxlength="800"></textarea></div>
+                        <div class="col-12"><button class="btn btn-primary" type="submit">@(bn ? "খরচের বরাদ্দ জমা" : "Submit labour allocation")</button></div>
+                    </form>
+                }
+                <div class="d-flex justify-content-end mb-2"><button type="button" id="fcLabourRefresh" class="btn btn-outline-secondary btn-sm">@(bn ? "রিফ্রেশ" : "Refresh")</button></div>
+                <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr>
+                    <th>@(bn ? "কাজ / কর্মী" : "Work / Employee")</th><th>@(bn ? "বরাদ্দ BDT" : "Allocated BDT")</th><th>@(bn ? "অবস্থা" : "State")</th><th>@(bn ? "অ্যাকশন" : "Action")</th>
+                </tr></thead><tbody id="fcLabourRows"></tbody></table></div>
+                <div class="d-flex gap-2 align-items-center"><button type="button" id="fcLabourPrev" class="btn btn-sm btn-outline-secondary">@(bn ? "পূর্ববর্তী" : "Previous")</button><span id="fcLabourPage" class="small" aria-live="polite"></span><button type="button" id="fcLabourNext" class="btn btn-sm btn-outline-secondary">@(bn ? "পরবর্তী" : "Next")</button></div>
+            </div></section>
+        </div>
+    </div>
+    <section class="card mt-3 d-none" id="fcDecisionPanel"><div class="card-body">
+        <h2 class="h6" id="fcDecisionTitle"></h2>
+        <p class="small text-muted" id="fcDecisionSummary"></p>
+        <form id="fcDecisionForm" class="row g-2">
+            <div class="col-md-4" id="fcPeriodBox"><label for="fcPeriod" class="form-label">@(bn ? "হিসাবকাল" : "Accounting period")</label><select id="fcPeriod" class="form-select"></select></div>
+            <div class="col-md-4" id="fcExpenseBox"><label for="fcExpense" class="form-label">@(bn ? "মেরামত ব্যয় খাত" : "Repairs expense account")</label><select id="fcExpense" class="form-select"></select></div>
+            <div class="col-md-4" id="fcPayableBox"><label for="fcPayable" class="form-label">@(bn ? "সরবরাহকারী দেনা খাত" : "Supplier payable account")</label><select id="fcPayable" class="form-select"></select></div>
+            <div class="col-md-4 d-none" id="fcReversalDateBox"><label for="fcReversalDate" class="form-label">@(bn ? "প্রত্যাবর্তনের তারিখ" : "Reversal date")</label><input id="fcReversalDate" class="form-control" type="date" /></div>
+            <div class="col-12"><label for="fcDecisionReason" class="form-label">@(bn ? "সিদ্ধান্তের কারণ / প্রমাণ (১০–৮০০ অক্ষর)" : "Reason / evidence (10–800 characters)")</label>
+                <textarea id="fcDecisionReason" minlength="10" maxlength="800" rows="2" class="form-control" required></textarea></div>
+            <div class="col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary" id="fcDecisionSubmit">@(bn ? "নিশ্চিত করুন" : "Confirm")</button>
+                <button type="button" class="btn btn-outline-secondary" id="fcDecisionCancel">@(bn ? "বাতিল" : "Cancel")</button>
+            </div>
+        </form>
+    </div></section>
+</section>
+@section Scripts {
+    <script src="~/js/facilities/costs.js" asp-append-version="true"></script>
+}
