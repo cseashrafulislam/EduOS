@@ -26,14 +26,14 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, otherTenantId, campusId, requestId, managerId, reviewerId, requesterId;
+        long tenantId, otherTenantId, campusId, requestId, managerId, reviewerId, requesterId, techId;
         await using (var setup = new EduOSDbContext(options))
         {
             var tenant = new Tenant { Code = "CI-FVE-" + suffix, Name = "Vendor Evidence CI",
                 Email = "vendor-evidence-" + suffix + "@example.test", State = TenantState.Active };
             var other = new Tenant { Code = "CI-FVX-" + suffix, Name = "Other Vendor Evidence CI",
                 Email = "other-evidence-" + suffix + "@example.test", State = TenantState.Active };
-            var actors = Enumerable.Range(1, 3).Select(n => {
+            var actors = Enumerable.Range(1, 4).Select(n => {
                 var username = "vendor-evidence-" + n + "-" + suffix;
                 var email = username + "@example.test";
                 return new ApplicationUser { UserName = username,
@@ -46,6 +46,7 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
             await setup.SaveChangesAsync();
             tenantId = tenant.Id; otherTenantId = other.Id;
             requesterId = actors[0].Id; managerId = actors[1].Id; reviewerId = actors[2].Id;
+            techId = actors[3].Id;
             setup.ChangeTracker.Clear();
             using (setup.BeginSystemTenantScope(tenantId))
             {
@@ -64,8 +65,10 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
                     Name = "FacilitiesManager", NormalizedName = "FACILITIESMANAGER", IsActive = true };
                 var reviewerRole = new ApplicationRole { TenantId = tenantId,
                     Name = "FacilitiesApprover", NormalizedName = "FACILITIESAPPROVER", IsActive = true };
-                setup.Roles.AddRange(managerRole, reviewerRole);
-                foreach (var id in new[] { managerId, reviewerId, requesterId })
+                var techRole = new ApplicationRole { TenantId = tenantId,
+                    Name = "FacilitiesTechnician", NormalizedName = "FACILITIESTECHNICIAN", IsActive = true };
+                setup.Roles.AddRange(managerRole, reviewerRole, techRole);
+                foreach (var id in new[] { managerId, reviewerId, requesterId, techId })
                 {
                     setup.TenantMemberships.Add(new TenantMembership {
                         TenantId = tenantId, UserId = id, Status = MembershipStatus.Active });
@@ -75,7 +78,8 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
                 await setup.SaveChangesAsync();
                 setup.UserRoles.AddRange(
                     new IdentityUserRole<long> { UserId = managerId, RoleId = managerRole.Id },
-                    new IdentityUserRole<long> { UserId = reviewerId, RoleId = reviewerRole.Id });
+                    new IdentityUserRole<long> { UserId = reviewerId, RoleId = reviewerRole.Id },
+                    new IdentityUserRole<long> { UserId = techId, RoleId = techRole.Id });
                 var request = new FacilityServiceRequest { TenantId = tenantId,
                     CampusId = campusId, FacilitySpaceId = space.Id, ClientRequestId = Guid.NewGuid(),
                     RequesterUserId = requesterId, CategoryCode = "REPAIR", PriorityCode = "Normal",
@@ -86,7 +90,8 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
                 requestId = request.Id;
                 setup.FacilityWorkOrders.Add(new FacilityWorkOrder {
                     TenantId = tenantId, FacilityServiceRequestId = requestId,
-                    StateCode = "Approved", VendorSupplierId = vendor.Id,
+                    StateCode = "Approved", AssignedTechnicianUserId = techId,
+                    VendorSupplierId = vendor.Id,
                     VendorStateCode = "Approved", VendorProposedByUserId = managerId,
                     VendorApprovedByUserId = reviewerId,
                     VendorStartUtc = DateTime.UtcNow.AddHours(-5),
@@ -111,6 +116,13 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
             order.StateCode = "PendingVerification";
             order.StartedAtUtc = DateTime.UtcNow.AddHours(-4);
             order.CompletedAtUtc = DateTime.UtcNow.AddMinutes(-2);
+            db.FacilityWorkflowEvents.Add(new FacilityWorkflowEvent {
+                TenantId = tenantId, FacilityServiceRequestId = requestId,
+                ClientCommandId = Guid.NewGuid(), ActorUserId = techId,
+                ActionCode = "complete", FromState = "InProgress", ToState = "PendingVerification",
+                Note = "Generator repaired and load tested by assigned technician.",
+                CreatedAt = DateTime.UtcNow, CreatedBy = techId
+            });
             await db.SaveChangesAsync();
             work = (await service.ListAsync(campusId, null, 1, 25)).Data!.Items.Single(x => x.Id == requestId);
             var command = new FacilityTransitionDto {
@@ -180,6 +192,50 @@ public sealed class SqlServerFacilityVendorServiceAcceptanceTests
             var history = await service.HistoryAsync(requestId, 1, 25);
             Assert.True(history.Success, history.Message);
             Assert.Contains(history.Data!.Items, x => x.ActionCode == "vendorverify");
+            work = verified.Data!;
+        }
+        // A technician correction invalidates prior vendor service acceptance.
+        // The vendor must submit fresh evidence for the new completion.
+        await using (var db = Db(options, tenantId, reviewerId, "FacilitiesApprover"))
+        {
+            var returned = await Service(db, tenantId, reviewerId, "FacilitiesApprover")
+                .TransitionAsync(requestId, "return", new FacilityTransitionDto {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = work.WorkOrderRowVersion!,
+                    Note = "Correction required after electrical retest failed inspection." });
+            Assert.True(returned.Success, returned.Message);
+            work = returned.Data!;
+            Assert.Equal("Stale", work.VendorAcceptanceStateCode);
+        }
+        await using (var db = Db(options, tenantId, techId, "FacilitiesTechnician"))
+        {
+            var corrected = await Service(db, tenantId, techId, "FacilitiesTechnician")
+                .TransitionAsync(requestId, "complete", new FacilityTransitionDto {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = work.WorkOrderRowVersion!,
+                    Note = "Repeated generator load and safety test after corrections." });
+            Assert.True(corrected.Success, corrected.Message);
+            work = corrected.Data!;
+        }
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            var revised = await Service(db, tenantId, managerId, "FacilitiesManager")
+                .TransitionAsync(requestId, "vendorattest", new FacilityTransitionDto {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = work.WorkOrderRowVersion!,
+                    Note = "Updated vendor certificate for technician's corrected completion." });
+            Assert.True(revised.Success, revised.Message);
+            Assert.Equal("Submitted", revised.Data!.VendorAcceptanceStateCode);
+            work = revised.Data!;
+        }
+        await using (var db = Db(options, tenantId, reviewerId, "FacilitiesApprover"))
+        {
+            var verified = await Service(db, tenantId, reviewerId, "FacilitiesApprover")
+                .TransitionAsync(requestId, "vendorverify", new FacilityTransitionDto {
+                    ClientCommandId = Guid.NewGuid(), RowVersion = work.WorkOrderRowVersion!,
+                    Note = "Independent inspection accepted the corrected vendor service evidence." });
+            Assert.True(verified.Success, verified.Message);
+            Assert.Equal("Verified", verified.Data!.VendorAcceptanceStateCode);
+            Assert.Equal(2, await db.FacilityWorkflowEvents.CountAsync(x =>
+                x.TenantId == tenantId && x.FacilityServiceRequestId == requestId &&
+                x.ActionCode == "vendorverify"));
         }
     }
 
