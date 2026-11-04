@@ -77,6 +77,12 @@ IF EXISTS (
             "FacilityVendorServiceBills", new[] { "TenantId", "PublicId" }, unique: true);
         m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_ClientRequestId",
             "FacilityVendorServiceBills", new[] { "TenantId", "ClientRequestId" }, unique: true);
+        m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_SubmitRequestId",
+            "FacilityVendorServiceBills", new[] { "TenantId", "SubmitRequestId" }, unique: true,
+            filter: "[SubmitRequestId] IS NOT NULL");
+        m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_ReviewRequestId",
+            "FacilityVendorServiceBills", new[] { "TenantId", "ReviewRequestId" }, unique: true,
+            filter: "[ReviewRequestId] IS NOT NULL");
         m.CreateIndex("IX_FacilityVendorServiceBills_TenantId_FacilityWorkOrderId",
             "FacilityVendorServiceBills", new[] { "TenantId", "FacilityWorkOrderId" }, unique: true,
             filter: "[IsDeleted] = 0");
