@@ -358,11 +358,14 @@ public sealed partial class FacilityVendorServiceBillService
                     Description = "Bank disbursement instruction (not yet executed)",
                     CreatedAt = now, CreatedBy = user.UserId });
             await db.SaveChangesAsync(ct);
+            // Build the response while the transaction still owns every
+            // reservation lock. If a readback conflicts, the instruction must
+            // roll back; never return 409 after successfully committing AP.
+            var mapped = await PaymentMapAsync(j, await db.JournalLines.AsNoTracking()
+                .Where(x => x.TenantId == user.TenantId && x.JournalId == j.Id)
+                .OrderBy(x => x.LineNo).ToListAsync(ct), request.BankAccountId, ct);
             await tx.CommitAsync(ct);
-            return ApiResponse<FacilityVendorPaymentDto>.SuccessResponse(
-                await PaymentMapAsync(j, await db.JournalLines.AsNoTracking()
-                    .Where(x => x.TenantId == user.TenantId && x.JournalId == j.Id)
-                    .OrderBy(x => x.LineNo).ToListAsync(ct), request.BankAccountId, ct));
+            return ApiResponse<FacilityVendorPaymentDto>.SuccessResponse(mapped);
         }
         catch (Exception ex) when (Conflict(ex))
         {

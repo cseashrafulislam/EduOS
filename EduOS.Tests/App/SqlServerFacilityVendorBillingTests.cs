@@ -251,7 +251,9 @@ public sealed class SqlServerFacilityVendorBillingTests
                 ReserveRemainingAsync(Guid.NewGuid()),
                 ReserveRemainingAsync(Guid.NewGuid()));
             var reservedPayment = Assert.Single(concurrent, x => x != null)!;
-            Assert.Equal(0m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
+            var reservedBalance = await service.PaymentOptionsAsync(bill.Reference);
+            Assert.True(reservedBalance.Success, reservedBalance.Message);
+            Assert.Equal(0m, reservedBalance.Data!.AvailableAmount);
             await using (var foreignDb = Db(options, outsiderTenantId, makerId, "Accountant"))
             {
                 var foreignService = Service(foreignDb, outsiderTenantId, makerId, "Accountant");
