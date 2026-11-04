@@ -634,6 +634,12 @@ public sealed class SqlServerFacilityVisitorTests
                 a.EntityId == first.Id && a.Action == "SeparateCase");
             Assert.NotNull(separate.OldValue);
             Assert.NotNull(separate.NewValue);
+            var aggregate = await checker.PrivacyAuditReportAsync();
+            Assert.True(aggregate.Success, aggregate.Message);
+            Assert.True(aggregate.Data!.VisitorVisits >= 3);
+            Assert.True(aggregate.Data.FullyRedactedVisits >= 1);
+            Assert.True(aggregate.Data.LegacyVisitAuditPayloadRows >= 1);
+            Assert.Equal(0, aggregate.Data.FullyRedactedVisitsWithLegacyPayloads);
         }
         // Site-wide visitor privacy settings require a different live checker,
         // independent of the per-visit retention redaction reviewer.
@@ -882,6 +888,7 @@ public sealed class SqlServerFacilityVisitorTests
         await using (var db = Db(options, tenantId, hostId, "Staff"))
         {
             var service = Service(db, tenantId, hostId, "Staff");
+            Assert.Equal(403, (await service.PrivacyAuditReportAsync()).StatusCode);
             var history = await service.HistoryAsync(first.Id, 1, 50);
             Assert.True(history.Success, history.Message);
             Assert.DoesNotContain(history.Data!.Items, x =>
