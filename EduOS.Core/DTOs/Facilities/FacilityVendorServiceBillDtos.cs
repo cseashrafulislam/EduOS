@@ -2,6 +2,26 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Facilities;
 
+public sealed class FacilityVendorBillingAccountOptionDto
+{
+    public long AccountId { get; set; }
+    public string AccountName { get; set; } = string.Empty;
+    public string AccountCode { get; set; } = string.Empty;
+}
+public sealed class FacilityVendorBillingPeriodOptionDto
+{
+    public long AccountingPeriodId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+}
+public sealed class FacilityVendorBillingOptionsDto
+{
+    public IReadOnlyList<FacilityVendorBillingAccountOptionDto> ExpenseAccounts { get; set; } = [];
+    public IReadOnlyList<FacilityVendorBillingAccountOptionDto> PayableAccounts { get; set; } = [];
+    public IReadOnlyList<FacilityVendorBillingPeriodOptionDto> Periods { get; set; } = [];
+}
+
 public sealed class FacilityVerifiedVendorChoiceDto
 {
     public long WorkOrderId { get; set; }
