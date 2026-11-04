@@ -3,6 +3,9 @@ on:
   push:
     branches: [Ashraful]
     paths:
+      - 'EduOS.App/Controllers/Api/ProcurementSupplierInvoicesController.cs'
+      - 'EduOS.Tests/App/SqlServerV3ProcurementAssetHttpAcceptanceTests.cs'
+      - 'EduOS.Tests/App/SqlServerV3AssetAccountingWorkflowTests.cs'
       - 'EduOS.App/wwwroot/js/procurement/supplier-settlement-instructions.js'
       - 'EduOS.App/wwwroot/js/inventory/asset-accounting.js'
       - 'EduOS.App/Views/ProcurementSupplierInvoiceMatching/Index.cshtml'
@@ -19,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   chromium-procurement-asset:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
