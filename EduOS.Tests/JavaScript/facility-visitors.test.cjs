@@ -144,3 +144,12 @@ test('visitor incident and per-visit legal hold require reasoned independent cas
     assert.match(sql, /"holdapprove"/);
     assert.match(sql, /"holdrelease"/);
 });
+
+test('visitor case and legal-hold details are desk-only; hosts never receive case status', () => {
+    const service = read('EduOS.Service/Services/Facilities/FacilityVisitorService.cs');
+    assert.match(service, /if \(items\.Count > 0 && Manager\)/);
+    assert.match(service, /if \(!Manager\)\s*query = query\.Where\(e => e\.ActionCode != "incidentresolve"/);
+    assert.match(service, /e\.ActionCode != "holdrelease"/);
+    assert.match(service, /e\.ActionCode != "redactapprove"/);
+    assert.match(service, /Reason = Manager && \(e\.ActionCode == "incident"/);
+});
