@@ -13,6 +13,7 @@ const mainService = read('EduOS.Service/Services/Accounting/AccountingReportingS
 const ledgerActivity = read('EduOS.Service/Services/Accounting/AccountingReportingLedgerActivity.cs');
 const incomeDetails = read('EduOS.Service/Services/Accounting/AccountingReportingIncomeExpenseDetails.cs');
 const postingAudit = read('EduOS.Service/Services/Accounting/AccountingReportingSourcePostingAudit.cs');
+const supplierAgingApi = read('EduOS.App/Controllers/Api/CentralSupplierPayablesController.cs');
 
 test('new accounting reports have tenant-restricted read-only API and matching view/JS', () => {
     for (const [route, method, panel] of [
@@ -119,8 +120,10 @@ test('module posting reconciliation is read-only, tenant-scoped and paged by sou
 });
 
 test('central supplier aging reuses the existing procurement + facility payable subledger', () => {
-    assert.ok(api.includes('[HttpGet("supplier-payables-aging"), Authorize(Roles = "TenantAdmin")]'));
-    assert.match(api, /supplierPayables\.SupplierAgingAsync\(asOf, campusId, page, pageSize, ct\)/);
+    assert.match(supplierAgingApi, /Authorize\(Roles = "TenantAdmin"\)/);
+    assert.match(supplierAgingApi, /RequireModule\("FINANCE"\)/);
+    assert.match(supplierAgingApi, /\[HttpGet\("supplier-payables-aging"\)\]/);
+    assert.match(supplierAgingApi, /supplierPayables\.SupplierAgingAsync\(asOf, campusId, page, pageSize, ct\)/);
     assert.match(view, /id="supplierPayablesPanel"/);
     assert.match(view, /page, not the full institution/i);
     assert.match(js, /api\/finance\/accounting\/reports\/supplier-payables-aging/);

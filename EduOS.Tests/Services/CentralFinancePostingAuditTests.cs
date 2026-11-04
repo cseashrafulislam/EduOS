@@ -20,6 +20,13 @@ public sealed class CentralFinancePostingAuditTests
     public async Task Fee_source_audit_separates_verified_pending_and_draft_without_double_counting()
     {
         var store = "finance-source-audit-"+Guid.NewGuid().ToString("N");
+        // HttpContextAccessor uses a shared AsyncLocal. Seed the other tenant
+        // first so the active tenant-41 context remains the last scope.
+        await using (var outside = Database(store, 42))
+        {
+            outside.StudentInvoices.Add(Invoice(4, InvoiceState.Issued, 99, tenant:42));
+            await outside.SaveChangesAsync();
+        }
         await using var db = Database(store);
         SeedAccounts(db);
         db.StudentInvoices.AddRange(
@@ -28,11 +35,6 @@ public sealed class CentralFinancePostingAuditTests
             Invoice(3, InvoiceState.Draft, null));
         Journal(db, 11, "StudentInvoice", 1, 90m);
         await db.SaveChangesAsync();
-        await using (var outside = Database(store, 42))
-        {
-            outside.StudentInvoices.Add(Invoice(4, InvoiceState.Issued, 99, tenant:42));
-            await outside.SaveChangesAsync();
-        }
 
         var service = Service(db);
         var page = await service.GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices", 1, 2);
@@ -70,15 +72,15 @@ public sealed class CentralFinancePostingAuditTests
     public async Task Cross_tenant_permission_date_scope_and_invalid_requests_are_denied()
     {
         var store = "finance-source-audit-"+Guid.NewGuid().ToString("N");
-        await using var db = Database(store);
-        SeedAccounts(db);
-        db.StudentInvoices.Add(Invoice(1, InvoiceState.Issued, 11));
-        await db.SaveChangesAsync();
         await using (var outside = Database(store, 42))
         {
             Journal(outside, 11, "StudentInvoice", 1, 90m, tenant:42);
             await outside.SaveChangesAsync();
         }
+        await using var db = Database(store);
+        SeedAccounts(db);
+        db.StudentInvoices.Add(Invoice(1, InvoiceState.Issued, 11));
+        await db.SaveChangesAsync();
         var service = Service(db);
         (await Service(db, false).GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices"))
             .StatusCode.Should().Be(403);

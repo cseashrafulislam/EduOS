@@ -4,7 +4,6 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Accounting;
-using EduOS.Service.Services.Facilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -16,21 +15,8 @@ namespace EduOS.App.Controllers.Api;
 public sealed class AccountingReportsController : ControllerBase
 {
     private readonly IAccountingReportingService service;
-    private readonly FacilityVendorServiceBillService supplierPayables;
-    public AccountingReportsController(IAccountingReportingService implementation,
-        FacilityVendorServiceBillService supplierPayablesService)
-    {
-        service = implementation;
-        supplierPayables = supplierPayablesService;
-    }
+    public AccountingReportsController(IAccountingReportingService implementation) => service = implementation;
     private IActionResult Reply<T>(ApiResponse<T> result) => StatusCode(result.StatusCode, result);
-    // Reuse the existing combined stock + service supplier subledger. No duplicate
-    // payable balances are written or added to the posted GL totals.
-    [HttpGet("supplier-payables-aging"), Authorize(Roles = "TenantAdmin")]
-    public async Task<IActionResult> SupplierPayablesAging([FromQuery] DateOnly asOf,
-        [FromQuery] long? campusId, [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 25, CancellationToken ct = default)
-        => Reply(await supplierPayables.SupplierAgingAsync(asOf, campusId, page, pageSize, ct));
     [HttpGet("day-book"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> DayBook([FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
