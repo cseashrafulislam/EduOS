@@ -15,6 +15,15 @@ public sealed class FacilityLabourCostAllocations : Migration
 {
     protected override void Up(MigrationBuilder m)
     {
+        // Existing Id primary keys already guarantee uniqueness. These additive
+        // composite alternate keys also let SQL Server enforce same-tenant FKs.
+        // Preflight and schedule index/constraint locks on production-size tables.
+        m.AddUniqueConstraint("AK_PayrollEmployees_TenantId_Id",
+            "PayrollEmployees", new[] { "TenantId", "Id" });
+        m.AddUniqueConstraint("AK_PayrollRuns_TenantId_Id",
+            "PayrollRuns", new[] { "TenantId", "Id" });
+        m.AddUniqueConstraint("AK_Employees_TenantId_Id",
+            "Employees", new[] { "TenantId", "Id" });
         m.CreateTable("FacilityLabourCostAllocations", columns: t => new
         {
             Id = t.Column<long>(type: "bigint", nullable: false).Annotation("SqlServer:Identity", "1, 1"),
@@ -95,6 +104,11 @@ public sealed class FacilityLabourCostAllocations : Migration
             "[PayrollGrossSnapshotBdt] > 0 AND [AllocatedAmountBdt] > 0 AND " +
             "[AllocatedAmountBdt] <= [PayrollGrossSnapshotBdt]");
     }
-    protected override void Down(MigrationBuilder m) =>
+    protected override void Down(MigrationBuilder m)
+    {
         m.DropTable("FacilityLabourCostAllocations");
+        m.DropUniqueConstraint("AK_Employees_TenantId_Id", "Employees");
+        m.DropUniqueConstraint("AK_PayrollRuns_TenantId_Id", "PayrollRuns");
+        m.DropUniqueConstraint("AK_PayrollEmployees_TenantId_Id", "PayrollEmployees");
+    }
 }
