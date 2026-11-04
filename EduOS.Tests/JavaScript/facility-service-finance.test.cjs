@@ -80,3 +80,19 @@ test('Facilities financial API is tenant-session/CSRF protected and SQL smoke in
     assert.match(read('EduOS.Tests/App/SqlServerFacilityVendorBillingTests.cs'), /"Reversed", bill.StateCode/);
     assert.match(read('EduOS.Tests/App/SqlServerFacilityLabourAllocationTests.cs'), /PayrollSourceReversed/);
 });
+
+test('Facilities financial PublicId indexes match the global convention, migration and snapshot', () => {
+    const context = read('EduOS.Persistence/Context/EduOSDbContext.cs');
+    const migration = read('EduOS.Persistence/Migrations/20261104121300_FacilityPublicIdConventionIndexes.cs');
+    const snapshot = read('EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs');
+    assert.match(context, /HasIndex\("PublicId"\)\.IsUnique\(\)/);
+    for (const name of ['FacilityVendorServiceBill', 'FacilityLabourCostAllocation']) {
+        const table = name === 'FacilityVendorServiceBill' ? 'FacilityVendorServiceBills' : 'FacilityLabourCostAllocations';
+        assert.match(migration, new RegExp(`m\\.CreateIndex\\("IX_${table}_PublicId",\\s*"${table}",\\s*"PublicId", unique: true\\)`));
+        const start = snapshot.indexOf(`modelBuilder.Entity("EduOS.Core.Entities.Facilities.${name}", b =>`);
+        assert.ok(start >= 0, `${name} missing from the EF snapshot`);
+        const end = snapshot.indexOf('\n            modelBuilder.Entity(', start + 1);
+        const entity = snapshot.slice(start, end < 0 ? undefined : end);
+        assert.match(entity, /b\.HasIndex\("PublicId"\)\s*\.IsUnique\(\)/);
+    }
+});

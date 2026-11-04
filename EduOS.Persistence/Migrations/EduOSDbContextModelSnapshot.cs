@@ -8279,6 +8279,9 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasAlternateKey("TenantId", "Id");
 
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "PublicId")
                         .IsUnique();
 
@@ -8428,6 +8431,9 @@ namespace EduOS.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
 
                     b.HasIndex("TenantId", "PublicId")
                         .IsUnique();
