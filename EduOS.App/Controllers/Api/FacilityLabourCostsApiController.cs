@@ -13,7 +13,7 @@ namespace EduOS.App.Controllers.Api;
 
 /// <summary>Management-only allocation of already posted Payroll cost; never a payroll GL repost.</summary>
 [ApiController, Route("api/facilities/labour-allocations"), Authorize,
- RequireModule("FACILITIES"), AutoValidateAntiforgeryToken,
+ RequireModule("FACILITIES"), RequireModule("FINANCE"), AutoValidateAntiforgeryToken,
  EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class FacilityLabourCostsApiController(
