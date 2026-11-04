@@ -65,13 +65,25 @@ public sealed partial class FacilityVendorServiceBillService(
     private IQueryable<FacilityVendorServiceBill> Visible() =>
         db.FacilityVendorServiceBills.AsNoTracking().Where(b =>
             b.TenantId == user.TenantId && !b.IsDeleted &&
-            (LiveGlobalGrant().Any() || db.UserCampusAccesses.Any(a =>
+            (db.UserRoles.Any(ur => ur.UserId == user.UserId &&
+                db.Roles.IgnoreQueryFilters().Any(role =>
+                    role.Id == ur.RoleId && role.IsActive && !role.IsDeleted &&
+                    (role.TenantId == user.TenantId ||
+                     (role.TenantId == null && role.IsSystemRole)) &&
+                    (role.NormalizedName == "TENANTADMIN" ||
+                     role.NormalizedName == "PRINCIPAL"))) || db.UserCampusAccesses.Any(a =>
                 a.TenantId == user.TenantId && a.UserId == user.UserId &&
                 a.CampusId == b.CampusId && a.IsActive && !a.IsDeleted)));
     private async Task<bool> CampusAllowed(long campusId, CancellationToken ct) =>
         await db.Campuses.AsNoTracking().AnyAsync(c => c.TenantId == user.TenantId &&
             c.Id == campusId && !c.IsDeleted && c.IsActive &&
-            (LiveGlobalGrant().Any() || db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
+            (db.UserRoles.Any(ur => ur.UserId == user.UserId &&
+                db.Roles.IgnoreQueryFilters().Any(role =>
+                    role.Id == ur.RoleId && role.IsActive && !role.IsDeleted &&
+                    (role.TenantId == user.TenantId ||
+                     (role.TenantId == null && role.IsSystemRole)) &&
+                    (role.NormalizedName == "TENANTADMIN" ||
+                     role.NormalizedName == "PRINCIPAL"))) || db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
                 a.UserId == user.UserId && a.CampusId == campusId &&
                 a.IsActive && !a.IsDeleted)), ct);
 
