@@ -85,7 +85,7 @@ test('vendor approval and replay require a live SQL-locked scoped actor', () => 
     const service = fs.readFileSync(path.join(__dirname,
         '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
     assert.match(service, /LockLiveVendorActorAsync/);
-    assert.match(service, /(vendorMutation || action == "triage") && !await LockLiveVendorActorAsync/);
+    assert.match(service, /\(vendorMutation \|\| action == "triage"\) && !await LockLiveVendorActorAsync/);
     assert.match(service, /workerMutation \|\| vendorMutation/);
     assert.match(service, /dbo\.TenantMemberships AS m WITH \(UPDLOCK, HOLDLOCK\)/);
     assert.match(service, /dbo\.UserCampusAccesses AS g WITH \(UPDLOCK, HOLDLOCK\)/);
