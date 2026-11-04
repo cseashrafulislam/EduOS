@@ -230,6 +230,46 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.False(payment.BankStatementCleared);
             Assert.True((await service.CreatePaymentAsync(bill.Reference, instruction)).Success);
             Assert.Equal(800m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
+            // A bill's remaining payable cannot be reserved twice when two
+            // separate Finance requests arrive concurrently on real SQL Server.
+            // The rejected attempt must leave no active reservation or GL row.
+            async Task<FacilityVendorPaymentDto?> ReserveRemainingAsync(Guid commandId)
+            {
+                await using var concurrentDb = Db(options, tenantId, makerId, "Accountant");
+                var concurrentService = Service(concurrentDb, tenantId, makerId, "Accountant");
+                var attempted = await concurrentService.CreatePaymentAsync(bill.Reference,
+                    new FacilityVendorPaymentInstructionRequest {
+                        ClientRequestId = commandId, BillRowVersion = bill.RowVersion,
+                        BankAccountId = bankId, AccountingPeriodId = periodId,
+                        PlannedDate = invoiceDate, Amount = 800m,
+                        Reason = "Concurrent reservation for the same verified vendor payable."
+                    });
+                Assert.Contains(attempted.StatusCode, new[] { 200, 409 });
+                return attempted.Success ? attempted.Data : null;
+            }
+            var concurrent = await Task.WhenAll(
+                ReserveRemainingAsync(Guid.NewGuid()),
+                ReserveRemainingAsync(Guid.NewGuid()));
+            var reservedPayment = Assert.Single(concurrent.Where(x => x != null))!;
+            Assert.Equal(0m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
+            await using (var foreignDb = Db(options, outsiderTenantId, makerId, "Accountant"))
+            {
+                var foreignService = Service(foreignDb, outsiderTenantId, makerId, "Accountant");
+                Assert.False((await foreignService.PaymentOptionsAsync(bill.Reference)).Success);
+                Assert.False((await foreignService.PaymentsAsync(bill.Reference, 1, 25)).Success);
+            }
+            await using (var reviewerDb = Db(options, tenantId, checkerId, "Principal"))
+            {
+                var declined = await Service(reviewerDb, tenantId, checkerId, "Principal")
+                    .ReviewPaymentAsync(bill.Reference, reservedPayment.Reference,
+                        new FacilityVendorPaymentReviewRequest {
+                            RowVersion = reservedPayment.RowVersion, Approve = false,
+                            Reason = "Duplicate pending disbursement cancelled before execution."
+                        });
+                Assert.True(declined.Success, declined.Message);
+                Assert.Equal("Rejected", declined.Data!.State);
+            }
+            Assert.Equal(800m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
             Assert.Equal(409, (await service.CreatePaymentAsync(bill.Reference,
                 new FacilityVendorPaymentInstructionRequest {
                     ClientRequestId = Guid.NewGuid(), BillRowVersion = bill.RowVersion,
