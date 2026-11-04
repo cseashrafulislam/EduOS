@@ -103,7 +103,7 @@ test('module posting reconciliation is read-only, tenant-scoped and paged by sou
     assert.match(view, /id="sourcePostingAuditPanel"/);
     assert.match(js, /reports\/source-posting-audit/);
     for (const kind of ['fee-invoices','fee-payments','admission-payments','payroll',
-        'procurement','facilities','assets']) {
+        'payroll-payments','procurement','procurement-returns','facilities','assets']) {
         assert.ok(view.includes(`value="${kind}"`));
         assert.ok(postingAudit.includes(`case "${kind}":`));
     }

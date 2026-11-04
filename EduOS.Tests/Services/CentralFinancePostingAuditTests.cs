@@ -1,5 +1,7 @@
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.Inventory;
+using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -66,6 +68,36 @@ public sealed class CentralFinancePostingAuditTests
         page.Data!.Sources.Items.Single(x => x.SourceId == 1).PostingStatus.Should().Be("SourceMismatch");
         page.Data.Sources.Items.Single(x => x.SourceId == 2).PostingStatus.Should().Be("BrokenLink");
         page.Data.Sources.Items.Single(x => x.SourceId == 3).PostingStatus.Should().Be("InvalidJournal");
+    }
+
+    [Fact]
+    public async Task Payroll_payment_and_supplier_return_audit_keep_the_original_posted_lineage()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.PayrollPayments.Add(new PayrollPayment { Id=1, TenantId=41,
+            PayrollEmployeeId=2, PaymentDate=From, Amount=90m,
+            State=PaymentState.Successful, JournalId=51 });
+        db.ProcurementSupplierReturnCredits.Add(new ProcurementSupplierReturnCredit {
+            Id=2, TenantId=41, SupplierInvoiceId=5, SupplierInvoiceLineId=6,
+            CampusId=10, AccountingPeriodId=1, ReturnDate=From,
+            SupplierReturnReference="RET-2", StateCode="Reversed",
+            CreditAmount=90m, JournalId=52, StockAccountId=1,
+            PayableAccountId=2, Reason="Accounting audit fixture" });
+        Journal(db, 51, "PayrollPayment", 1, 90m);
+        Journal(db, 52, "ProcurementSupplierReturnCredit", 2, 90m);
+        db.Journals.Local.Single(x => x.Id == 52).CampusId = 10;
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var payroll = await service.GetFinanceSourcePostingAuditAsync(From, To, "payroll-payments");
+        payroll.StatusCode.Should().Be(200);
+        payroll.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 1 &&
+            x.PostingStatus == "Posted" && x.JournalNumber == "JV-51");
+        var returns = await service.GetFinanceSourcePostingAuditAsync(From, To, "procurement-returns");
+        returns.StatusCode.Should().Be(200);
+        returns.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 2 &&
+            x.PostingStatus == "Posted" && x.SourceState == "Reversed");
     }
 
     [Fact]

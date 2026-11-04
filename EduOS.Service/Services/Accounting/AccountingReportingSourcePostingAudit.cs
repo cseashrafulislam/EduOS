@@ -72,13 +72,31 @@ public sealed partial class AccountingReportingService
                         State = x.State == PayrollRunState.Posted ? "Posted" : "Not posted",
                         NeedsPosting = x.State == PayrollRunState.Posted });
                 break;
+            case "payroll-payments":
+                expectedType = "PayrollPayment";
+                query = db.PayrollPayments.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted)
+                    .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
+                        Date = x.PaymentDate, Document = x.PublicId.ToString(), Amount = x.Amount,
+                        State = x.State == PaymentState.Successful ? "Successful" :
+                            x.State == PaymentState.Refunded ? "Refunded" : "Pending/Cancelled",
+                        NeedsPosting = x.State == PaymentState.Successful || x.State == PaymentState.Refunded });
+                break;
             case "procurement":
                 expectedType = "ProcurementSupplierInvoice";
                 query = db.ProcurementSupplierInvoices.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted)
                     .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
                         Date = x.InvoiceDate, CampusId = x.CampusId,
                         Document = x.SupplierInvoiceNumber, Amount = x.TotalAmount,
-                        State = x.StateCode, NeedsPosting = x.StateCode == "Posted" });
+                        State = x.StateCode, NeedsPosting = x.StateCode == "Posted" || x.StateCode == "Reversed" });
+                break;
+            case "procurement-returns":
+                expectedType = "ProcurementSupplierReturnCredit";
+                query = db.ProcurementSupplierReturnCredits.AsNoTracking()
+                    .Where(x => x.TenantId == tenant && !x.IsDeleted)
+                    .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
+                        Date = x.ReturnDate, CampusId = x.CampusId,
+                        Document = x.SupplierReturnReference, Amount = x.CreditAmount,
+                        State = x.StateCode, NeedsPosting = x.StateCode == "Posted" || x.StateCode == "Reversed" });
                 break;
             case "facilities":
                 expectedType = "FacilityVendorServiceBill";
@@ -86,7 +104,7 @@ public sealed partial class AccountingReportingService
                     .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
                         Date = x.InvoiceDate, CampusId = x.CampusId,
                         Document = x.SupplierInvoiceNumber, Amount = x.AmountBdt,
-                        State = x.StateCode, NeedsPosting = x.StateCode == "Posted" });
+                        State = x.StateCode, NeedsPosting = x.StateCode == "Posted" || x.StateCode == "Reversed" });
                 break;
             case "assets":
                 expectedType = "AssetCapitalization";
@@ -94,7 +112,7 @@ public sealed partial class AccountingReportingService
                     .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
                         Date = x.CapitalizationDate, CampusId = x.CampusId,
                         Document = x.PublicId.ToString(), Amount = x.ProposedCostBasis,
-                        State = x.StateCode, NeedsPosting = x.StateCode == "Posted" });
+                        State = x.StateCode, NeedsPosting = x.StateCode == "Posted" || x.StateCode == "Reversed" });
                 break;
             default:
                 return ApiResponse<FinanceSourcePostingAuditPageDto>.ErrorResponse("Unknown finance source type.", 400);
