@@ -21,20 +21,21 @@ public sealed partial class FacilityVendorServiceBillService
 
     private async Task<(FacilityVendorServiceBill? Bill, Journal? Original,
         long PayableAccountId, string? Failure)> PayableSourceAsync(
-        Guid reference, CancellationToken ct)
+        Guid reference, CancellationToken ct, bool historical = false)
     {
         var bill = await db.FacilityVendorServiceBills.FirstOrDefaultAsync(x =>
             x.TenantId == user.TenantId && x.PublicId == reference && !x.IsDeleted, ct);
         if (bill == null || !await CampusAllowed(bill.CampusId, ct))
             return (null, null, 0, "Service invoice not found or campus access denied.");
-        if (bill.StateCode != "Posted" || bill.JournalId is not > 0)
-            return (bill, null, 0, "A posted, non-reversing service payable is required.");
+        if ((bill.StateCode != "Posted" && !(historical && bill.StateCode == "Reversed")) ||
+            bill.JournalId is not > 0)
+            return (bill, null, 0, "A posted service payable is required.");
         var original = await db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == user.TenantId && x.Id == bill.JournalId.Value && !x.IsDeleted &&
             x.State == JournalState.Posted && x.SourceType == "FacilityVendorServiceBill" &&
             x.SourceId == bill.Id && x.CampusId == bill.CampusId && x.CurrencyCode == "BDT", ct);
         if (original == null) return (bill, null, 0, "Canonical payable journal missing.");
-        if (await db.Journals.AsNoTracking().AnyAsync(x =>
+        if (!historical && await db.Journals.AsNoTracking().AnyAsync(x =>
             x.TenantId == user.TenantId && !x.IsDeleted &&
             x.SourceType == "FacilityVendorServiceBillReversal" &&
             x.SourceId == original.Id &&
@@ -128,7 +129,7 @@ public sealed partial class FacilityVendorServiceBillService
 
     private async Task<(Journal Journal, List<JournalLine> Lines, long BankId)?>
         PaymentSourceAsync(FacilityVendorServiceBill bill, Guid paymentReference,
-            long payableId, CancellationToken ct)
+            long payableId, CancellationToken ct, bool historical = false)
     {
         var j = await db.Journals.FirstOrDefaultAsync(x =>
             x.TenantId == user.TenantId && !x.IsDeleted &&
@@ -145,13 +146,15 @@ public sealed partial class FacilityVendorServiceBillService
             lines[0].DebitAmount <= 0m || lines[1].DebitAmount != 0m ||
             lines[1].CreditAmount != lines[0].DebitAmount)
             return null;
-        var bankId = await db.BankAccounts.AsNoTracking().Where(x =>
+        var bankId = await db.BankAccounts.IgnoreQueryFilters().AsNoTracking().Where(x =>
             x.TenantId == user.TenantId && x.AccountId == lines[1].AccountId &&
-            !x.IsDeleted && (x.CampusId == null || x.CampusId == bill.CampusId))
+            (historical || !x.IsDeleted) &&
+            (x.CampusId == null || x.CampusId == bill.CampusId))
             .Select(x => x.Id).FirstOrDefaultAsync(ct);
         if (bankId <= 0) return null;
         var validated = await ValidBankAsync(bankId, bill.CampusId, ct);
-        if (!validated.HasValue || validated.Value.GlAccountId != lines[1].AccountId)
+        if (!historical && (!validated.HasValue ||
+            validated.Value.GlAccountId != lines[1].AccountId))
             return null;
         return (j, lines, bankId);
     }
@@ -251,7 +254,8 @@ public sealed partial class FacilityVendorServiceBillService
     {
         if (!CanRead || page is < 1 or > 100000 || pageSize is < 1 or > 50)
             return Error<PagedResult<FacilityVendorPaymentDto>>("Invalid payment scope.", 400);
-        var (bill, _, payableId, failure) = await PayableSourceAsync(billReference, ct);
+        var (bill, _, payableId, failure) = await PayableSourceAsync(
+            billReference, ct, historical: true);
         if (bill == null || failure != null || !await LiveReader(bill.CampusId, ct))
             return Error<PagedResult<FacilityVendorPaymentDto>>(failure ?? "Bill not found.", 409);
         var query = db.Journals.AsNoTracking().Where(x =>
@@ -263,7 +267,8 @@ public sealed partial class FacilityVendorServiceBillService
         var results = new List<FacilityVendorPaymentDto>(journals.Count);
         foreach (var j in journals)
         {
-            var payment = await PaymentSourceAsync(bill, j.PublicId, payableId, ct);
+            var payment = await PaymentSourceAsync(bill, j.PublicId, payableId, ct,
+                historical: true);
             if (payment.HasValue)
                 results.Add(await PaymentMapAsync(payment.Value.Journal,
                     payment.Value.Lines, payment.Value.BankId, ct));
