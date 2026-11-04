@@ -98,7 +98,17 @@ jobs:
           export DatabaseInitialization__ApplyMigrations=false
           dotnet ef migrations add CIModelDriftProbe --project EduOS.Persistence --startup-project EduOS.App \
             --context EduOSDbContext --configuration Release --no-build --output-dir Migrations/CiModelProbe
-          git diff -- EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs | head -c 35000
+          git diff --stat -- EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
+          git diff --numstat -- EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
+
+      - name: Preserve generated EF model-snapshot diagnostic
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: finance-model-drift-snapshot
+          path: EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Verify repeat migration deployment is idempotent
         id: migration_repeat
