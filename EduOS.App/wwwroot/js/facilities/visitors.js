@@ -31,6 +31,7 @@
         $('fvHost')?.replaceChildren();
         $('fvOccupancyResult')?.replaceChildren();
         $('fvPolicyRows')?.replaceChildren();
+        $('fvPrivacyAuditResult')?.replaceChildren();
         root.querySelectorAll('form, #fvRefresh, #fvBadge, #fvReason').forEach(element => {
             element.hidden = true;
             element.querySelectorAll('input, select, button').forEach(control => {
@@ -405,6 +406,30 @@
             status(label('PII-minimized CSV exported.', 'পরিচয়বিহীন সীমিত CSV এক্সপোর্ট হয়েছে।'));
         } catch (error) { if (epoch === exportEpoch) status(error.message); }
         finally { if (epoch === exportEpoch) button.disabled = false; }
+    });
+    // Security posture is a tenant-only aggregate report, never a raw
+    // export of old names, badge codes, incident narratives or JSON payloads.
+    let privacyAuditEpoch = 0;
+    $('fvPrivacyAudit')?.addEventListener('click', async () => {
+        const epoch = ++privacyAuditEpoch;
+        const result = $('fvPrivacyAuditResult');
+        result.textContent = label('Checking stored audit payload counts…',
+            'সংরক্ষিত অডিট তথ্যের সংখ্যা যাচাই করা হচ্ছে…');
+        try {
+            const data = await api('/api/facilities/visitors/privacy-audit');
+            if (epoch !== privacyAuditEpoch || !matchesSession(originalSession)) return;
+            const remaining = data.legacyVisitAuditPayloadRows + data.legacyEventAuditPayloadRows;
+            result.textContent =
+                label('Total visits: ', 'মোট ভিজিট: ') + data.visitorVisits + ' · ' +
+                label('Redacted visits: ', 'তথ্য অপসারিত ভিজিট: ') + data.fullyRedactedVisits + ' · ' +
+                label('Legacy private audit rows remaining: ', 'পুরোনো ব্যক্তিগত অডিট সারি বাকি: ') +
+                remaining + ' · ' +
+                label('Redacted visits still with private audit: ',
+                    'তথ্য অপসারিত ভিজিটেও ব্যক্তিগত অডিট বাকি: ') +
+                data.fullyRedactedVisitsWithLegacyPayloads;
+        } catch (error) {
+            if (epoch === privacyAuditEpoch) status(error.message);
+        }
     });
     load();
 })();
