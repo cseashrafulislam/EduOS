@@ -2736,6 +2736,7 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("UpdatedBy").HasColumnType("bigint");
 
                     b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
                     b.HasIndex("ReviewedByUserId");
                     b.HasIndex("SubmittedByUserId");
                     b.HasIndex("TenantId", "AccountId").IsUnique()
