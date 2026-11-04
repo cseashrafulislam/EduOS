@@ -82,6 +82,34 @@ public sealed class FacilityVendorPayableAgingDto
     public int DaysOverdue { get; set; }
     public string StateCode { get; set; } = string.Empty;
 }
+/// <summary>Consolidated read-only supplier aging across stock and service AP.</summary>
+public sealed class FacilitySupplierAgingRowDto
+{
+    public string InvoiceSource { get; set; } = string.Empty;
+    public Guid InvoiceReference { get; set; }
+    public long SupplierId { get; set; }
+    public long CampusId { get; set; }
+    public string SupplierInvoiceNumber { get; set; } = string.Empty;
+    public DateOnly InvoiceDate { get; set; }
+    public DateOnly DueDate { get; set; }
+    public decimal InvoiceAmount { get; set; }
+    public decimal NetPostedPayments { get; set; }
+    public decimal OpenBalance { get; set; }
+    public int DaysOverdue { get; set; }
+    public bool InvoiceReversedAsOf { get; set; }
+}
+public sealed class FacilitySupplierAgingTotalsDto
+{
+    public DateOnly AsOf { get; set; }
+    public decimal OutstandingOnPage { get; set; }
+    public decimal CurrentOnPage { get; set; }
+    public decimal Days1To30OnPage { get; set; }
+    public decimal Days31To60OnPage { get; set; }
+    public decimal Days61To90OnPage { get; set; }
+    public decimal Over90DaysOnPage { get; set; }
+    public PagedResult<FacilitySupplierAgingRowDto> Page { get; set; } = new();
+}
+
 public sealed class FacilityVendorPaymentOptionsDto
 {
     public decimal InvoiceAmount { get; set; }
