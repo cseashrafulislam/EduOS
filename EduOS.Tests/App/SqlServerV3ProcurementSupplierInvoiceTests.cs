@@ -1761,6 +1761,11 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.Equal(9m,Assert.Single(payable.Items,
                     x=>x.InvoiceReference==second.Reference).SourceLinkedOutstandingAmount);
             }
+            // Finish the same receipt/stock/AP/asset source with a real approved
+            // Facilities consumption and jointly approved Finance/stock contra.
+            await VerifyPostedProcurementAssetFacilityChainAsync(options, tenantId,
+                makerId, checkerId, poId, locationId, periodId, assetAccountId,
+                receiptReference, second.Reference, assetReference, date, suffix);
             // Run the foreign-tenant request LAST: the test fixture uses ambient
             // tenant identity and must not poison the original maker context.
             await using (var foreign = Open(options,tenantId+999999,checkerId))
