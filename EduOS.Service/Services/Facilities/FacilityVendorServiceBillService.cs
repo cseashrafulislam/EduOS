@@ -192,6 +192,42 @@ public sealed partial class FacilityVendorServiceBillService(
             x.TenantId == user.TenantId && x.SupplierId == supplierId &&
             x.NormalizedSupplierInvoiceNumber == normalized && !x.IsDeleted, ct);
 
+    public async Task<ApiResponse<FacilityVendorBillingOptionsDto>> PostingOptionsAsync(
+        long campusId, string? search, CancellationToken ct = default)
+    {
+        if (!CanRead || campusId <= 0 || search?.Length > 80)
+            return Error<FacilityVendorBillingOptionsDto>("Finance mapping access denied.", 403);
+        if (!await LiveReader(campusId, ct))
+            return Error<FacilityVendorBillingOptionsDto>("Current campus or Finance role unavailable.", 403);
+        var query = db.Accounts.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
+            !x.IsDeleted && x.IsActive && !x.IsGroup && x.AllowsPosting &&
+            x.CurrencyCode == "BDT" &&
+            (x.AccountType == AccountType.Expense || x.AccountType == AccountType.Liability));
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.Code.Contains(term) || x.Name.Contains(term));
+        var rows = await query.OrderBy(x => x.Code).ThenBy(x => x.Id)
+            .Take(300).Select(x => new { x.Id, x.Name, x.Code, x.AccountType })
+            .ToListAsync(ct);
+        var periods = await db.AccountingPeriods.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && !x.IsClosed &&
+            x.EndDate >= DateOnly.FromDateTime(Now).AddDays(-365))
+            .OrderByDescending(x => x.EndDate).Take(36)
+            .Select(x => new FacilityVendorBillingPeriodOptionDto {
+                AccountingPeriodId = x.Id, Name = x.Name,
+                StartDate = x.StartDate, EndDate = x.EndDate
+            }).ToListAsync(ct);
+        return ApiResponse<FacilityVendorBillingOptionsDto>.SuccessResponse(new() {
+            ExpenseAccounts = rows.Where(x => x.AccountType == AccountType.Expense)
+                .Select(x => new FacilityVendorBillingAccountOptionDto {
+                    AccountId = x.Id, AccountName = x.Name, AccountCode = x.Code }).ToList(),
+            PayableAccounts = rows.Where(x => x.AccountType == AccountType.Liability)
+                .Select(x => new FacilityVendorBillingAccountOptionDto {
+                    AccountId = x.Id, AccountName = x.Name, AccountCode = x.Code }).ToList(),
+            Periods = periods
+        });
+    }
+
     /// <summary>Bounded discoverability; IDs never stand alone in Finance UI.</summary>
     public async Task<ApiResponse<PagedResult<FacilityVerifiedVendorChoiceDto>>> VerifiedChoicesAsync(
         long? campusId, string? search, int page, int pageSize, CancellationToken ct = default)
