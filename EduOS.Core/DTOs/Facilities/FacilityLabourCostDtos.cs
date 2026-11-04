@@ -2,6 +2,17 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Facilities;
 
+public sealed class FacilityLabourSourceChoiceDto
+{
+    public long WorkOrderId { get; set; }
+    public long PayrollEmployeeId { get; set; }
+    public long CampusId { get; set; }
+    public string WorkOrderSummary { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public string PayrollRunNumber { get; set; } = string.Empty;
+    public decimal PayrollGrossBdt { get; set; }
+}
+
 public sealed class CreateFacilityLabourAllocationDto
 {
     public Guid ClientRequestId { get; set; }
@@ -24,6 +35,9 @@ public sealed class FacilityLabourAllocationDto
     public long CampusId { get; set; }
     public long PayrollEmployeeId { get; set; }
     public long EmployeeId { get; set; }
+    public string WorkOrderSummary { get; set; } = string.Empty;
+    public string EmployeeName { get; set; } = string.Empty;
+    public string PayrollRunNumber { get; set; } = string.Empty;
     public long PayrollRunId { get; set; }
     public int ActualWorkMinutes { get; set; }
     public int StandardPayrollMinutesSnapshot { get; set; }
