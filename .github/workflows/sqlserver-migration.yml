@@ -89,6 +89,17 @@ jobs:
           dotnet ef database update --project EduOS.Persistence --startup-project EduOS.App \
             --context EduOSDbContext --configuration Release --no-build
 
+      - name: Diagnose any EF model-snapshot mismatch (temporary CI diagnostic)
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DatabaseInitialization__Enabled=false
+          export DatabaseInitialization__ApplyMigrations=false
+          dotnet ef migrations add CIModelDriftProbe --project EduOS.Persistence --startup-project EduOS.App \
+            --context EduOSDbContext --configuration Release --no-build --output-dir Migrations/CiModelProbe
+          git diff -- EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.cs | head -c 35000
+
       - name: Verify repeat migration deployment is idempotent
         id: migration_repeat
         shell: bash
