@@ -168,6 +168,7 @@ public sealed partial class FacilityVendorServiceBillService
                 SupplierInvoiceNumber = src.Number, InvoiceDate = src.InvoiceDate,
                 DueDate = src.DueDate, InvoiceAmount = src.Amount,
                 NetPostedPayments = isReversed ? 0m : paymentAmount,
+                PostedSupplierCredits = isReversed ? 0m : supplierCredit,
                 OpenBalance = balance, InvoiceReversedAsOf = isReversed,
                 DaysOverdue = Math.Max(0, asOf.DayNumber - src.DueDate.DayNumber)
             });
