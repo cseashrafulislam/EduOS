@@ -2014,6 +2014,8 @@ public class EduOSDbContext :
         modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.FacilityWorkOrderId, x.PayrollEmployeeId }).IsUnique().HasFilter("[IsDeleted] = 0 AND [StateCode] <> N'Rejected'");
         modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.PayrollEmployeeId, x.StateCode });
         modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode });
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.EmployeeId });
+        modelBuilder.Entity<FacilityLabourCostAllocation>().HasIndex(x => new { x.TenantId, x.PayrollRunId });
         modelBuilder.Entity<FacilityLabourCostAllocation>().ToTable(t => t.HasCheckConstraint(
             "CK_FacilityLabourCostAllocations_StateAmount",
             "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND [ActualWorkMinutes] > 0 AND [StandardPayrollMinutesSnapshot] >= [ActualWorkMinutes] AND [PayrollGrossSnapshotBdt] > 0 AND [AllocatedAmountBdt] > 0 AND [AllocatedAmountBdt] <= [PayrollGrossSnapshotBdt]"));
