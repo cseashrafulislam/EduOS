@@ -27,3 +27,28 @@ Both `FACILITIES` and `INVENTORY` tenant modules must be enabled to create or vo
 ## Verification and release
 
 SQL acceptance lives in `SqlServerFacilityWorkOrderPartsTests` and covers scoped draft creation, replay/altered-payload, independent stock posting, valuation, legacy unlinked reversal, idempotent Finance submission, independent balanced GL posting, prevention of stock-only reversal, atomic joint reversal, stock restock and Finance history. JavaScript contract suites cover session shielding, maker/checker action and required modules. Run the CI build/EF snapshot, SQL migration smoke with fresh/repeat migration and disposable backup/restore, and production-like browser/role/campus UAT before rollout. Rollback application code without deleting any posted movements/journals; preserve both indexes and historical lineage even if the UI is temporarily disabled. This does not by itself close Facilities #108 as a whole.
+
+## Vendor service completion evidence and campus SLA priority policy
+
+**Do not confuse a vendor booking with vendor debt.** `FacilityWorkOrder.VendorSupplierId` is the currently approved Procurement supplier selected for the maintenance visit. It proves **who was booked**, not what was invoiced, how much is payable, or whether the supplier was paid. Existing `ProcurementSupplierInvoice` and Supplier AP are goods-receipt/stock-line sourced; **never** create a fictitious stock receipt or unlinked manual journal to bill a service. This track does not claim to post non-stock supplier AP, vendor payments or internal payroll costs.
+
+### Independently verified service evidence
+
+The Facilities workflow now recognizes three more source-linked, idempotent `FacilityWorkflowEvent` actions (no schema change, amount or GL mutation):
+
+1. **`vendorattest`**: an active campus-authorized Facilities manager, distinct from the work-order requester and vendor booking approver, submits a 10–500 character service-completion certificate. The canonical work order must have a verified supplier booking, an actual `StartedAtUtc`, a `CompletedAtUtc`, and a current `PendingVerification` or `Closed` state. The latest technician `complete` action must be newer than any `return` for correction.
+2. **`vendorverify`**: a different active Facilities approver independently verifies the **latest** attested completion with a reason, matching rowversion and unique command UUID; receipt/payment amounts and GL cannot be inferred from this decision.
+3. **`vendorreturn`**: an independently authorized approver returns inadequate service evidence for correction. The manager may resubmit a new attestation, leaving earlier event history immutable. Vendor evidence is not automatically approved merely because work-order closure or supplier booking was approved.
+
+A later technician `return` invalidates the previous vendor certificate. The bounded work-order list and source-linked response show `VendorAcceptanceStateCode = None / Submitted / Returned / Verified / Stale`. A fresh technician `complete` and new independent attestation/review are required before the current completion can be treated as verified. State is derived from immutable events, not copied into a parallel mutable vendor-acceptance table. Existing GL, stock, supplier invoice and payment rows are not touched by these actions.
+
+### Optional priority-based campus SLA defaults
+
+Existing `TenantSettings` remains the single effective SLA policy source, using `Facilities.SlaHours.{Priority}.{CampusId}` with `Priority` exactly `Low`, `Normal`, `High` or `Urgent`. A configured value is an integer **1–720 hours**, not sensitive. A missing key preserves the existing manual UTC deadline. Malformed/sensitive values fail closed. Managers can request `GET /api/facilities/work-orders/{id}/sla` only for an authorized `Submitted` request they did not create. A protected private-session response previews `RecommendedDueUtc`; the bilingual UI prepopulates it **only if the deadline is still blank**, never overwriting an operator's date or accepting a stale/foreign response. The server re-evaluates the policy inside a short SQL `SERIALIZABLE` triage command when the client submits no date. The actual triage stores the **single authoritative SLA due UTC** on `FacilityServiceRequest.SlaDueAtUtc` with a source-linked reason. Explicit legacy manual dates, audit message and command replay remain backward compatible. No timer/queue or fabricated escalation is introduced; existing overdue dashboard/manual escalation continues.
+
+### Release requirements
+
+- New disposable SQL fixtures: `SqlServerFacilityVendorServiceAcceptanceTests` and `SqlServerFacilitySlaPolicyTests` are included in the Facilities smoke filter, alongside the existing Work Order/Parts/Visitor suites.
+- Source contract tests: `EduOS.Tests/JavaScript/facility-work-orders.test.cjs`; check manual SLA replay, policy bounds, manager/tenant access, vendor correction, independent review and no synthetic supplier AP/GL.
+- Final-SHA GitHub Actions .NET/SQL/browser outcomes, representative concurrency, authenticated tenant/campus role access, backup/restore and institution UAT **must be checked separately**. Code pushed alone is not proof of final acceptance.
+- **Non-stock services/labour accounting remains an explicit integration boundary.** Require an approved service purchase/receipt/invoice or a real, approved payroll/time allocation source before posting vendor payable, service expense, payroll allocation or reversal. Never double-book the same Facilities source against existing stock, supplier invoice or Finance journal.
