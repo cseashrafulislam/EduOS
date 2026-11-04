@@ -99,6 +99,10 @@ public sealed class FacilitySupplierAgingRowDto
     public decimal OpenBalance { get; set; }
     public int DaysOverdue { get; set; }
     public bool InvoiceReversedAsOf { get; set; }
+    public long? PayableLedgerAccountId { get; set; }
+    public decimal? PostedGlPayableBalance { get; set; }
+    public decimal? SubledgerVsGlDifference { get; set; }
+    public string GlReconciliationStatus { get; set; } = "NotChecked";
 }
 public sealed class FacilitySupplierAgingTotalsDto
 {
@@ -110,6 +114,9 @@ public sealed class FacilitySupplierAgingTotalsDto
     public decimal Days61To90OnPage { get; set; }
     public decimal Over90DaysOnPage { get; set; }
     public PagedResult<FacilitySupplierAgingRowDto> Page { get; set; } = new();
+    public int GlExceptionCountOnPage { get; set; }
+    public decimal? PostedGlPayableOnPage { get; set; }
+    public decimal? SubledgerVsGlDifferenceOnPage { get; set; }
 }
 
 public sealed class FacilityVendorPaymentOptionsDto

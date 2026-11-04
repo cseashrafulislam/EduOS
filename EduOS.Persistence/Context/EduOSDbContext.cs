@@ -1728,6 +1728,9 @@ public class EduOSDbContext :
         modelBuilder.Entity<InstitutionBudget>().HasIndex(x => new { x.TenantId, x.StartDate, x.EndDate, x.StateCode });
         UniqueTenant<InstitutionBudgetLine>(modelBuilder, nameof(InstitutionBudgetLine.InstitutionBudgetId), nameof(InstitutionBudgetLine.AccountId));
         modelBuilder.Entity<Account>().HasIndex(x => new { x.TenantId, x.ParentAccountId, x.IsActive });
+        modelBuilder.Entity<Account>().ToTable(t => t.HasCheckConstraint(
+            "CK_Accounts_CashInHandPostingAsset",
+            "[IsCashInHand] = 0 OR ([AccountType] = 1 AND [IsGroup] = 0 AND [AllowsPosting] = 1 AND [IsActive] = 1 AND [CurrencyCode] = N'BDT')"));
         UniqueTenant<NumberSeries>(modelBuilder, nameof(EduOS.Core.Entities.System.NumberSeries.Key));
         modelBuilder.Entity<Journal>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<Journal>(modelBuilder, nameof(Journal.JournalNumber));

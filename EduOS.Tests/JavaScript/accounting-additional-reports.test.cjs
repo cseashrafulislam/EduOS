@@ -124,10 +124,13 @@ test('central supplier aging reuses the existing procurement + facility payable 
     assert.match(supplierAgingApi, /RequireModule\("FINANCE"\)/);
     assert.match(supplierAgingApi, /\[HttpGet\("supplier-payables-aging"\)\]/);
     assert.match(supplierAgingApi, /supplierPayables\.SupplierAgingAsync\(asOf, campusId, page, pageSize, ct\)/);
+    assert.match(supplierAgingApi, /supplier-ap-gl-reconciliation/);
+    assert.match(supplierAgingApi, /supplierPayables\.SupplierAgingWithGlAsync\(asOf, campusId, page, pageSize, ct\)/);
     assert.match(view, /id="supplierPayablesPanel"/);
-    assert.match(view, /page, not the full institution/i);
-    assert.match(js, /api\/finance\/accounting\/reports\/supplier-payables-aging/);
+    assert.match(view, /visible page, not the entire GL liability account/i);
+    assert.match(js, /api\/finance\/accounting\/reports\/supplier-ap-gl-reconciliation/);
     assert.match(js, /invoice !== paid \+ credit \+ remaining/);
+    assert.match(js, /x\.glReconciliationStatus === 'Reconciled'/);
     assert.match(js, /open !== cents\(data\.outstandingOnPage\)/);
     assert.match(js, /supplierPayablesDate !== \$\('supplierPayablesAsOf'\)\.value/);
     assert.match(js, /institution-supplier-payables-page/);

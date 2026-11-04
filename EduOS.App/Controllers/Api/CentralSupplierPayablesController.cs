@@ -26,4 +26,12 @@ public sealed class CentralSupplierPayablesController(
         var result = await supplierPayables.SupplierAgingAsync(asOf, campusId, page, pageSize, ct);
         return StatusCode(result.StatusCode, result);
     }
+    [HttpGet("supplier-ap-gl-reconciliation")]
+    public async Task<IActionResult> SupplierApGlReconciliation([FromQuery] DateOnly asOf,
+        [FromQuery] long? campusId, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+    {
+        var result = await supplierPayables.SupplierAgingWithGlAsync(asOf, campusId, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
 }

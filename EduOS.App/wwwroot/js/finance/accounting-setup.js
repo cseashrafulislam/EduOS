@@ -27,6 +27,7 @@ if (root) {
         $('accountPrev').disabled = page <= 1; $('accountNext').disabled = page >= totalPages;
         $('accountRows').innerHTML = accounts.map(a => '<tr><td>' + safe(a.code) + '</td><td>' + safe(a.name) +
             '</td><td>' + safe(types[a.accountType]) + '</td><td>' + safe(a.parentAccountName) + '</td><td>' +
+            (a.isCashInHand ? 'Yes' : 'No') + '</td><td>' +
             (a.isGroup ? 'Yes' : 'No') + '</td><td>' + (a.isActive ? 'Yes' : 'No') + '</td>' +
             (writable ? '<td><button class="btn btn-sm btn-outline-primary" data-edit-account="' + a.id + '">Edit</button></td>' : '') + '</tr>').join('');
     }
@@ -39,7 +40,7 @@ if (root) {
             if (pages > 100) throw new Error('Too many accounts for this selector; contact administrator.');
         } while (current <= pages);
         groups = all.filter(x => x.isGroup && x.isActive);
-        assetLedgers = all.filter(x => x.accountType === 1 && !x.isGroup && x.isActive);
+        assetLedgers = all.filter(x => x.accountType === 1 && !x.isGroup && x.isActive && !x.isCashInHand);
         $('accountParent').innerHTML = '<option value="">Root</option>' + groups.map(x => '<option value="' + x.id + '">' + safe(x.code + ' — ' + x.name) + '</option>').join('');
         $('bankLedger').innerHTML = '<option value="">Select ledger</option>' + assetLedgers.map(x => '<option value="' + x.id + '">' + safe(x.code + ' — ' + x.name) + '</option>').join('');
     }
@@ -82,12 +83,14 @@ if (root) {
             const a = await request('/accounts/' + id);
             $('accountId').value = a.id; $('accountVersion').value = a.rowVersion; $('accountCode').value = a.code;
             $('accountName').value = a.name; $('accountType').value = a.accountType;
-            $('accountParent').value = a.parentAccountId || ''; $('accountGroup').checked = a.isGroup; $('accountActive').checked = a.isActive;
+            $('accountParent').value = a.parentAccountId || ''; $('accountGroup').checked = a.isGroup;
+            $('accountActive').checked = a.isActive; $('accountCash').checked = a.isCashInHand;
         }));
         $('accountForm').addEventListener('submit', e => { e.preventDefault(); run(async () => {
             const id = $('accountId').value, body = {code:$('accountCode').value.trim(), name:$('accountName').value.trim(),
                 accountType:Number($('accountType').value), parentAccountId:$('accountParent').value ? Number($('accountParent').value) : null,
-                isGroup:$('accountGroup').checked, isActive:$('accountActive').checked, rowVersion:$('accountVersion').value || null};
+                isGroup:$('accountGroup').checked, isActive:$('accountActive').checked,
+                isCashInHand:$('accountCash').checked, rowVersion:$('accountVersion').value || null};
             await request('/accounts' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);
             resetAccount(); await Promise.all([loadAccounts(), loadAccountOptions()]); alert('Account saved.');
         }); });

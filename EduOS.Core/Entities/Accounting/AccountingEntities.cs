@@ -12,6 +12,9 @@ public class Account : BaseTenantEntity
     public bool IsGroup { get; set; }
     public bool AllowsPosting { get; set; } = true;
     public bool IsActive { get; set; } = true;
+    // Explicit BDT cash-in-hand designation; bank ledgers use BankAccount instead.
+    // Never infer cash from an account name or code.
+    public bool IsCashInHand { get; set; }
 }
 
 public class AccountingPeriod : BaseTenantEntity

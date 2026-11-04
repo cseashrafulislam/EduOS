@@ -67,6 +67,14 @@ public sealed class AccountingReportsController : ControllerBase
     public async Task<IActionResult> BankLiquidity([FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)
         => Reply(await service.GetBankLiquidityAsync(fromDate, toDate, ct));
+    [HttpGet("cash-book/{accountId:long}"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CashBook(long accountId, [FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, CancellationToken ct)
+        => Reply(await service.GetCashBookAsync(accountId, fromDate, toDate, ct));
+    [HttpGet("cash-movements"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CashMovements([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, CancellationToken ct)
+        => Reply(await service.GetInstitutionalCashMovementsAsync(fromDate, toDate, ct));
     [HttpGet("bank-book/{bankAccountId:long}"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> BankBook(long bankAccountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)

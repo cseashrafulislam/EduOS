@@ -10,6 +10,7 @@ public class AccountDto
     public AccountType AccountType { get; set; }
     public bool IsGroup { get; set; }
     public bool IsActive { get; set; }
+    public bool IsCashInHand { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -21,6 +22,8 @@ public class SaveAccountRequestDto
     public AccountType AccountType { get; set; }
     public bool IsGroup { get; set; }
     public bool IsActive { get; set; } = true;
+    // Optional for older clients: absence must preserve an existing designation.
+    public bool? IsCashInHand { get; set; }
     public string? RowVersion { get; set; }
 }
 
@@ -246,6 +249,39 @@ public sealed class BankLiquidityDto
     public decimal TransferIn { get; set; }
     public decimal TransferOut { get; set; }
     public decimal ClosingBalance { get; set; }
+}
+
+// Cash and bank are one institution-wide liquidity pool; internal transfers
+// never become income or expense or inflate consolidated receipts/payments.
+public sealed class InstitutionalCashMovementRowDto
+{
+    public long LedgerAccountId { get; set; }
+    public string LedgerCode { get; set; } = string.Empty;
+    public string LedgerName { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;
+    public decimal OpeningBalance { get; set; }
+    public decimal Receipts { get; set; }
+    public decimal Payments { get; set; }
+    public decimal TransfersIn { get; set; }
+    public decimal TransfersOut { get; set; }
+    public decimal ClosingBalance { get; set; }
+}
+
+public sealed class InstitutionalCashMovementDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public IReadOnlyList<InstitutionalCashMovementRowDto> Accounts { get; set; } = Array.Empty<InstitutionalCashMovementRowDto>();
+    public decimal OpeningBalance { get; set; }
+    public decimal Receipts { get; set; }
+    public decimal Payments { get; set; }
+    public decimal TransfersIn { get; set; }
+    public decimal TransfersOut { get; set; }
+    public decimal ClosingBalance { get; set; }
+    // Operating/investing/financing classification needs immutable source-level
+    // allocation; this truthful direct cash movement report does not invent it.
+    public bool IsActivityClassified => false;
 }
 
 public sealed class BankBookLineDto

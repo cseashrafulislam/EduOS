@@ -35,7 +35,8 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
     private static AccountDto AccountMap(Account x, string? parent = null) => new()
     {
         Id = x.Id, ParentAccountId = x.ParentAccountId, ParentAccountName = parent, Code = x.Code,
-        Name = x.Name, AccountType = x.AccountType, IsGroup = x.IsGroup, IsActive = x.IsActive, RowVersion = V(x.RowVersion)
+        Name = x.Name, AccountType = x.AccountType, IsGroup = x.IsGroup, IsActive = x.IsActive,
+        IsCashInHand = x.IsCashInHand, RowVersion = V(x.RowVersion)
     };
     private static AccountingPeriodDto PeriodMap(AccountingPeriod x) => new()
     {
@@ -92,6 +93,9 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
             var row = accountId.HasValue ? await Accounts.FirstOrDefaultAsync(x => x.Id == accountId.Value, ct) : null;
             if (accountId.HasValue && row == null) return ApiResponse<AccountDto>.ErrorResponse("Account not found.", 404);
+            var markCash = request.IsCashInHand ?? row?.IsCashInHand ?? false;
+            if (markCash && (request.AccountType != AccountType.Asset || request.IsGroup || !request.IsActive))
+                return ApiResponse<AccountDto>.ErrorResponse("Cash-in-hand must be an active asset posting account.", 400);
             if (row != null && !Version(row.RowVersion, request.RowVersion)) return ApiResponse<AccountDto>.ErrorResponse("Account changed; reload.", 409);
             if (await Accounts.AnyAsync(x => x.Code == code && (row == null || x.Id != row.Id), ct))
                 return ApiResponse<AccountDto>.ErrorResponse("Account code already exists.", 409);
@@ -120,6 +124,11 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
                 if (hasBankLink && (request.IsGroup || !request.IsActive))
                     return ApiResponse<AccountDto>.ErrorResponse(
                         "Bank-linked ledger must remain an active posting account.", 409);
+                if (hasBankLink && markCash)
+                    return ApiResponse<AccountDto>.ErrorResponse("A bank ledger cannot also be cash-in-hand.", 409);
+                if (hasHistory && row.IsCashInHand != markCash)
+                    return ApiResponse<AccountDto>.ErrorResponse(
+                        "Cash designation is locked after journal history; controlled audited historical conversion is required.", 409);
                 var budgetLinked = await db.InstitutionBudgetLines.AsNoTracking().AnyAsync(x =>
                     x.TenantId == user.TenantId && x.AccountId == row.Id && !x.IsDeleted &&
                     db.InstitutionBudgets.Any(b => b.TenantId == user.TenantId && b.Id == x.InstitutionBudgetId &&
@@ -153,6 +162,7 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
             else { row.UpdatedAt = now; row.UpdatedBy = user.UserId; }
             row.Code = code; row.Name = name; row.ParentAccountId = request.ParentAccountId;
             row.AccountType = request.AccountType; row.IsGroup = request.IsGroup; row.AllowsPosting = !request.IsGroup; row.IsActive = request.IsActive;
+            row.IsCashInHand = markCash;
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
             return ApiResponse<AccountDto>.SuccessResponse(AccountMap(row), "Account saved.");
@@ -249,6 +259,7 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
         var account = await Accounts.AsNoTracking().FirstOrDefaultAsync(x => x.Id == request.AccountId && x.IsActive &&
             !x.IsGroup && x.AllowsPosting && x.AccountType == AccountType.Asset && x.CurrencyCode == "BDT", ct);
         if (account == null) return ApiResponse<BankAccountDto>.ErrorResponse("An active BDT asset posting account is required.");
+        if (account.IsCashInHand) return ApiResponse<BankAccountDto>.ErrorResponse("Cash-in-hand ledger cannot be mapped as a bank.", 409);
         try
         {
             var row = bankAccountId.HasValue ? await Banks.FirstOrDefaultAsync(x => x.Id == bankAccountId.Value, ct) : null;

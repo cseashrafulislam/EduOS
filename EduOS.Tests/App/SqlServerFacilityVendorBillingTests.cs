@@ -330,6 +330,13 @@ public sealed class SqlServerFacilityVendorBillingTests
                 x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference);
             Assert.Equal(400m, due.NetPostedPayments);
             Assert.Equal(800m, due.OpenBalance);
+            var glAudit = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+            Assert.True(glAudit.Success, glAudit.Message);
+            var glRow = glAudit.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference);
+            Assert.Equal("Reconciled", glRow.GlReconciliationStatus);
+            Assert.Equal(800m, glRow.PostedGlPayableBalance);
+            Assert.Equal(0m, glRow.SubledgerVsGlDifference);
             Assert.Equal(409, (await service.RequestReversalAsync(bill.Reference,
                 new FacilityVendorBillReversalRequestDto {
                     ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
@@ -365,6 +372,13 @@ public sealed class SqlServerFacilityVendorBillingTests
                 x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference);
             Assert.Equal(0m, due.NetPostedPayments);
             Assert.Equal(1200m, due.OpenBalance);
+            var glAudit = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+            Assert.True(glAudit.Success, glAudit.Message);
+            var glRow = glAudit.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference);
+            Assert.Equal("Reconciled", glRow.GlReconciliationStatus);
+            Assert.Equal(1200m, glRow.PostedGlPayableBalance);
+            Assert.Equal(0m, glRow.SubledgerVsGlDifference);
             var payments = await db.Journals.AsNoTracking().Where(x =>
                 x.TenantId == tenantId && x.State == JournalState.Posted &&
                 (x.SourceType == "FacilityVendorServicePayment" ||

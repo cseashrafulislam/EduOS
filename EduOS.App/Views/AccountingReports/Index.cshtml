@@ -24,6 +24,8 @@
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomeExpenseBreakdownPanel">Income / Expense Breakdown</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#sourcePostingAuditPanel">Module Posting Audit</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#supplierPayablesPanel">Supplier Payables</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#cashBookPanel">@(bn ? "নগদ খাতা" : "Cash Book")</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#cashMovementsPanel">@(bn ? "নগদ প্রবাহ" : "Cash Movements")</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankBookPanel">Bank Book</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankStatementPanel">Bank Statement Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankLiquidityPanel">Bank Liquidity</button></li>
@@ -34,7 +36,7 @@
         {
             <div class="tab-pane fade" id="supplierPayablesPanel">
                 <h3 class="h6">Procurement + Facility Supplier Payables</h3>
-                <p class="small text-muted">One existing supplier subledger combines stock purchases and non-stock facility service bills. Only posted invoices and valid dated payments/credits are included. The aging totals are for the visible page, not the full institution. Fully settled or reversed invoices may appear with zero outstanding. These amounts are not added to GL expenses.</p>
+                <p class="small text-muted">One stock/service AP subledger, compared against source-linked posted GL liability legs (invoice, payment, credit and contra). Differences and invalid links are shown for investigation, never auto-posted. Totals refer only to the visible page, not the entire GL liability account.</p>
                 <form id="supplierPayablesForm" class="row g-2 align-items-end mb-3">
                     <div class="col-md-3"><label for="supplierPayablesAsOf" class="form-label">As of date</label><input type="date" id="supplierPayablesAsOf" class="form-control" required /></div>
                     <div class="col-md-3"><button id="supplierPayablesRun" type="submit" class="btn btn-primary w-100">Run Supplier Aging</button></div>
@@ -42,7 +44,7 @@
                 </form>
                 <p id="supplierPayablesSummary" class="small fw-semibold" role="status" aria-live="polite"></p>
                 <div class="table-responsive"><table class="table table-sm table-striped">
-                    <thead><tr><th>Source</th><th>Supplier ID</th><th>Campus ID</th><th>Invoice</th><th>Invoice date</th><th>Due</th><th class="text-end">Invoice BDT</th><th class="text-end">Paid BDT</th><th class="text-end">Credit BDT</th><th class="text-end">Outstanding BDT</th><th>Days overdue</th><th>Status</th></tr></thead>
+                    <thead><tr><th>Source</th><th>Supplier ID</th><th>Campus ID</th><th>Invoice</th><th>Invoice date</th><th>Due</th><th class="text-end">Invoice BDT</th><th class="text-end">Paid BDT</th><th class="text-end">Credit BDT</th><th class="text-end">Outstanding BDT</th><th class="text-end">Posted GL AP</th><th class="text-end">Difference</th><th>GL Status</th><th>Days overdue</th><th>Status</th></tr></thead>
                     <tbody id="supplierPayablesRows"></tbody>
                 </table></div>
                 <div class="d-flex justify-content-end gap-2 align-items-center">
@@ -450,6 +452,34 @@
                     </tfoot>
                 </table></div>
             </div>
+            <div class="tab-pane fade" id="cashBookPanel">
+                <form id="cashBookForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-4"><label for="cashBookLedger" class="form-label">@(bn ? "নির্ধারিত নগদ GL" : "Designated cash-in-hand GL")</label><select id="cashBookLedger" class="form-select" required><option value="">@(bn ? "লোড হচ্ছে..." : "Loading cash ledgers...")</option></select></div>
+                    <div class="col-md-2"><label for="cashBookFrom" class="form-label">@(bn ? "শুরু" : "From")</label><input type="date" id="cashBookFrom" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="cashBookTo" class="form-label">@(bn ? "শেষ" : "To")</label><input type="date" id="cashBookTo" class="form-control" required /></div>
+                    <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">@(bn ? "নগদ খাতা দেখুন" : "Run Cash Book")</button></div>
+                    <div class="col-md-2"><button type="button" id="cashBookCsv" class="btn btn-outline-secondary w-100" disabled>CSV</button></div>
+                </form>
+                <p id="cashBookSummary" role="status" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Date</th><th>Journal</th><th>Description</th><th class="text-end">Cash in</th><th class="text-end">Cash out</th><th class="text-end">Running BDT</th></tr></thead>
+                    <tbody id="cashBookRows"></tbody>
+                </table></div>
+            </div>
+            <div class="tab-pane fade" id="cashMovementsPanel">
+                <p class="small text-muted">@(bn ? "ব্যাংক ও নির্ধারিত নগদ খাতার মোট প্রবাহ; নিজেদের মধ্যকার স্থানান্তর আলাদা দেখানো হয়। Operating/Investing/Financing শ্রেণিবিন্যাস এখানে অনুমান করা হয় না।" : "Reconciled bank and explicitly designated cash-in-hand movements. Internal transfers cancel; operating/investing/financing activities are not inferred and this is not a classified statutory cash-flow statement.")</p>
+                <form id="cashMovementsForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label for="cashMovementsFrom" class="form-label">@(bn ? "শুরু" : "From")</label><input type="date" id="cashMovementsFrom" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="cashMovementsTo" class="form-label">@(bn ? "শেষ" : "To")</label><input type="date" id="cashMovementsTo" class="form-control" required /></div>
+                    <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">@(bn ? "প্রবাহ দেখুন" : "Run Cash Movements")</button></div>
+                    <div class="col-md-3"><button type="button" id="cashMovementsCsv" class="btn btn-outline-secondary w-100" disabled>CSV</button></div>
+                </form>
+                <p id="cashMovementsSummary" role="status" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Kind</th><th>GL</th><th class="text-end">Opening</th><th class="text-end">Receipts</th><th class="text-end">Payments</th><th class="text-end">Transfers in</th><th class="text-end">Transfers out</th><th class="text-end">Closing</th></tr></thead>
+                    <tbody id="cashMovementsRows"></tbody><tfoot id="cashMovementsTotals"></tfoot>
+                </table></div>
+            </div>
         }
     </div>
     @if (User.IsInRole("TenantAdmin"))
@@ -472,4 +502,5 @@
 @section Scripts { <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script><script type="module" src="~/js/finance/bank-reconciliation-candidates.js" asp-append-version="true"></script>
 <script type="module" src="~/js/finance/accounting-reports.js" asp-append-version="true"></script>
 <script type="module" src="~/js/finance/accounting-additional-reports.js" asp-append-version="true"></script>
+<script type="module" src="~/js/finance/accounting-cash-movements.js" asp-append-version="true"></script>
 <script type="module" src="~/js/finance/bank-statement-preview.js" asp-append-version="true"></script> }

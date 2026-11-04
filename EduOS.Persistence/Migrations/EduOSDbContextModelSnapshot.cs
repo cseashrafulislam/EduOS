@@ -2141,6 +2141,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsCashInHand")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -2177,7 +2180,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "ParentAccountId", "IsActive");
 
-                    b.ToTable("Accounts");
+                    b.ToTable("Accounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_Accounts_CashInHandPostingAsset", "[IsCashInHand] = 0 OR ([AccountType] = 1 AND [IsGroup] = 0 AND [AllowsPosting] = 1 AND [IsActive] = 1 AND [CurrencyCode] = N'BDT')");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.AccountingPeriod", b =>

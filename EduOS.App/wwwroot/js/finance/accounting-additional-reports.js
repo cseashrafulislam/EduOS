@@ -3,7 +3,7 @@ const root = document.getElementById('institutionAccountingReports');
 if (root && document.getElementById('dayBookForm')) {
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|sourceAmount|invoiceAmount|netPostedPayments|postedSupplierCredits|openBalance|outstandingOnPage|currentOnPage|days1To30OnPage|days31To60OnPage|days61To90OnPage|over90DaysOnPage|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|sourceAmount|invoiceAmount|netPostedPayments|postedSupplierCredits|openBalance|outstandingOnPage|currentOnPage|days1To30OnPage|days31To60OnPage|days61To90OnPage|over90DaysOnPage|postedGlPayableBalance|subledgerVsGlDifference|postedGlPayableOnPage|subledgerVsGlDifferenceOnPage|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     const cents = value => {
         const s = String(value ?? '0');
         if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw new Error('Invalid financial amount precision.');
@@ -73,7 +73,7 @@ if (root && document.getElementById('dayBookForm')) {
         $('supplierPayablesPrevious').disabled = true;
         $('supplierPayablesNext').disabled = true;
         try {
-            const data = await get('/api/finance/accounting/reports/supplier-payables-aging?' +
+            const data = await get('/api/finance/accounting/reports/supplier-ap-gl-reconciliation?' +
                 new URLSearchParams({asOf,page:String(page),pageSize:'25'}));
             if (revision !== supplierPayablesRevision || asOf !== $('supplierPayablesAsOf').value) return;
             const items = data.page.items || [];
@@ -86,6 +86,10 @@ if (root && document.getElementById('dayBookForm')) {
                     (x.invoiceReversedAsOf && (paid !== 0n || credit !== 0n || remaining !== 0n)))
                     throw new Error('Supplier payable invoice does not reconcile to settlements.');
                 open += remaining;
+                if (x.glReconciliationStatus === 'Reconciled' &&
+                    (x.postedGlPayableBalance === null || cents(x.postedGlPayableBalance) !== remaining ||
+                     cents(x.subledgerVsGlDifference) !== 0n))
+                    throw new Error('Source-linked payable GL status conflicts with the reported amounts.');
                 if (x.daysOverdue <= 0) current += remaining;
                 else if (x.daysOverdue <= 30) days30 += remaining;
                 else if (x.daysOverdue <= 60) days60 += remaining;
@@ -102,16 +106,20 @@ if (root && document.getElementById('dayBookForm')) {
                 '</td><td>' + esc(x.dueDate) + '</td><td class="text-end">' + money(x.invoiceAmount) +
                 '</td><td class="text-end">' + money(x.netPostedPayments) +
                 '</td><td class="text-end">' + money(x.postedSupplierCredits) +
-                '</td><td class="text-end">' + money(x.openBalance) + '</td><td>' +
+                '</td><td class="text-end">' + money(x.openBalance) +
+                '</td><td class="text-end">' + (x.postedGlPayableBalance == null ? '—' : money(x.postedGlPayableBalance)) +
+                '</td><td class="text-end">' + (x.subledgerVsGlDifference == null ? '—' : money(x.subledgerVsGlDifference)) +
+                '</td><td>' + esc(x.glReconciliationStatus) + '</td><td>' +
                 esc(x.daysOverdue) + '</td><td>' +
                 (x.invoiceReversedAsOf ? 'Reversed' : remainingText(x.openBalance)) + '</td></tr>').join('') ||
-                '<tr><td colspan="12">No posted supplier invoices as of this date.</td></tr>';
+                '<tr><td colspan="15">No posted supplier invoices as of this date.</td></tr>';
             $('supplierPayablesSummary').textContent = data.page.totalCount +
                 ' stock/service invoices (including settled or reversed). On THIS page: outstanding BDT ' +
                 money(data.outstandingOnPage) + ', current ' + money(data.currentOnPage) +
                 ', 1–30 days ' + money(data.days1To30OnPage) + ', 31–60 days ' +
                 money(data.days31To60OnPage) + ', 61–90 days ' + money(data.days61To90OnPage) +
-                ', 90+ days ' + money(data.over90DaysOnPage) + '.';
+                ', 90+ days ' + money(data.over90DaysOnPage) + '. GL exceptions on this page: ' +
+                data.glExceptionCountOnPage + '.';
             $('supplierPayablesPage').textContent = 'Page ' + page + ' / ' + Math.max(1,data.page.totalPages);
             $('supplierPayablesPrevious').disabled = page <= 1;
             $('supplierPayablesNext').disabled = page >= data.page.totalPages;
@@ -134,11 +142,13 @@ if (root && document.getElementById('dayBookForm')) {
     $('supplierPayablesCsv').addEventListener('click', () => {
         if (!supplierPayables || supplierPayablesDate !== $('supplierPayablesAsOf').value) return;
         const rows = [['Source','Supplier ID','Campus ID','Invoice','Invoice Date','Due Date',
-            'Invoice BDT','Paid BDT','Supplier Credit BDT','Open BDT','Days Overdue','Status']];
+            'Invoice BDT','Paid BDT','Supplier Credit BDT','Open BDT','GL AP BDT','Difference BDT','GL Status','Days Overdue','Status']];
         for (const x of supplierPayables.page.items)
             rows.push([x.invoiceSource,x.supplierId,x.campusId,x.supplierInvoiceNumber,x.invoiceDate,
                 x.dueDate,money(x.invoiceAmount),money(x.netPostedPayments),money(x.postedSupplierCredits),
-                money(x.openBalance),x.daysOverdue,x.invoiceReversedAsOf ? 'Reversed' : remainingText(x.openBalance)]);
+                money(x.openBalance),x.postedGlPayableBalance == null ? '' : money(x.postedGlPayableBalance),
+                x.subledgerVsGlDifference == null ? '' : money(x.subledgerVsGlDifference),
+                x.glReconciliationStatus,x.daysOverdue,x.invoiceReversedAsOf ? 'Reversed' : remainingText(x.openBalance)]);
         csv('institution-supplier-payables-page-' + supplierPayablesPage + '-' +
             supplierPayablesDate + '.csv',rows);
     });
