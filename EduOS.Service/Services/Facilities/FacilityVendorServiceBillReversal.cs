@@ -39,6 +39,9 @@ public sealed partial class FacilityVendorServiceBillService
             if (bill.StateCode != "Posted" || !Version(bill.RowVersion, request.RowVersion) ||
                 bill.JournalId is not long journalId)
                 return Error<FacilityVendorBillDto>("Only a posted, unchanged service bill can be reversed.", 409);
+            if (await HasActiveVendorPaymentsAsync(bill.Id, ct))
+                return Error<FacilityVendorBillDto>(
+                    "Service bill has pending or posted supplier payments; reverse those first.", 409);
             var original = await db.Journals.AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == user.TenantId && x.Id == journalId &&
                 x.SourceType == "FacilityVendorServiceBill" && x.SourceId == bill.Id &&
@@ -168,6 +171,9 @@ public sealed partial class FacilityVendorServiceBillService
                 return Error<FacilityVendorBillDto>("Reversal provenance or period invalid.", 409);
             if (request.Approve)
             {
+                if (await HasActiveVendorPaymentsAsync(bill.Id, ct))
+                    return Error<FacilityVendorBillDto>(
+                        "Supplier payment or reserved instruction exists; reverse it before invoice contra.", 409);
                 var prior = await db.JournalLines.AsNoTracking().Where(x =>
                     x.TenantId == user.TenantId && x.JournalId == origin.Id && !x.IsDeleted)
                     .OrderBy(x => x.LineNo).ToListAsync(ct);
