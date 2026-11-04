@@ -693,6 +693,10 @@
                     @if (showFacilities && (User?.IsInRole("TenantAdmin") == true ||
                          User?.IsInRole("Principal") == true || User?.IsInRole("Accountant") == true))
                     {
+                        <a class="nav-link @ActiveFor("/FacilityCosts")" href="/FacilityCosts/Index">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "ফ্যাসিলিটিজ ব্যয় ও সরবরাহকারী বিল" : "Facilities Costs & Vendor Bills")</span>
+                        </a>
                         <a class="nav-link @ActiveFor("/InventoryMovements/FacilityFinance")" href="/InventoryMovements/FacilityFinance">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                             <span>@(currentCulture == "bn-BD" ? "যন্ত্রাংশের হিসাব ও প্রত্যাবর্তন" : "Facilities Parts Finance")</span>
