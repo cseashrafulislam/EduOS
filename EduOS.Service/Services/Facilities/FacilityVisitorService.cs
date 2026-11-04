@@ -690,6 +690,38 @@ public sealed class FacilityVisitorService(
                         previous.BadgeCode = null; previous.Reason = null;
                         previous.UpdatedAt = now; previous.UpdatedBy = user.UserId;
                     }
+                    // Legacy EF generic audit payloads may predate the visitor
+                    // audit-suppression fix. After this exact visit passes
+                    // retention/legal-hold/maker-checker guards, scrub ONLY its
+                    // private Old/New JSON in the SAME transaction. Keep
+                    // action, actor, occurred-at and source IDs as evidence.
+                    var eventIds = events.Select(x => x.Id).ToArray();
+                    var legacyVisitPayloads = await db.AuditLogs
+                        .Where(x => x.TenantId == user.TenantId &&
+                            x.EntityName == nameof(FacilityVisitorVisit) &&
+                            x.EntityId == visit.Id &&
+                            (x.OldValue != null || x.NewValue != null))
+                        .ExecuteUpdateAsync(up => up
+                            .SetProperty(x => x.OldValue, (string?)null)
+                            .SetProperty(x => x.NewValue, (string?)null), ct);
+                    var legacyEventPayloads = eventIds.Length == 0 ? 0 :
+                        await db.AuditLogs.Where(x => x.TenantId == user.TenantId &&
+                            x.EntityName == nameof(FacilityVisitorEvent) &&
+                            x.EntityId.HasValue && eventIds.Contains(x.EntityId.Value) &&
+                            (x.OldValue != null || x.NewValue != null))
+                        .ExecuteUpdateAsync(up => up
+                            .SetProperty(x => x.OldValue, (string?)null)
+                            .SetProperty(x => x.NewValue, (string?)null), ct);
+                    db.AuditLogs.Add(new AuditLog {
+                        TenantId = user.TenantId, UserId = user.UserId,
+                        Action = "VisitorLegacyAuditPayloadRedacted",
+                        EntityName = nameof(FacilityVisitorVisit), EntityId = visit.Id,
+                        IsSuccess = true, OldValue = null, NewValue = null,
+                        OccurredAt = now, CreatedAt = now, CreatedBy = user.UserId
+                    });
+                    logger.LogInformation(
+                        "Approved visitor audit payload redaction: tenant {TenantId}, visit {VisitId}, legacy visit audit rows {VisitRows}, legacy event audit rows {EventRows}",
+                        user.TenantId, visit.Id, legacyVisitPayloads, legacyEventPayloads);
                     visit.VisitorName = RedactedVisitor;
                     visit.Purpose = RedactedVisitor;
                     visit.BadgeCode = null;
