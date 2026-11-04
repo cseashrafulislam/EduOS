@@ -42,6 +42,11 @@ public sealed class FacilityLabourCostsApiController(
     private IActionResult Reply<T>(ApiResponse<T> result) =>
         BindSession() ? StatusCode(result.StatusCode, result) : SessionUnavailable();
 
+    [HttpGet("eligible-sources"), Authorize(Roles = "TenantAdmin,Accountant")]
+    public async Task<IActionResult> EligibleSources(long? campusId, string? search,
+        int page = 1, int pageSize = 20, CancellationToken ct = default) =>
+        Reply(await service.EligibleSourcesAsync(campusId, search, page, pageSize, ct));
+
     [HttpGet("{reference:guid}"), Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Get(Guid reference, CancellationToken ct) =>
         Reply(await service.GetAsync(reference, ct));
