@@ -44,6 +44,12 @@ test('supplier aging unions stock and nonstock sources at SQL paging with as-of 
     assert.match(aging, /Skip\(\(page - 1\) \* pageSize\)\.Take\(pageSize\)/);
     assert.match(aging, /JournalDate <= asOf/);
     assert.match(aging, /InvoiceReversedAsOf = isReversed/);
+    assert.match(aging, /j.State == JournalState.Posted && j.JournalDate <= asOf/);
+    assert.match(aging, /ProcurementSupplierReturnCredits.AsNoTracking/);
+    assert.match(aging, /x.UnpaidCreditAmount/);
+    assert.match(aging, /supplierCredit/);
+    assert.match(aging, /PostedSupplierCredits = isReversed/);
+    assert.match(aging, /balance = isReversed \? 0m : src.Amount - paymentAmount - supplierCredit/);
     assert.match(aging, /Days1To30OnPage/);
     assert.match(aging, /Days61To90OnPage/);
     assert.match(aging, /Over90DaysOnPage/);
