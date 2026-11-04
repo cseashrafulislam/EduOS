@@ -407,6 +407,26 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.Equal(2400m, lines.Sum(x => x.CreditAmount));
             Assert.Equal(0, await db.InventoryMovements.CountAsync(x =>
                 x.TenantId == tenantId && x.SourceType == "FacilityVendorServiceBill"));
+            // Historical/corrupt reference probe: a same-tenant posted GL
+            // journal is not a valid substitute for the invoice's own source.
+            // Roll back the corruption, retaining immutable posted evidence.
+            await using (var tamper = await db.Database.BeginTransactionAsync())
+            {
+                var foreignSourceId = await db.Journals.AsNoTracking()
+                    .Where(x => x.TenantId == tenantId &&
+                        x.SourceType == "FacilityVendorServicePayment" &&
+                        x.State == JournalState.Posted).Select(x => x.Id).SingleAsync();
+                await db.FacilityVendorServiceBills.Where(x => x.TenantId == tenantId &&
+                    x.PublicId == bill.Reference).ExecuteUpdateAsync(x => x
+                    .SetProperty(v => v.JournalId, (long?)foreignSourceId));
+                var corrupted = await service.SupplierAgingAsync(invoiceDate, campusId, 1, 25);
+                Assert.Equal(409, corrupted.StatusCode);
+                await tamper.RollbackAsync();
+            }
+            var restored = await service.SupplierAgingAsync(invoiceDate, campusId, 1, 25);
+            Assert.True(restored.Success, restored.Message);
+            Assert.Equal(0m, restored.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference).OpenBalance);
         }
     }
 

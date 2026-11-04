@@ -94,14 +94,37 @@ public sealed partial class FacilityVendorServiceBillService
             .Select(x => x.Id).ToArray();
         var origJournalIds = pageRows.Where(x => x.JournalId.HasValue)
             .Select(x => x.JournalId!.Value).ToArray();
+        // A valid JournalId FK does not prove which payable that journal
+        // belongs to. Verify the source/campus/currency for every displayed
+        // invoice before using its GL movements in management reports.
+        var originals = await db.Journals.AsNoTracking().Where(j =>
+            j.TenantId == user.TenantId && !j.IsDeleted &&
+            origJournalIds.Contains(j.Id))
+            .Select(j => new { j.Id, j.SourceType, j.SourceId,
+                j.CampusId, j.CurrencyCode }).ToDictionaryAsync(j => j.Id, ct);
+        foreach (var src in pageRows)
+        {
+            if (!src.JournalId.HasValue ||
+                !originals.TryGetValue(src.JournalId.Value, out var original) ||
+                original.SourceType != (src.InvoiceSource == "Service"
+                    ? "FacilityVendorServiceBill" : "ProcurementSupplierInvoice") ||
+                original.SourceId != src.Id || original.CampusId != src.CampusId ||
+                original.CurrencyCode != "BDT")
+                return Error<FacilitySupplierAgingTotalsDto>(
+                    "Supplier payable journal source, campus or currency is inconsistent.", 409);
+        }
         var invoiceReversals = await db.Journals.AsNoTracking().Where(x =>
             x.TenantId == user.TenantId && !x.IsDeleted && x.State == JournalState.Posted &&
             x.JournalDate <= asOf && x.ReversalOfJournalId.HasValue &&
             origJournalIds.Contains(x.ReversalOfJournalId.Value) &&
             (x.SourceType == "FacilityVendorServiceBillReversal" ||
              x.SourceType == "ProcurementSupplierInvoiceReversal"))
-            .Select(x => x.ReversalOfJournalId!.Value).ToListAsync(ct);
-        var reversedInvoices = invoiceReversals.ToHashSet();
+            .Select(x => new { x.ReversalOfJournalId, x.SourceId, x.SourceType,
+                x.CampusId, x.CurrencyCode }).ToListAsync(ct);
+        var reversedInvoices = invoiceReversals.Where(x => x.SourceId.HasValue &&
+            x.ReversalOfJournalId.HasValue && x.CurrencyCode == "BDT")
+            .Select(x => (JournalId: x.ReversalOfJournalId!.Value,
+                InvoiceId: x.SourceId!.Value, x.SourceType, x.CampusId)).ToHashSet();
         // SQL first restricts to the selected page's invoice IDs. Posted contra
         // journals neutralize a payment only on/after their actual journal date.
         var payments = await (from j in db.Journals.AsNoTracking()
@@ -153,7 +176,9 @@ public sealed partial class FacilityVendorServiceBillService
         foreach (var src in pageRows)
         {
             var isReversed = src.JournalId.HasValue &&
-                reversedInvoices.Contains(src.JournalId.Value);
+                reversedInvoices.Contains((src.JournalId.Value, src.Id,
+                    src.InvoiceSource == "Service" ? "FacilityVendorServiceBillReversal" :
+                        "ProcurementSupplierInvoiceReversal", (long?)src.CampusId));
             var paymentAmount = paid.TryGetValue((src.InvoiceSource, src.Id), out var amount)
                 ? amount : 0m;
             var supplierCredit = src.InvoiceSource == "Stock" &&
