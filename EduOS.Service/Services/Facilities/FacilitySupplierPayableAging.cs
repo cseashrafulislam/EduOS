@@ -44,6 +44,10 @@ public sealed partial class FacilityVendorServiceBillService
                 x.TenantId == user.TenantId && !x.IsDeleted &&
                 x.InvoiceDate <= asOf &&
                 (x.StateCode == "Posted" || x.StateCode == "Reversed") &&
+                x.JournalId.HasValue &&
+                db.Journals.Any(j => j.TenantId == user.TenantId &&
+                    j.Id == x.JournalId.Value && !j.IsDeleted &&
+                    j.State == JournalState.Posted && j.JournalDate <= asOf) &&
                 (global || db.UserCampusAccesses.Any(g =>
                     g.TenantId == user.TenantId && g.UserId == user.UserId &&
                     g.CampusId == x.CampusId && g.IsActive && !g.IsDeleted)))
@@ -57,6 +61,10 @@ public sealed partial class FacilityVendorServiceBillService
                 x.TenantId == user.TenantId && !x.IsDeleted &&
                 x.InvoiceDate <= asOf &&
                 (x.StateCode == "Posted" || x.StateCode == "Reversed") &&
+                x.JournalId.HasValue &&
+                db.Journals.Any(j => j.TenantId == user.TenantId &&
+                    j.Id == x.JournalId.Value && !j.IsDeleted &&
+                    j.State == JournalState.Posted && j.JournalDate <= asOf) &&
                 (global || db.UserCampusAccesses.Any(g =>
                     g.TenantId == user.TenantId && g.UserId == user.UserId &&
                     g.CampusId == x.CampusId && g.IsActive && !g.IsDeleted)))
@@ -120,6 +128,24 @@ public sealed partial class FacilityVendorServiceBillService
                 g.Key.SourceType, g.Key.SourceId,
                 Paid = g.Sum(x => x.DebitAmount)
             }).ToListAsync(ct);
+        // A posted stock return may reduce the unpaid trade payable while
+        // the already-paid part becomes a refund receivable. Only its
+        // UnpaidCreditAmount reduces AP here; subtracting full CreditAmount
+        // would double-count already executed bank payments.
+        var stockCredits = await db.ProcurementSupplierReturnCredits.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
+                stockIds.Contains(x.SupplierInvoiceId) &&
+                x.StateCode == "Posted" && x.ReturnDate <= asOf &&
+                x.JournalId.HasValue &&
+                db.Journals.Any(j => j.TenantId == user.TenantId &&
+                    j.Id == x.JournalId.Value && j.SourceType == "ProcurementSupplierReturnCredit" &&
+                    j.SourceId == x.Id && !j.IsDeleted &&
+                    j.State == JournalState.Posted && j.JournalDate <= asOf))
+            .GroupBy(x => x.SupplierInvoiceId)
+            .Select(g => new { InvoiceId = g.Key,
+                Amount = g.Sum(x => x.UnpaidCreditAmount) })
+            .ToListAsync(ct);
+        var credited = stockCredits.ToDictionary(x => x.InvoiceId, x => x.Amount);
         var paid = payments.ToDictionary(x =>
             (Source: x.SourceType == VendorPaymentSource ? "Service" : "Stock",
              Id: x.SourceId!.Value), x => x.Paid);
@@ -128,8 +154,11 @@ public sealed partial class FacilityVendorServiceBillService
         {
             var isReversed = src.JournalId.HasValue &&
                 reversedInvoices.Contains(src.JournalId.Value);
-            var balance = isReversed ? 0m : src.Amount -
-                (paid.TryGetValue((src.InvoiceSource, src.Id), out var amount) ? amount : 0m);
+            var paymentAmount = paid.TryGetValue((src.InvoiceSource, src.Id), out var amount)
+                ? amount : 0m;
+            var supplierCredit = src.InvoiceSource == "Stock" &&
+                credited.TryGetValue(src.Id, out var credit) ? credit : 0m;
+            var balance = isReversed ? 0m : src.Amount - paymentAmount - supplierCredit;
             if (balance < 0m || balance > src.Amount)
                 return Error<FacilitySupplierAgingTotalsDto>(
                     "Supplier payment does not reconcile to its original payable.", 409);
@@ -138,7 +167,7 @@ public sealed partial class FacilityVendorServiceBillService
                 SupplierId = src.SupplierId, CampusId = src.CampusId,
                 SupplierInvoiceNumber = src.Number, InvoiceDate = src.InvoiceDate,
                 DueDate = src.DueDate, InvoiceAmount = src.Amount,
-                NetPostedPayments = isReversed ? 0m : src.Amount - balance,
+                NetPostedPayments = isReversed ? 0m : paymentAmount,
                 OpenBalance = balance, InvoiceReversedAsOf = isReversed,
                 DaysOverdue = Math.Max(0, asOf.DayNumber - src.DueDate.DayNumber)
             });
