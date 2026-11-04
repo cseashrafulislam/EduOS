@@ -175,8 +175,13 @@ public sealed partial class FacilityVendorServiceBillService
         var rows = new List<FacilitySupplierAgingRowDto>(pageRows.Count);
         foreach (var src in pageRows)
         {
+            // Existing Finance contracts differ: the service-bill contra
+            // references the original Journal.Id, while the stock-invoice
+            // contra references SupplierInvoice.Id. Preserve both historic
+            // source identities; never silently reinterpret posted records.
             var isReversed = src.JournalId.HasValue &&
-                reversedInvoices.Contains((src.JournalId.Value, src.Id,
+                reversedInvoices.Contains((src.JournalId.Value,
+                    src.InvoiceSource == "Service" ? src.JournalId.Value : src.Id,
                     src.InvoiceSource == "Service" ? "FacilityVendorServiceBillReversal" :
                         "ProcurementSupplierInvoiceReversal", (long?)src.CampusId));
             var paymentAmount = paid.TryGetValue((src.InvoiceSource, src.Id), out var amount)
