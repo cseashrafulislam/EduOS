@@ -2,6 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Facilities;
 
+public sealed class FacilityVerifiedVendorChoiceDto
+{
+    public long WorkOrderId { get; set; }
+    public long CampusId { get; set; }
+    public string RequestSummary { get; set; } = string.Empty;
+    public string SupplierName { get; set; } = string.Empty;
+    public string SupplierInvoiceHint { get; set; } = string.Empty;
+}
 public sealed class CreateFacilityVendorServiceBillDto
 {
     public Guid ClientRequestId { get; set; }
@@ -54,6 +62,8 @@ public sealed class FacilityVendorBillDto
     public long FacilityWorkOrderId { get; set; }
     public long CampusId { get; set; }
     public long SupplierId { get; set; }
+    public string RequestSummary { get; set; } = string.Empty;
+    public string SupplierName { get; set; } = string.Empty;
     public string SupplierInvoiceNumber { get; set; } = string.Empty;
     public DateOnly InvoiceDate { get; set; }
     public DateOnly DueDate { get; set; }
