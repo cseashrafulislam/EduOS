@@ -6,7 +6,7 @@ if (root) {
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
     let page = 1, totalPages = 1, accounts = [], periods = [], banks = [], groups = [], assetLedgers = [];
     let cashPage = 1, cashPages = 1, cashProposals = [], cashSelected = null, cashGeneration = 0;
-    let cashSubmitKey = crypto.randomUUID(), cashReviewKey = null, cashBusy = false;
+    let cashSubmitKey = crypto.randomUUID(), cashReviewKey = null, cashReviewAction = null, cashBusy = false;
     const alert = (message, error = false) => { const el = $('accountingNotice'); el.textContent = message; el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const request = async (path, method = 'GET', body = null) => {
         const options = {method, credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}};
@@ -94,6 +94,8 @@ if (root) {
     $('accountPrev').addEventListener('click', () => run(async () => { if (page > 1) { page--; await loadAccounts(); } }));
     $('accountNext').addEventListener('click', () => run(async () => { if (page < totalPages) { page++; await loadAccounts(); } }));
     if (writable) {
+        $('historicalCashForm').addEventListener('input', () => { if (!cashBusy) cashSubmitKey = crypto.randomUUID(); });
+        $('historicalCashLedger').addEventListener('change', () => { if (!cashBusy) cashSubmitKey = crypto.randomUUID(); });
         $('accountReset').addEventListener('click', resetAccount);
         $('periodReset').addEventListener('click', resetPeriod);
         $('bankReset').addEventListener('click', resetBank);
@@ -173,14 +175,18 @@ if (root) {
             if (cashPage < cashPages) { cashPage++; await loadCashProposals(); }
         }));
         if (admin) {
-            const closeCashReview = () => { cashSelected = null; cashReviewKey = null;
+            const closeCashReview = () => { cashSelected = null; cashReviewKey = null; cashReviewAction = null;
                 $('historicalCashReview').classList.add('d-none'); $('historicalCashReviewReason').value = ''; };
+            $('historicalCashReviewReason').addEventListener('input', () => {
+                if (!cashBusy) { cashReviewKey = crypto.randomUUID(); cashReviewAction = null; }
+            });
             $('historicalCashRows').addEventListener('click', e => {
                 const id = e.target.closest('[data-review-cash]')?.dataset.reviewCash;
                 if (!id) return;
                 cashSelected = cashProposals.find(x => String(x.id) === id && x.stateCode === 'Submitted') || null;
                 if (!cashSelected) return;
                 cashReviewKey = crypto.randomUUID();
+                cashReviewAction = null;
                 $('historicalCashReviewTitle').textContent = cashSelected.accountCode + ' — ' + cashSelected.accountName +
                     '. Evidence: ' + cashSelected.reason;
                 $('historicalCashReview').classList.remove('d-none');
@@ -192,6 +198,7 @@ if (root) {
                 const reason = $('historicalCashReviewReason').value.trim();
                 if (reason.length > 500 || (!approve && !reason)) throw new Error('Rejection requires a review reason.');
                 if (approve && !confirm('Approve physical cash classification for ' + cashSelected.accountCode + '? Historical posted GL journals will remain unchanged.')) return;
+                if (cashReviewAction !== approve) { cashReviewKey = crypto.randomUUID(); cashReviewAction = approve; }
                 cashBusy = true; $('historicalCashApprove').disabled = true; $('historicalCashReject').disabled = true;
                 try {
                     await request('/cash-designations/' + encodeURIComponent(cashSelected.id) + '/review', 'POST',
