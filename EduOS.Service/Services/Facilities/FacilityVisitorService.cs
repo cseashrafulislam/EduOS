@@ -1110,4 +1110,47 @@ public sealed class FacilityVisitorService(
             return ApiResponse<FacilityVisitorPolicyDto>.ErrorResponse("Policy is busy; retry.", 409);
         }
     }
+    /// <summary>
+    /// Restricted, read-only, PII-free verification. Unredacted historical audit
+    /// rows remain visible to legal/security review by COUNTS ONLY. No live
+    /// records are silently modified, regardless of the result.
+    /// </summary>
+    public async Task<ApiResponse<FacilityVisitorPrivacyAuditReportDto>> PrivacyAuditReportAsync(
+        CancellationToken ct = default)
+    {
+        if (!ValidTenant || !Admin || !await ReviewerLiveAsync(ct) ||
+            !await db.Users.AsNoTracking().AnyAsync(x =>
+                x.Id == user.UserId && x.IsActive && !x.IsDeleted, ct) ||
+            !await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && x.UserId == user.UserId &&
+                x.Status == EduOS.Core.Enums.Domain.MembershipStatus.Active &&
+                !x.IsDeleted, ct))
+            return Denied<FacilityVisitorPrivacyAuditReportDto>();
+        var audits = db.AuditLogs.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId &&
+                (x.OldValue != null || x.NewValue != null));
+        var visitAudit = audits.Where(x => x.EntityName == nameof(FacilityVisitorVisit));
+        var eventAudit = audits.Where(x => x.EntityName == nameof(FacilityVisitorEvent));
+        var visits = db.Set<FacilityVisitorVisit>().AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
+        var total = await visits.LongCountAsync(ct);
+        var redacted = await visits.LongCountAsync(x => x.VisitorName == RedactedVisitor, ct);
+        var visitPayloadCount = await visitAudit.LongCountAsync(ct);
+        var eventPayloadCount = await eventAudit.LongCountAsync(ct);
+        var stillExposed = await visits.Where(v => v.VisitorName == RedactedVisitor &&
+            (visitAudit.Any(a => a.EntityId == v.Id) ||
+             db.Set<FacilityVisitorEvent>().Any(e =>
+                e.TenantId == user.TenantId && e.FacilityVisitorVisitId == v.Id &&
+                eventAudit.Any(a => a.EntityId == e.Id))))
+            .LongCountAsync(ct);
+        return ApiResponse<FacilityVisitorPrivacyAuditReportDto>.SuccessResponse(new()
+        {
+            TenantId = user.TenantId, CheckedAtUtc = Now,
+            VisitorVisits = total, FullyRedactedVisits = redacted,
+            LegacyVisitAuditPayloadRows = visitPayloadCount,
+            LegacyEventAuditPayloadRows = eventPayloadCount,
+            FullyRedactedVisitsWithLegacyPayloads = stillExposed
+        });
+    }
+
 }
