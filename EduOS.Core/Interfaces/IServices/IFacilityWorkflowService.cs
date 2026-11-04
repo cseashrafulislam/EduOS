@@ -10,6 +10,7 @@ public interface IFacilityWorkflowService
     Task<ApiResponse<PagedResult<FacilityVendorOptionDto>>> VendorsAsync(long campusId, string? search, int page, int pageSize, CancellationToken ct = default, long? workOrderId = null,
         DateTime? startUtc = null, DateTime? endUtc = null);
     Task<ApiResponse<PagedResult<FacilityTechnicianOptionDto>>> TechniciansAsync(long campusId, string? search, int page, int pageSize, CancellationToken ct = default, DateTime? startUtc = null, DateTime? endUtc = null, long? workOrderId = null);
+    Task<ApiResponse<FacilitySlaRecommendationDto>> SlaRecommendationAsync(long facilityRequestId, CancellationToken ct = default);
     Task<ApiResponse<FacilityRequestDto>> CreateAsync(CreateFacilityRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<FacilityRequestDto>>> ListAsync(long? campusId, string? state, int page, int pageSize, CancellationToken ct = default, bool overdueOnly = false);
     Task<ApiResponse<IReadOnlyList<FacilityRequestDto>>> ExportSnapshotAsync(long? campusId, string? state, bool overdueOnly, CancellationToken ct = default);
