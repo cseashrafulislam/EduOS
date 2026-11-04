@@ -1733,6 +1733,16 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[SourceType] = N'InventoryMovement' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
         modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceId }, "UX_Journals_FacilityPartsReversal")
             .IsUnique().HasFilter("[SourceType] = N'FacilityPartsExpenseReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+        modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceId }, "UX_Journals_FacilityVendorServiceBill")
+            .IsUnique().HasFilter("[SourceType] = N'FacilityVendorServiceBill' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+        modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceId }, "UX_Journals_FacilityVendorServiceBillReversal")
+            .IsUnique().HasFilter("[SourceType] = N'FacilityVendorServiceBillReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+        modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceId }, "UX_Journals_FacilityVendorPaymentReversal")
+            .IsUnique().HasFilter("[SourceType] = N'FacilityVendorServicePaymentReversal' AND [SourceId] IS NOT NULL AND [IsDeleted] = 0 AND [State] <> 5 AND [State] <> 7");
+        modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.ReferenceNumber }, "UX_Journals_FacilityVendorPaymentBankReference")
+            .IsUnique().HasFilter("[SourceType] = N'FacilityVendorServicePayment' AND [ReferenceNumber] IS NOT NULL AND [IsDeleted] = 0 AND [State] = 4");
+        modelBuilder.Entity<Journal>().HasIndex(x => new { x.TenantId, x.SourceType, x.SourceId, x.State, x.JournalDate },
+            "IX_Journals_FacilityVendorPaymentLineage");
         modelBuilder.Entity<AccountingPeriod>().HasIndex(x => new { x.TenantId, x.StartDate, x.EndDate });
         modelBuilder.Entity<BankReconciliationBatch>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
             .HasDatabaseName("UX_BankReconciliationBatches_Tenant_Request").IsUnique();
