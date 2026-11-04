@@ -47,6 +47,11 @@ public sealed class FacilityVendorServiceBillsApiController(
     private IActionResult Reply<T>(ApiResponse<T> result) =>
         BindSession() ? StatusCode(result.StatusCode, result) : SessionUnavailable();
 
+    [HttpGet("posting-options"), Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> PostingOptions(long campusId, string? search,
+        CancellationToken ct = default) =>
+        Reply(await service.PostingOptionsAsync(campusId, search, ct));
+
     [HttpGet("verified-work"), Authorize(Roles = "TenantAdmin,Accountant")]
     public async Task<IActionResult> VerifiedWork(long? campusId, string? search,
         int page = 1, int pageSize = 20, CancellationToken ct = default) =>
