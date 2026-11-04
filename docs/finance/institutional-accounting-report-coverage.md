@@ -19,6 +19,7 @@
 | **Posted Day Book** | Posted/reversed GL journal headers and lines | **Added**; pagination is by whole journal; full-period Debit/Credit totals stay equal across pages; page-only CSV |
 | **Comparative Income Statement** | Existing independently reconciled income statement for two periods | **Added**; prior-only/current-only accounts included, signed delta calculated |
 | **Comparative Balance Sheet** | Existing independently reconciled balance sheet for two as-of dates | **Added**; current and historical position reconciled independently; unclosed surplus distinct from equity |
+| **Income / Expense by Campus or Journal Source** | Posted income/expense journal lines and their recorded campus/source attribution | **Added**; unassigned campus retained explicitly and totals must match the institution-wide income statement; it is not an independent per-campus balance sheet |
 | Journal / Voucher Register | Existing AccountingJournals workflow | Existing link; includes drafts/approval/reversal states, and is deliberately not a second writable journal register |
 | Student Fee Receivables Aging / Collection / Invoice Coverage / Due Calendar | Existing Fees source tables and GL reconciliation | Existing independent operational reports, linked from accounting workspace where relevant |
 | Procurement Supplier Payables / Facility Supplier Bills | Existing Procurement and Facility source tables | Existing module-specific aging/settlement evidence; not automatically combined as one AP book |

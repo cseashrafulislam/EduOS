@@ -30,6 +30,10 @@ public sealed class AccountingReportsController : ControllerBase
     public async Task<IActionResult> ComparativeBalanceSheet([FromQuery] DateOnly asOfDate,
         [FromQuery] DateOnly comparisonAsOfDate, CancellationToken ct)
         => Reply(await service.GetComparativeBalanceSheetAsync(asOfDate, comparisonAsOfDate, ct));
+    [HttpGet("income-expense-breakdown"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> IncomeExpenseBreakdown([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] string groupBy, CancellationToken ct)
+        => Reply(await service.GetIncomeExpenseBreakdownAsync(fromDate, toDate, groupBy, ct));
     [HttpGet("ledger/{accountId:long}/activity"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> LedgerActivity(long accountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, [FromQuery] int page = 1,

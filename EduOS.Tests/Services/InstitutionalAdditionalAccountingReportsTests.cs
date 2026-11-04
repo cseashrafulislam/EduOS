@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -104,6 +105,36 @@ public sealed class InstitutionalAdditionalAccountingReportsTests
             .StatusCode.Should().Be(400);
         (await admin.GetComparativeBalanceSheetAsync(default, September))
             .StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Campus_and_source_breakdown_reconcile_and_preserve_unassigned_transactions()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.Campuses.Add(new Campus { Id = 10, TenantId = 41, Code = "N", Name = "North Campus" });
+        AddJournal(db, 1, October, 100m, 1, 2);
+        AddJournal(db, 2, October, 50m, 3, 1);
+        db.Journals.Local.Single(x => x.Id == 1).CampusId = 10;
+        db.Journals.Local.Single(x => x.Id == 1).SourceType = "StudentInvoice";
+        db.Journals.Local.Single(x => x.Id == 2).SourceType = "Payroll";
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var from = new DateOnly(2026, 10, 1);
+        var to = new DateOnly(2026, 10, 31);
+        var campus = await service.GetIncomeExpenseBreakdownAsync(from, to, "campus");
+        var source = await service.GetIncomeExpenseBreakdownAsync(from, to, "source");
+        campus.StatusCode.Should().Be(200);
+        source.StatusCode.Should().Be(200);
+        campus.Data!.TotalIncome.Should().Be(100m);
+        campus.Data.TotalExpenses.Should().Be(50m);
+        campus.Data.NetSurplus.Should().Be(50m);
+        campus.Data.Rows.Should().Contain(x => x.CampusId == 10 && x.Group == "North Campus" && x.Income == 100m);
+        campus.Data.Rows.Should().Contain(x => x.CampusId == null && x.Group == "Unassigned campus" && x.Expenses == 50m);
+        source.Data!.Rows.Should().Contain(x => x.Group == "StudentInvoice" && x.Income == 100m);
+        source.Data.Rows.Should().Contain(x => x.Group == "Payroll" && x.Expenses == 50m);
+        (await service.GetIncomeExpenseBreakdownAsync(from, to, "wrong")).StatusCode.Should().Be(400);
+        (await Service(db, false).GetIncomeExpenseBreakdownAsync(from, to, "campus")).StatusCode.Should().Be(403);
     }
 
     [Fact]

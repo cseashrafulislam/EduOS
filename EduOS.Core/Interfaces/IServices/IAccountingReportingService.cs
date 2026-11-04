@@ -8,6 +8,7 @@ public interface IAccountingReportingService
     Task<ApiResponse<PostedDayBookDto>> GetPostedDayBookAsync(DateOnly fromDate, DateOnly toDate, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<ComparativeIncomeStatementDto>> GetComparativeIncomeStatementAsync(DateOnly fromDate, DateOnly toDate, DateOnly comparisonFrom, DateOnly comparisonTo, CancellationToken cancellationToken = default);
     Task<ApiResponse<ComparativeBalanceSheetDto>> GetComparativeBalanceSheetAsync(DateOnly asOfDate, DateOnly comparisonAsOfDate, CancellationToken cancellationToken = default);
+    Task<ApiResponse<IncomeExpenseBreakdownDto>> GetIncomeExpenseBreakdownAsync(DateOnly fromDate, DateOnly toDate, string groupBy, CancellationToken cancellationToken = default);
     Task<ApiResponse<LedgerActivityPageDto>> GetLedgerActivityAsync(long accountId, DateOnly fromDate, DateOnly toDate, int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
     Task<ApiResponse<LedgerStatementDto>> GetLedgerStatementAsync(long accountId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<TrialBalanceRowDto>>> GetTrialBalanceAsync(DateOnly asOfDate, CancellationToken cancellationToken = default);

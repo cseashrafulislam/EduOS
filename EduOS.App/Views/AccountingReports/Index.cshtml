@@ -16,6 +16,7 @@
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#balancePanel">Balance Sheet</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#compareIncomePanel">Income Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#compareBalancePanel">Balance Comparison</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#incomeExpenseBreakdownPanel">Income / Expense Breakdown</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankBookPanel">Bank Book</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankStatementPanel">Bank Statement Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankLiquidityPanel">Bank Liquidity</button></li>
@@ -164,6 +165,20 @@
                 <div class="table-responsive"><table class="table table-sm table-striped">
                     <thead><tr><th>Section</th><th>Account code</th><th>Account</th><th class="text-end">Current BDT</th><th class="text-end">Comparison BDT</th><th class="text-end">Variance BDT</th></tr></thead>
                     <tbody id="compareBalanceRows"></tbody><tfoot id="compareBalanceTotals"></tfoot>
+                </table></div>
+            </div>
+            <div class="tab-pane fade" id="incomeExpenseBreakdownPanel">
+                <p class="text-muted">Income and expenses from posted GL lines only. Group by recorded campus or journal source; missing campus attribution is shown as Unassigned, never guessed. Totals must reconcile to the Income Statement.</p>
+                <form id="breakdownForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-2"><label for="breakdownFrom" class="form-label">From</label><input id="breakdownFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="breakdownTo" class="form-label">To</label><input id="breakdownTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label for="breakdownGroup" class="form-label">Group by</label><select id="breakdownGroup" class="form-select"><option value="campus">Campus / Unassigned</option><option value="source">Journal Source</option></select></div>
+                    <div class="col-md-2"><button id="breakdownRun" type="submit" class="btn btn-primary">Run Breakdown</button></div>
+                    <div class="col-md-3"><button id="breakdownCsv" type="button" class="btn btn-outline-secondary" disabled>Export CSV</button></div>
+                </form>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Campus / Source</th><th class="text-end">Income BDT</th><th class="text-end">Expenses BDT</th><th class="text-end">Net surplus BDT</th></tr></thead>
+                    <tbody id="breakdownRows"></tbody><tfoot><tr><th>Institution total</th><th id="breakdownIncome" class="text-end"></th><th id="breakdownExpenses" class="text-end"></th><th id="breakdownNet" class="text-end"></th></tr></tfoot>
                 </table></div>
             </div>
             <div class="tab-pane fade" id="bankLiquidityPanel">

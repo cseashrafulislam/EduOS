@@ -3,7 +3,7 @@ const root = document.getElementById('institutionAccountingReports');
 if (root && document.getElementById('dayBookForm')) {
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     const cents = value => {
         const s = String(value ?? '0');
         if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw new Error('Invalid financial amount precision.');
@@ -238,4 +238,53 @@ if (root && document.getElementById('dayBookForm')) {
          ['Unclosed surplus','currentUnclosedSurplus','comparisonUnclosedSurplus']],
         '/api/finance/accounting/reports/comparative-balance-sheet',
         dates => ({asOfDate:dates[0],comparisonAsOfDate:dates[1]}));
+
+    $('breakdownFrom').value = yearStart;
+    $('breakdownTo').value = today;
+    let breakdown = null, breakdownSignature = '';
+    const breakdownKey = () => ['breakdownFrom','breakdownTo','breakdownGroup'].map(id => $(id).value).join('|');
+    const resetBreakdown = () => { breakdown = null; $('breakdownCsv').disabled = true;
+        $('breakdownRows').replaceChildren();
+        for (const id of ['breakdownIncome','breakdownExpenses','breakdownNet']) $(id).textContent = ''; };
+    for (const id of ['breakdownFrom','breakdownTo','breakdownGroup']) {
+        $(id).addEventListener('input', resetBreakdown);
+        $(id).addEventListener('change', resetBreakdown);
+    }
+    $('breakdownForm').addEventListener('submit', event => { event.preventDefault(); run(async () => {
+        const from = $('breakdownFrom').value, to = $('breakdownTo').value, group = $('breakdownGroup').value;
+        if (!validPeriod(from,to) || !['campus','source'].includes(group))
+            throw new Error('Select a valid accounting period and grouping.');
+        resetBreakdown(); $('breakdownRun').disabled = true;
+        const signature = breakdownKey();
+        try {
+            const data = await get('/api/finance/accounting/reports/income-expense-breakdown?' +
+                new URLSearchParams({fromDate:from,toDate:to,groupBy:group}));
+            if (signature !== breakdownKey()) return;
+            let income = 0n, expenses = 0n, net = 0n;
+            $('breakdownRows').innerHTML = (data.rows || []).map(x => {
+                const i = cents(x.income), e = cents(x.expenses), n = cents(x.netSurplus);
+                if (i - e !== n) throw new Error('Grouped surplus does not reconcile.');
+                income += i; expenses += e; net += n;
+                return '<tr><td>' + esc(x.group) + '</td><td class="text-end">' + money(i) +
+                    '</td><td class="text-end">' + money(e) + '</td><td class="text-end">' + money(n) + '</td></tr>';
+            }).join('') || '<tr><td colspan="4">No posted income or expense for this period.</td></tr>';
+            if (income !== cents(data.totalIncome) || expenses !== cents(data.totalExpenses) ||
+                net !== cents(data.netSurplus) || income - expenses !== net)
+                throw new Error('Campus/source breakdown does not match institutional P&L.');
+            $('breakdownIncome').textContent = money(income);
+            $('breakdownExpenses').textContent = money(expenses);
+            $('breakdownNet').textContent = money(net);
+            breakdown = data; breakdownSignature = signature; $('breakdownCsv').disabled = false;
+            alert('Campus/source breakdown reconciled with the institutional income statement.');
+        } finally { $('breakdownRun').disabled = false; }
+    }); });
+    $('breakdownCsv').addEventListener('click', () => {
+        if (!breakdown || breakdownSignature !== breakdownKey()) return;
+        const rows = [['Campus or Source','Income BDT','Expenses BDT','Net Surplus BDT']];
+        for (const x of breakdown.rows || [])
+            rows.push([x.group,money(x.income),money(x.expenses),money(x.netSurplus)]);
+        rows.push(['INSTITUTION TOTAL',money(breakdown.totalIncome),
+            money(breakdown.totalExpenses),money(breakdown.netSurplus)]);
+        csv('institution-income-expense-' + breakdown.groupBy + '-' + breakdown.fromDate + '-' + breakdown.toDate + '.csv',rows);
+    });
 }

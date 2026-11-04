@@ -69,3 +69,23 @@ public sealed class ComparativeBalanceSheetDto
     public decimal CurrentUnclosedSurplus { get; set; }
     public decimal ComparisonUnclosedSurplus { get; set; }
 }
+
+public sealed class IncomeExpenseBreakdownDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string GroupBy { get; set; } = string.Empty;
+    public IReadOnlyList<IncomeExpenseBreakdownRowDto> Rows { get; set; } = Array.Empty<IncomeExpenseBreakdownRowDto>();
+    public decimal TotalIncome { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal NetSurplus { get; set; }
+}
+
+public sealed class IncomeExpenseBreakdownRowDto
+{
+    public string Group { get; set; } = string.Empty;
+    public long? CampusId { get; set; }
+    public decimal Income { get; set; }
+    public decimal Expenses { get; set; }
+    public decimal NetSurplus { get; set; }
+}

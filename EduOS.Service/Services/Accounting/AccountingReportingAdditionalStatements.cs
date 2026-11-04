@@ -193,4 +193,88 @@ public sealed partial class AccountingReportingService
             ComparisonUnclosedSurplus = previous.Data.UnclosedNetSurplus
         });
     }
+
+    // Income/expense drill-down uses only actual journal-line campus attribution or
+    // the journal header fallback. Unassigned movements remain visible: never
+    // distribute them proportionally or guess a campus from a student/supplier.
+    public async Task<ApiResponse<IncomeExpenseBreakdownDto>> GetIncomeExpenseBreakdownAsync(
+        DateOnly fromDate, DateOnly toDate, string groupBy, CancellationToken ct = default)
+    {
+        if (!TenantWideAllowed)
+            return ApiResponse<IncomeExpenseBreakdownDto>.ErrorResponse("Tenant administrator access required.", 403);
+        if (!Dates(fromDate, toDate) ||
+            !string.Equals(groupBy, "campus", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(groupBy, "source", StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<IncomeExpenseBreakdownDto>.ErrorResponse("Valid period and campus/source grouping required.", 400);
+        var byCampus = string.Equals(groupBy, "campus", StringComparison.OrdinalIgnoreCase);
+
+        // Reuse the canonical statement's strict currency, historical deletion,
+        // missing-account and per-journal balance checks before grouping lines.
+        var statement = await GetIncomeStatementAsync(fromDate, toDate, ct);
+        if (!statement.Success || statement.Data == null)
+            return ApiResponse<IncomeExpenseBreakdownDto>.ErrorResponse(statement.Message, statement.StatusCode);
+
+        var journalLines = from line in Lines
+            join journal in Posted on line.JournalId equals journal.Id
+            join account in db.Accounts.AsNoTracking().Where(a => a.TenantId == user.TenantId && !a.IsDeleted)
+                on line.AccountId equals account.Id
+            where journal.JournalDate >= fromDate && journal.JournalDate <= toDate &&
+                (account.AccountType == AccountType.Income || account.AccountType == AccountType.Expense)
+            select new { LineCampus = line.CampusId, JournalCampus = journal.CampusId,
+                journal.SourceType, account.AccountType, line.DebitAmount, line.CreditAmount };
+
+        IncomeExpenseBreakdownRowDto[] rows;
+        if (byCampus)
+        {
+            var groups = await journalLines.GroupBy(x => x.LineCampus ?? x.JournalCampus)
+                .Select(g => new
+                {
+                    CampusId = g.Key,
+                    Income = g.Sum(x => x.AccountType == AccountType.Income ? x.CreditAmount - x.DebitAmount : 0m),
+                    Expenses = g.Sum(x => x.AccountType == AccountType.Expense ? x.DebitAmount - x.CreditAmount : 0m)
+                }).ToListAsync(ct);
+            if (groups.Count > 500)
+                return ApiResponse<IncomeExpenseBreakdownDto>.ErrorResponse("More than 500 campuses; use a dedicated export.", 422);
+            var campusIds = groups.Where(x => x.CampusId.HasValue).Select(x => x.CampusId!.Value).ToArray();
+            var campusNames = await db.Campuses.AsNoTracking()
+                .Where(c => c.TenantId == user.TenantId && !c.IsDeleted && campusIds.Contains(c.Id))
+                .Select(c => new { c.Id, c.Name }).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+            rows = groups.Select(x => new IncomeExpenseBreakdownRowDto
+            {
+                CampusId = x.CampusId,
+                Group = x.CampusId.HasValue
+                    ? campusNames.GetValueOrDefault(x.CampusId.Value) ?? "Missing campus #" + x.CampusId.Value
+                    : "Unassigned campus",
+                Income = x.Income, Expenses = x.Expenses, NetSurplus = x.Income - x.Expenses
+            }).OrderBy(x => x.CampusId.HasValue ? 0 : 1).ThenBy(x => x.Group).ToArray();
+        }
+        else
+        {
+            var groups = await journalLines.GroupBy(x => x.SourceType)
+                .Select(g => new
+                {
+                    SourceType = g.Key,
+                    Income = g.Sum(x => x.AccountType == AccountType.Income ? x.CreditAmount - x.DebitAmount : 0m),
+                    Expenses = g.Sum(x => x.AccountType == AccountType.Expense ? x.DebitAmount - x.CreditAmount : 0m)
+                }).ToListAsync(ct);
+            if (groups.Count > 500)
+                return ApiResponse<IncomeExpenseBreakdownDto>.ErrorResponse("More than 500 journal sources; use a dedicated export.", 422);
+            rows = groups.Select(x => new IncomeExpenseBreakdownRowDto
+            {
+                Group = string.IsNullOrWhiteSpace(x.SourceType) ? "Unclassified source" : x.SourceType,
+                Income = x.Income, Expenses = x.Expenses, NetSurplus = x.Income - x.Expenses
+            }).OrderBy(x => x.Group).ToArray();
+        }
+        if (rows.Sum(x => x.Income) != statement.Data.TotalIncome ||
+            rows.Sum(x => x.Expenses) != statement.Data.TotalExpenses ||
+            rows.Sum(x => x.NetSurplus) != statement.Data.NetSurplus)
+            return ApiResponse<IncomeExpenseBreakdownDto>.ErrorResponse(
+                "Grouped income/expense does not reconcile with the institutional statement.", 409);
+        return ApiResponse<IncomeExpenseBreakdownDto>.SuccessResponse(new IncomeExpenseBreakdownDto
+        {
+            FromDate = fromDate, ToDate = toDate, GroupBy = byCampus ? "campus" : "source", Rows = rows,
+            TotalIncome = statement.Data.TotalIncome, TotalExpenses = statement.Data.TotalExpenses,
+            NetSurplus = statement.Data.NetSurplus
+        });
+    }
 }

@@ -14,7 +14,8 @@ test('new accounting reports have tenant-restricted read-only API and matching v
     for (const [route, method, panel] of [
         ['day-book','GetPostedDayBookAsync','dayBookPanel'],
         ['comparative-income-statement','GetComparativeIncomeStatementAsync','compareIncomePanel'],
-        ['comparative-balance-sheet','GetComparativeBalanceSheetAsync','compareBalancePanel']]) {
+        ['comparative-balance-sheet','GetComparativeBalanceSheetAsync','compareBalancePanel'],
+        ['income-expense-breakdown','GetIncomeExpenseBreakdownAsync','incomeExpenseBreakdownPanel']]) {
         assert.ok(api.includes(`[HttpGet("${route}"), Authorize(Roles = "TenantAdmin")]`));
         assert.ok(api.includes(method));
         assert.ok(service.includes(` ${method}(`));
@@ -47,4 +48,13 @@ test('comparative statements retain signed prior-only accounts and verify exact 
     assert.match(js, /cents\(row\.currentAmount\) - cents\(row\.comparisonAmount\)/);
     assert.match(js, /currentSignature\(\)/);
     assert.match(js, /\[=\+\\-@\]/);
+});
+
+test('campus/source breakdown is based on posted journal-line attribution and reconciles to income statement', () => {
+    assert.match(service, /GetIncomeStatementAsync\(fromDate, toDate, ct\)/);
+    assert.match(service, /x\.LineCampus \?\? x\.JournalCampus/);
+    assert.match(service, /Unassigned campus/);
+    assert.match(service, /rows\.Sum\(x => x\.Income\) != statement\.Data\.TotalIncome/);
+    assert.match(js, /groupBy:group/);
+    assert.match(js, /Campus\/source breakdown does not match institutional P&L/);
 });
