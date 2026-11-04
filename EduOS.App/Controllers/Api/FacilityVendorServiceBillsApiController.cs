@@ -16,7 +16,7 @@ namespace EduOS.App.Controllers.Api;
 /// procurement invoice routes or bypassing the canonical Finance GL.
 /// </summary>
 [ApiController, Route("api/facilities/vendor-service-bills"), Authorize,
- RequireModule("FACILITIES"), AutoValidateAntiforgeryToken,
+ RequireModule("FACILITIES"), RequireModule("FINANCE"), AutoValidateAntiforgeryToken,
  EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class FacilityVendorServiceBillsApiController(
