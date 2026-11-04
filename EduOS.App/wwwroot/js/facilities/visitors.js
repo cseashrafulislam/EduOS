@@ -96,8 +96,11 @@
         if (action === 'checkin' && !/^[A-Z0-9-]{4,20}$/.test(badgeCode)) {
             status(label('Enter a valid badge code.', 'সঠিক ব্যাজ কোড দিন।')); return;
         }
-        if ((action === 'hostreject' || action === 'incident') && reason.length < 10) {
-            status(label('Rejection or incident needs a 10-character reason.', 'প্রত্যাখ্যান বা ঘটনায় কমপক্ষে ১০ অক্ষরের কারণ দিন।')); return;
+        const reasonedAction = ['hostreject', 'incident', 'incidentresolve', 'incidentclose',
+            'holdrequest', 'holdapprove', 'holdreject', 'holdreleaserequest', 'holdrelease'];
+        if (reasonedAction.includes(action) && (reason.length < 10 || reason.length > 200)) {
+            status(label('A 10–200 character case reason is required.',
+                'ঘটনা বা আইনগত সিদ্ধান্তের জন্য ১০–২০০ অক্ষরের কারণ লিখুন।')); return;
         }
         const key = [row.id, action, row.rowVersion, badgeCode, reason].join('|');
         if (!commandIds.has(key)) commandIds.set(key, crypto.randomUUID());
@@ -157,6 +160,13 @@
                     ' – ' + new Date(row.visitEndUtc).toLocaleString() +
                     (row.badgeCode ? ' · ' + row.badgeCode : '');
                 card.append(heading, detail);
+                if (row.incidentStateCode !== 'None' || row.legalHoldStateCode !== 'None') {
+                    const caseLine = document.createElement('p');
+                    caseLine.className = 'small text-muted mb-2';
+                    caseLine.textContent = label('Incident: ', 'ঘটনা: ') + (row.incidentStateCode || 'None') +
+                        ' · ' + label('Legal hold: ', 'আইনগত হোল্ড: ') + (row.legalHoldStateCode || 'None');
+                    card.append(caseLine);
+                }
                 const actions = document.createElement('div');
                 actions.className = 'd-flex flex-wrap gap-2';
                 if (row.hostUserId === actor && row.stateCode === 'PendingHost') {
@@ -167,8 +177,32 @@
                     actions.append(button(label('Check in', 'প্রবেশ'), 'checkin', row, act));
                 if (manager && row.stateCode === 'CheckedIn')
                     actions.append(button(label('Check out', 'প্রস্থান'), 'checkout', row, act));
-                if (manager && (row.stateCode === 'CheckedIn' || row.stateCode === 'CheckedOut'))
+                if (manager && (row.stateCode === 'CheckedIn' || row.stateCode === 'CheckedOut') &&
+                    !row.privacyRedacted)
                     actions.append(button(label('Report incident', 'ঘটনা নথিভুক্ত'), 'incident', row, act));
+                // Case/hold actions use the same server-validated rowversion and
+                // command-id workflow; the UI never authorizes independently.
+                if (manager && !row.privacyRedacted) {
+                    if (row.stateCode === 'CheckedOut' && row.incidentStateCode === 'Open')
+                        actions.append(button(label('Request incident closure', 'ঘটনা সমাধানের অনুরোধ'),
+                            'incidentresolve', row, act));
+                    if (privacyReviewer && row.incidentStateCode === 'PendingReview')
+                        actions.append(button(label('Approve incident closure', 'ঘটনা নিষ্পত্তি অনুমোদন'),
+                            'incidentclose', row, act));
+                    if (row.legalHoldStateCode === 'None' || row.legalHoldStateCode === 'Clear')
+                        actions.append(button(label('Request legal hold', 'আইনগত হোল্ড অনুরোধ'),
+                            'holdrequest', row, act));
+                    if (privacyReviewer && row.legalHoldStateCode === 'Pending')
+                        actions.append(
+                            button(label('Approve hold', 'হোল্ড অনুমোদন'), 'holdapprove', row, act),
+                            button(label('Reject hold', 'হোল্ড প্রত্যাখ্যান'), 'holdreject', row, act));
+                    if (row.legalHoldStateCode === 'Active')
+                        actions.append(button(label('Request hold release', 'হোল্ড ছাড়ের অনুরোধ'),
+                            'holdreleaserequest', row, act));
+                    if (privacyReviewer && row.legalHoldStateCode === 'ReleasePending')
+                        actions.append(button(label('Approve hold release', 'হোল্ড ছাড় অনুমোদন'),
+                            'holdrelease', row, act));
+                }
                 // Retention requires an administrator-configured 30–3650 day
                 // policy, no legal hold/incident, and a separate live checker.
                 if (manager && (row.stateCode === 'CheckedOut' || row.stateCode === 'Rejected') &&
