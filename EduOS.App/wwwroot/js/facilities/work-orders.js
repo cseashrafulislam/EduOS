@@ -245,7 +245,7 @@
         const vendorWorkDone = row.vendorStateCode === 'Approved' &&
             ['PendingVerification', 'Closed'].includes(state);
         if (canManage && vendorWorkDone &&
-            ['None', 'Returned'].includes(row.vendorAcceptanceStateCode))
+            ['None', 'Returned', 'Stale'].includes(row.vendorAcceptanceStateCode))
             options.push('vendorattest');
         if (approver && vendorWorkDone &&
             row.requesterUserId !== currentUserId &&
