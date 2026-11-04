@@ -57,6 +57,51 @@ public sealed class FacilityVendorServiceBillsApiController(
         int page = 1, int pageSize = 20, CancellationToken ct = default) =>
         Reply(await service.VerifiedChoicesAsync(campusId, search, page, pageSize, ct));
 
+    [HttpGet("supplier-aging"), Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> SupplierAging(DateOnly asOf, long? campusId,
+        int page = 1, int pageSize = 25, CancellationToken ct = default) =>
+        Reply(await service.SupplierAgingAsync(asOf, campusId, page, pageSize, ct));
+
+    [HttpGet("{reference:guid}/payment-options"),
+     Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> PaymentOptions(Guid reference, CancellationToken ct) =>
+        Reply(await service.PaymentOptionsAsync(reference, ct));
+
+    [HttpGet("{reference:guid}/payments"),
+     Authorize(Roles = "TenantAdmin,Principal,Accountant")]
+    public async Task<IActionResult> Payments(Guid reference, int page = 1,
+        int pageSize = 25, CancellationToken ct = default) =>
+        Reply(await service.PaymentsAsync(reference, page, pageSize, ct));
+
+    [HttpPost("{reference:guid}/payments"), Authorize(Roles = "TenantAdmin,Accountant")]
+    public async Task<IActionResult> CreatePayment(Guid reference,
+        [FromBody] FacilityVendorPaymentInstructionRequest request, CancellationToken ct) =>
+        Reply(await service.CreatePaymentAsync(reference, request, ct));
+
+    [HttpPost("{reference:guid}/payments/{paymentReference:guid}/review"),
+     Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> ReviewPayment(Guid reference, Guid paymentReference,
+        [FromBody] FacilityVendorPaymentReviewRequest request, CancellationToken ct) =>
+        Reply(await service.ReviewPaymentAsync(reference, paymentReference, request, ct));
+
+    [HttpPost("{reference:guid}/payments/{paymentReference:guid}/post"),
+     Authorize(Roles = "TenantAdmin,Accountant")]
+    public async Task<IActionResult> PostPayment(Guid reference, Guid paymentReference,
+        [FromBody] FacilityVendorPaymentPostRequest request, CancellationToken ct) =>
+        Reply(await service.PostPaymentAsync(reference, paymentReference, request, ct));
+
+    [HttpPost("{reference:guid}/payments/{paymentReference:guid}/reversal"),
+     Authorize(Roles = "TenantAdmin,Accountant")]
+    public async Task<IActionResult> RequestPaymentReversal(Guid reference, Guid paymentReference,
+        [FromBody] FacilityVendorPaymentReversalRequest request, CancellationToken ct) =>
+        Reply(await service.RequestPaymentReversalAsync(reference, paymentReference, request, ct));
+
+    [HttpPost("{reference:guid}/payments/{paymentReference:guid}/reversal/review"),
+     Authorize(Roles = "TenantAdmin,Principal")]
+    public async Task<IActionResult> ReviewPaymentReversal(Guid reference, Guid paymentReference,
+        [FromBody] FacilityVendorPaymentReversalReviewRequest request, CancellationToken ct) =>
+        Reply(await service.ReviewPaymentReversalAsync(reference, paymentReference, request, ct));
+
     [HttpGet("{reference:guid}"), Authorize(Roles = "TenantAdmin,Principal,Accountant")]
     public async Task<IActionResult> Get(Guid reference, CancellationToken ct) =>
         Reply(await service.GetAsync(reference, ct));
