@@ -95,6 +95,7 @@ public sealed class FacilitySupplierAgingRowDto
     public DateOnly DueDate { get; set; }
     public decimal InvoiceAmount { get; set; }
     public decimal NetPostedPayments { get; set; }
+    public decimal PostedSupplierCredits { get; set; }
     public decimal OpenBalance { get; set; }
     public int DaysOverdue { get; set; }
     public bool InvoiceReversedAsOf { get; set; }
