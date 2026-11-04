@@ -507,6 +507,11 @@ test('vendor completion attestation requires independent review and cannot synth
     assert.match(source, /latest\.ActionCode != "vendorreturn"/);
     assert.match(source, /Latest.*vendor|latest = await db\.FacilityWorkflowEvents/);
     assert.match(source, /ApplyVendorAcceptanceAsync/);
+    assert.match(source, /correctedAfter > status.Id/);
+    assert.match(source, /lastCompletionId <= lastWorkReturnId/);
+    assert.match(source, /latest.Id <= lastWorkReturnId/);
+    assert.match(script, /'None', 'Returned', 'Stale'/);
+    assert.match(sql, /Assert.Equal\("Stale", work.VendorAcceptanceStateCode\)/);
     assert.match(source, /Select\(g => g\.Max\(x => x\.Id\)\)/);
     assert.match(script, /vendorattest:/);
     assert.match(script, /vendorverify:/);
