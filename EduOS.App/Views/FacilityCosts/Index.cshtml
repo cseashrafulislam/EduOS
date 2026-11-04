@@ -82,6 +82,68 @@
             </div></section>
         </div>
     </div>
+    <section class="card mt-3"><div class="card-body">
+        <h2 class="h5">@(bn ? "সরবরাহকারী দেনা ও ব্যাংক সমন্বয়" : "Supplier Payables & Bank Settlement")</h2>
+        <p class="text-muted small">@(bn ? "স্টক ও সেবা বিলের বকেয়া একসঙ্গে দেখা যায়। Payment approval টাকা পাঠায় না; ব্যাংক লেনদেনের রেফারেন্স ও স্বাধীন statement reconciliation প্রয়োজন।" : "Combined stock and service supplier aging. Approval is not bank execution; posted payments require actual bank reference and separate statement reconciliation.")</p>
+        <form id="fcAgingForm" class="row g-2 align-items-end mb-2">
+            <div class="col-md-4"><label for="fcAgingDate" class="form-label">@(bn ? "হিসাবের তারিখ" : "Aging as of date")</label>
+                <input type="date" id="fcAgingDate" class="form-control" required /></div>
+            <div class="col-md-4"><button class="btn btn-outline-primary" type="submit">@(bn ? "বকেয়া দেখুন" : "View supplier aging")</button></div>
+            <div class="col-12 small" id="fcAgingSummary" aria-live="polite"></div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm align-middle">
+            <thead><tr><th>@(bn ? "উৎস/বিল" : "Source / invoice")</th><th>@(bn ? "মূল টাকা" : "Invoiced")</th>
+                <th>@(bn ? "পরিশোধ" : "Paid")</th><th>@(bn ? "বকেয়া" : "Outstanding")</th>
+                <th>@(bn ? "বিলম্ব (দিন)" : "Overdue days")</th></tr></thead>
+            <tbody id="fcAgingRows"></tbody></table></div>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" id="fcAgingPrev" class="btn btn-sm btn-outline-secondary">@(bn ? "আগে" : "Previous")</button>
+            <span id="fcAgingPage" class="small" aria-live="polite"></span>
+            <button type="button" id="fcAgingNext" class="btn btn-sm btn-outline-secondary">@(bn ? "পরে" : "Next")</button>
+        </div>
+    </div></section>
+    <section id="fcPaymentPanel" class="card mt-3 d-none"><div class="card-body">
+        <h2 class="h5">@(bn ? "নির্বাচিত সেবা বিলের পরিশোধ" : "Vendor Service Bill Payments")</h2>
+        <p id="fcPaymentBillInfo" class="small text-muted"></p>
+        <p class="small" id="fcPaymentSummary" aria-live="polite"></p>
+        @if (maker)
+        {
+            <form id="fcPaymentCreate" class="row g-2 mb-3">
+                <div class="col-md-3"><label for="fcPaymentBank" class="form-label">@(bn ? "ব্যাংক হিসাব" : "Bank account")</label>
+                    <select id="fcPaymentBank" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="fcPaymentPeriod" class="form-label">@(bn ? "হিসাবকাল" : "Accounting period")</label>
+                    <select id="fcPaymentPeriod" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="fcPaymentDate" class="form-label">@(bn ? "পরিকল্পিত তারিখ" : "Planned date")</label>
+                    <input id="fcPaymentDate" type="date" class="form-control" required /></div>
+                <div class="col-md-3"><label for="fcPaymentAmount" class="form-label">@(bn ? "টাকা" : "Payment BDT")</label>
+                    <input id="fcPaymentAmount" type="number" min="0.01" step="0.01" class="form-control" required /></div>
+                <div class="col-12"><label for="fcPaymentReason" class="form-label">@(bn ? "পরিশোধ অনুরোধের কারণ" : "Payment instruction reason")</label>
+                    <input id="fcPaymentReason" class="form-control" required minlength="10" maxlength="500" /></div>
+                <div class="col-12"><button type="submit" class="btn btn-outline-primary">@(bn ? "পরিশোধের নির্দেশ জমা" : "Submit payment instruction (unposted)")</button></div>
+            </form>
+        }
+        <div class="table-responsive"><table class="table table-sm">
+            <thead><tr><th>@(bn ? "তারিখ" : "Date")</th><th>@(bn ? "পরিমাণ" : "Amount")</th>
+                <th>@(bn ? "অবস্থা" : "State")</th><th>@(bn ? "ব্যাংক রেফারেন্স" : "Bank reference")</th><th></th></tr></thead>
+            <tbody id="fcPaymentsRows"></tbody></table></div>
+        <div id="fcPaymentActionPanel" class="d-none">
+            <h3 class="h6" id="fcPaymentActionTitle"></h3>
+            <form id="fcPaymentActionForm" class="row g-2">
+                <div class="col-md-4"><label for="fcPaymentActionCode" class="form-label">@(bn ? "অ্যাকশন" : "Action")</label>
+                    <select id="fcPaymentActionCode" class="form-select" required></select></div>
+                <div class="col-md-4"><label for="fcPaymentActionDate" class="form-label">@(bn ? "পরিশোধ/ফেরতের তারিখ" : "Execution / refund date")</label>
+                    <input id="fcPaymentActionDate" type="date" class="form-control" /></div>
+                <div class="col-md-4"><label for="fcPaymentActionPeriod" class="form-label">@(bn ? "রিভার্সাল হিসাবকাল" : "Reversal period")</label>
+                    <select id="fcPaymentActionPeriod" class="form-select"></select></div>
+                <div class="col-md-6"><label for="fcPaymentActionReference" class="form-label">@(bn ? "ব্যাংকের আসল লেনদেন নম্বর" : "Actual bank transaction/refund reference")</label>
+                    <input id="fcPaymentActionReference" class="form-control" maxlength="100" /></div>
+                <div class="col-md-6"><label for="fcPaymentActionReason" class="form-label">@(bn ? "স্বতন্ত্র সিদ্ধান্ত/ফেরতের কারণ" : "Independent decision / reversal reason")</label>
+                    <input id="fcPaymentActionReason" class="form-control" minlength="10" maxlength="500" /></div>
+                <div class="col-12"><button type="submit" class="btn btn-primary">@(bn ? "নিশ্চিত করুন" : "Confirm action")</button>
+                    <button type="button" id="fcPaymentActionCancel" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button></div>
+            </form>
+        </div>
+    </div></section>
     <section class="card mt-3 d-none" id="fcDecisionPanel"><div class="card-body">
         <h2 class="h6" id="fcDecisionTitle"></h2>
         <p class="small text-muted" id="fcDecisionSummary"></p>
