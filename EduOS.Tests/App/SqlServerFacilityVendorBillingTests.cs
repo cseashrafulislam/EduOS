@@ -250,7 +250,7 @@ public sealed class SqlServerFacilityVendorBillingTests
             var concurrent = await Task.WhenAll(
                 ReserveRemainingAsync(Guid.NewGuid()),
                 ReserveRemainingAsync(Guid.NewGuid()));
-            var reservedPayment = Assert.Single(concurrent.Where(x => x != null))!;
+            var reservedPayment = Assert.Single(concurrent, x => x != null)!;
             Assert.Equal(0m, (await service.PaymentOptionsAsync(bill.Reference)).Data!.AvailableAmount);
             await using (var foreignDb = Db(options, outsiderTenantId, makerId, "Accountant"))
             {
@@ -381,6 +381,7 @@ public sealed class SqlServerFacilityVendorBillingTests
         }
         await using (var db = Db(options, tenantId, checkerId, "Principal"))
         {
+            var service = Service(db, tenantId, checkerId, "Principal");
             var review = new FacilityVendorBillReversalReviewDto {
                 ClientRequestId = Guid.NewGuid(), RowVersion = bill.ReversalRowVersion!,
                 Approve = true, Reason = "Independently reviewed and approved the full contra journal."
