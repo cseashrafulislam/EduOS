@@ -495,6 +495,33 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.True(rejected.Success, rejected.Message);
             third = rejected.Data!;
         }
+        // Legacy records are intentionally seeded AFTER newer PII-safe logging,
+        // to prove approved privacy redaction scrubs only this visit's audit JSON.
+        long legacyVisitorEventId;
+        await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
+        {
+            legacyVisitorEventId = await db.FacilityVisitorEvents.AsNoTracking()
+                .Where(x => x.TenantId == tenantId && x.FacilityVisitorVisitId == third.Id)
+                .OrderBy(x => x.Id).Select(x => x.Id).FirstAsync();
+            db.AuditLogs.AddRange(
+                new AuditLog { TenantId = tenantId, EntityName = nameof(FacilityVisitorVisit),
+                    EntityId = third.Id, Action = "HistoricalCreate", UserId = managerId,
+                    OldValue = "{\\\"VisitorName\\\":\\\"Guest Three\\\"}",
+                    NewValue = "{\\\"Purpose\\\":\\\"Appointment declined\\\"}",
+                    OccurredAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow },
+                new AuditLog { TenantId = tenantId, EntityName = nameof(FacilityVisitorEvent),
+                    EntityId = legacyVisitorEventId, Action = "HistoricalEvent", UserId = managerId,
+                    OldValue = "{\\\"BadgeCode\\\":\\\"PRIVATE-BADGE\\\"}",
+                    NewValue = "{\\\"Reason\\\":\\\"Private case reason\\\"}",
+                    OccurredAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow },
+                new AuditLog { TenantId = tenantId, EntityName = nameof(FacilityVisitorVisit),
+                    EntityId = first.Id, Action = "SeparateCase", UserId = managerId,
+                    OldValue = "Other visit must remain under case hold.",
+                    NewValue = "Other visit unchanged.",
+                    OccurredAt = DateTime.UtcNow, CreatedAt = DateTime.UtcNow }
+            );
+            await db.SaveChangesAsync();
+        }
         await using (var db = Db(options, tenantId, managerId, "FacilitiesManager"))
         {
             var retentionClock = new ShiftedClock(TimeSpan.FromDays(40));
@@ -588,6 +615,25 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.All(events, x => Assert.Null(x.BadgeCode));
             Assert.DoesNotContain(events, x => x.Reason == "Appointment declined.");
             Assert.Equal(1, events.Count(x => x.ActionCode == "redactapprove"));
+            var priorAudit = await db.AuditLogs.AsNoTracking().Where(a =>
+                a.TenantId == tenantId &&
+                ((a.EntityName == nameof(FacilityVisitorVisit) && a.EntityId == third.Id) ||
+                 (a.EntityName == nameof(FacilityVisitorEvent) &&
+                    a.EntityId == legacyVisitorEventId))).ToListAsync();
+            Assert.NotEmpty(priorAudit);
+            Assert.All(priorAudit, a => {
+                Assert.Null(a.OldValue); Assert.Null(a.NewValue);
+                Assert.NotEqual(default, a.OccurredAt);
+                Assert.True(a.UserId.HasValue || a.Action == "Create");
+            });
+            Assert.Equal(1, await db.AuditLogs.CountAsync(a =>
+                a.TenantId == tenantId && a.EntityId == third.Id &&
+                a.Action == "VisitorLegacyAuditPayloadRedacted"));
+            var separate = await db.AuditLogs.AsNoTracking().FirstAsync(a =>
+                a.TenantId == tenantId && a.EntityName == nameof(FacilityVisitorVisit) &&
+                a.EntityId == first.Id && a.Action == "SeparateCase");
+            Assert.NotNull(separate.OldValue);
+            Assert.NotNull(separate.NewValue);
         }
         // Site-wide visitor privacy settings require a different live checker,
         // independent of the per-visit retention redaction reviewer.
