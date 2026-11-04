@@ -174,6 +174,99 @@ public sealed class FacilityLabourCostService(
         return (record.CampusId, record.run.Id, record.employee.Id,
             record.pe.GrossAmount, standard);
     }
+    public async Task<ApiResponse<PagedResult<FacilityLabourSourceChoiceDto>>> EligibleSourcesAsync(
+        long? campusId, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!Maker) return Error<PagedResult<FacilityLabourSourceChoiceDto>>("Finance maker denied.", 403);
+        if (campusId is <= 0 || page is < 1 or > 10000 || pageSize is < 1 or > 20 ||
+            search?.Length > 100)
+            return Error<PagedResult<FacilityLabourSourceChoiceDto>>("Invalid labour source search.", 400);
+        var query = from w in db.FacilityWorkOrders.AsNoTracking()
+            join req in db.FacilityServiceRequests.AsNoTracking()
+                on new { w.TenantId, Id = w.FacilityServiceRequestId }
+                equals new { req.TenantId, req.Id }
+            join emp in db.Employees.AsNoTracking()
+                on new { w.TenantId, UserId = w.AssignedTechnicianUserId }
+                equals new { emp.TenantId, emp.UserId }
+            join pe in db.PayrollEmployees.AsNoTracking()
+                on new { emp.TenantId, EmployeeId = emp.Id }
+                equals new { pe.TenantId, pe.EmployeeId }
+            join run in db.PayrollRuns.AsNoTracking()
+                on new { pe.TenantId, Id = pe.PayrollRunId }
+                equals new { run.TenantId, run.Id }
+            where w.TenantId == user.TenantId && !w.IsDeleted && !req.IsDeleted &&
+                !emp.IsDeleted && !pe.IsDeleted && !run.IsDeleted &&
+                w.StateCode == "Closed" && w.VerifiedAtUtc != null &&
+                w.StartedAtUtc != null && w.CompletedAtUtc != null &&
+                run.State == PayrollRunState.Posted &&
+                (run.CampusId == null || run.CampusId == req.CampusId) &&
+                !db.FacilityLabourCostAllocations.Any(a => a.TenantId == user.TenantId &&
+                    a.FacilityWorkOrderId == w.Id && a.PayrollEmployeeId == pe.Id &&
+                    a.StateCode != "Rejected" && !a.IsDeleted)
+            select new {
+                WorkOrderId = w.Id, req.CampusId, req.Summary,
+                PayrollEmployeeId = pe.Id, EmployeeName = emp.FullName,
+                run.RunNumber, pe.GrossAmount
+            };
+        if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId);
+        var term = search?.Trim();
+        if (!string.IsNullOrWhiteSpace(term))
+            query = query.Where(x => x.Summary.Contains(term) ||
+                x.EmployeeName.Contains(term) || x.RunNumber.Contains(term));
+        var raw = await query.OrderByDescending(x => x.WorkOrderId)
+            .ThenByDescending(x => x.PayrollEmployeeId)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var choices = new List<FacilityLabourSourceChoiceDto>(raw.Count);
+        foreach (var row in raw)
+        {
+            if (!await ActiveActor(row.CampusId, false, ct)) continue;
+            var valid = await Source(row.WorkOrderId, row.PayrollEmployeeId, ct);
+            if (!valid.HasValue || valid.Value.Campus != row.CampusId) continue;
+            choices.Add(new FacilityLabourSourceChoiceDto {
+                WorkOrderId = row.WorkOrderId,
+                PayrollEmployeeId = row.PayrollEmployeeId, CampusId = row.CampusId,
+                WorkOrderSummary = row.Summary, EmployeeName = row.EmployeeName,
+                PayrollRunNumber = row.RunNumber, PayrollGrossBdt = row.GrossAmount
+            });
+        }
+        return ApiResponse<PagedResult<FacilityLabourSourceChoiceDto>>.SuccessResponse(new() {
+            Page = page, PageSize = pageSize, TotalCount = choices.Count, Items = choices
+        });
+    }
+
+    private async Task EnrichAsync(List<FacilityLabourAllocationDto> rows, CancellationToken ct)
+    {
+        if (rows.Count == 0) return;
+        var orderIds = rows.Select(x => x.FacilityWorkOrderId).Distinct().ToArray();
+        var payrollIds = rows.Select(x => x.PayrollEmployeeId).Distinct().ToArray();
+        var orderLabels = await (from w in db.FacilityWorkOrders.AsNoTracking()
+            join r in db.FacilityServiceRequests.AsNoTracking()
+                on new { w.TenantId, Id = w.FacilityServiceRequestId }
+                equals new { r.TenantId, r.Id }
+            where w.TenantId == user.TenantId && orderIds.Contains(w.Id)
+            select new { w.Id, r.Summary }).ToDictionaryAsync(x => x.Id, ct);
+        var payrollLabels = await (from pe in db.PayrollEmployees.AsNoTracking()
+            join employee in db.Employees.AsNoTracking()
+                on new { pe.TenantId, Id = pe.EmployeeId }
+                equals new { employee.TenantId, employee.Id }
+            join run in db.PayrollRuns.AsNoTracking()
+                on new { pe.TenantId, Id = pe.PayrollRunId }
+                equals new { run.TenantId, run.Id }
+            where pe.TenantId == user.TenantId && payrollIds.Contains(pe.Id)
+            select new { pe.Id, Name = employee.FullName, run.RunNumber })
+            .ToDictionaryAsync(x => x.Id, ct);
+        foreach (var item in rows)
+        {
+            if (orderLabels.TryGetValue(item.FacilityWorkOrderId, out var o))
+                item.WorkOrderSummary = o.Summary;
+            if (payrollLabels.TryGetValue(item.PayrollEmployeeId, out var p))
+            {
+                item.EmployeeName = p.Name;
+                item.PayrollRunNumber = p.RunNumber;
+            }
+        }
+    }
+
     private static FacilityLabourAllocationDto Map(FacilityLabourCostAllocation item,
         bool sourceReversed = false) => new() {
         Reference = item.PublicId, FacilityWorkOrderId = item.FacilityWorkOrderId,
@@ -202,8 +295,9 @@ public sealed class FacilityLabourCostService(
         var item = await Visible().FirstOrDefaultAsync(x => x.PublicId == reference, ct);
         if (item == null || !await ActiveReader(item.CampusId, ct))
             return Error<FacilityLabourAllocationDto>("Labour allocation not found.", 404);
-        return ApiResponse<FacilityLabourAllocationDto>.SuccessResponse(
-            Map(item, await Reversed(item.PayrollRunId, ct)));
+        var mapped = Map(item, await Reversed(item.PayrollRunId, ct));
+        await EnrichAsync(new List<FacilityLabourAllocationDto> { mapped }, ct);
+        return ApiResponse<FacilityLabourAllocationDto>.SuccessResponse(mapped);
     }
     public async Task<ApiResponse<PagedResult<FacilityLabourAllocationDto>>> ListAsync(
         long? campusId, int page, int pageSize, CancellationToken ct = default)
@@ -244,6 +338,7 @@ public sealed class FacilityLabourCostService(
         var mapped = items.Select(x => Map(x,
             !available.TryGetValue(x.PayrollRunId, out var j) ||
             !j.HasValue || reversalSet.Contains(j.Value))).ToList();
+        await EnrichAsync(mapped, ct);
         return ApiResponse<PagedResult<FacilityLabourAllocationDto>>.SuccessResponse(new() {
             Page = page, PageSize = pageSize, TotalCount = count, Items = mapped
         });
