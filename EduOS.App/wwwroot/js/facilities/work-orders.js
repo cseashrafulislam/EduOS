@@ -40,6 +40,7 @@
     let blocked = false, creating = false, transitioning = false;
     let page = 1, pages = 1, selected = null, historyPage = 1, historyPages = 1;
     let listGeneration = 0, historyGeneration = 0, partsGeneration = 0, partsPage = 1, locationGeneration = 0, technicianGeneration = 0;
+    let slaGeneration = 0;
     let locationPage = 1, locationPages = 1, chosenLocation = null;
     let locationChoices = new Map();
     let technicianPage = 1, technicianPages = 1, technicianChoices = new Map();
@@ -90,6 +91,7 @@
         if (blocked) return;
         blocked = true;
         listGeneration++;
+        slaGeneration++;
         historyGeneration++;
         partsGeneration++;
         locationGeneration++;
@@ -294,8 +296,28 @@
         const d = new Date(iso);
         return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
+    async function suggestSla(rowId) {
+        const generation = ++slaGeneration;
+        try {
+            const policy = await api('/' + rowId + '/sla');
+            if (generation !== slaGeneration || !sessionCurrent() || selected?.id !== rowId ||
+                el('wfAction').value !== 'triage' || el('wfDue').value) return;
+            // Never overwrite an operator-entered deadline or invent a default.
+            // The server recomputes the canonical deadline at actual triage.
+            if (policy.configuredHours && policy.recommendedDueUtc)
+                el('wfDue').value = toLocal(policy.recommendedDueUtc);
+        } catch (error) {
+            if (generation === slaGeneration && selected?.id === rowId &&
+                el('wfAction').value === 'triage' && !blocked)
+                notice(error.message);
+        }
+    }
     function toggleFields() {
         const action = el('wfAction').value;
+        if (action === 'triage' && selected && manager)
+            suggestSla(selected.id);
+        else
+            ++slaGeneration;
         for (const [id, enabled] of [
             ['wfDue', action === 'triage'], ['wfTech', action === 'schedule'],
             ['wfVendorSelected', action === 'vendorpropose'],
