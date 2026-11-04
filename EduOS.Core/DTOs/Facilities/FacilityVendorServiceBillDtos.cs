@@ -31,6 +31,23 @@ public sealed class FacilityVendorBillReviewDto
     public long SupplierPayableAccountId { get; set; }
 }
 
+public sealed class FacilityVendorBillReversalRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    public DateOnly ReversalDate { get; set; }
+    public long AccountingPeriodId { get; set; }
+    [Required, MinLength(10), MaxLength(800)] public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class FacilityVendorBillReversalReviewDto
+{
+    public Guid ClientRequestId { get; set; }
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    public bool Approve { get; set; }
+    [Required, MinLength(10), MaxLength(800)] public string Reason { get; set; } = string.Empty;
+}
+
 public sealed class FacilityVendorBillDto
 {
     public Guid Reference { get; set; }
@@ -43,6 +60,9 @@ public sealed class FacilityVendorBillDto
     public decimal AmountBdt { get; set; }
     public string StateCode { get; set; } = string.Empty;
     public Guid? JournalReference { get; set; }
+    public Guid? ReversalReference { get; set; }
+    public string ReversalState { get; set; } = "None";
+    public string? ReversalRowVersion { get; set; }
     public string RowVersion { get; set; } = string.Empty;
     public string? ReviewReason { get; set; }
     public long PreparedByUserId { get; set; }
