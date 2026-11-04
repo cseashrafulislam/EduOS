@@ -28,7 +28,10 @@
         vendorpropose: ['Propose vendor booking', 'সরবরাহকারী বুকিং প্রস্তাব'],
         vendorapprove: ['Approve vendor booking', 'সরবরাহকারী বুকিং অনুমোদন'],
         vendorreject: ['Reject vendor booking', 'সরবরাহকারী বুকিং প্রত্যাখ্যান'],
-        vendorrelease: ['Release vendor booking', 'সরবরাহকারী বুকিং মুক্ত করুন']
+        vendorrelease: ['Release vendor booking', 'সরবরাহকারী বুকিং মুক্ত করুন'],
+        vendorattest: ['Submit completed vendor work', 'সরবরাহকারীর কাজ সম্পন্নের প্রমাণ দিন'],
+        vendorverify: ['Verify vendor work evidence', 'সরবরাহকারীর কাজের প্রমাণ যাচাই'],
+        vendorreturn: ['Return vendor evidence', 'সরবরাহকারীর প্রমাণ সংশোধনে ফেরত']
     };
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     const base = '/api/facilities/work-orders';
@@ -237,6 +240,19 @@
             row.requesterUserId !== currentUserId &&
             row.triagedByUserId !== currentUserId &&
             row.technicianUserId !== currentUserId) options.push('verify', 'return');
+        // Booking approval is not supplier billing or completed service proof.
+        // The financial payable remains owned by a separate canonical invoice.
+        const vendorWorkDone = row.vendorStateCode === 'Approved' &&
+            ['PendingVerification', 'Closed'].includes(state);
+        if (canManage && vendorWorkDone &&
+            ['None', 'Returned'].includes(row.vendorAcceptanceStateCode))
+            options.push('vendorattest');
+        if (approver && vendorWorkDone &&
+            row.requesterUserId !== currentUserId &&
+            row.triagedByUserId !== currentUserId &&
+            row.vendorProposedByUserId !== currentUserId &&
+            row.vendorAcceptanceStateCode === 'Submitted')
+            options.push('vendorverify', 'vendorreturn');
         if (canManage && state && state !== 'Closed' && row.slaDueAtUtc &&
             Date.parse(row.slaDueAtUtc) < Date.now()) options.push('escalate');
         return options;
@@ -269,6 +285,8 @@
             t('Technician', 'টেকনিশিয়ান') + ': ' + (row.technicianUserId || '—'),
             t('Vendor booking', 'সরবরাহকারী বুকিং') + ': ' + (row.vendorStateCode || '—') +
                 (row.vendorSupplierId ? ' #' + row.vendorSupplierId : ''),
+            t('Vendor work evidence', 'সরবরাহকারীর কাজের প্রমাণ') + ': ' +
+                (row.vendorAcceptanceStateCode || 'None'),
             t('Breach', 'বিলম্ব') + ': ' + (row.slaBreached == null ? '—' : String(row.slaBreached))
         ].join(' | ');
         const options = actions(row), form = el('wfTransition'), selectAction = el('wfAction');
