@@ -276,9 +276,13 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
                 if (await db.JournalLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
                     x.TenantId == user.TenantId && ids.Contains(x.AccountId), ct) ||
                     await db.StudentPayments.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == user.TenantId && x.BankAccountId == row.Id, ct) ||
+                    await db.PayrollPayments.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == user.TenantId && x.BankAccountId == row.Id, ct) ||
+                    await db.BankReconciliationBatches.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
                         x.TenantId == user.TenantId && x.BankAccountId == row.Id, ct))
                     return ApiResponse<BankAccountDto>.ErrorResponse(
-                        "Bank ledger cannot change after linked payments or ledger history; audited remapping is required.", 409);
+                        "Bank ledger cannot change after linked payments, statements or ledger history; audited remapping is required.", 409);
             }
             var now = clock.GetUtcNow().UtcDateTime;
             if (row == null) { row = new BankAccount { TenantId = user.TenantId, CreatedAt = now, CreatedBy = user.UserId }; db.BankAccounts.Add(row); }

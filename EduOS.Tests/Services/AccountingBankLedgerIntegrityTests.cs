@@ -27,6 +27,20 @@ public sealed class AccountingBankLedgerIntegrityTests
     }
 
     [Fact]
+    public async Task Unused_bank_mapping_can_be_corrected_before_any_financial_evidence()
+    {
+        await using var db = Database();
+        Seed(db);
+        await db.SaveChangesAsync();
+        var current = db.BankAccounts.Single();
+        current.RowVersion = [1, 2, 3];
+        var result = await Service(db).SaveBankAccountAsync(current.Id, Request(2,
+            Convert.ToBase64String(current.RowVersion)));
+        result.StatusCode.Should().Be(200);
+        db.BankAccounts.Single().AccountId.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Bank_remapping_with_historical_gl_line_is_rejected_without_mutation()
     {
         await using var db = Database();
@@ -37,11 +51,31 @@ public sealed class AccountingBankLedgerIntegrityTests
             AccountId=1, DebitAmount=100m });
         await db.SaveChangesAsync();
         var current = db.BankAccounts.Single();
+        current.RowVersion = [1, 2, 3];
         var result = await Service(db).SaveBankAccountAsync(current.Id, Request(2,
             Convert.ToBase64String(current.RowVersion)));
         result.StatusCode.Should().Be(409);
         result.Message.Should().Contain("ledger history");
         db.BankAccounts.Single().AccountId.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Bank_remapping_with_immutable_statement_intake_is_rejected_even_without_gl()
+    {
+        await using var db = Database();
+        Seed(db);
+        db.BankReconciliationBatches.Add(new BankReconciliationBatch { Id=12, TenantId=41,
+            BankAccountId=5, StatementIdentifier="OCT", SourceFingerprint="test",
+            FromDate=new DateOnly(2026, 10, 1), ToDate=new DateOnly(2026, 10, 31),
+            PreparedByUserId=9 });
+        await db.SaveChangesAsync();
+        var current = db.BankAccounts.Single();
+        current.RowVersion = [1, 2, 3];
+        var result = await Service(db).SaveBankAccountAsync(current.Id, Request(2,
+            Convert.ToBase64String(current.RowVersion)));
+        result.StatusCode.Should().Be(409);
+        result.Message.Should().Contain("statements");
+        current.AccountId.Should().Be(1);
     }
 
     private static SaveBankAccountRequestDto Request(long accountId, string? version=null) => new()
