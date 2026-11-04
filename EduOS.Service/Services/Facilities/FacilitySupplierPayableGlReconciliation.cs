@@ -3,6 +3,7 @@ using EduOS.Core.DTOs.Facilities;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Enums.Domain;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace EduOS.Service.Services.Facilities;
 
@@ -24,6 +25,13 @@ public sealed partial class FacilityVendorServiceBillService
     public async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingWithGlAsync(
         DateOnly asOf, long? campusId, int page, int pageSize, CancellationToken ct = default)
     {
+        // The aging source, linked settlements, returns and Finance GL must all
+        // reflect the same read snapshot. A bounded (<=50 invoice) serializable
+        // SQL transaction prevents an in-flight posting/reversal from producing
+        // a false audit variance between these independently queried tables.
+        // No transaction is started for EF's non-relational test provider.
+        await using var snapshot = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         var aging = await SupplierAgingAsync(asOf, campusId, page, pageSize, ct);
         if (!aging.Success || aging.Data == null)
             return Error<FacilitySupplierAgingTotalsDto>(aging.Message, aging.StatusCode);
@@ -33,6 +41,7 @@ public sealed partial class FacilityVendorServiceBillService
         {
             result.PostedGlPayableOnPage = 0m;
             result.SubledgerVsGlDifferenceOnPage = 0m;
+            if (snapshot != null) await snapshot.CommitAsync(ct);
             return ApiResponse<FacilitySupplierAgingTotalsDto>.SuccessResponse(result);
         }
         var tenant = user.TenantId;
@@ -160,6 +169,7 @@ public sealed partial class FacilityVendorServiceBillService
             result.PostedGlPayableOnPage = rows.Sum(x => x.PostedGlPayableBalance!.Value);
             result.SubledgerVsGlDifferenceOnPage = rows.Sum(x => x.SubledgerVsGlDifference!.Value);
         }
+        if (snapshot != null) await snapshot.CommitAsync(ct);
         return ApiResponse<FacilitySupplierAgingTotalsDto>.SuccessResponse(result);
     }
 }

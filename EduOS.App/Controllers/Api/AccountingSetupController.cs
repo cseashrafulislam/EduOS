@@ -27,4 +27,10 @@ public sealed class AccountingSetupController : ControllerBase
     [HttpGet("banks"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> Banks(CancellationToken ct) => Reply(await service.GetBankAccountsAsync(ct));
     [HttpPost("banks"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> CreateBank([FromBody] SaveBankAccountRequestDto r,CancellationToken ct) => Reply(await service.SaveBankAccountAsync(null,r,ct));
     [HttpPut("banks/{id:long}"),Authorize(Roles="TenantAdmin,Principal")] public async Task<IActionResult> UpdateBank(long id,[FromBody] SaveBankAccountRequestDto r,CancellationToken ct) => Reply(await service.SaveBankAccountAsync(id,r,ct));
+    [HttpGet("cash-designations"),Authorize(Roles="TenantAdmin,Principal"),ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public async Task<IActionResult> CashDesignations(int page=1,int pageSize=25,CancellationToken ct=default) => Reply(await service.GetCashDesignationRequestsAsync(page,pageSize,ct));
+    [HttpPost("cash-designations"),Authorize(Roles="TenantAdmin,Principal")]
+    public async Task<IActionResult> SubmitCashDesignation([FromBody] SubmitCashLedgerDesignationDto r,CancellationToken ct) => Reply(await service.SubmitHistoricCashDesignationAsync(r,ct));
+    [HttpPost("cash-designations/{id:long}/review"),Authorize(Roles="TenantAdmin")]
+    public async Task<IActionResult> ReviewCashDesignation(long id,[FromBody] ReviewCashLedgerDesignationDto r,CancellationToken ct) => Reply(await service.ReviewHistoricCashDesignationAsync(id,r,ct));
 }

@@ -14,4 +14,7 @@ public interface IAccountingSetupService
     Task<ApiResponse<AccountingPeriodDto>> ClosePeriodAsync(long periodId, CloseAccountingPeriodRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<BankAccountDto>>> GetBankAccountsAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<BankAccountDto>> SaveBankAccountAsync(long? bankAccountId, SaveBankAccountRequestDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<CashLedgerDesignationDto>>> GetCashDesignationRequestsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CashLedgerDesignationDto>> SubmitHistoricCashDesignationAsync(SubmitCashLedgerDesignationDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CashLedgerDesignationDto>> ReviewHistoricCashDesignationAsync(long requestId, ReviewCashLedgerDesignationDto request, CancellationToken cancellationToken = default);
 }

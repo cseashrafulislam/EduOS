@@ -2706,6 +2706,50 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashLedgerDesignationRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AccountId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<Guid?>("ReviewRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
+                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<string>("StateCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<DateTime>("SubmittedAtUtc").HasColumnType("datetime2");
+                    b.Property<long>("SubmittedByUserId").HasColumnType("bigint");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.HasKey("Id");
+                    b.HasIndex("ReviewedByUserId");
+                    b.HasIndex("SubmittedByUserId");
+                    b.HasIndex("TenantId", "AccountId").IsUnique()
+                        .HasFilter("[StateCode] = N'Submitted' AND [IsDeleted] = 0");
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "ReviewRequestId").IsUnique()
+                        .HasFilter("[ReviewRequestId] IS NOT NULL");
+
+                    b.ToTable("CashLedgerDesignationRequests", t =>
+                        {
+                            t.HasCheckConstraint("CK_CashLedgerDesignation_Workflow", "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND (([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR ([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.InstitutionBudget", b =>
                 {
                     b.Property<long>("Id")
@@ -24926,6 +24970,35 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Accounting.BankReconciliationBatch", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "BankReconciliationBatchId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashLedgerDesignationRequest", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.Account", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AccountId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

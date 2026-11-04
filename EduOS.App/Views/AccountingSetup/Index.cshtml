@@ -1,8 +1,9 @@
 @{
     ViewData["Title"] = "Institution Accounting Setup";
     var canWrite = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
+    var canReview = User.IsInRole("TenantAdmin");
 }
-<section class="container-fluid py-3" id="accountingSetup" data-write="@canWrite.ToString().ToLowerInvariant()">
+<section class="container-fluid py-3" id="accountingSetup" data-write="@canWrite.ToString().ToLowerInvariant()" data-admin="@canReview.ToString().ToLowerInvariant()">
     <h2>Institution Accounting Setup</h2>
     <p class="text-muted">Chart of accounts, accounting periods and bank ledgers. Separate from SaaS billing.</p>
     @Html.AntiForgeryToken()
@@ -11,6 +12,7 @@
         <li><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#coaPanel">Accounts</button></li>
         <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#periodPanel">Periods</button></li>
         @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#bankPanel">Banks</button></li> }
+        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#historicalCashPanel">Historical Cash Review</button></li> }
     </ul>
     <div class="tab-content">
         <div class="tab-pane fade show active" id="coaPanel">
@@ -65,6 +67,40 @@
                     <div class="mt-2"><button class="btn btn-primary" type="submit">Save bank</button><button id="bankReset" class="btn btn-outline-secondary" type="button">New</button></div>
                 </form>
                 <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Bank</th><th>Account</th><th>Ledger</th><th>Status</th><th>Action</th></tr></thead><tbody id="bankRows"></tbody></table></div>
+            </div>
+            <div class="tab-pane fade" id="historicalCashPanel">
+                <h3 class="h6 mt-2">Audited Historical Cash-in-Hand Designation</h3>
+                <p class="text-muted small">Only for a cash asset ledger already containing journals. This is a non-monetary classification with independent submitter and TenantAdmin reviewer; no posted journal or balance is modified. Confirm the ledger's actual physical-cash nature against supporting evidence before approval.</p>
+                <form id="historicalCashForm" class="card card-body mb-3">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-4"><label class="form-label" for="historicalCashLedger">Unclassified asset posting ledger</label><select id="historicalCashLedger" class="form-select" required></select></div>
+                        <div class="col-md-6"><label class="form-label" for="historicalCashReason">Evidence / justification (20–500 characters)</label><textarea id="historicalCashReason" class="form-control" rows="2" minlength="20" maxlength="500" required></textarea></div>
+                        <div class="col-md-2"><button type="submit" id="historicalCashSubmit" class="btn btn-primary w-100">Submit review</button></div>
+                    </div>
+                </form>
+                <p id="historicalCashStatus" class="small fw-semibold" role="status" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Ledger</th><th>Status</th><th>Evidence</th><th>Submitted by</th><th>Submitted UTC</th><th>Reviewed by</th><th>Review</th></tr></thead>
+                    <tbody id="historicalCashRows"></tbody>
+                </table></div>
+                <div class="d-flex justify-content-end gap-2 align-items-center mb-3">
+                    <button type="button" id="historicalCashPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                    <span id="historicalCashPage" class="small"></span>
+                    <button type="button" id="historicalCashNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                </div>
+                @if (User.IsInRole("TenantAdmin")) {
+                    <div id="historicalCashReview" class="card card-body d-none">
+                        <h4 class="h6">Independent approval</h4>
+                        <p id="historicalCashReviewTitle" class="small"></p>
+                        <label for="historicalCashReviewReason">Review reason (required for rejection)</label>
+                        <textarea id="historicalCashReviewReason" class="form-control mb-2" maxlength="500" rows="2"></textarea>
+                        <div class="d-flex gap-2">
+                            <button id="historicalCashApprove" type="button" class="btn btn-success">Approve designation</button>
+                            <button id="historicalCashReject" type="button" class="btn btn-outline-danger">Reject request</button>
+                            <button id="historicalCashReviewCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                        </div>
+                    </div>
+                }
             </div>
         }
     </div>

@@ -343,6 +343,7 @@ public class EduOSDbContext :
 
     // Accounting
     public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<CashLedgerDesignationRequest> CashLedgerDesignationRequests => Set<CashLedgerDesignationRequest>();
     public DbSet<InstitutionBudget> InstitutionBudgets => Set<InstitutionBudget>();
     public DbSet<InstitutionBudgetLine> InstitutionBudgetLines => Set<InstitutionBudgetLine>();
     public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
@@ -1020,6 +1021,9 @@ public class EduOSDbContext :
         TenantReference<RefundAllocation, PaymentAllocation>(modelBuilder, nameof(RefundAllocation.PaymentAllocationId));
         // Accounting
         TenantReference<Account, Account>(modelBuilder, nameof(Account.ParentAccountId));
+        TenantReference<CashLedgerDesignationRequest, Account>(modelBuilder, nameof(CashLedgerDesignationRequest.AccountId));
+        Reference<CashLedgerDesignationRequest, ApplicationUser>(modelBuilder, nameof(CashLedgerDesignationRequest.SubmittedByUserId));
+        Reference<CashLedgerDesignationRequest, ApplicationUser>(modelBuilder, nameof(CashLedgerDesignationRequest.ReviewedByUserId));
         TenantReference<InstitutionBudgetLine, InstitutionBudget>(modelBuilder, nameof(InstitutionBudgetLine.InstitutionBudgetId));
         TenantReference<InstitutionBudgetLine, Account>(modelBuilder, nameof(InstitutionBudgetLine.AccountId));
         Reference<InstitutionBudget, ApplicationUser>(modelBuilder, nameof(InstitutionBudget.SubmittedByUserId));
@@ -1731,6 +1735,16 @@ public class EduOSDbContext :
         modelBuilder.Entity<Account>().ToTable(t => t.HasCheckConstraint(
             "CK_Accounts_CashInHandPostingAsset",
             "[IsCashInHand] = 0 OR ([AccountType] = 1 AND [IsGroup] = 0 AND [AllowsPosting] = 1 AND [IsActive] = 1 AND [CurrencyCode] = N'BDT')"));
+        modelBuilder.Entity<CashLedgerDesignationRequest>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<CashLedgerDesignationRequest>().HasIndex(x => new { x.TenantId, x.ReviewRequestId })
+            .IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
+        modelBuilder.Entity<CashLedgerDesignationRequest>().HasIndex(x => new { x.TenantId, x.AccountId })
+            .IsUnique().HasFilter("[StateCode] = N'Submitted' AND [IsDeleted] = 0");
+        modelBuilder.Entity<CashLedgerDesignationRequest>().ToTable(t => t.HasCheckConstraint(
+            "CK_CashLedgerDesignation_Workflow",
+            "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND " +
+            "(([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR " +
+            "([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))"));
         modelBuilder.Entity<BankAccount>().HasIndex(x => new { x.TenantId, x.AccountId })
             .IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<NumberSeries>(modelBuilder, nameof(EduOS.Core.Entities.System.NumberSeries.Key));

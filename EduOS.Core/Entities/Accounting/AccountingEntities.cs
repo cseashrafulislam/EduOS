@@ -40,6 +40,22 @@ public class BankAccount : BaseTenantEntity
     public bool IsActive { get; set; } = true;
 }
 
+// Audit-only request to designate an existing, historically posted cash ledger.
+// Account.IsCashInHand remains the sole authoritative classification flag.
+public sealed class CashLedgerDesignationRequest : BaseTenantEntity
+{
+    public long AccountId { get; set; }
+    public Guid ClientRequestId { get; set; }
+    [Required, MaxLength(500)] public string Reason { get; set; } = string.Empty;
+    [Required, MaxLength(20)] public string StateCode { get; set; } = "Submitted";
+    public long SubmittedByUserId { get; set; }
+    public DateTime SubmittedAtUtc { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    public Guid? ReviewRequestId { get; set; }
+    [MaxLength(500)] public string? ReviewReason { get; set; }
+}
+
 public class Journal : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();

@@ -1,13 +1,15 @@
 const root = document.getElementById('accountingSetup');
 if (root) {
-    const base = '/api/finance/accounting/setup', writable = root.dataset.write === 'true';
+    const base = '/api/finance/accounting/setup', writable = root.dataset.write === 'true', admin = root.dataset.admin === 'true';
     const $ = id => document.getElementById(id);
     const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
     let page = 1, totalPages = 1, accounts = [], periods = [], banks = [], groups = [], assetLedgers = [];
+    let cashPage = 1, cashPages = 1, cashProposals = [], cashSelected = null, cashGeneration = 0;
+    let cashSubmitKey = crypto.randomUUID(), cashReviewKey = null, cashBusy = false;
     const alert = (message, error = false) => { const el = $('accountingNotice'); el.textContent = message; el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const request = async (path, method = 'GET', body = null) => {
-        const options = {method, credentials:'same-origin', headers:{Accept:'application/json'}};
+        const options = {method, credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}};
         if (body !== null) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
         if (method !== 'GET' && token) options.headers.RequestVerificationToken = token;
         const res = await fetch(base + path, options);
@@ -43,6 +45,8 @@ if (root) {
         assetLedgers = all.filter(x => x.accountType === 1 && !x.isGroup && x.isActive && !x.isCashInHand);
         $('accountParent').innerHTML = '<option value="">Root</option>' + groups.map(x => '<option value="' + x.id + '">' + safe(x.code + ' — ' + x.name) + '</option>').join('');
         $('bankLedger').innerHTML = '<option value="">Select ledger</option>' + assetLedgers.map(x => '<option value="' + x.id + '">' + safe(x.code + ' — ' + x.name) + '</option>').join('');
+        $('historicalCashLedger').innerHTML = '<option value="">Select historically posted cash ledger</option>' + assetLedgers.map(x =>
+            '<option value="' + x.id + '">' + safe(x.code + ' — ' + x.name) + '</option>').join('');
     }
     async function loadPeriods() {
         periods = await request('/periods');
@@ -70,6 +74,21 @@ if (root) {
         $('bankRows').innerHTML = banks.map(b => '<tr><td>' + safe(b.bankName) + '</td><td>' + safe(b.accountNumber) +
             '</td><td>' + safe(b.ledgerAccountName) + '</td><td>' + (b.isActive ? 'Active' : 'Inactive') +
             '</td><td><button class="btn btn-sm btn-outline-primary" data-edit-bank="' + b.id + '">Edit</button></td></tr>').join('');
+    }
+    async function loadCashProposals() {
+        if (!writable) return;
+        const generation = ++cashGeneration;
+        const data = await request('/cash-designations?' + new URLSearchParams({page:cashPage, pageSize:25}));
+        if (generation !== cashGeneration) return;
+        cashProposals = data.items || []; cashPages = Math.max(1, data.totalPages || 1);
+        $('historicalCashPage').textContent = 'Page ' + cashPage + ' / ' + cashPages + ' (' + data.totalCount + ')';
+        $('historicalCashPrev').disabled = cashPage <= 1;
+        $('historicalCashNext').disabled = cashPage >= cashPages;
+        $('historicalCashRows').innerHTML = cashProposals.map(x => '<tr><td>' + safe(x.accountCode + ' — ' + x.accountName) +
+            '</td><td>' + safe(x.stateCode) + '</td><td>' + safe(x.reason) + '</td><td>' + safe(x.submittedByUserId) +
+            '</td><td>' + safe(x.submittedAtUtc) + '</td><td>' + safe(x.reviewedByUserId || '') + '</td><td>' +
+            (admin && x.stateCode === 'Submitted' ? '<button type="button" class="btn btn-sm btn-outline-primary" data-review-cash="' + x.id + '">Review</button>' :
+                safe(x.reviewReason || '')) + '</td></tr>').join('');
     }
     $('accountSearchBtn').addEventListener('click', () => run(async () => { page = 1; await loadAccounts(); }));
     $('accountPrev').addEventListener('click', () => run(async () => { if (page > 1) { page--; await loadAccounts(); } }));
@@ -134,6 +153,56 @@ if (root) {
             await request('/banks' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);
             resetBank(); await loadBanks(); alert('Bank account saved.');
         }); });
+        $('historicalCashForm').addEventListener('submit', e => { e.preventDefault(); run(async () => {
+            if (cashBusy) return;
+            cashBusy = true; $('historicalCashSubmit').disabled = true;
+            try {
+                const id = $('historicalCashLedger').value;
+                const reason = $('historicalCashReason').value.trim();
+                if (!id || reason.length < 20 || reason.length > 500) throw new Error('Select a ledger and provide 20–500 characters of evidence.');
+                await request('/cash-designations', 'POST', {clientRequestId:cashSubmitKey, accountId:id, reason});
+                cashSubmitKey = crypto.randomUUID(); $('historicalCashForm').reset();
+                cashPage = 1; await loadCashProposals();
+                $('historicalCashStatus').textContent = 'Submitted for an independent TenantAdmin review.';
+            } finally { cashBusy = false; $('historicalCashSubmit').disabled = false; }
+        }); });
+        $('historicalCashPrev').addEventListener('click', () => run(async () => {
+            if (cashPage > 1) { cashPage--; await loadCashProposals(); }
+        }));
+        $('historicalCashNext').addEventListener('click', () => run(async () => {
+            if (cashPage < cashPages) { cashPage++; await loadCashProposals(); }
+        }));
+        if (admin) {
+            const closeCashReview = () => { cashSelected = null; cashReviewKey = null;
+                $('historicalCashReview').classList.add('d-none'); $('historicalCashReviewReason').value = ''; };
+            $('historicalCashRows').addEventListener('click', e => {
+                const id = e.target.closest('[data-review-cash]')?.dataset.reviewCash;
+                if (!id) return;
+                cashSelected = cashProposals.find(x => String(x.id) === id && x.stateCode === 'Submitted') || null;
+                if (!cashSelected) return;
+                cashReviewKey = crypto.randomUUID();
+                $('historicalCashReviewTitle').textContent = cashSelected.accountCode + ' — ' + cashSelected.accountName +
+                    '. Evidence: ' + cashSelected.reason;
+                $('historicalCashReview').classList.remove('d-none');
+                $('historicalCashReviewReason').focus();
+            });
+            $('historicalCashReviewCancel').addEventListener('click', closeCashReview);
+            const decide = async approve => {
+                if (!cashSelected || cashBusy) return;
+                const reason = $('historicalCashReviewReason').value.trim();
+                if (reason.length > 500 || (!approve && !reason)) throw new Error('Rejection requires a review reason.');
+                if (approve && !confirm('Approve physical cash classification for ' + cashSelected.accountCode + '? Historical posted GL journals will remain unchanged.')) return;
+                cashBusy = true; $('historicalCashApprove').disabled = true; $('historicalCashReject').disabled = true;
+                try {
+                    await request('/cash-designations/' + encodeURIComponent(cashSelected.id) + '/review', 'POST',
+                        {reviewRequestId:cashReviewKey, approve, reason, rowVersion:cashSelected.rowVersion});
+                    closeCashReview(); await Promise.all([loadCashProposals(), loadAccounts(), loadAccountOptions()]);
+                    $('historicalCashStatus').textContent = approve ? 'Historical cash account approved.' : 'Request rejected.';
+                } finally { cashBusy = false; $('historicalCashApprove').disabled = false; $('historicalCashReject').disabled = false; }
+            };
+            $('historicalCashApprove').addEventListener('click', () => run(() => decide(true)));
+            $('historicalCashReject').addEventListener('click', () => run(() => decide(false)));
+        }
     }
-    run(async () => { await Promise.all([loadAccounts(), loadPeriods()]); if (writable) await Promise.all([loadAccountOptions(), loadBanks()]); });
+    run(async () => { await Promise.all([loadAccounts(), loadPeriods()]); if (writable) await Promise.all([loadAccountOptions(), loadBanks(), loadCashProposals()]); });
 }
