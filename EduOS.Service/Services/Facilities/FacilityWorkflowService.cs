@@ -207,12 +207,23 @@ public sealed partial class FacilityWorkflowService(
                 !string.IsNullOrWhiteSpace(note) &&
                 ReplayTailMatches(replay.Note, "; new vendor=",
                     $"; new vendor={command.VendorSupplierId}, start={vendorStart:O}, end={vendorEnd:O}; reason={note}"),
-            "triage" => command.SlaDueAtUtc is DateTime due && due.Kind == DateTimeKind.Utc &&
-                (string.Equals(replay.Note,
-                    $"SLA due UTC={due:O}" + (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}"),
-                    StringComparison.Ordinal) ||
-                 (replay.Note?.StartsWith("SLA due UTC=", StringComparison.Ordinal) != true &&
-                  request.SlaDueAtUtc == due && string.Equals(replay.Note, note, StringComparison.Ordinal))),
+            "triage" =>
+                (command.SlaDueAtUtc is DateTime due && due.Kind == DateTimeKind.Utc &&
+                 (string.Equals(replay.Note,
+                     $"SLA due UTC={due:O}" + (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}"),
+                     StringComparison.Ordinal) ||
+                  (replay.Note?.StartsWith("SLA due UTC=", StringComparison.Ordinal) != true &&
+                   request.SlaDueAtUtc == due && string.Equals(replay.Note, note, StringComparison.Ordinal)))) ||
+                // A policy-derived deadline has no client-supplied timestamp.
+                // Match the immutable persisted deadline and exact command note;
+                // never recompute policy on replay or acknowledge a manual command.
+                (command.SlaDueAtUtc == null && request.SlaDueAtUtc.HasValue &&
+                 replay.Note?.StartsWith(
+                     $"SLA due UTC={request.SlaDueAtUtc.Value:O}; basis=configured ",
+                     StringComparison.Ordinal) == true &&
+                 replay.Note.EndsWith("h " + request.PriorityCode +
+                     (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}"),
+                     StringComparison.Ordinal)),
             "unschedule" => !string.IsNullOrWhiteSpace(note) &&
                 ReplayTailMatches(replay.Note, "; reason=", $"; reason={note}"),
             "escalate" => !string.IsNullOrWhiteSpace(note) &&
@@ -859,9 +870,11 @@ public sealed partial class FacilityWorkflowService(
                 if (!due.HasValue || due.Value.Kind != DateTimeKind.Utc || due.Value <= Now)
                     return ApiResponse<FacilityRequestDto>.ErrorResponse(
                         "Provide a future UTC SLA deadline or configure a campus priority policy.", 400);
-                auditNote = $"SLA due UTC={due.Value:O}; basis=" +
-                    (command.SlaDueAtUtc.HasValue ? "manual" :
-                     $"configured {policy.Hours}h {request.PriorityCode}") +
+                // Preserve the existing manual triage audit contract for old
+                // consumers, reports and exact duplicate-request retries.
+                auditNote = $"SLA due UTC={due.Value:O}" +
+                    (command.SlaDueAtUtc.HasValue ? "" :
+                     $"; basis=configured {policy.Hours}h {request.PriorityCode}") +
                     (string.IsNullOrWhiteSpace(note) ? "" : $"; note={note}");
                 request.SlaDueAtUtc = due.Value;
                 request.TriagedByUserId = user.UserId;
