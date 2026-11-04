@@ -1,4 +1,5 @@
-﻿using EduOS.Persistence.Context;
+﻿using EduOS.Core.Entities.Facilities;
+using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -46,7 +47,9 @@ namespace EduOS.BackgroundJobs.Jobs
                         while (true)
                         {
                             var ids = await _context.AuditLogs.AsNoTracking()
-                                .Where(a => a.TenantId == tenantId && a.OccurredAt < cutoffDate)
+                                .Where(a => a.TenantId == tenantId && a.OccurredAt < cutoffDate &&
+                                    a.EntityName != nameof(FacilityVisitorVisit) &&
+                                    a.EntityName != nameof(FacilityVisitorEvent))
                                 .OrderBy(a => a.Id)
                                 .Select(a => a.Id)
                                 .Take(deleteBatchSize)
@@ -54,7 +57,9 @@ namespace EduOS.BackgroundJobs.Jobs
                             if (ids.Length == 0) break;
 
                             var deleted = await _context.AuditLogs
-                                .Where(a => a.TenantId == tenantId && ids.Contains(a.Id) && a.OccurredAt < cutoffDate)
+                                .Where(a => a.TenantId == tenantId && ids.Contains(a.Id) && a.OccurredAt < cutoffDate &&
+                                    a.EntityName != nameof(FacilityVisitorVisit) &&
+                                    a.EntityName != nameof(FacilityVisitorEvent))
                                 .ExecuteDeleteAsync(cancellationToken);
                             totalDeleted += deleted;
                             if (deleted == 0) break;
