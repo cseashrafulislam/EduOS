@@ -149,8 +149,9 @@ public sealed partial class FacilityVendorServiceBillService
             x.TenantId == user.TenantId && x.AccountId == lines[1].AccountId &&
             !x.IsDeleted && (x.CampusId == null || x.CampusId == bill.CampusId))
             .Select(x => x.Id).FirstOrDefaultAsync(ct);
-        if (bankId <= 0 || !await ValidBankAsync(bankId, bill.CampusId, ct) is { } validated ||
-            validated.GlAccountId != lines[1].AccountId)
+        if (bankId <= 0) return null;
+        var validated = await ValidBankAsync(bankId, bill.CampusId, ct);
+        if (!validated.HasValue || validated.Value.GlAccountId != lines[1].AccountId)
             return null;
         return (j, lines, bankId);
     }
