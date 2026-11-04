@@ -496,3 +496,42 @@ test('work-order private JSON and CSV require server-bound institution/session b
     assert.match(script, /URL\.createObjectURL\(blob\)/);
     assert.match(script, /if \(blocked \|\| exporting\) return/);
 });
+
+test('vendor completion attestation requires independent review and cannot synthesize supplier AP', () => {
+    const source = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    const sql = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Tests/App/SqlServerFacilityVendorServiceAcceptanceTests.cs'), 'utf8');
+    assert.match(source, /"vendorattest" or "vendorverify" or "vendorreturn"/);
+    assert.match(source, /latest\.ActorUserId == user\.UserId/);
+    assert.match(source, /latest\.ActionCode != "vendorreturn"/);
+    assert.match(source, /Latest.*vendor|latest = await db\.FacilityWorkflowEvents/);
+    assert.match(source, /ApplyVendorAcceptanceAsync/);
+    assert.match(source, /Select\(g => g\.Max\(x => x\.Id\)\)/);
+    assert.match(script, /vendorattest:/);
+    assert.match(script, /vendorverify:/);
+    assert.match(script, /vendorreturn:/);
+    assert.match(script, /vendorAcceptanceStateCode === 'Submitted'/);
+    assert.match(sql, /Assert\.Equal\(0, await db\.Journals\.CountAsync/);
+    assert.match(sql, /Assert\.Equal\(0, await db\.ProcurementSupplierInvoices\.CountAsync/);
+});
+
+test('campus SLA policy is optional, bounded and keeps manual triage replay stable', () => {
+    const source = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Service/Services/Facilities/FacilityWorkflowService.cs'), 'utf8');
+    const api = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.App/Controllers/Api/FacilityWorkOrdersApiController.cs'), 'utf8');
+    const sql = fs.readFileSync(path.join(__dirname,
+        '../../EduOS.Tests/App/SqlServerFacilitySlaPolicyTests.cs'), 'utf8');
+    assert.match(source, /Facilities\.SlaHours\./);
+    assert.match(source, /hours is < 1 or > 720/);
+    assert.match(source, /SlaRecommendationAsync/);
+    assert.match(source, /basis=configured/);
+    assert.match(source, /request\.SlaDueAtUtc\.Value:O/);
+    assert.match(api, /HttpGet\("\{id:long\}\/sla"\)/);
+    assert.match(script, /suggestSla\(selected\.id\)/);
+    assert.match(script, /!el\('wfDue'\)\.value/);
+    assert.match(sql, /Assert\.Null\(manual\.Data!.ConfiguredHours\)/);
+    assert.match(sql, /Assert\.Equal\(409, \(await service\.SlaRecommendationAsync/);
+    assert.match(sql, /Assert\.True\(\(await service\.TransitionAsync\(submitted\.Id, "triage", command\)\)\.Success\)/);
+});
