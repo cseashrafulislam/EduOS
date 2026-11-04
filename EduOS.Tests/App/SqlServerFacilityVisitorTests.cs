@@ -831,6 +831,24 @@ public sealed class SqlServerFacilityVisitorTests
             Assert.Contains(immutable, x => x.ActionCode == "holdrelease");
             Assert.All(immutable, x => { Assert.Null(x.BadgeCode); Assert.Null(x.Reason); });
         }
+        // Assigned hosts may read their own visit status, never private case
+        // review, legal hold or independently approved retention decisions.
+        await using (var db = Db(options, tenantId, hostId, "Staff"))
+        {
+            var service = Service(db, tenantId, hostId, "Staff");
+            var history = await service.HistoryAsync(first.Id, 1, 50);
+            Assert.True(history.Success, history.Message);
+            Assert.DoesNotContain(history.Data!.Items, x =>
+                x.ActionCode is "incidentresolve" or "incidentclose" or
+                    "holdrequest" or "holdapprove" or "holdreject" or
+                    "holdreleaserequest" or "holdrelease" or
+                    "redactrequest" or "redactapprove");
+            var list = await service.ListAsync(campusId, 1, 50);
+            Assert.True(list.Success, list.Message);
+            var ownVisit = list.Data!.Items.Single(x => x.Id == first.Id);
+            Assert.Equal("None", ownVisit.IncidentStateCode);
+            Assert.Equal("None", ownVisit.LegalHoldStateCode);
+        }
     }
 
     private static EduOSDbContext Db(DbContextOptions<EduOSDbContext> options,
