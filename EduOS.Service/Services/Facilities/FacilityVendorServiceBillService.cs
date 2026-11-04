@@ -185,6 +185,13 @@ public sealed partial class FacilityVendorServiceBillService(
         return (source.CampusId, source.SupplierId);
     }
 
+    // A supplier invoice number must not be posted as both goods inventory
+    // and non-stock services. Both pipelines retain their own source details.
+    private Task<bool> HasStockSupplierInvoice(long supplierId, string normalized, CancellationToken ct) =>
+        db.ProcurementSupplierInvoices.AsNoTracking().AnyAsync(x =>
+            x.TenantId == user.TenantId && x.SupplierId == supplierId &&
+            x.NormalizedSupplierInvoiceNumber == normalized && !x.IsDeleted, ct);
+
     private async Task<FacilityVendorBillDto> Map(FacilityVendorServiceBill bill, CancellationToken ct)
     {
         var journal = bill.JournalId is long id
@@ -299,6 +306,9 @@ public sealed partial class FacilityVendorServiceBillService(
             var source = await VerifiedSource(request.FacilityWorkOrderId, ct);
             if (!source.HasValue || !await LiveActor(source.Value.CampusId, false, ct))
                 return Error<FacilityVendorBillDto>("Verified vendor work not accessible.", 403);
+            if (await HasStockSupplierInvoice(source.Value.SupplierId, normalized, ct))
+                return Error<FacilityVendorBillDto>(
+                    "Supplier invoice already exists in stock-backed Procurement.", 409);
             if (await db.FacilityVendorServiceBills.AsNoTracking().AnyAsync(x =>
                 x.TenantId == user.TenantId && !x.IsDeleted &&
                 (x.FacilityWorkOrderId == request.FacilityWorkOrderId ||
@@ -406,6 +416,10 @@ public sealed partial class FacilityVendorServiceBillService(
                 if (!source.HasValue || source.Value.CampusId != bill.CampusId ||
                     source.Value.SupplierId != bill.SupplierId)
                     return Error<FacilityVendorBillDto>("Service acceptance superseded; do not post.", 409);
+                if (await HasStockSupplierInvoice(
+                    bill.SupplierId, bill.NormalizedSupplierInvoiceNumber, ct))
+                    return Error<FacilityVendorBillDto>(
+                        "Supplier invoice conflicts with existing Procurement stock invoice.", 409);
                 var period = await db.AccountingPeriods.AsNoTracking().FirstOrDefaultAsync(p =>
                     p.Id == request.AccountingPeriodId && p.TenantId == user.TenantId &&
                     !p.IsDeleted && !p.IsClosed && p.StartDate <= bill.InvoiceDate &&
