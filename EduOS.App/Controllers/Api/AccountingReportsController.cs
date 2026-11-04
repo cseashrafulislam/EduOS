@@ -41,6 +41,11 @@ public sealed class AccountingReportsController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
         => Reply(await service.GetInstitutionalIncomeExpenseDetailsAsync(
             fromDate, toDate, category, accountId, sourceType, page, pageSize, ct));
+    [HttpGet("source-posting-audit"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> SourcePostingAudit([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] string sourceKind,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetFinanceSourcePostingAuditAsync(fromDate, toDate, sourceKind, page, pageSize, ct));
     [HttpGet("ledger/{accountId:long}/activity"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> LedgerActivity(long accountId, [FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, [FromQuery] int page = 1,

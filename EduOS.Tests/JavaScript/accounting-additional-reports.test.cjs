@@ -12,6 +12,7 @@ const service = read('EduOS.Service/Services/Accounting/AccountingReportingAddit
 const mainService = read('EduOS.Service/Services/Accounting/AccountingReportingService.cs');
 const ledgerActivity = read('EduOS.Service/Services/Accounting/AccountingReportingLedgerActivity.cs');
 const incomeDetails = read('EduOS.Service/Services/Accounting/AccountingReportingIncomeExpenseDetails.cs');
+const postingAudit = read('EduOS.Service/Services/Accounting/AccountingReportingSourcePostingAudit.cs');
 
 test('new accounting reports have tenant-restricted read-only API and matching view/JS', () => {
     for (const [route, method, panel] of [
@@ -94,4 +95,25 @@ test('central income/cost UI keeps signed reversals and full-period totals separ
     assert.match(js, /debit !== credit/);
     assert.match(view, /Export Visible Page CSV/);
     assert.match(view, /Accrual earnings and cash receipts are not the same/);
+});
+
+test('module posting reconciliation is read-only, tenant-scoped and paged by source document', () => {
+    assert.ok(api.includes('[HttpGet("source-posting-audit"), Authorize(Roles = "TenantAdmin")]'));
+    assert.match(view, /id="sourcePostingAuditPanel"/);
+    assert.match(js, /reports\/source-posting-audit/);
+    for (const kind of ['fee-invoices','fee-payments','admission-payments','payroll',
+        'procurement','facilities','assets']) {
+        assert.ok(view.includes(`value="${kind}"`));
+        assert.ok(postingAudit.includes(`case "${kind}":`));
+    }
+    assert.match(postingAudit, /if \(!TenantWideAllowed\)/);
+    assert.match(postingAudit, /x\.TenantId == tenant && !x\.IsDeleted/);
+    assert.match(postingAudit, /x\.SourceType == expectedType/);
+    assert.match(postingAudit, /source\.JournalId/);
+    assert.match(postingAudit, /InvalidJournal/);
+    assert.match(postingAudit, /BrokenLink/);
+    assert.match(postingAudit, /Take\(pageSize\)/);
+    assert.doesNotMatch(postingAudit, /SaveChangesAsync|ExecuteUpdateAsync|AddAsync/);
+    assert.match(js, /sourceAudit\.sources\.items/);
+    assert.match(js, /sourceAuditKey !== sourceKey\(\)/);
 });

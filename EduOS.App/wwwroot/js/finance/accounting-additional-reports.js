@@ -3,7 +3,7 @@ const root = document.getElementById('institutionAccountingReports');
 if (root && document.getElementById('dayBookForm')) {
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|sourceAmount|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     const cents = value => {
         const s = String(value ?? '0');
         if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw new Error('Invalid financial amount precision.');
@@ -45,6 +45,84 @@ if (root && document.getElementById('dayBookForm')) {
     const yearStart = today.slice(0,4) + '-01-01';
     const previousYear = date => String(Number(date.slice(0,4)) - 1) + date.slice(4);
     const validPeriod = (from, to) => !!from && !!to && from <= to;
+
+    // Reconciliation reads each operational source table separately and checks
+    // the linked GL. The CSV is intentionally limited to the authorized page.
+    $('sourceAuditFrom').value = yearStart;
+    $('sourceAuditTo').value = today;
+    let sourceAudit = null, sourceAuditPage = 1, sourceAuditRevision = 0, sourceAuditKey = '';
+    const sourceKey = () => ['sourceAuditKind','sourceAuditFrom','sourceAuditTo']
+        .map(id => $(id).value).join('|');
+    const clearSourceAudit = () => {
+        ++sourceAuditRevision; sourceAudit = null; sourceAuditKey = '';
+        $('sourceAuditCsv').disabled = true;
+        $('sourceAuditPrevious').disabled = true;
+        $('sourceAuditNext').disabled = true;
+        $('sourceAuditRows').replaceChildren();
+        $('sourceAuditSummary').textContent = '';
+        $('sourceAuditPage').textContent = '';
+    };
+    for (const id of ['sourceAuditKind','sourceAuditFrom','sourceAuditTo']) {
+        $(id).addEventListener('change', clearSourceAudit);
+        $(id).addEventListener('input', clearSourceAudit);
+    }
+    const fetchSourceAudit = async page => {
+        const from = $('sourceAuditFrom').value, to = $('sourceAuditTo').value;
+        if (!validPeriod(from,to)) throw new Error('Select a valid source period.');
+        const signature = sourceKey(), revision = ++sourceAuditRevision;
+        sourceAudit = null;
+        $('sourceAuditRun').disabled = true;
+        $('sourceAuditCsv').disabled = true;
+        $('sourceAuditPrevious').disabled = true;
+        $('sourceAuditNext').disabled = true;
+        try {
+            const data = await get('/api/finance/accounting/reports/source-posting-audit?' +
+                new URLSearchParams({fromDate:from,toDate:to,sourceKind:$('sourceAuditKind').value,
+                    page:String(page),pageSize:'25'}));
+            if (revision !== sourceAuditRevision || signature !== sourceKey()) return;
+            if (data.linkedCount + data.pendingPostingCount + data.unpostedCount !== data.sources.totalCount)
+                throw new Error('Source posting reconciliation count mismatch.');
+            $('sourceAuditRows').innerHTML = (data.sources.items || []).map(x =>
+                '<tr><td>' + esc(x.date) + '</td><td>' + esc(x.sourceId) +
+                '</td><td>' + esc(x.documentNumber) + '</td><td>' + esc(x.sourceState) +
+                '</td><td>' + esc(x.campusId) + '</td><td class="text-end">' +
+                (x.sourceAmount == null ? '—' : money(x.sourceAmount)) + '</td><td>' +
+                esc(x.journalNumber || '—') + '</td><td>' + esc(x.postingStatus) +
+                '</td><td>' + esc(x.finding) + '</td></tr>').join('') ||
+                '<tr><td colspan="9">No source documents in the selected dates.</td></tr>';
+            $('sourceAuditSummary').textContent = 'Source records: ' + data.sources.totalCount +
+                ' | Linked: ' + data.linkedCount + ' | Needs posting: ' +
+                data.pendingPostingCount + ' | Not posted: ' + data.unpostedCount +
+                '. Source date scope; each page checks its GL links.';
+            $('sourceAuditPage').textContent = 'Page ' + page + ' / ' + Math.max(1,data.sources.totalPages);
+            $('sourceAuditPrevious').disabled = page <= 1;
+            $('sourceAuditNext').disabled = page >= data.sources.totalPages;
+            sourceAudit = data; sourceAuditPage = page; sourceAuditKey = signature;
+            $('sourceAuditCsv').disabled = false;
+            alert('Read-only source posting audit loaded. Investigate findings; never bulk repost.');
+        } finally { $('sourceAuditRun').disabled = false; }
+    };
+    $('sourceAuditForm').addEventListener('submit', event => { event.preventDefault(); run(async () => {
+        clearSourceAudit(); await fetchSourceAudit(1);
+    }); });
+    $('sourceAuditPrevious').addEventListener('click', () => run(async () => {
+        if (sourceAudit && sourceAuditPage > 1) await fetchSourceAudit(sourceAuditPage - 1);
+    }));
+    $('sourceAuditNext').addEventListener('click', () => run(async () => {
+        if (sourceAudit && sourceAuditPage < sourceAudit.sources.totalPages)
+            await fetchSourceAudit(sourceAuditPage + 1);
+    }));
+    $('sourceAuditCsv').addEventListener('click', () => {
+        if (!sourceAudit || sourceAuditKey !== sourceKey()) return;
+        const rows = [['Date','Source','Document','State','Campus','Source Amount BDT',
+            'Journal ID','Journal Number','Posting Status','Finding']];
+        for (const x of sourceAudit.sources.items)
+            rows.push([x.date,x.sourceId,x.documentNumber,x.sourceState,x.campusId,
+                x.sourceAmount == null ? '' : money(x.sourceAmount),
+                x.journalId,x.journalNumber,x.postingStatus,x.finding]);
+        csv('finance-posting-audit-' + sourceAudit.sourceKind + '-page-' +
+            sourceAuditPage + '.csv',rows);
+    });
 
     // Central institution-wide income/cost detail: posted GL line is the single
     // monetary truth; source metadata preserves drill-down to the original module.

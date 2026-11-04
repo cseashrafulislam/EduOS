@@ -125,3 +125,31 @@ public sealed class InstitutionalIncomeExpenseLineDto
     public decimal CreditAmount { get; set; }
     public decimal Amount { get; set; }
 }
+
+// One source module per page: this keeps SQL paging correct without loading
+// different operational tables into memory or counting their money twice.
+public sealed class FinanceSourcePostingAuditPageDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string SourceKind { get; set; } = string.Empty;
+    public int LinkedCount { get; set; }
+    public int PendingPostingCount { get; set; }
+    public int UnpostedCount { get; set; }
+    public PagedResult<FinanceSourcePostingAuditRowDto> Sources { get; set; } = new();
+}
+
+public sealed class FinanceSourcePostingAuditRowDto
+{
+    public long SourceId { get; set; }
+    public string DocumentNumber { get; set; } = string.Empty;
+    public DateOnly Date { get; set; }
+    public long? CampusId { get; set; }
+    public string SourceState { get; set; } = string.Empty;
+    public decimal? SourceAmount { get; set; }
+    public long? JournalId { get; set; }
+    public Guid? JournalReference { get; set; }
+    public string? JournalNumber { get; set; }
+    public string PostingStatus { get; set; } = string.Empty;
+    public string? Finding { get; set; }
+}
