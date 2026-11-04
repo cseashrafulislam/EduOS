@@ -530,7 +530,7 @@ test('campus SLA policy is optional, bounded and keeps manual triage replay stab
     assert.match(source, /request\.SlaDueAtUtc\.Value:O/);
     assert.match(api, /HttpGet\("\{id:long\}\/sla"\)/);
     assert.match(script, /suggestSla\(selected\.id\)/);
-    assert.match(script, /!el\('wfDue'\)\.value/);
+    assert.match(script, /el\('wfDue'\)\.value\) return/);
     assert.match(sql, /Assert\.Null\(manual\.Data!.ConfiguredHours\)/);
     assert.match(sql, /Assert\.Equal\(409, \(await service\.SlaRecommendationAsync/);
     assert.match(sql, /Assert\.True\(\(await service\.TransitionAsync\(submitted\.Id, "triage", command\)\)\.Success\)/);
