@@ -18,7 +18,10 @@ const allocationJs = read('EduOS.App/wwwroot/js/finance/accounting-cash-flow-jou
 
 test('institution-wide AP control reads every source page and the independent entire GL', () => {
     assert.match(control, /BeginTransactionAsync\(IsolationLevel\.Serializable/);
-    assert.match(control, /SupplierAgingWithGlAsync\(asOf, campusId, page, batchSize, ct\)/);
+    assert.match(control, /SupplierAgingWithGlCoreAsync\(asOf, campusId, page,/);
+    assert.match(control, /batchSize, snapshot != null && count >= 0 \? count : null, ct\)/);
+    const aging = read('EduOS.Service/Services/Facilities/FacilitySupplierPayableAging.cs');
+    assert.match(aging, /snapshotTotalCount \?\? await query\.CountAsync\(ct\)/);
     assert.doesNotMatch(control, /maximumInvoices|count > 5000|Take\(5000\)/);
     assert.match(control, /ids\.Chunk\(400\)/);
     assert.match(control, /row\.GlReconciliationStatus != "Reconciled"/);
@@ -38,6 +41,23 @@ test('large supplier AP controls never silently truncate a ledger or source popu
     assert.match(control, /subledgerTotal \+= row\.OpenBalance/);
     assert.match(control, /Distinct\(\)\.ToListAsync\(ct\)/);
     assert.doesNotMatch(control, /More than 5,000 supplier invoices|More than 500 AP control ledgers/);
+});
+
+test('5001-invoice AP load rehearsal is opt-in, disposable, measured and tenant-isolated', () => {
+    const benchmark = read('EduOS.Tests/App/SqlServerSupplierApLoadBenchmarkTests.cs');
+    const workflow = read('.github/workflows/sqlserver-migration.yml');
+    assert.match(benchmark, /EDUOS_SQL_AP_BENCHMARK/);
+    assert.match(benchmark, /127\.0\.0\.1,14333/);
+    assert.match(benchmark, /EduOS_MigrationSmoke/);
+    assert.match(benchmark, /const int invoiceCount = 5001/);
+    assert.match(benchmark, /ControlAccountGlBalance/);
+    assert.match(benchmark, /cross_tenant_clean=true/);
+    assert.match(benchmark, /sql_p95_ms=/);
+    assert.match(benchmark, /sql_p99_ms=/);
+    assert.match(benchmark, /Assert\.Equal\(1, sql\.PopulationCounts\)/);
+    assert.match(workflow, /\[supplier-ap-load\]/);
+    assert.match(workflow, /EDUOS_SQL_AP_BENCHMARK: '1'/);
+    assert.match(workflow, /supplier-ap-load\.trx/);
 });
 
 test('compound journal manual allocation is tenant-scoped, exact, immutable, maker-checker approved', () => {

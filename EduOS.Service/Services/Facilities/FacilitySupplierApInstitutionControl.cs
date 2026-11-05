@@ -32,7 +32,11 @@ public sealed partial class FacilityVendorServiceBillService
         var subledgerTotal = 0m;
         for (var page = 1; count < 0 || processed < count; page++)
         {
-            var response = await SupplierAgingWithGlAsync(asOf, campusId, page, batchSize, ct);
+            // The enclosing serializable transaction fixes the entire source
+            // population. Recounting the same union on every 50-row page
+            // would add 100+ full COUNT queries for 5,001 invoices.
+            var response = await SupplierAgingWithGlCoreAsync(asOf, campusId, page,
+                batchSize, snapshot != null && count >= 0 ? count : null, ct);
             if (!response.Success || response.Data == null)
                 return Error<InstitutionalSupplierApControlDto>(response.Message, response.StatusCode);
             var result = response.Data;

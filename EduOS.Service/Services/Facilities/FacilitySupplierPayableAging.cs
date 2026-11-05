@@ -28,9 +28,16 @@ public sealed partial class FacilityVendorServiceBillService
     /// A historical as-of date uses posting/contra dates, never current balance.
     /// Totals explicitly describe the current page, not the entire tenant.
     /// </summary>
-    public async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingAsync(
+    public Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingAsync(
         DateOnly asOf, long? campusId, int page, int pageSize,
         CancellationToken ct = default)
+        => SupplierAgingCoreAsync(asOf, campusId, page, pageSize, null, ct);
+
+    // Only the institution-wide serializable audit supplies a known population.
+    // Public pages continue to count independently, including after data changes.
+    private async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingCoreAsync(
+        DateOnly asOf, long? campusId, int page, int pageSize,
+        int? snapshotTotalCount, CancellationToken ct)
     {
         if (!CanRead || asOf == default || asOf.Year is < 2000 or > 2100 ||
             campusId is <= 0 || page is < 1 or > 100000 ||
@@ -76,7 +83,7 @@ public sealed partial class FacilityVendorServiceBillService
             });
         IQueryable<AgingSource> query = stock.Concat(service);
         if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
-        var count = await query.CountAsync(ct);
+        var count = snapshotTotalCount ?? await query.CountAsync(ct);
         var pageRows = await query.OrderBy(x => x.DueDate)
             .ThenBy(x => x.InvoiceSource).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);

@@ -22,8 +22,13 @@ public sealed partial class FacilityVendorServiceBillService
     /// the source-linked posted GL liability leg. Never re-post or adjust money.
     /// Each bounded page is explicitly a page-level control, not the full AP GL.
     /// </summary>
-    public async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingWithGlAsync(
+    public Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingWithGlAsync(
         DateOnly asOf, long? campusId, int page, int pageSize, CancellationToken ct = default)
+        => SupplierAgingWithGlCoreAsync(asOf, campusId, page, pageSize, null, ct);
+
+    private async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingWithGlCoreAsync(
+        DateOnly asOf, long? campusId, int page, int pageSize,
+        int? snapshotTotalCount, CancellationToken ct)
     {
         // The aging source, linked settlements, returns and Finance GL must all
         // reflect the same read snapshot. A bounded (<=50 invoice) serializable
@@ -32,7 +37,7 @@ public sealed partial class FacilityVendorServiceBillService
         // No transaction is started for EF's non-relational test provider.
         await using var snapshot = db.Database.IsRelational() && db.Database.CurrentTransaction == null
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
-        var aging = await SupplierAgingAsync(asOf, campusId, page, pageSize, ct);
+        var aging = await SupplierAgingCoreAsync(asOf, campusId, page, pageSize, snapshotTotalCount, ct);
         if (!aging.Success || aging.Data == null)
             return Error<FacilitySupplierAgingTotalsDto>(aging.Message, aging.StatusCode);
         var result = aging.Data;

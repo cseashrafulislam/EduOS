@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      run_ap_load:
+        description: 'Benchmark institution-wide supplier AP with 5,001 synthetic posted invoices'
+        required: false
+        type: boolean
+        default: false
   push:
     branches: [ Ashraful, 'automation/**' ]
 
@@ -22,7 +27,7 @@ concurrency:
 jobs:
   migrate-disposable-sqlserver:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]'))) && 120 || 25 }}
+    timeout-minutes: ${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]'))) && 120 || (((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_ap_load) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[supplier-ap-load]'))) && 45 || 25) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -233,6 +238,29 @@ jobs:
         with:
           name: student-import-40k-${{ github.sha }}
           path: TestResults/student-import-40k.trx
+          if-no-files-found: warn
+          retention-days: 14
+
+      # One-shot exact-commit load evidence; never run against a real institute.
+      - name: Benchmark 5001 posted supplier invoices against full Finance GL
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' && ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_ap_load) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[supplier-ap-load]'))) }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+          EDUOS_SQL_AP_BENCHMARK: '1'
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~Opt_in_5001_synthetic_posted_invoices_reconcile_once_without_truncation" \
+            --logger "trx;LogFileName=supplier-ap-load.trx" --results-directory TestResults \
+            --logger "console;verbosity=detailed"
+
+      - name: Preserve synthetic supplier AP load evidence
+        if: ${{ always() && ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_ap_load) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[supplier-ap-load]'))) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: supplier-ap-load-${{ github.sha }}
+          path: TestResults/supplier-ap-load.trx
           if-no-files-found: warn
           retention-days: 14
 
