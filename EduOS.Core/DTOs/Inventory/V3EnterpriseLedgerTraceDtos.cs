@@ -12,6 +12,8 @@ public sealed class V3EnterpriseLedgerTraceDto
     public long? SourceId { get; set; }
     public Guid? TransferDispatchReference { get; set; }
     public Guid? ReversalReference { get; set; }
+    // Approved or submitted Facility Finance contra, verified against the stock reversal.
+    public Guid? FinanceReversalReference { get; set; }
     public decimal RecordedMovementValue { get; set; }
     public int MovementLineCount { get; set; }
     public string FinanceEvidenceStatus { get; set; } = "NoExplicitReference";

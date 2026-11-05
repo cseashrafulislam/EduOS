@@ -439,6 +439,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.True(trace.Success, trace.Message);
             Assert.Equal("ReversalPending", trace.Data!.FinanceEvidenceStatus);
             Assert.Null(trace.Data.ReversalReference);
+            Assert.Equal(reversalReference, trace.Data.FinanceReversalReference);
             var register = await new V3EnterpriseReconciliationRegisterService(
                 pending, new Actor(tenantId, checkerId))
                 .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
@@ -519,7 +520,10 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 Assert.True(trace.Success, trace.Message);
                 Assert.Equal(expected, trace.Data!.FinanceEvidenceStatus);
                 if (expected == "ExplicitReversedReference")
+                {
                     Assert.Equal(stockContra.PublicId, trace.Data.ReversalReference);
+                    Assert.Equal(reversalReference, trace.Data.FinanceReversalReference);
+                }
                 var register = await new V3EnterpriseReconciliationRegisterService(
                     reviewer, new Actor(tenantId, checkerId))
                     .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);

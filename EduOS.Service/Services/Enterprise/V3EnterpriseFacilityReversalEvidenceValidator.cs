@@ -13,14 +13,15 @@ public static class V3EnterpriseFacilityReversalEvidenceValidator
 {
     public sealed record Issue(long MovementId, long? OriginalJournalId, long CampusId,
         long? FromLocationId, long? ToLocationId);
+    public sealed record Evidence(string Status, Guid? FinanceReversalReference);
 
     // Only exceptional/changed states are returned; no entry means the original
     // Finance evidence is still governed by its existing reconciliation rules.
-    public static async Task<Dictionary<long, string>> InspectAsync(
+    public static async Task<Dictionary<long, Evidence>> InspectAsync(
         EduOSDbContext db, long tenantId, IReadOnlyList<Issue> issues,
         CancellationToken ct = default)
     {
-        var result = new Dictionary<long, string>();
+        var result = new Dictionary<long, Evidence>();
         if (issues.Count == 0) return result;
         if (issues.Count > 50 || issues.Any(x => x.MovementId <= 0 || x.CampusId <= 0) ||
             issues.Select(x => x.MovementId).Distinct().Count() != issues.Count)
@@ -56,7 +57,7 @@ public static class V3EnterpriseFacilityReversalEvidenceValidator
         // per issue. Never silently truncate an unexpected fan-out.
         if (stockContras.Count > 200 || glContras.Count > 200)
         {
-            foreach (var issue in issues) result[issue.MovementId] = "EvidenceConflict";
+            foreach (var issue in issues) result[issue.MovementId] = new("EvidenceConflict", null);
             return result;
         }
 
@@ -76,7 +77,7 @@ public static class V3EnterpriseFacilityReversalEvidenceValidator
             .ToListAsync(ct);
         if (stockLines.Count > 20000 || financeLines.Count > 500)
         {
-            foreach (var issue in issues) result[issue.MovementId] = "EvidenceConflict";
+            foreach (var issue in issues) result[issue.MovementId] = new("EvidenceConflict", null);
             return result;
         }
 
@@ -95,7 +96,7 @@ public static class V3EnterpriseFacilityReversalEvidenceValidator
             if (stock.Length == 0 && gl.Length == 0) continue;
             if (stock.Length > 1 || gl.Length != 1 || !issue.OriginalJournalId.HasValue)
             {
-                result[issue.MovementId] = "EvidenceConflict";
+                result[issue.MovementId] = new("EvidenceConflict", null);
                 continue;
             }
 
@@ -113,18 +114,18 @@ public static class V3EnterpriseFacilityReversalEvidenceValidator
                     a.AccountId == b.AccountId && a.DebitAmount == b.CreditAmount &&
                     a.CreditAmount == b.DebitAmount).Any(match => !match))
             {
-                result[issue.MovementId] = "EvidenceConflict";
+                result[issue.MovementId] = new("EvidenceConflict", null);
                 continue;
             }
 
             if (contra.State == JournalState.Submitted && stock.Length == 0)
             {
-                result[issue.MovementId] = "ReversalPending";
+                result[issue.MovementId] = new("ReversalPending", contra.PublicId);
                 continue;
             }
             if (contra.State != JournalState.Posted || stock.Length != 1)
             {
-                result[issue.MovementId] = "EvidenceConflict";
+                result[issue.MovementId] = new("EvidenceConflict", null);
                 continue;
             }
 
@@ -146,10 +147,10 @@ public static class V3EnterpriseFacilityReversalEvidenceValidator
                     a.InventoryItemId == b.InventoryItemId && a.Quantity == b.Quantity &&
                     a.UnitCost == b.UnitCost && a.LotOrBatchNo == b.LotOrBatchNo).Any(match => !match))
             {
-                result[issue.MovementId] = "EvidenceConflict";
+                result[issue.MovementId] = new("EvidenceConflict", null);
                 continue;
             }
-            result[issue.MovementId] = "ExplicitReversedReference";
+            result[issue.MovementId] = new("ExplicitReversedReference", contra.PublicId);
         }
         return result;
     }

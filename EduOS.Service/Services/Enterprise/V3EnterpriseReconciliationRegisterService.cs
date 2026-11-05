@@ -185,8 +185,8 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                     ? "JournalAmountMismatch" : "ExplicitBalancedReference";
             if (facilityReversals.TryGetValue(m.Id, out var reversalStatus))
             {
-                if (reversalStatus == "EvidenceConflict") status = reversalStatus;
-                else if (status == "ExplicitBalancedReference") status = reversalStatus;
+                if (reversalStatus.Status == "EvidenceConflict") status = reversalStatus.Status;
+                else if (status == "ExplicitBalancedReference") status = reversalStatus.Status;
             }
             return new V3EnterpriseReconciliationRegisterRowDto
             {

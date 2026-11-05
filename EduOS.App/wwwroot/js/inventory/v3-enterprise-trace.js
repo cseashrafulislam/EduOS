@@ -183,12 +183,17 @@ if (root) {
             (d.journals || []).forEach(j => add([
                 bn ? 'জার্নাল' : 'Journal', j.number, j.state, j.debit, j.credit, ''
             ]));
+            if (d.financeReversalReference) add([
+                bn ? 'ফাইন্যান্স বিপরীত জার্নাল' : 'Finance contra', d.financeReversalReference,
+                d.financeEvidenceStatus === 'ReversalPending' ? 'Submitted' : 'Posted', '', '', ''
+            ]);
             status.textContent = selectedKind === 'procurement'
                 ? (bn ? 'ক্রয় প্রতিশ্রুতির প্রমাণ: ' : 'Commitment evidence: ') +
                     evidenceText(d.evidenceStatus)
                 : (bn ? 'ফাইন্যান্স লিংক: ' : 'Finance evidence: ') +
                     evidenceText(d.financeEvidenceStatus) +
-                    (d.reversalReference ? ' · Reversal: ' + d.reversalReference : '') +
+                    (d.reversalReference ? (bn ? ' · স্টক বিপরীত: ' : ' · Stock reversal: ') + d.reversalReference : '') +
+                    (d.financeReversalReference ? (bn ? ' · ফাইন্যান্স বিপরীত: ' : ' · Finance contra: ') + d.financeReversalReference : '') +
                     (d.sourceEvidenceStatus === 'VerifiedProcurementReceipt'
                         ? ' · ' + evidenceText(d.sourceEvidenceStatus) : '');
             csv.setAttribute('href', path + '/csv');

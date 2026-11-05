@@ -47,6 +47,19 @@ public sealed class V3EnterpriseLedgerTraceController(EduOSDbContext db, ICurren
             csv.AppendJoin(",", new[] { Cell("Journal"), Cell(j.Reference), Cell(j.Number),
                 Cell(j.State), Cell(j.Debit), Cell(j.Credit), Cell(""), Cell(""), Cell(""),
                 Cell(""), Cell(""), Cell("") }).Append("\r\n");
+        // Add evidence rows without changing the established CSV column layout.
+        csv.AppendJoin(",", new[] { Cell("FinanceEvidenceStatus"), Cell(d.MovementReference), Cell(""),
+            Cell(d.FinanceEvidenceStatus), Cell(""), Cell(""), Cell(""), Cell(""), Cell(""),
+            Cell(""), Cell(""), Cell(d.SourceEvidenceStatus) }).Append("\r\n");
+        if (d.ReversalReference.HasValue)
+            csv.AppendJoin(",", new[] { Cell("StockReversal"), Cell(d.ReversalReference), Cell(""),
+                Cell("Posted"), Cell(""), Cell(""), Cell(""), Cell("MovementReversal"), Cell(""),
+                Cell(""), Cell(""), Cell("") }).Append("\r\n");
+        if (d.FinanceReversalReference.HasValue)
+            csv.AppendJoin(",", new[] { Cell("FinanceContra"), Cell(d.FinanceReversalReference), Cell(""),
+                Cell(d.FinanceEvidenceStatus == "ReversalPending" ? "Submitted" : "Posted"),
+                Cell(""), Cell(""), Cell(""), Cell("FacilityPartsExpenseReversal"), Cell(""),
+                Cell(""), Cell(""), Cell("") }).Append("\r\n");
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8",
             "v3-ledger-trace-" + reference.ToString("N") + ".csv");

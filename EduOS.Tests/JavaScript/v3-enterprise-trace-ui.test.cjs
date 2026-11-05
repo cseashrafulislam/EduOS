@@ -35,6 +35,8 @@ test('facility Finance and stock contras require one shared tenant-scoped proof'
         '../../EduOS.Service/Services/Enterprise/V3EnterpriseFacilityReversalEvidenceValidator.cs'), 'utf8');
     const ui = readFileSync(resolve(__dirname,
         '../../EduOS.App/wwwroot/js/inventory/v3-enterprise-trace.js'), 'utf8');
+    const csv = readFileSync(resolve(__dirname,
+        '../../EduOS.App/Controllers/Api/V3EnterpriseLedgerTraceController.cs'), 'utf8');
     assert.match(detail, /V3EnterpriseFacilityReversalEvidenceValidator\.InspectAsync/);
     assert.match(register, /V3EnterpriseFacilityReversalEvidenceValidator\.InspectAsync/);
     assert.match(validator, /IgnoreQueryFilters\(\)/);
@@ -43,4 +45,8 @@ test('facility Finance and stock contras require one shared tenant-scoped proof'
     assert.match(validator, /a\.DebitAmount == b\.CreditAmount/);
     assert.match(ui, /ExplicitReversedReference/);
     assert.match(ui, /ReversalPending/);
+    assert.match(ui, /d\.financeReversalReference/);
+    assert.match(csv, /Cell\("FinanceEvidenceStatus"\)/);
+    assert.match(csv, /Cell\("StockReversal"\)/);
+    assert.match(csv, /Cell\("FinanceContra"\)/);
 });

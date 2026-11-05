@@ -176,6 +176,7 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
         var facilityAmountMismatch = verifiedFacility && facilityActive.Any(x =>
             x.State == JournalState.Posted &&
             (!byId.TryGetValue(x.Id, out var total) || total.Debit != facilityValue));
+        Guid? facilityContraReference = null;
         var financeStatus = evidence.Length == 0 ||
             (verifiedFacility && facilityActive.Length == 0) ? "NoExplicitReference" :
             evidence.Any(x => !x.Balanced) ? "JournalImbalance" :
@@ -195,8 +196,12 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
                     movement.FromLocationId, movement.ToLocationId)], ct);
             if (reversalEvidence.TryGetValue(movement.Id, out var reversalStatus))
             {
-                if (reversalStatus == "EvidenceConflict") financeStatus = reversalStatus;
-                else if (financeStatus == "ExplicitBalancedReference") financeStatus = reversalStatus;
+                if (reversalStatus.Status == "EvidenceConflict") financeStatus = reversalStatus.Status;
+                else if (financeStatus == "ExplicitBalancedReference")
+                {
+                    financeStatus = reversalStatus.Status;
+                    facilityContraReference = reversalStatus.FinanceReversalReference;
+                }
             }
         }
         return ApiResponse<V3EnterpriseLedgerTraceDto>.SuccessResponse(new V3EnterpriseLedgerTraceDto {
@@ -204,6 +209,7 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             MovementType = movement.MovementTypeCode, State = movement.StateCode,
             PostedAtUtc = movement.PostedAt, SourceType = movement.SourceType, SourceId = movement.SourceId,
             TransferDispatchReference = dispatch, ReversalReference = reversal,
+            FinanceReversalReference = facilityContraReference,
             RecordedMovementValue = amount?.Value ?? 0m, MovementLineCount = amount?.Count ?? 0,
             FinanceEvidenceStatus = financeStatus,
             SourceEvidenceStatus = procurementSource != null ? "VerifiedProcurementReceipt" :
