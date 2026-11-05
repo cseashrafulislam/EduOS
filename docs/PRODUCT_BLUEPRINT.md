@@ -29,6 +29,10 @@ The root `README.md` section 6 is the detailed module catalogue. These are group
 
 Cross-cutting capabilities: privacy and tenant isolation; bilingual `bn-BD`/`en-BD`; responsive/PWA shell; secure user/tenant UI personalization; accessibility; server-side authorization; audited critical changes; reliable exports; operational observability. See [UI personalization](UI_PERSONALIZATION.md) and [architecture/engineering standard](architecture/SCALABILITY_AND_QUALITY.md).
 
+### Central capabilities do not replace business module ownership
+
+To strengthen EduOS as one ERP, reuse the **existing central authorities** for tenant/campus access, verified Person identity, Academic setup, canonical Finance GL, stock movement, private files, communications/audit and subscription policy. Admission, student, examination, Payroll, Procurement, Assets, Library, Hostel, Transport, Facilities, Career and Research retain their domain commands and historical business facts. A Central Work Center, Institutional MIS, record search and unified calendar—where justified—are **permission-scoped read compositions**, not new editable systems of record. The existing Global Feature Search already serves authorized route discovery and must not be rebuilt. Details, current code-level adoption gaps, dependencies and acceptance cases: [Central Platform Integration](architecture/CENTRAL_PLATFORM_INTEGRATION.md). Priorities remain governed only by the [Unified Project Master Plan](PROJECT_MASTER_PLAN.md).
+
 ## 3. Audience and access model
 
 - **Platform SuperAdmin:** plans, tenants, subscriptions, cross-tenant operational metadata and audited support; never implicit unrestricted private-student access.

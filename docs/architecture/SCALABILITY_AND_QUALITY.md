@@ -10,6 +10,14 @@
 - **No multi-database routing, sharding, new registry, physical partitioning or migration is required now.** Future dedicated/shared databases are an optional capacity/tenant-isolation decision after metrics show a need. Moving an existing institute will require audited migration, validation, access freeze/cutover, rollback and source-of-truth control; it is not a simple connection-string edit.
 - New database/model fields are allowed in future only for justified business behavior under a reviewed additive migration; this document itself authorizes **no** schema change.
 
+### Central platform decision and ownership map (2026-11-05)
+
+The detailed implementation reference is [Central Platform Integration and Domain Ownership](CENTRAL_PLATFORM_INTEGRATION.md). It inventories existing canonical tenant/access, global Person with consented tenant links, Academic masters, Finance GL, inventory movements, private documents, messaging/audit, tenant policy/number series, integrations and read reporting; it separately marks **partial consumer adoption** and proposed central **read-side** experiences. `NumberSeriesService` exists, but its use by all business document writers is not established. An existing authorized **feature search** is not business-record search.
+
+**Default implementation shape:** keep domain commands, transitions and transactional history with their current owners. Shared services enforce cross-cutting invariants; composed Work Center, MIS, record search and calendars query only existing authorized source records and link back to original APIs. Do not implement a generic Payments, Attendance, Workflow, Person-profile or Posting table to manufacture uniformity. A central report must not become a shadow source of truth. Adopt a new capability only after measuring its office-work value and checking existing source routes.
+
+**Review gate for centralizing any capability:** (1) current authority and all write consumers; (2) exact TenantId/CampusId/role/entitlement/sensitivity; (3) source IDs and posting/reversal/idempotency; (4) bounded SQL, indexes and as-of reporting; (5) additive migration and mixed-version compatibility only if actually required; (6) domain tests, SQL replay/concurrency, authenticated browser and operational proof. Distinguish *service exists* from *consumer adopted*, and *Development Final OK* from production acceptance.
+
 ## 2. What 'millions of learners' actually means
 
 **Dynamic onboarding and import:** No initial institute count, student count, number of import files or data-row total is a fixed business limit. Institutional configuration and fixed-header Excel templates support file-driven, tenant-validated, bounded, retryable uploads; an effective subscription may enforce its actual configured plan limits. See the [unified project and acceptance plan](../PROJECT_MASTER_PLAN.md). Validate duplicate prevention, tenant isolation and bounded/reconciled import before live use. Do not infer concurrent-user capacity from record counts.
@@ -70,6 +78,7 @@ Pilot is **not** a production certification. See `docs/deployment/SCHOOL_PILOT_S
 ## 6. Change approval and documentation discipline
 
 - Maintain `README.md` as navigation/product catalogue, `docs/PRODUCT_BLUEPRINT.md` as product identity, `docs/PROJECT_MASTER_PLAN.md` as the **single active whole-project backlog and acceptance policy**, `docs/UI_PERSONALIZATION.md` as UX contract, this file as architecture/quality contract, and the retained module-specific documents as technical evidence.
+- Maintain [Central Platform Integration](CENTRAL_PLATFORM_INTEGRATION.md) as the **technical source-ownership/adoption matrix only**, not an alternative issue tracker or separate release plan; update evidence levels when actual sources/tests change.
 - Document each future architecture reversal as a short decision: observed problem, alternatives, impact on tenants/history/APIs, migration, testing and rollback. Never silently overwrite a prior decision's rationale.
 - Don't schedule development tasks, modify source, migrate databases or activate features merely because these specifications exist. Implementation requires a prioritized whole-project domain task, `Ashraful` branch scope and exact acceptance evidence.
 

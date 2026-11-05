@@ -28,8 +28,9 @@ EduOS is a configurable, multi-tenant SaaS platform for the Bangladesh education
 3. [Product Blueprint and module catalogue](docs/PRODUCT_BLUEPRINT.md) — generic education product identity and current status definitions.
 4. [UI Personalization, localization and PWA specification](docs/UI_PERSONALIZATION.md) — common clean UI, compact header help and saved user/institute design.
 5. [Scalability and engineering quality standard](docs/architecture/SCALABILITY_AND_QUALITY.md) — one database now, privacy boundaries, scalable queries, measured performance and operational evidence.
-6. [Pilot staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) — staging-only operational gates, **not** production certification.
-7. [Historical verified development baselines](docs/V1_DEVELOPMENT_BASELINE_20261030.md) and [LMS/Library/Hostel/Transport evidence](docs/V2_FINAL_DEVELOPMENT_BASELINE_20261031.md) — exact-commit engineering history, **not** separate active releases.
+6. [Central Platform Integration and Domain Ownership](docs/architecture/CENTRAL_PLATFORM_INTEGRATION.md) — current central authorities vs partial adoption, module mapping, safe central Work Center/MIS/search/calendar opportunities and end-to-end acceptance checks. **Technical reference, not a second backlog.**
+7. [Pilot staging checklist](docs/deployment/SCHOOL_PILOT_STAGING_RELEASE.md) — staging-only operational gates, **not** production certification.
+8. [Historical verified development baselines](docs/V1_DEVELOPMENT_BASELINE_20261030.md) and [LMS/Library/Hostel/Transport evidence](docs/V2_FINAL_DEVELOPMENT_BASELINE_20261031.md) — exact-commit engineering history, **not** separate active releases.
 
 **Status discipline:** The detailed module catalogue below includes historical implementation snapshots, not verification of current `Ashraful` HEAD. Superseded old-branch delivery/roadmap documents have been removed from the working docs tree but remain available in Git history. Use the unified master plan, current code and exact-SHA CI/SQL evidence. Documentation cleanup does **not** rewrite application business logic or migrate live databases.
 

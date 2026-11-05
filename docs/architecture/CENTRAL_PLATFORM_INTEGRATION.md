@@ -1,0 +1,120 @@
+# EduOS — Central Platform Integration and Domain Ownership
+
+**Owner direction:** 2026-11-05 | **Working branch:** `Ashraful` | **Product:** one EduOS modular monolith, one existing SQL Server database, one `EduOSDbContext`.
+
+**বাংলায় সংক্ষেপ:** EduOS-এর সব মডিউল একই প্রতিষ্ঠান, পরিচয়, অনুমতি, হিসাব, স্টক, ফাইল, নোটিফিকেশন ও অডিটের বিদ্যমান কেন্দ্রীয় ভিত্তি ব্যবহার করবে। কিন্তু Admission, Payroll, Library, Hostel, Facilities ইত্যাদির নিজস্ব transaction/status/table এক করে ফেলা হবে না। আগে কোথায় shared service ব্যবহার হচ্ছে তা প্রমাণ করতে হবে; তার পর শুধু প্রয়োজনীয় integration, read-only management view এবং regression test যোগ করতে হবে।
+
+**How to use this document:** Start with the capability register (§2), identify the source module and central authority in §3, then follow the build/acceptance contract (§5–§7). This is a **technical integration reference**, not a second active backlog. Priorities and acceptance ownership live in [PROJECT_MASTER_PLAN](../PROJECT_MASTER_PLAN.md); the general scale and release standard remains [SCALABILITY_AND_QUALITY](SCALABILITY_AND_QUALITY.md). Source inspection is not production certification.
+
+## 1. Architecture decision and evidence levels
+
+1. **Central authority** means one authoritative implementation for a shared fact or policy (for example, one posted Finance GL); it does **not** mean all operations must share a generic table or a generic status machine.
+2. **Domain authority** owns its business-specific transaction, lifecycle, permissions, historical snapshots and corrections; central services consume explicitly authorized references or projections.
+3. **Central read workspace** is an authorized composition over existing domain data, not another editable source of truth. Fetch in bounded, server-filtered batches; never import all modules into a shadow table just to display a dashboard.
+4. **No new database, broad data merge, document renumbering, migration, generic workflow engine, queue or microservice** is approved by this document. A narrowly justified additive schema change requires separate evidence and review.
+
+Status labels below are deliberately conservative:
+
+| Label | Meaning | Required before calling integration complete |
+| --- | --- | --- |
+| **Existing core** | Canonical entity/service or shared UI exists in the inspected source. | Every claimed consumer path traced and tested, including authorization and replay. |
+| **Partial adoption** | Shared foundation exists, but not all consumers or operational acceptance are demonstrated. | Consumer inventory, tests and issue-specific gap closure. |
+| **Proposed composition** | Cross-module experience has not been identified as one coherent implementation. | First search existing routes/helpers; build an authorized read-side composition only if needed. |
+
+**Inspection basis:** `Ashraful` commit `96098943fe2224846cb8e1979700ccee317805e8` on 2026-11-05. The paths below are concrete inspection entry points, **not** claims that all routes, tests, current users or external integrations are accepted. Re-evaluate statuses against the actual branch HEAD before implementing.
+
+## 2. Central capability register — what already exists and what to strengthen
+
+| # | Central capability / source owner | Verified code entry point | Evidence level and safe next action |
+| --- | --- | --- | --- |
+| 1 | **Tenant, campus and institute lifecycle** | `Tenants/InstitutionFoundationService`, `TenantProfileService`, `Auth/TenantUserAdministrationService` | **Existing core.** Trace every campus-bound mutation, shared read/export and membership switch; no client-supplied tenant override. |
+| 2 | **Membership, role, entitlement and access policy** | `Auth/TenantUserAdministrationService`, `TenantModuleService`, `TenantMembership`, `UserCampusAccess` | **Existing core.** Reuse authorization in any new central workspace; visibility is not permission. |
+| 3 | **Global person identity and consented links** | `Entities/Learners/LearnerEntities.cs`, `Services/Learners/*`, `Student.PersonId`, `Employee.PersonId` | **Partial adoption.** Check verified linking/consent by Student, Guardian, Employee, portal and LMS consumer. Never merge on matching phone/name. |
+| 4 | **Academic setup authority** | `Services/Academic/AcademicSetupService.*`, `AcademicCalendarService` | **Existing core.** Admission, assessment, LMS and scheduling reference authoritative program/level/subject/batch/calendar IDs; do not copy editable names/rules. |
+| 5 | **Central Finance GL and balanced posting** | `Entities/Accounting/AccountingEntities.cs` (`Journal`, `JournalLine`), `Services/Accounting/AccountingPostingService`, `AccountingReportingService` | **Existing core; consumer coverage partial.** Reconcile Fee, Admission, Payroll, Procurement, Facilities, Library and Assets by exact source and GL; no shadow ledger or implied P&L from stock receipts. |
+| 6 | **Domain billing and settlement ownership** | `Entities/Finance/FinanceEntities.cs`, payroll/procurement/facilities payment services | **Existing distinct authorities.** Keep original invoice/payment/payable workflow; central Finance reads verified source-linked journals, not a second editable Payments table. |
+| 7 | **Canonical inventory and stock movement** | `Entities/Inventory/InventoryEntities.cs`, `Services/Inventory/InventoryMovementService.*` | **Existing core; integration QA required.** Trace Procurement receipt, reservation, Facilities parts, Asset issue, return and reversal with exact-once source linkage. |
+| 8 | **Private document/file storage** | `Entities/Files/FileEntities.cs`, `Services/Documents/DocumentFileService`, `DocumentService` | **Existing core.** Student/HR/LMS/Research/Communication attachments keep their domain links; enforce tenant/campus/subject, quota, download authorization and audit. |
+| 9 | **Communication and delivery preferences** | `Entities/Communication/CommunicationEntities.cs`, `Services/Communication/*` | **Partial adoption.** Central gateway/templates/delivery history exist; check module-level recipient consent, retries, provider failure and opt-out. Never treat delivery success as business approval. |
+| 10 | **Audit and privileged activity** | `Entities/System/SystemEntities.cs` (`AuditLog`), `Services/System/AuditLogService` | **Partial adoption.** Compare critical action inventory with actual audit writes, including denial, reversal, export, redaction and external callback. Preserve privacy/legal-hold rules. |
+| 11 | **Number series issuance** | `Entities/System/SystemEntities.cs` (`NumberSeries`), `Services/Platform/NumberSeriesService`, `NumberSeriesApiController` | **Existing service, partial adoption.** No direct service use was found in inspected Student/Admission/Payroll/Procurement business services. Audit actual numbering first; UUID-based unique numbers need not change. Never retrofit `MAX()+1`. |
+| 12 | **Tenant settings, dynamic policy and subscription** | `Services/Tenants/TenantSettingService`, `Services/SaaS/Subscription*`, `TenantModuleService` | **Existing core.** Reuse typed tenant/campus policy and entitlement. Domain-specific calculation, approved overrides, historical effective dates and provenance remain with the owner. |
+| 13 | **Integration, credentials and webhook transport** | `Services/Platform/IntegrationAdministrationService.*`, `SecureWebhookTransport`, `ApiCredentialUsageService` | **Partial adoption.** Check each provider's signature, scoped credentials, timeout/retry, idempotent callback and reconciliation; no separate transport infrastructure without evidence. |
+| 14 | **Central Finance/enterprise tracing** | `Services/Accounting/AccountingReporting*`, `Services/Enterprise/V3Enterprise*` | **Existing core, incomplete whole-project proof.** GL, supplier/stock/asset/facility trace and cash/bank reports exist; establish source-to-GL completeness, stable as-of dates and cross-module exception lists. |
+| 15 | **Institutional management dashboard** | `Services/SaaS/DashboardService` | **Partial adoption.** Existing dashboard covers tenant/subscription, student/staff and fee indicators. A scoped multi-module operational MIS should reuse source reports rather than store editable KPI copies. |
+| 16 | **Central approval/work inbox** | Module-specific `ProcurementRequisitionService`, `ProcurementPurchaseOrderReview`, Fee approval services | **Proposed composition.** Keep independent workflows; aggregate only current authorized pending items and delegate decisions back to original APIs. |
+| 17 | **Global navigation feature search** | `Views/Shared/_Layout.cshtml`, `wwwroot/js/platform/feature-discovery.js` | **Existing core.** It searches authorized **features/routes**, not Student/Invoice/Asset records. Preserve it; do not create another menu search. |
+| 18 | **Cross-module business-record search** | Domain search endpoints; no one institutional record-search service identified | **Proposed composition.** Only if needed, expose filtered, paged, permission-scoped results for approved reference types; redact PII and link to original authorized detail pages. |
+| 19 | **Institution-wide calendar and My Tasks** | `AcademicCalendarService`, `TransportTripService.Calendar`, `FeeReceivablesDueCalendar` | **Proposed composition.** Combine only authorized dated events and actionable references; keep academic, trip and financial due-date semantics independent. |
+| 20 | **Export, bilingual reporting and operational jobs** | Per-domain reporting/CSV, `EduOS.BackgroundJobs/Jobs/*`, shared UI localization | **Partial adoption.** Standardize cross-cutting CSV safety, bounded export, source/as-of labels, privacy-safe logs and job failure visibility where gaps are proven; do not invent new processing infrastructure. |
+
+**Status caution:** “Core exists” is not “whole project complete.” `InstitutionalCentralFinanceDetailsTests` proves selected Fee/Payroll/Procurement/Facilities reporting, not every source path, failure recovery, authenticated browser or historical tenant. **Global Feature Search is implemented; record search is a different optional capability.**
+
+## 3. Module → authority map (existing business models stay independent)
+
+| Domain/workflow | Must reuse existing shared authority | Domain still owns |
+| --- | --- | --- |
+| Onboarding, SaaS, campus administration | Tenant, membership, subscription/entitlement, audit | Registration approval, activation, plan payment and institutional settings decisions |
+| Admission and enrolment | Person/verified link, Academic master, Documents, Finance | Applications, merit, offers, admission/payment state, conversion and enrolment history |
+| Student, guardian, alumni and career | Person, consent/grants, tenant access, Communication | Student lifecycle, legal guardian relationships, alumni opt-in, employer/job/placement decisions |
+| Academic, timetable, teaching and LMS | Academic masters, Calendar, Person, Documents | Course offerings, lessons, schedule/substitution, content, assignments, learner progress |
+| Student attendance, exams, results | Student/enrolment, Academic policy, Audit | Attendance locks/corrections, marking/moderation, result publishing and historical snapshots |
+| Fees, scholarships and library fines | StudentInvoice/Payment, canonical GL, bank reconciliation, Communication | Fee line, concession/waiver, fine assessment, settlement/refund decisions; **no second library income ledger** |
+| HR, staff attendance and payroll | Person/Employee, membership/campus access, GL, Documents | Contracts, shifts/leave, attendance, payroll calculation/run, payment evidence and reversals |
+| Procurement and store | Supplier/PO/GR source, Inventory Movement, GL, Documents | Requisition/PO/receipt, invoice review, payable settlement and returns |
+| Asset management and maintenance | Inventory Movement, AssetBook, GL, Files | Individual serialized asset, custody, depreciation, impairment, disposal and work order |
+| Facilities, visitors and services | Campus authorization, Inventory Movement, GL, Audit, Files | Visit approval/badge/incident/privacy, work order, part usage, labor attribution, service vendor bill |
+| Library, hostel and transport | Person/Student/Employee, Campus, Finance, Communication, Calendar | Loans/holds, beds/allocation, routes/manifests/capacity, operational penalties and lifecycle |
+| Research and accreditation | Person, Academic, Documents, source-linked Finance | Research ethics, projects/grants, accreditation standards, evidence/reviews and approvals |
+
+**Do not collapse:** StudentAttendance and EmployeeAttendance; Student and Employee; SupplierPayment and StudentPayment; Grant and Payroll; library loan and hostel booking; module approval states. Their rules, retention and authorization differ. One shared **read** view can summarize them without destroying domain ownership.
+
+## 4. Canonical flow contracts
+
+1. **Financial:** Domain command → independent authorization/state/amount validation → domain transaction + one unique source-linked GL posting → commit → read-only Finance/report trace. Corrections use original-source linked contra/reversal. Domain invoice status cannot be inferred from a notification or a cached dashboard. Include one-time and partial settlement, refund and closed-period cases.
+2. **Stock and assets:** Authorized PO/receipt/issue/return/Facilities action → canonical `InventoryMovement` and lines → exact source references, quantities, units, custody and any required GL → immutable posting/reversal. A procurement inventory asset debit must not become an immediate P&L expense merely because supplier payment exists.
+3. **Identity:** Global Person may link to multiple institutions only through verified consent/ownership. Tenant-owned Student, Guardian, Employee, LMS and Alumni data remain siloed. Never search across or join private tenant data merely because PersonId matches.
+4. **Document:** Domain holds metadata/reference → private `FileAsset` owns upload/storage lifecycle → each download/export independently validates current authorization, owner and tenant/campus/subject. Attachment existence cannot grant access.
+5. **Approval/work center:** Read source-owned pending tasks under current role/campus/entitlement → show deep link → send mutation only to original domain API with original rowversion, maker/checker, CSRF and idempotency rules → re-read source after decision. No generic `Approved` flag and no cross-module auto-post.
+6. **Communication:** Domain decides recipient, scope and lawful consent → central template/gateway dispatch → retry-safe delivery history and audit. Provider callback proves delivery outcome only, never fee payment, admission approval or exam result publication.
+
+## 5. One prioritized implementation route (the master plan is authoritative)
+
+| Priority | Smallest safe work package | Outcome / clear acceptance evidence |
+| --- | --- | --- |
+| **P0** | **Central adoption and duplicate-source audit:** inventory create/post/reverse/read/export paths of Finance, Inventory, Person, Files, Audit, Tenant/Role, Communication and NumberSeries; classify used, bypassed, uncertain. | Source-to-authority matrix with exact file/method, why bypass exists, tested invariants, risk, owner and no-change disposition for correct exceptions. Fix only reproduced data/security gaps. |
+| **P0** | **Canonical transaction reconciliation:** Fee/Admission/Library, Payroll, Procurement/AP, Assets, Facilities vendor/parts/labour and original reversals; current vs historical as-of. | Balanced GL, source uniqueness, correct inventory units, no double P&L, source-linked refunds/reversals; SQL race/retry/IDOR and rollback tests for each supported path. |
+| **P1** | **Central Work Center**: one read-only authorized inbox for pending approvals, due work and overdue exceptions; keep domain APIs and maker/checker. | Deterministic counts, no unauthorized/foreign/stale rows, stable paging/sorting, source links, valid decisions through existing workflows, bilingual/mobile Help Drawer. |
+| **P1** | **Institutional MIS**: composite dashboard/report from existing GL, academic, attendance, HR, Procurement, Assets, Hostel, Library, Transport and Facilities reports. | Each KPI declares exact definition, included/excluded states, campus/date/as-of, drill-down source and reconciliation to its authoritative report; never silently show partial totals as complete. |
+| **P2** | **Record search and unified calendar** *only if role workflows justify them*. Reuse existing feature discovery and calendar APIs. | All search/calendar entries are tenant/campus/role filtered, bounded, redacted and linked to existing details; no duplicated master data or private offline cache. |
+| **P2** | **Numbering, audit, delivery, exports and job health** integration gaps proven by P0. | Document numbering safely unique/retry-safe; critical audit coverage verified; consent/delivery and job retries observable; export controls consistent. Preserve existing safe numbering formats. |
+
+**Ordering rule:** P1/P2 UI convenience never blocks P0 integrity. Do not begin a new central feature merely to satisfy a checklist; use issue-specific evidence of repetitive office work, incorrect totals, authorization gaps or operational cost. No fixed student/invoice count is an architecture limit; tune measured workloads.
+
+## 6. Implementation and migration rules for every central feature
+
+1. **Trace before editing:** list all writers, readers, reports, exports, jobs and external consumers; inspect actual EF mappings/indexes, domain transitions, existing interfaces/DI and tests. Mark each centrality claim **verified**, **partial** or **not found**, with file paths and commit SHA.
+2. **Choose one owner:** only one service owns each posted financial/stock transition. Other domains reference immutable source IDs and use read-only projections. Reuse existing query/authorization helpers; a new composition service is justified only for actual multi-domain reads.
+3. **Define scope and invariants:** source entity/key, TenantId/CampusId/ownership, roles, module entitlement, date vs UTC timestamp, allowed state, idempotency, rowversion, source uniqueness and historical correction rules. Use decimal for amounts/quantities.
+4. **Bound reads:** predicate by current tenant and permitted campus **before** joins/aggregation; project only required columns, include stable sort and page token/offset, cap page/export size. Verify actual SQL query plan/indexes with representative data. A dashboard summary must not be calculated with `GetAll().ToList()`.
+5. **Protect high-risk writes:** in the existing short transaction, re-read source state/authorization, enforce independent review and unique posting/replay, commit linked canonical movement/GL once, audit without secrets. Never rely on frontend disable state or cache.
+6. **Compatibility first:** add optional source links and read models only when necessary, then backfill after validated tenant/source join, deploy new readers, and retire duplicated storage only after explicit data-loss and rollback approval. No production migration or historical renumbering from this document.
+7. **Verify exactly:** static contracts may catch regressions but cannot replace SQL-backed functional tests, concurrency/rollback, authenticated tenant-switch browser, export/file IDOR, real provider sandbox, representative load and institution UAT.
+8. **Record ownership:** a single row in the existing master backlog states evidence, precise changed files, acceptance outcomes, known gates, QA SHA and rollback notes. Do not create parallel status boards, recurring automations or version-based mini-projects.
+
+## 7. Minimum cross-module acceptance matrix
+
+| Test situation | Required result |
+| --- | --- |
+| One student incurs fee plus library fine, then pays/refunds | One authoritative invoice/payment lineage and correct GL; no extra Library income and no mismatched due. |
+| Two clerks submit the same PO receipt or facility part issue concurrently | One canonical stock effect; loser receives idempotent replay or genuine conflict; no negative/double movement. |
+| Supplier invoice paid partially, returned, then corrected/reversed | Payable aging, GL and source show the same as-of liability without silently rewriting posted history. |
+| Payroll posted and salary settled/cancelled | One payroll accrual and source-linked payment/reversal; no double salary cost or cross-campus write. |
+| User has two institution memberships and opens Work Center, record search or MIS | Only current institution/campus/entitlement/role rows; unauthorized guessed IDs, exports and deep links denied. |
+| Same Person linked to two institutes | No automatic cross-institute academic/guardian/health/financial data sharing; consent and access audited. |
+| Document is referenced by a permitted and an unauthorized module | Both direct download and export independently re-check file ownership/scope; forbidden reference cannot leak bytes. |
+| Late communication callback, duplicate request and tenant switch | No change in admission/payment/approval state; scoped readback cleared, callback idempotent and audited. |
+| Report has missing GL link, unclassified cash activity or oversized source set | Explicit incomplete/exception status and drill-down; never a plausible but silently truncated final total. |
+| Existing safe user navigation and domain workflows after central UI addition | No route/permission/regression change, role-aware bilingual help, keyboard/mobile/print tests. |
+
+**Definition of done:** Source owner and consumers listed; current and as-of/report numbers reconcile; all write invariants, permission and retry/rollback tests pass on exact SHA; targeted authenticated browser (where applicable), migration/restore plan (only if schema changed), production monitoring and separate institute acceptance documented. **Do not label the whole platform “fully centralized” until adoption and domain end-to-end proof, not just entity/service presence, is complete.**

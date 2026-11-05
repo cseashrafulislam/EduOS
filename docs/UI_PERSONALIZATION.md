@@ -32,6 +32,20 @@
 | Loading/empty/error | Stable skeleton or progress state, cancel/retry where safe, helpful empty state, clean permission-denied state and no infinite spinners or silently failed requests. |
 
 All of the above reuse the same design system for admin, teacher, student and parent portals; changing role, institute, language, theme or device must not produce a visibly disconnected application. Quality review includes dashboard, create/edit/view, approval dialog, print/PDF, export, and error states—not only the default form screenshot.
+
+## 1.3. Central management surfaces — shared UX contract (2026-11-05)
+
+The [Central Platform Integration matrix](architecture/CENTRAL_PLATFORM_INTEGRATION.md) defines domain ownership and development order. If justified and implemented, **Central Work Center**, **Institutional MIS**, **Business Record Search** and **Unified Calendar** must extend the existing Razor/layout, role-aware menu, session guard, feature discovery, bilingual manual, typography and theme. Do **not** build another global feature search: `_Layout.cshtml` and `wwwroot/js/platform/feature-discovery.js` already index the server-authorized menu; record search is a separate sensitive query feature.
+
+| Shared surface | User-facing contract | Security/data boundary |
+| --- | --- | --- |
+| Work Center | Show the user's pending approvals, follow-ups and alerts with source module, campus, status, due date and deep link; predictable server paging/sort. | Always read the source module's current authorization and status. Decision buttons call only the existing domain approval API; maker/checker and rowversion cannot be replaced by a generic UI state. |
+| Institutional MIS | Compact configurable KPI cards plus drill-down to existing source reports; clear reporting period, campus, as-of/posted cutoff and definition/exception badge. | Derive from canonical GL and domain reports with exact totals; display **incomplete/unknown** where sources are missing, never a believable fabricated zero or silently truncated sum. |
+| Business Record Search | Search only permitted Student/Employee/Invoice/PO/Asset or other reviewed record types; grouped short summaries and canonical links. | Bounded server-side search, role/campus/entitlement and PII redaction; never index private cross-institute records in local storage, broad browser cache or menu-search data. |
+| Unified Calendar / My Tasks | Authorized academic events, transport trips, fee/payment due dates and maintenance reminders with source links; optional per-module filters. | Dates/timezones respect each original domain's semantics; no shadow event or shared editable due-date column. |
+
+All surfaces use the existing bn-BD/en-BD selector, responsive desktop/mobile layouts, keyboard/screen-reader behavior, a **single page-header Help Drawer**, safe reset on tenant/session switch and explicit empty/forbidden/error/retry states. Preserve the module's independent forms, reports and routes; do not introduce a fourth navigation level or duplicate user entry. Build only after the P0 adoption/security check, and test both authorized and forbidden views with real session changes.
+
 ## 2. Supported user controls
 
 ### Sidebar navigation implementation (2026-10-31)
