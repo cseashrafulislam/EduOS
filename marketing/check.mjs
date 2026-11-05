@@ -55,7 +55,7 @@ const screenshotUpdater = await read("assets/demo.js");
 assert(screenshotUpdater.includes("probe.onload") && screenshotUpdater.includes(".webp"),"Real screenshot replacement is missing");
 for (let i = 0; i < paths.length; i++) {
   const html = htmlPages[i];
-  const unfinished = /under development|coming soon|not yet implemented|not production-ready|not a production-verified feature|উন্নয়নাধীন|পরিকল্পিত|সম্পন্ন হয়নি|যাচাই করতে হবে/i;
+  const unfinished = /under development|coming soon|not yet implemented|not production-ready|proposed local-first design|not ready for live use|not a production-verified feature|উন্নয়নাধীন|পরিকল্পিত|সম্পন্ন হয়নি|যাচাই করতে হবে/i;
   assert(!unfinished.test(html), paths[i] + ": visitor-visible unfinished-work banner or claim remains");
 }
 assert(!/coming soon|under development|উন্নয়নাধীন|শিগগিরই আসছে/i.test(js),
