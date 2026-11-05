@@ -37,6 +37,8 @@ public sealed partial class AccountingReportingService
         IQueryable<PostingAuditSource> query;
         switch (kind)
         {
+            case "fee-refunds":
+                return await GetFinanceRefundPostingAuditAsync(fromDate, toDate, page, pageSize, ct);
             case "fee-invoices":
                 expectedType = "StudentInvoice";
                 query = db.StudentInvoices.AsNoTracking().Where(x => x.TenantId == tenant && !x.IsDeleted)

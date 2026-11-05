@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Inventory;
@@ -144,6 +145,75 @@ public sealed class CentralFinancePostingAuditTests
         incomeCost.Data.TotalExpenses.Should().Be(90m);
         incomeCost.Data.Entries.Items.Should().ContainSingle(x =>
             x.SourceType == "FacilityVendorServiceBill" && x.Amount == 90m);
+    }
+
+    [Fact]
+    public async Task Paid_refunds_reuse_the_existing_cash_and_credit_note_GL_evidence()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.Accounts.Add(new Account { Id=3, TenantId=41, Code="AR", Name="Student receivables",
+            AccountType=AccountType.Asset });
+        db.StudentPayments.Add(new StudentPayment { Id=1, TenantId=41, StudentId=3,
+            ReceiptNumber="RCPT-1", Amount=90m, PaymentDate=From,
+            State=PaymentState.Refunded });
+        db.StudentEnrollments.Add(new StudentEnrollment { Id=14, TenantId=41, StudentId=3,
+            CampusId=10, RollNo="3", EnrollmentDate=From });
+        db.StudentInvoices.Add(Invoice(22, InvoiceState.Paid, null));
+        db.StudentInvoices.Local.Single().StudentEnrollmentId = 14;
+        db.PaymentAllocations.Add(new PaymentAllocation { Id=31, TenantId=41,
+            StudentPaymentId=1, StudentInvoiceId=22, Amount=90m });
+        db.Refunds.AddRange(
+            new Refund { Id=7, TenantId=41, StudentPaymentId=1, Amount=30m,
+                State=RefundState.Paid, ReversalJournalId=77,
+                CreatedAt=From.ToDateTime(TimeOnly.MinValue),
+                PaidAt=From.AddDays(1).ToDateTime(TimeOnly.MinValue) },
+            new Refund { Id=8, TenantId=41, StudentPaymentId=1, Amount=10m,
+                State=RefundState.Paid, ReversalJournalId=null,
+                CreatedAt=From.ToDateTime(TimeOnly.MinValue),
+                PaidAt=From.AddDays(2).ToDateTime(TimeOnly.MinValue) },
+            new Refund { Id=9, TenantId=41, StudentPaymentId=1, Amount=5m,
+                State=RefundState.Approved, CreatedAt=From.ToDateTime(TimeOnly.MinValue) });
+        db.RefundAllocations.Add(new RefundAllocation { Id=44, TenantId=41,
+            RefundId=7, PaymentAllocationId=31, Amount=10m, IsCreditNote=true });
+        Journal(db, 77, "StudentRefund", 7, 30m);
+        Journal(db, 78, "StudentRefundCreditNote", 7, 10m);
+        foreach (var journal in db.Journals.Local)
+            journal.CampusId = 10;
+        foreach (var line in db.JournalLines.Local)
+        {
+            line.CampusId = 10;
+            line.StudentId = 3;
+        }
+        db.JournalLines.Local.Single(x => x.JournalId == 77 && x.DebitAmount > 0).AccountId = 3;
+        db.JournalLines.Local.Single(x => x.JournalId == 77 && x.CreditAmount > 0).AccountId = 1;
+        db.JournalLines.Local.Single(x => x.JournalId == 78 && x.DebitAmount > 0).AccountId = 2;
+        db.JournalLines.Local.Single(x => x.JournalId == 78 && x.CreditAmount > 0).AccountId = 3;
+        await db.SaveChangesAsync();
+
+        var audit = await Service(db).GetFinanceSourcePostingAuditAsync(From, To, "fee-refunds");
+        audit.StatusCode.Should().Be(200);
+        audit.Data!.LinkedCount.Should().Be(1);
+        audit.Data.PendingPostingCount.Should().Be(1);
+        audit.Data.UnpostedCount.Should().Be(1);
+        audit.Data.Sources.Items.Single(x => x.SourceId == 7).PostingStatus.Should().Be("Posted");
+        audit.Data.Sources.Items.Single(x => x.SourceId == 7).DocumentNumber.Should().Be("RCPT-1");
+        audit.Data.Sources.Items.Single(x => x.SourceId == 8).PostingStatus.Should().Be("PendingPosting");
+        audit.Data.Sources.Items.Single(x => x.SourceId == 9).PostingStatus.Should().Be("NotPosted");
+
+        // Duplicate cash-side source postings must not pass as a single paid refund.
+        Journal(db, 79, "StudentRefund", 7, 30m);
+        db.Journals.Local.Single(x => x.Id == 79).CampusId = 10;
+        foreach (var line in db.JournalLines.Local.Where(x => x.JournalId == 79))
+        {
+            line.StudentId = 3;
+            line.CampusId = 10;
+        }
+        await db.SaveChangesAsync();
+        var duplicate = await Service(db).GetFinanceSourcePostingAuditAsync(From, To, "fee-refunds");
+        duplicate.Data!.Sources.Items.Single(x => x.SourceId == 7).PostingStatus.Should().Be("InvalidJournal");
+        (await Service(db, false).GetFinanceSourcePostingAuditAsync(From, To, "fee-refunds"))
+            .StatusCode.Should().Be(403);
     }
 
     [Fact]
