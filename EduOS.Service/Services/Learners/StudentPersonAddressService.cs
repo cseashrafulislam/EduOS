@@ -2,6 +2,8 @@ using System.Data;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Entities.Admission;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
@@ -20,7 +22,10 @@ public sealed class StudentPersonAddressService : IStudentPersonAddressService
 {
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<Guardian> _guardians;
+    private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<AdmissionApplicant> _applicants;
+    private readonly IGenericRepository<TenantMembership> _memberships;
+    private readonly IGenericRepository<ApplicationUser> _identityUsers;
     private readonly IGenericRepository<Person> _persons;
     private readonly IGenericRepository<StudentPersonLink> _links;
     private readonly IGenericRepository<PersonAddress> _addresses;
@@ -34,7 +39,10 @@ public sealed class StudentPersonAddressService : IStudentPersonAddressService
     public StudentPersonAddressService(
         IGenericRepository<Student> students,
         IGenericRepository<Guardian> guardians,
+        IGenericRepository<Employee> employees,
         IGenericRepository<AdmissionApplicant> applicants,
+        IGenericRepository<TenantMembership> memberships,
+        IGenericRepository<ApplicationUser> identityUsers,
         IGenericRepository<Person> persons,
         IGenericRepository<StudentPersonLink> links,
         IGenericRepository<PersonAddress> addresses,
@@ -47,7 +55,10 @@ public sealed class StudentPersonAddressService : IStudentPersonAddressService
     {
         _students = students;
         _guardians = guardians;
+        _employees = employees;
         _applicants = applicants;
+        _memberships = memberships;
+        _identityUsers = identityUsers;
         _persons = persons;
         _links = links;
         _addresses = addresses;
@@ -90,8 +101,14 @@ public sealed class StudentPersonAddressService : IStudentPersonAddressService
                 .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
             || await _guardians.GetQueryable().IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
+            || await _employees.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
             || await _applicants.GetQueryable().IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
+            || await _memberships.GetQueryable().IgnoreQueryFilters().AsNoTracking()
+                .AnyAsync(x => x.TenantId != _user.TenantId &&
+                    _identityUsers.GetQueryable().IgnoreQueryFilters().Any(u =>
+                        u.Id == x.UserId && u.PersonId == personId), ct)
             || await _consents.GetQueryable().IgnoreQueryFilters().AsNoTracking()
                 .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
             || await _grants.GetQueryable().IgnoreQueryFilters().AsNoTracking()

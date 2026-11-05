@@ -1,6 +1,8 @@
 using EduOS.App.Controllers.Api;
 using EduOS.Core.DTOs.Learners;
 using EduOS.Core.Entities.Admission;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
@@ -102,6 +104,54 @@ public sealed class StudentPersonAddressWorkflowTests
     }
 
     [Fact]
+    public async Task Another_tenants_employee_identity_blocks_global_address_edits_even_after_staff_archive()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("shared-staff-person-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = CreateDb(101, options);
+        var student = await SeedAsync(db, 101);
+        await using (var otherTenant = CreateDb(202, options))
+        {
+            otherTenant.Employees.Add(new Employee {
+                TenantId = 202, PersonId = student.PersonId,
+                EmployeeCode = "EMP-202", FullName = "Archived staff identity",
+                DesignationId = 1, JoiningDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                IsDeleted = true
+            });
+            await otherTenant.SaveChangesAsync();
+        }
+        var service = CreateService(db, new CurrentUser(101));
+        (await service.GetAsync(student.PublicId)).StatusCode.Should().Be(404);
+        (await service.SaveAsync(student.PublicId, "Current", Request())).StatusCode.Should().Be(404);
+        (await db.PersonAddresses.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Another_tenants_login_membership_blocks_mutation_but_local_membership_does_not()
+    {
+        var options = new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("shared-member-person-" + Guid.NewGuid().ToString("N")).Options;
+        await using var db = CreateDb(101, options);
+        var student = await SeedAsync(db, 101);
+        db.Users.Add(new ApplicationUser { Id = 42, PersonId = student.PersonId,
+            UserName = "verified-person@example.invalid", NormalizedUserName = "VERIFIED-PERSON@EXAMPLE.INVALID" });
+        db.TenantMemberships.Add(new TenantMembership { TenantId = 101, UserId = 42 });
+        await db.SaveChangesAsync();
+        var service = CreateService(db, new CurrentUser(101));
+        (await service.SaveAsync(student.PublicId, "Current", Request())).Success.Should().BeTrue();
+
+        await using (var otherTenant = CreateDb(202, options))
+        {
+            otherTenant.TenantMemberships.Add(new TenantMembership { TenantId = 202, UserId = 42,
+                IsDeleted = true });
+            await otherTenant.SaveChangesAsync();
+        }
+        (await service.GetAsync(student.PublicId)).StatusCode.Should().Be(404);
+        (await service.SaveAsync(student.PublicId, "Permanent", Request())).StatusCode.Should().Be(404);
+        (await db.PersonAddresses.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
     public void Address_api_has_module_role_and_antiforgery_boundaries()
     {
         var type = typeof(StudentPersonAddressesController);
@@ -164,7 +214,10 @@ public sealed class StudentPersonAddressWorkflowTests
     private static StudentPersonAddressService CreateService(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<Student>(db),
         new GenericRepository<Guardian>(db),
+        new GenericRepository<Employee>(db),
         new GenericRepository<AdmissionApplicant>(db),
+        new GenericRepository<TenantMembership>(db),
+        new GenericRepository<ApplicationUser>(db),
         new GenericRepository<Person>(db),
         new GenericRepository<StudentPersonLink>(db),
         new GenericRepository<PersonAddress>(db),
