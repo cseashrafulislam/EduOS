@@ -40,9 +40,9 @@
 
   const en = {
     navFeatures:"Features",navInstitutions:"Institutions",navScreenshots:"Screenshots",navHow:"How it works",navContact:"Contact",demoLogin:"Demo Login",
-    eyebrow:"THE EDUCATION OPERATING SYSTEM",heroTitle:'Everything your institution needs.<span class="accent-text"> Finally connected.</span>',
-    heroDesc:"Bring admissions, learning, student records, billing and daily operations together in one thoughtfully designed education platform.",
-    explorePlatform:"Explore the platform",tryDemo:"Try the demo",heroCheck1:"Flexible for different institutions",heroCheck2:"English & বাংলা interface",
+    eyebrow:"THE EDUCATION OPERATING SYSTEM",heroTitle:'EduOS Education ERP.<span class="accent-text"> Built for every way of teaching.</span>',
+    heroDesc:"From private tutors and coaching academies to schools, colleges and universities, explore admissions, classes, exams, fees, accounts, HR, learning, library and campus operations in one configurable ERP.",
+    explorePlatform:"Explore all modules",tryDemo:"View demo previews",heroCheck1:"Flexible for different institutions",heroCheck2:"English & বাংলা interface",
     floatReady:"Designed around real workflows",floatUnified:"One connected workspace",illustrationDisclaimer:"Illustrative interface concept · Actual screenshots below when available",
     benefit1:"One connected platform",benefit2:"Flexible workflows",benefit3:"Role-based access",benefit4:"Clear reports & records",
     featuresEyebrow:"MADE FOR THE WHOLE INSTITUTION",featuresTitle:"Your operations, in one place.",featuresDesc:"From a student's first inquiry to everyday learning and administration, EduOS brings essential workflows closer together.",
@@ -55,10 +55,10 @@
     availabilityNote:"Feature availability and configuration depend on your institution's setup. Contact us for a workflow-specific demonstration.",
     institutionsEyebrow:"ONE PLATFORM. MANY LEARNING ENVIRONMENTS.",institutionsTitle:"Built to adapt to how you teach.",institutionsDesc:"Different institutions have different terms, stages, structures and daily needs. EduOS is designed with configurable workflows rather than a one-size-fits-all institution template.",institutionsLink:"Talk about your institution",
     school:"Schools",college:"Colleges",university:"Universities",madrasa:"Madrasas",training:"Training Centres",coaching:"Coaching & Online Learning",
-    showcaseEyebrow:"SEE WHAT YOUR TEAM WILL USE",showcaseTitle:"A closer look at EduOS.",showcaseDesc:"Explore real full-page product screenshots here as soon as sanitized captures are published. We never substitute generated imagery for an actual screenshot.",
+    showcaseEyebrow:"SEE WHAT YOUR TEAM WILL USE",showcaseTitle:"A closer look at EduOS.",showcaseDesc:"See clearly labelled illustrative demo interface previews. Real screenshots can replace the fictional sample designs after privacy review.",
     shotDashboard:"Dashboard",shotStudents:"Students",shotFees:"Fees & Billing",shotAcademics:"Academics",shotReports:"Reports",
     screenshotPendingTitle:"Real screenshot will appear here",screenshotPendingText:"A privacy-safe, full-page capture will be added after the live interface is ready for marketing.",
-    screenshotCaption:"Gallery images are added from the actual application only. No student or institution-sensitive data will be shown.",
+    screenshotCaption:"Illustrative design previews, not live product screenshots.",
     workflowEyebrow:"A SIMPLER DAY, STEP BY STEP",workflowTitle:"Less switching. More clarity.",workflowDesc:"A connected way to organize the key moments of institutional work.",
     step1Title:"Set up your institution",step1Text:"Configure the academic structure, campuses, roles and relevant modules.",
     step2Title:"Manage people & learning",step2Text:"Keep students, staff, courses and academic activity organized.",
@@ -70,15 +70,14 @@
     faq3q:"Can I see the software before choosing it?",faq3a:"Yes, a live demonstration link can be provided when the demo environment is published. The button on this site will link directly to that environment once configured.",
     faq4q:"Will every institution use the same settings?",faq4a:"No. EduOS is designed for configurable academic terminology, structure, modules and workflows rather than a fixed institution size or setup.",
     contactEyebrow:"YOUR NEXT CHAPTER STARTS HERE",contactTitle:"Let's make your institution easier to run.",contactDesc:"Explore EduOS at your own pace, then connect with the team to discuss your institution's workflows and goals.",
-    contactDemo:"Open Live Demo",contactExplore:"Explore Features",contactPending:"Sales contact details will be published here when available.",
+    contactDemo:"Explore Demo & Contact",contactExplore:"Explore Features",contactPending:"Sales contact details will be published here when available.",
     footerDesc:"A more connected way to manage education.",allRights:"All rights reserved.",madeForEducation:"Made for education, built for flexibility.",
     dialogTitle:"Demo link coming soon",dialogText:"The live EduOS login address will be connected here once the demonstration environment is published. Please check back later.",dialogOk:"Got it"
   };
 
   const translations = { en, bn };
   const languageToggle = document.getElementById("language-toggle");
-  let language = "en";
-  try { language = localStorage.getItem("eduos-marketing-lang") === "bn" ? "bn" : "en"; } catch { /* restricted browser storage */ }
+  let language = "en"; // Homepage is static English; /bn/ is its indexed Bengali counterpart.
 
   function renderLanguage() {
     document.documentElement.lang = language;
@@ -93,16 +92,12 @@
     document.getElementById("language-label").textContent = language === "en" ? "বাংলা" : "English";
     document.title = language === "bn"
       ? "EduOS — শিক্ষাপ্রতিষ্ঠান পরিচালনার সমন্বিত সফটওয়্যার"
-      : "EduOS — All-in-One Education Management Software for Bangladesh";
+      : "EduOS | Education ERP for Private Tutors, Coaching, Schools & Universities";
     document.querySelectorAll("[data-shot]").forEach((tab) => {
       if (tab.getAttribute("aria-selected") === "true") document.getElementById("screenshot-heading").textContent = tab.textContent;
     });
   }
-  languageToggle.addEventListener("click", () => {
-    language = language === "en" ? "bn" : "en";
-    try { localStorage.setItem("eduos-marketing-lang", language); } catch { /* restricted browser storage */ }
-    renderLanguage();
-  });
+  languageToggle.addEventListener("click", () => window.location.assign("/bn/"));
   renderLanguage();
 
   const menuButton = document.getElementById("menu-toggle");
@@ -135,12 +130,12 @@
     const candidate = new Image();
     candidate.onload = () => {
       if (request !== currentRequest) return;
-      screenshotImage.src = source;
-      screenshotImage.alt = `${tab.textContent} — actual full-page EduOS interface screenshot`;
+      screenshotImage.src = candidate.src;
+      screenshotImage.alt = candidate.src.endsWith(".webp") ? `${tab.textContent} — verified application screenshot` : `${tab.textContent} — illustrative demo design, not a real screenshot`;
       screenshotImage.hidden = false;
       placeholder.hidden = true;
     };
-    candidate.onerror = () => { if (request === currentRequest) { screenshotImage.hidden = true; placeholder.hidden = false; } };
+    candidate.onerror = () => { if (request !== currentRequest) return; if (candidate.src.endsWith(".webp")) candidate.src = `/assets/screenshots/${tab.dataset.shot}.svg`; else { screenshotImage.hidden = true; placeholder.hidden = false; } };
     candidate.src = source;
   }
   tabs.forEach((tab, index) => {
@@ -156,24 +151,7 @@
   chooseScreenshot(tabs[0]);
 
   const config = window.EDUOS_MARKETING || {};
-  const infoDialog = document.getElementById("pending-dialog");
-  const url = typeof config.demoUrl === "string" ? config.demoUrl.trim() : "";
-  let verifiedDemoUrl = "";
-  try {
-    const candidate = new URL(url);
-    if (candidate.protocol === "https:" && !candidate.username && !candidate.password) verifiedDemoUrl = candidate.href;
-  } catch { /* URL has not been supplied */ }
-  document.querySelectorAll("[data-demo]").forEach((button) => button.addEventListener("click", () => {
-    if (verifiedDemoUrl) {
-      window.open(verifiedDemoUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    infoDialog.showModal();
-  }));
-  function closeDialog() { if (infoDialog.open) infoDialog.close(); }
-  document.getElementById("close-dialog").addEventListener("click", closeDialog);
-  document.getElementById("dialog-ok").addEventListener("click", closeDialog);
-  infoDialog.addEventListener("click", (event) => { if (event.target === infoDialog) closeDialog(); });
+  document.querySelectorAll("[data-demo]").forEach(button => button.addEventListener("click", () => window.location.assign("/demo/")));
 
   const channels = document.getElementById("contact-channels");
   function contactLink(text, target, label) {

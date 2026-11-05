@@ -1,35 +1,52 @@
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const [html, js] = await Promise.all([
-  readFile(join(root, "public/index.html"), "utf8"),
-  readFile(join(root, "public/assets/site.js"), "utf8")
-]);
-
-function assert(condition, message) { if (!condition) throw new Error(message); }
-const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((entry) => entry[1]);
-assert(ids.length === new Set(ids).size, "Duplicate element IDs in landing page");
-for (const [, anchor] of html.matchAll(/href="#([^"]+)"/g)) {
-  assert(ids.includes(anchor), `Missing anchor target: #${anchor}`);
+const read = path => readFile(join(root, "public", path), "utf8");
+const paths = ["index.html","bn/index.html","solutions/index.html","bn/solutions/index.html","modules/index.html","bn/modules/index.html","ai/index.html","bn/ai/index.html","demo/index.html"];
+const htmlPages = await Promise.all(paths.map(read));
+const js = await read("assets/site.js");
+const cfg = await readFile(join(root,"site-config.js"),"utf8");
+const assert = (condition,message) => { if(!condition) throw new Error(message); };
+for (let i=0;i<paths.length;i++) {
+  const html = htmlPages[i];
+  assert(/<html lang="(en|bn)"/.test(html), paths[i] + ": missing language");
+  assert(/<title>[^<]+<\/title>/.test(html), paths[i] + ": missing title");
+  assert(html.includes('name="description"'), paths[i] + ": missing meta description");
+  assert(html.includes('application/ld+json'), paths[i] + ": missing structured data");
+  assert(html.includes("<h1"), paths[i] + ": missing main heading");
+  if (i>0) assert(html.includes('rel="canonical"'), paths[i] + ": missing canonical");
+  if (i===0) assert(html.includes("<!-- CANONICAL_AT_BUILD -->"), "Homepage canonical token missing");
+  assert(!/\b(?:5|6)\s+(?:AI\s+)?agents\b/i.test(html), paths[i] + ": fixed AI count");
 }
-
-const translations = [...html.matchAll(/data-i18n(?:-html)?="([^"]+)"/g)].map((entry) => entry[1]);
-const bn = js.match(/const bn = \{([\s\S]*?)\n  \};/);
-const en = js.match(/const en = \{([\s\S]*?)\n  \};/);
-assert(bn && en, "Both translation dictionaries must exist");
+const home=htmlPages[0], demo=htmlPages[8];
+const ids=[...home.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
+assert(ids.length===new Set(ids).size,"Duplicate homepage IDs");
+for(const [,target] of home.matchAll(/href="#([^"]+)"/g)) assert(ids.includes(target), "Missing homepage anchor #"+target);
+const translations=[...home.matchAll(/data-i18n(?:-html)?="([^"]+)"/g)].map(x=>x[1]);
+const bn=js.match(/const bn = \{([\s\S]*?)\n  \};/),en=js.match(/const en = \{([\s\S]*?)\n  \};/);
+assert(Boolean(bn&&en),"Translation dictionaries missing");
 for (const key of translations) {
-  const needle = new RegExp(`(?:^|[,{\\s])${key}:`);
-  assert(needle.test(bn[1]), `Missing bn translation: ${key}`);
-  assert(needle.test(en[1]), `Missing en translation: ${key}`);
+  const pattern = new RegExp("(?:^|[,\\s])"+key+":");
+  assert(pattern.test(bn[1]) && pattern.test(en[1]),"Missing translation "+key);
 }
-
-const schema = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
-assert(schema, "Missing JSON-LD structured data");
-const entity = JSON.parse(schema[1]);
-assert(entity.name === "EduOS", "Structured-data brand mismatch");
-assert(html.includes("<!-- CANONICAL_AT_BUILD -->"), "Missing canonical build token");
-assert(html.includes('name="description"'), "Missing SEO description");
-assert(!/https?:\/\/example\.com|localhost:/.test(html), "Placeholder production URL in HTML");
-console.log(`Marketing page checks passed (${ids.length} element IDs, ${new Set(translations).size} translated strings)`);
+assert(home.includes('/solutions/') && home.includes('/modules/') && home.includes('/ai/'),"Homepage discovery links missing");
+assert(home.includes('id="contact"'),"Contact CTA missing");
+assert(demo.includes("cseashrafulwork@gmail.com") && demo.includes("8801733293938"),"Demo contact links missing");
+assert(cfg.includes("cseashrafulwork@gmail.com") && cfg.includes("8801733293938"),"Homepage public contacts missing");
+assert(js.includes(".svg") && js.includes("/demo/"),"Fallback image or demo links missing");
+assert(!js.includes("infoDialog.showModal()"),"Old inactive demo modal still in use");
+for (const shot of ["dashboard","student-management","fees-billing","academics","reports"]) {
+ const img=await read("assets/screenshots/"+shot+".svg");
+ assert(img.includes("ILLUSTRATIVE PREVIEW"),"Demo image lacks concept label: "+shot);
+}
+for (const p of ["solutions/index.html","bn/solutions/index.html"]) {
+ const doc=await read(p);
+ assert(doc.includes("private-tutor") && doc.includes("coaching-center"),"Audience use case missing: "+p);
+}
+for (const p of ["modules/index.html","bn/modules/index.html"]) {
+ const doc=await read(p);
+ assert(doc.includes("Research") || doc.includes("গবেষণা"),"Module catalogue incomplete: "+p);
+}
+console.log("Marketing content checks passed for "+paths.length+" routes and "+translations.length+" translated labels");

@@ -1,42 +1,36 @@
-# EduOS Marketing Website (Cloudflare Pages)
+# EduOS Marketing — myeduos.pages.dev
 
-This isolated static website lives in `marketing/`. It does not build or deploy the ASP.NET EduOS application, access SQL Server, or include demo credentials.
+Static public marketing website, wholly separated from the private ASP.NET Education ERP/SQL Server. The official owner-provided domain is **https://myeduos.pages.dev/**. The repo deploys from the EXISTING **Ashraful** branch only.
 
-## Cloudflare Pages setup
+## Pages, audiences and searchable content
 
-1. Connect GitHub repository `cseashrafulislam/EduOS` to a **new Cloudflare Pages project** (project name: `eduos` if available; the `*.pages.dev` name is not reserved by this repository).
-2. Select **production branch `Ashraful`** (or your selected release branch).
-3. Set **Root directory:** `marketing`; **Build command:** `npm run build`; **Build output directory:** `dist`.
-4. In **Settings → Build → Build watch paths**, set **Include paths** to `marketing/*` and clear excludes. This pattern matches all nested files. Do not leave the default `*` include.
-5. Disable preview deployments for unrelated branches if desired.
-6. After Cloudflare gives the actual Pages URL, set production environment variable `SITE_URL` to `https://your-actual-project.pages.dev` (with no path), then redeploy **once** to emit the canonical URL and sitemap. Never guess the hostname.
-7. Verify the page, `/robots.txt`, `/sitemap.xml`, mobile layout, and crawlers via Google Search Console and Bing Webmaster Tools.
+- `/` — English overview, feature cards, representative institution types, Intelligent EduOS introduction and demo gallery.
+- `/bn/` — Bengali landing page rendered as static searchable HTML.
+- `/solutions/`, `/bn/solutions/` — 11 institution types, from private tutors and coaching centers to schools, universities, madrasas, online learning and vocational training. Clear workflow/use-case details.
+- `/modules/`, `/bn/modules/` — detailed ERP module descriptions grouped by academic, finance, campus and platform capabilities.
+- `/ai/`, `/bn/ai/` — complete intelligent assistant architecture and sample questions. **Vision and capabilities are described but AI/voice readiness is not falsely claimed as production verified.**
+- `/demo/` — five clearly labelled synthetic SVG demo concept previews for Dashboard, Students, Fees, Academics and Reports, with direct **email cseashrafulwork@gmail.com** and **WhatsApp +8801733293938**. No fictitious customers or student data.
 
-Cloudflare's path filter is the deploy guard, not a file in this repository. It normally skips commits outside `marketing/`. Exceptions documented by Cloudflare include empty pushes and pushes with 20+ commits or 3,000+ changed files; those may still trigger a build.
+Add real, privacy-approved screenshots later to `marketing/public/assets/screenshots/{dashboard,student-management,fees-billing,academics,reports}.webp`. The main landing gallery prefers each matching WebP and falls back to the static concept SVG if unavailable. Update the standalone demo gallery separately when the real captures are approved.
 
-## Content that still needs real owner inputs
+## Cloudflare Pages configuration
 
-- **Live demo login URL:** edit `site-config.js` (`demoUrl`). Until configured, the Demo button explains that the link is pending.
-- **Email, telephone and WhatsApp:** edit `site-config.js`. Unset contact channels are not displayed or submitted anywhere.
-- **Actual full-page screenshots:** add optimized, privacy-safe images at the following paths, preserving the filenames:
-  - `public/assets/screenshots/dashboard.webp`
-  - `public/assets/screenshots/student-management.webp`
-  - `public/assets/screenshots/fees-billing.webp`
-  - `public/assets/screenshots/academics.webp`
-  - `public/assets/screenshots/reports.webp`
+Existing Pages project: `myeduos.pages.dev`. The deployment must watch the existing `Ashraful` branch, build root `marketing`, command `npm run build`, output `dist`. A separate new Pages project is **not** needed. Default canonical domain is `https://myeduos.pages.dev`; override `SITE_URL` only after authorizing a domain change. Source changes alone do not prove Cloudflare deployed.
 
-The page explicitly labels unsupplied screenshot slots as pending. No fabricated product screenshot is presented as an actual capture. For every image, remove student names, phone numbers, personal email addresses and sensitive financial/tenant data before upload.
-
-## Local checks
-
+Validate:
 ```bash
 cd marketing
 npm run check
 npm run build
 ```
+Expected routes: /, /bn/, /solutions/, /bn/solutions/, /modules/, /bn/modules/, /ai/, /bn/ai/, /demo/. Confirm /robots.txt, /sitemap.xml and /_headers browser responses on deployed Pages. Revalidate canonical and alternate language tags after changing the domain.
 
-This website has no runtime dependencies, API credentials, lead database or tracking cookies. Its bilingual client-side switch is accessible; the initial server-rendered English copy remains readable to search engines. When launching Bengali-targeted SEO campaigns, consider separate pre-rendered `/bn/` and `/en/` URLs with `hreflang`, while retaining the single-page experience within each language.
+## Honest product positioning and AI search discovery
 
-## SEO honesty
+Product direction includes AI-enabled dynamic capability registry, model-free question patterns, local ML.NET classification and verified voice entry as they become available; no arbitrary count of AI agents. Public content describes the complete use-case vision; no claim that these functions are already fully implemented/QA certified. Any pricing, claims of production readiness, case studies, customer numbers or demo credentials must be supported by real evidence.
 
-Google and AI search indexing are not guaranteed. `SITE_URL` is required for a correct canonical URL and sitemap, and Cloudflare bot protection must permit the respective crawlers. No fake reviews, clients, trial lengths, pricing or unsupported release-readiness statements are included.
+Google and AI search engine recommendations are **not guaranteed** by SEO. Descriptive pages, accessible natural-language text, internal links, valid JSON-LD matching visible content, canonical/hreflang, crawlable robots/sitemap and real brand authority help discovery. Configure and monitor Google Search Console and Bing Webmaster Tools. OAI-SearchBot is allowed by generated robots.txt, but deployed Cloudflare bot/robots settings must independently permit crawling. Do not invent SEO testimonials, reviews, ratings or customer credentials.
+
+## Privacy / security
+
+This public site is static, has no login, analytics cookies, CRM lead forms or external scripts. It exposes only owner-approved contact channels. Cloudflare Pages `_headers` constrains script/connect, microphone permissions, framing and other browser capabilities. No customer records, private source code, app keys, external API secrets or student data belong in the marketing build.

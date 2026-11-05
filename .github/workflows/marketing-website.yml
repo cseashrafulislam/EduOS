@@ -1,0 +1,29 @@
+name: Marketing website
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'marketing/**'
+      - '.github/workflows/marketing-website.yml'
+  workflow_dispatch:
+jobs:
+  static-marketing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: marketing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm run check
+      - run: npm run build
+      - run: |
+          test -s dist/robots.txt
+          test -s dist/sitemap.xml
+          test -s dist/demo/index.html
+          grep -q "cseashrafulwork@gmail.com" dist/demo/index.html
+          grep -q "8801733293938" dist/demo/index.html
+          grep -q 'https://myeduos.pages.dev/' dist/index.html
+          test -s dist/assets/screenshots/dashboard.svg
