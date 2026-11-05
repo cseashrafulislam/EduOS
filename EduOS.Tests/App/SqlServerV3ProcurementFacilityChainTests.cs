@@ -576,7 +576,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                     .ExecuteUpdateAsync(s => s.SetProperty(l => l.CampusId, (long?)null));
                 await AssertCentralEvidenceAsync("ExplicitReversedReference");
                 await reviewer.Journals.Where(j => j.Id == contra.Id)
-                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.CampusId, campusId + 99999));
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.CampusId, (long?)null));
                 await AssertCentralEvidenceAsync("EvidenceConflict");
                 await tamper.RollbackAsync();
             }
@@ -585,7 +585,7 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 await reviewer.InventoryLocations.Where(l => l.Id == locationId)
                     .ExecuteUpdateAsync(s => s.SetProperty(l => l.CampusId, (long?)null));
                 await reviewer.Journals.Where(j => j.Id == original.Id)
-                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.CampusId, campusId + 99999));
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.CampusId, (long?)null));
                 Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(
                     reviewer, new Actor(tenantId, checkerId)).GetAsync(issueReference)).StatusCode);
                 var register = await new V3EnterpriseReconciliationRegisterService(
