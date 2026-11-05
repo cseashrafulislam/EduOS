@@ -74,6 +74,8 @@ test('Cross-module API and shared page manual keep domain approvals and entitlem
     assert.match(service, /RequestedByUserId != user\.UserId/);
     assert.match(service, /CreatedBy != user\.UserId/);
     assert.match(service, /visibleCampuses\.Contains/);
+    assert.equal((service.match(/!campusId\.HasValue \|\| [ropx]\.CampusId == campusId\.Value/g) || []).length, 6,
+        "All three queue sources and all three detail rechecks must honor the selected campus");
     assert.match(service, /db\.CurrentTenantId != user\.TenantId/);
     assert.doesNotMatch(service, /SaveChangesAsync|ExecuteUpdateAsync|ExecuteDeleteAsync/);
     assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,InventoryManager"\)/);

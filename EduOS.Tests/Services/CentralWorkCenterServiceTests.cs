@@ -81,6 +81,56 @@ public sealed class CentralWorkCenterServiceTests
         (await service.GetPendingAsync(campusId: 11)).StatusCode.Should().Be(403);
     }
 
+
+    [Fact]
+    public async Task Tenant_admin_requested_campus_filters_all_three_sources_before_count_and_paging()
+    {
+        await using var db = Database();
+        SeedIdentity(db, "TenantAdmin");
+        SeedWork(db);
+        db.Campuses.Add(new Campus { Id = 11, TenantId = 41, Code = "SECOND", Name = "Second campus" });
+        db.ProcurementRequisitions.Add(new ProcurementRequisition { Id = 11, TenantId = 41,
+            CampusId = 11, RequestNumber = "PR-11", Purpose = "Second campus requisition",
+            StateCode = "Submitted", CreatedBy = 8 });
+        db.ProcurementPurchaseOrders.Add(new ProcurementPurchaseOrder { Id = 12, TenantId = 41,
+            CampusId = 11, OrderNumber = "PO-12", StateCode = "Submitted", CreatedBy = 8 });
+        db.FacilityVisitorPolicyChanges.Add(new FacilityVisitorPolicyChange { Id = 13, TenantId = 41,
+            CampusId = 11, PolicyCode = "SecondCampusPolicy", ProposedValue = "30",
+            RequestReason = "Second campus request", RequestedByUserId = 8,
+            StateCode = "Submitted" });
+        await db.SaveChangesAsync();
+        await RestoreSeedMakerAuditAsync(db);
+        // Synthetic insert audit sets the current actor. Restore the independent makers.
+        foreach (var req in db.ProcurementRequisitions.Local.Where(x => x.Id == 11))
+            req.CreatedBy = 8;
+        foreach (var po in db.ProcurementPurchaseOrders.Local.Where(x => x.Id == 12))
+            po.CreatedBy = 8;
+        await db.SaveChangesAsync();
+
+        var service = Service(db, "TenantAdmin");
+        var all = await service.GetPendingAsync();
+        all.StatusCode.Should().Be(200);
+        all.Data!.Pending.TotalCount.Should().Be(7);
+
+        var campus = await service.GetPendingAsync(page: 1, pageSize: 2, campusId: 11);
+        var next = await service.GetPendingAsync(page: 2, pageSize: 2, campusId: 11);
+        campus.StatusCode.Should().Be(200);
+        next.StatusCode.Should().Be(200);
+        campus.Data!.Pending.TotalCount.Should().Be(3);
+        next.Data!.Pending.TotalCount.Should().Be(3);
+        var rows = campus.Data.Pending.Items.Concat(next.Data.Pending.Items).ToArray();
+        rows.Should().HaveCount(3);
+        rows.Should().OnlyContain(x => x.CampusId == 11);
+        rows.Select(x => x.Source).Should().Contain("ProcurementRequisition")
+            .And.Contain("ProcurementPurchaseOrder").And.Contain("FacilityVisitorPolicy");
+
+        var main = await service.GetPendingAsync(campusId: 10);
+        main.StatusCode.Should().Be(200);
+        main.Data!.Pending.TotalCount.Should().Be(4);
+        main.Data.Pending.Items.Should().OnlyContain(x => x.CampusId == 10);
+        (await service.GetPendingAsync(campusId: 999)).StatusCode.Should().Be(403);
+    }
+
     [Fact]
     public async Task Disabled_module_pilot_and_revoked_role_never_expose_pending_work()
     {

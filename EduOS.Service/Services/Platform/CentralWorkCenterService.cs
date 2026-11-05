@@ -78,13 +78,15 @@ public sealed class CentralWorkCenterService(
         {
             var requisitions = db.ProcurementRequisitions.AsNoTracking().Where(r =>
                 r.TenantId == tenant && !r.IsDeleted && r.StateCode == "Submitted" &&
-                r.CreatedBy.HasValue && r.CreatedBy != user.UserId && visibleCampuses.Contains(r.CampusId))
+                r.CreatedBy.HasValue && r.CreatedBy != user.UserId && visibleCampuses.Contains(r.CampusId) &&
+                (!campusId.HasValue || r.CampusId == campusId.Value))
                 .Select(r => new WorkIdentity { Kind = 1, SourceId = r.Id,
                     CampusId = r.CampusId, SubmittedAtUtc = r.SubmittedAt ?? r.CreatedAt });
             var orders = db.ProcurementPurchaseOrders.AsNoTracking().Where(o =>
                 o.TenantId == tenant && !o.IsDeleted &&
                 (o.StateCode == "Submitted" || o.StateCode == "CancelRequested") &&
-                o.CreatedBy.HasValue && o.CreatedBy != user.UserId && visibleCampuses.Contains(o.CampusId))
+                o.CreatedBy.HasValue && o.CreatedBy != user.UserId && visibleCampuses.Contains(o.CampusId) &&
+                (!campusId.HasValue || o.CampusId == campusId.Value))
                 .Select(o => new WorkIdentity { Kind = 2, SourceId = o.Id,
                     CampusId = o.CampusId, SubmittedAtUtc = o.SubmittedAt ?? o.CreatedAt });
             pending = requisitions.Concat(orders);
@@ -93,7 +95,8 @@ public sealed class CentralWorkCenterService(
         {
             var policyChanges = db.FacilityVisitorPolicyChanges.AsNoTracking().Where(p =>
                 p.TenantId == tenant && !p.IsDeleted && p.StateCode == "Submitted" &&
-                p.RequestedByUserId != user.UserId && visibleCampuses.Contains(p.CampusId))
+                p.RequestedByUserId != user.UserId && visibleCampuses.Contains(p.CampusId) &&
+                (!campusId.HasValue || p.CampusId == campusId.Value))
                 .Select(p => new WorkIdentity { Kind = 3, SourceId = p.Id,
                     CampusId = p.CampusId, SubmittedAtUtc = p.CreatedAt });
             pending = pending == null ? policyChanges : pending.Concat(policyChanges);
@@ -115,16 +118,19 @@ public sealed class CentralWorkCenterService(
         var policyIds = identities.Where(x => x.Kind == 3).Select(x => x.SourceId).ToArray();
         var req = await db.ProcurementRequisitions.AsNoTracking().Where(x =>
             x.TenantId == tenant && requisitionIds.Contains(x.Id) && !x.IsDeleted &&
-            x.StateCode == "Submitted" && x.CreatedBy.HasValue && x.CreatedBy != user.UserId)
+            x.StateCode == "Submitted" && x.CreatedBy.HasValue && x.CreatedBy != user.UserId &&
+            visibleCampuses.Contains(x.CampusId) && (!campusId.HasValue || x.CampusId == campusId.Value))
             .Select(x => new { x.Id, x.RequestNumber }).ToDictionaryAsync(x => x.Id, ct);
         var po = await db.ProcurementPurchaseOrders.AsNoTracking().Where(x =>
             x.TenantId == tenant && orderIds.Contains(x.Id) && !x.IsDeleted &&
             (x.StateCode == "Submitted" || x.StateCode == "CancelRequested") &&
-            x.CreatedBy.HasValue && x.CreatedBy != user.UserId)
+            x.CreatedBy.HasValue && x.CreatedBy != user.UserId &&
+            visibleCampuses.Contains(x.CampusId) && (!campusId.HasValue || x.CampusId == campusId.Value))
             .Select(x => new { x.Id, x.OrderNumber, x.StateCode }).ToDictionaryAsync(x => x.Id, ct);
         var policies = await db.FacilityVisitorPolicyChanges.AsNoTracking().Where(x =>
             x.TenantId == tenant && policyIds.Contains(x.Id) && !x.IsDeleted &&
-            x.StateCode == "Submitted" && x.RequestedByUserId != user.UserId)
+            x.StateCode == "Submitted" && x.RequestedByUserId != user.UserId &&
+            visibleCampuses.Contains(x.CampusId) && (!campusId.HasValue || x.CampusId == campusId.Value))
             .Select(x => new { x.Id, x.PolicyCode }).ToDictionaryAsync(x => x.Id, ct);
         if (req.Count != requisitionIds.Length || po.Count != orderIds.Length ||
             policies.Count != policyIds.Length)
