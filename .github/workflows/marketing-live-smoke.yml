@@ -1,0 +1,53 @@
+name: Marketing live site smoke
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - '.github/workflows/marketing-live-smoke.yml'
+  workflow_dispatch:
+jobs:
+  verify-live-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public Cloudflare Pages output
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request, urllib.error, sys, time
+          origin = 'https://myeduos.pages.dev'
+          routes = {
+              '/': ['EduOS','/solutions/','/modules/','/ai/','/demo/'],
+              '/solutions/': ['private-tutor','coaching-center','university'],
+              '/modules/': ['Admissions','Central Accounting','Library'],
+              '/ai/': ['Intelligent','Question'],
+              '/demo/': ['cseashrafulwork@gmail.com','8801733293938'],
+              '/bn/': ['প্রাইভেট','/bn/solutions/'],
+              '/bn/solutions/': ['প্রাইভেট শিক্ষক'],
+              '/bn/modules/': ['শিক্ষার্থী'],
+              '/bn/ai/': ['EduOS'],
+              '/robots.txt': ['User-agent:','Sitemap:'],
+              '/sitemap.xml': ['/solutions/','/demo/'],
+              '/assets/screenshots/dashboard.svg': ['ILLUSTRATIVE PREVIEW'],
+          }
+          failures = []
+          for route, markers in routes.items():
+              url = origin + route
+              request = urllib.request.Request(url, headers={'User-Agent':'EduOS-Live-Marketing-Smoke/1.0','Accept':'text/html,*/*'})
+              try:
+                  with urllib.request.urlopen(request, timeout=15) as response:
+                      status = response.status
+                      data = response.read(2500000).decode('utf-8','replace')
+                  missing = [marker for marker in markers if marker not in data]
+                  print(f'{route:34s} HTTP {status}, bytes={len(data):7d}, missing={missing}', flush=True)
+                  if status != 200 or missing:
+                      failures.append(route)
+              except Exception as e:
+                  print(f'{route:34s} ERROR {type(e).__name__}: {str(e)[:180]}', flush=True)
+                  failures.append(route)
+              time.sleep(0.15)
+          if failures:
+              print('LIVE SMOKE FAILED: ' + ', '.join(failures))
+              sys.exit(1)
+          print('LIVE SMOKE PASS: all public routes and content markers verified')
+          PY
