@@ -400,17 +400,47 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
 
         Guid reversalReference;
         string reversalVersion;
+        var reversalRequestId = Guid.NewGuid();
         await using (var maker = Open(options, tenantId, makerId))
         {
             var finance = Finance(maker, makerId);
-            var reversal = await finance.RequestReversalAsync(journalReference,
-                new FacilityPartsFinanceReversalRequestDto { ClientRequestId = Guid.NewGuid(),
-                    AccountingPeriodId = periodId, JournalDate = accountingDate,
-                    Reason = "Return receipt-linked unused parts with exact Finance compensation" });
+            var input = new FacilityPartsFinanceReversalRequestDto {
+                ClientRequestId = reversalRequestId,
+                AccountingPeriodId = periodId, JournalDate = accountingDate,
+                Reason = "Return receipt-linked unused parts with exact Finance compensation" };
+            var reversal = await finance.RequestReversalAsync(journalReference, input);
             Assert.True(reversal.Success, reversal.Message);
             reversalReference = reversal.Data!.FinanceReversalReference!.Value;
             reversalVersion = reversal.Data.ReversalRowVersion!;
+            var replay = await finance.RequestReversalAsync(journalReference, input);
+            Assert.True(replay.Success, replay.Message);
+            Assert.Equal(reversalReference, replay.Data!.FinanceReversalReference);
+            var distinctKey = await finance.RequestReversalAsync(journalReference,
+                new FacilityPartsFinanceReversalRequestDto { ClientRequestId = Guid.NewGuid(),
+                    AccountingPeriodId = periodId, JournalDate = accountingDate,
+                    Reason = input.Reason });
+            Assert.Equal(409, distinctKey.StatusCode);
         }
+        await using (var foreign = Open(options, tenantId + 999999, checkerId))
+        {
+            var foreignActor = new Actor(tenantId + 999999, checkerId);
+            var inventory = new InventoryMovementService(foreign, foreignActor,
+                TimeProvider.System, NullLogger<InventoryMovementService>.Instance);
+            var finance = new FacilityPartsFinanceService(foreign, foreignActor,
+                TimeProvider.System, inventory, NullLogger<FacilityPartsFinanceService>.Instance);
+            Assert.Equal(404, (await finance.ReviewReversalAsync(reversalReference,
+                new FacilityPartsFinanceReviewDto { RowVersion = reversalVersion,
+                    Approve = true })).StatusCode);
+        }
+        var competingReversal = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ =>
+        {
+            await using var reviewer = Open(options, tenantId, checkerId);
+            return await Finance(reviewer, checkerId).ReviewReversalAsync(reversalReference,
+                new FacilityPartsFinanceReviewDto { RowVersion = reversalVersion, Approve = true });
+        }));
+        Assert.Contains(competingReversal, x => x.Success);
+        Assert.All(competingReversal, x =>
+            Assert.True(x.Success || x.StatusCode == 409, x.Message));
         await using (var reviewer = Open(options, tenantId, checkerId))
         {
             var reversed = await Finance(reviewer, checkerId).ReviewReversalAsync(reversalReference,
