@@ -25,6 +25,7 @@ public sealed partial class FacilityVendorServiceBillService
         await using var snapshot = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         const int batchSize = 50;
+        var cursor = new AgingCursor();
         var totals = new Dictionary<long, InstitutionalSupplierApControlAccountDto>();
         var count = -1;
         var processed = 0;
@@ -36,7 +37,7 @@ public sealed partial class FacilityVendorServiceBillService
             // population. Recounting the same union on every 50-row page
             // would add 100+ full COUNT queries for 5,001 invoices.
             var response = await SupplierAgingWithGlCoreAsync(asOf, campusId, page,
-                batchSize, snapshot != null && count >= 0 ? count : null, ct);
+                batchSize, snapshot != null && count >= 0 ? count : null, ct, cursor);
             if (!response.Success || response.Data == null)
                 return Error<InstitutionalSupplierApControlDto>(response.Message, response.StatusCode);
             var result = response.Data;

@@ -21,6 +21,16 @@ public sealed partial class FacilityVendorServiceBillService
         public decimal Amount { get; set; }
     }
 
+    // Private to the full-population institution audit. Public offset-paged
+    // clients keep their existing stable page/pageSize contract.
+    private sealed class AgingCursor
+    {
+        public bool HasValue { get; set; }
+        public DateOnly DueDate { get; set; }
+        public string InvoiceSource { get; set; } = "";
+        public long Id { get; set; }
+    }
+
     /// <summary>
     /// One read-only, tenant/campus-scoped stock + service payable aging.
     /// All heavy filters and global paging run in SQL. Only at most 50 rows
@@ -37,11 +47,12 @@ public sealed partial class FacilityVendorServiceBillService
     // Public pages continue to count independently, including after data changes.
     private async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingCoreAsync(
         DateOnly asOf, long? campusId, int page, int pageSize,
-        int? snapshotTotalCount, CancellationToken ct)
+        int? snapshotTotalCount, CancellationToken ct, AgingCursor? cursor = null)
     {
         if (!CanRead || asOf == default || asOf.Year is < 2000 or > 2100 ||
             campusId is <= 0 || page is < 1 or > 100000 ||
-            pageSize is < 1 or > 50 || (long)(page - 1) * pageSize > int.MaxValue)
+            pageSize is < 1 or > 50 ||
+            (long)(page - 1) * pageSize > int.MaxValue)
             return Error<FacilitySupplierAgingTotalsDto>("Invalid supplier aging scope.", 400);
         var sourceCampus = campusId ?? await DefaultCampusId(ct);
         if (sourceCampus <= 0 || !await LiveReader(sourceCampus, ct))
@@ -84,9 +95,32 @@ public sealed partial class FacilityVendorServiceBillService
         IQueryable<AgingSource> query = stock.Concat(service);
         if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
         var count = snapshotTotalCount ?? await query.CountAsync(ct);
+        if (cursor is { HasValue: true })
+        {
+            var lastDate = cursor.DueDate;
+            var lastId = cursor.Id;
+            // The sort is DueDate, "Service" before "Stock", then source Id.
+            // On a serializable snapshot this seeks the next key without
+            // repeatedly scanning and skipping all previous invoice rows.
+            if (cursor.InvoiceSource == "Service")
+                query = query.Where(x => x.DueDate > lastDate ||
+                    x.DueDate == lastDate && (x.InvoiceSource == "Stock" ||
+                        x.InvoiceSource == "Service" && x.Id > lastId));
+            else
+                query = query.Where(x => x.DueDate > lastDate ||
+                    x.DueDate == lastDate && x.InvoiceSource == "Stock" && x.Id > lastId);
+        }
         var pageRows = await query.OrderBy(x => x.DueDate)
             .ThenBy(x => x.InvoiceSource).ThenBy(x => x.Id)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+            .Skip(cursor == null ? (page - 1) * pageSize : 0).Take(pageSize).ToListAsync(ct);
+        if (cursor != null && pageRows.Count > 0)
+        {
+            var last = pageRows[^1];
+            cursor.HasValue = true;
+            cursor.DueDate = last.DueDate;
+            cursor.InvoiceSource = last.InvoiceSource;
+            cursor.Id = last.Id;
+        }
         if (pageRows.Count == 0)
             return ApiResponse<FacilitySupplierAgingTotalsDto>.SuccessResponse(new() {
                 AsOf = asOf,

@@ -28,7 +28,7 @@ public sealed partial class FacilityVendorServiceBillService
 
     private async Task<ApiResponse<FacilitySupplierAgingTotalsDto>> SupplierAgingWithGlCoreAsync(
         DateOnly asOf, long? campusId, int page, int pageSize,
-        int? snapshotTotalCount, CancellationToken ct)
+        int? snapshotTotalCount, CancellationToken ct, AgingCursor? cursor = null)
     {
         // The aging source, linked settlements, returns and Finance GL must all
         // reflect the same read snapshot. A bounded (<=50 invoice) serializable
@@ -37,7 +37,8 @@ public sealed partial class FacilityVendorServiceBillService
         // No transaction is started for EF's non-relational test provider.
         await using var snapshot = db.Database.IsRelational() && db.Database.CurrentTransaction == null
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
-        var aging = await SupplierAgingCoreAsync(asOf, campusId, page, pageSize, snapshotTotalCount, ct);
+        var aging = await SupplierAgingCoreAsync(asOf, campusId, page, pageSize,
+            snapshotTotalCount, ct, cursor);
         if (!aging.Success || aging.Data == null)
             return Error<FacilitySupplierAgingTotalsDto>(aging.Message, aging.StatusCode);
         var result = aging.Data;

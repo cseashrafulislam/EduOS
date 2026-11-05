@@ -19,9 +19,13 @@ const allocationJs = read('EduOS.App/wwwroot/js/finance/accounting-cash-flow-jou
 test('institution-wide AP control reads every source page and the independent entire GL', () => {
     assert.match(control, /BeginTransactionAsync\(IsolationLevel\.Serializable/);
     assert.match(control, /SupplierAgingWithGlCoreAsync\(asOf, campusId, page,/);
-    assert.match(control, /batchSize, snapshot != null && count >= 0 \? count : null, ct\)/);
+    assert.match(control, /batchSize, snapshot != null && count >= 0 \? count : null, ct, cursor\)/);
     const aging = read('EduOS.Service/Services/Facilities/FacilitySupplierPayableAging.cs');
     assert.match(aging, /snapshotTotalCount \?\? await query\.CountAsync\(ct\)/);
+    assert.match(aging, /cursor is \{ HasValue: true \}/);
+    assert.match(aging, /query\.Where\(x => x\.DueDate > lastDate/);
+    assert.match(aging, /Skip\(cursor == null \? \(page - 1\) \* pageSize : 0\)/);
+    assert.match(control, /const int batchSize = 50/);
     assert.doesNotMatch(control, /maximumInvoices|count > 5000|Take\(5000\)/);
     assert.match(control, /ids\.Chunk\(400\)/);
     assert.match(control, /row\.GlReconciliationStatus != "Reconciled"/);
@@ -60,9 +64,23 @@ test('5001-invoice AP load rehearsal is opt-in, disposable, measured and tenant-
     assert.match(benchmark, /sql_p95_ms=/);
     assert.match(benchmark, /sql_p99_ms=/);
     assert.match(benchmark, /Assert\.Equal\(1, sql\.PopulationCounts\)/);
+    assert.match(benchmark, /GetPeriodCloseReadinessAsync\(periodId\)/);
+    assert.match(benchmark, /ClosePeriodAsync\(periodId,/);
     assert.match(workflow, /\[supplier-ap-load\]/);
     assert.match(workflow, /EDUOS_SQL_AP_BENCHMARK: '1'/);
     assert.match(workflow, /supplier-ap-load\.trx/);
+});
+
+test('accounting period close checks all journals and lines without a 10K or 30K hard stop', () => {
+    const readiness = read('EduOS.Service/Services/Accounting/AccountingPeriodCloseReadiness.cs');
+    const posting = read('EduOS.Service/Services/Accounting/AccountingSetupService.cs');
+    assert.match(readiness, /journals\.GroupBy\(x => 1\)/);
+    assert.match(readiness, /lines\.GroupBy\(x => x\.JournalId\)/);
+    assert.match(readiness, /HistoricalDeletedJournalLineCount/);
+    assert.match(readiness, /MissingAccountCount/);
+    assert.doesNotMatch(readiness, /Take\(10001\)|Take\(30001\)|More than 10,000|More than 30,000/);
+    assert.match(posting, /GetPeriodCloseReadinessAsync\(periodId, ct\)/);
+    assert.match(posting, /IsolationLevel\.Serializable/);
 });
 
 test('compound journal manual allocation is tenant-scoped, exact, immutable, maker-checker approved', () => {

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Diagnostics;
 using System.Security.Claims;
+using EduOS.Core.DTOs.Accounting;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Inventory;
@@ -10,6 +11,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Facilities;
+using EduOS.Service.Services.Accounting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.SqlClient;
@@ -226,11 +228,37 @@ public sealed class SqlServerSupplierApLoadBenchmarkTests(ITestOutputHelper outp
         var durations = sql.Durations.Order().ToArray();
         Assert.NotEmpty(durations);
         Assert.Equal(1, sql.PopulationCounts);
+        long closeMs = 0;
+        if (invoiceCount == 50001)
+        {
+            // A complete 50K posted-journal period must be closable, not just
+            // readable by the supplier AP audit. Old fixed 10K/30K guards
+            // rejected otherwise balanced history and blocked financial close.
+            var closeWatch = Stopwatch.StartNew();
+            await using var closeDb = Db(options, tenantId, adminId);
+            var accounting = new AccountingSetupService(closeDb,
+                new Principal(tenantId, adminId), TimeProvider.System);
+            var ready = await accounting.GetPeriodCloseReadinessAsync(periodId);
+            Assert.True(ready.Success, ready.Message);
+            Assert.NotNull(ready.Data);
+            Assert.True(ready.Data!.CanClose, string.Join("; ", ready.Data.Blockers));
+            Assert.Equal(invoiceCount, ready.Data.PostedCount);
+            Assert.Equal(0, ready.Data.InvalidJournalCount);
+            Assert.Equal(0, ready.Data.InvalidLineCount);
+            Assert.Equal(0, ready.Data.UnbalancedJournalCount);
+            Assert.Equal(0, ready.Data.MissingAccountCount);
+            var closed = await accounting.ClosePeriodAsync(periodId,
+                new CloseAccountingPeriodRequestDto { RowVersion = ready.Data.RowVersion });
+            Assert.True(closed.Success, closed.Message);
+            Assert.True(closed.Data!.IsClosed);
+            closeWatch.Stop();
+            closeMs = closeWatch.ElapsedMilliseconds;
+        }
         output.WriteLine($"SUPPLIER_AP_LOAD invoices={invoiceCount} fixture_ms={fixture.ElapsedMilliseconds} " +
             $"audit_ms={audit.ElapsedMilliseconds} sql_commands={durations.Length} " +
             $"sql_p50_ms={Percentile(durations, 50):F2} sql_p95_ms={Percentile(durations, 95):F2} " +
             $"sql_p99_ms={Percentile(durations, 99):F2} population_counts={sql.PopulationCounts} " +
-            $"concurrent_writer_wait_ms={concurrentWriteWaitMs} " +
+            $"concurrent_writer_wait_ms={concurrentWriteWaitMs} period_close_ms={closeMs} " +
             $"reconciled=true cross_tenant_clean=true");
     }
 

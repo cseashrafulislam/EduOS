@@ -41,7 +41,8 @@ test('supplier aging unions stock and nonstock sources at SQL paging with as-of 
     const aging = read('EduOS.Service/Services/Facilities/FacilitySupplierPayableAging.cs');
     const migration = read('EduOS.Persistence/Migrations/20261104121200_FacilityVendorSettlementJournalLineage.cs');
     assert.match(aging, /stock.Concat\(service\)/);
-    assert.match(aging, /Skip\(\(page - 1\) \* pageSize\)\.Take\(pageSize\)/);
+    assert.match(aging, /Skip\(cursor == null \? \(page - 1\) \* pageSize : 0\)\.Take\(pageSize\)/);
+    assert.match(aging, /if \(cursor is \{ HasValue: true \}\)/);
     assert.match(aging, /JournalDate <= asOf/);
     assert.match(aging, /InvoiceReversedAsOf = isReversed/);
     assert.match(aging, /j.State == JournalState.Posted && j.JournalDate <= asOf/);

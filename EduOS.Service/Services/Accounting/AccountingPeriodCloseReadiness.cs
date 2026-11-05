@@ -35,25 +35,35 @@ public sealed partial class AccountingSetupService
                 journal.AccountingPeriodId == periodId && line.IsDeleted
             select line.Id).CountAsync(ct);
 
-        var journals = await db.Journals.AsNoTracking()
-            .Where(x => x.TenantId == user.TenantId && !x.IsDeleted && x.AccountingPeriodId == periodId)
-            .Select(x => new { x.Id, x.JournalDate, x.State, x.CurrencyCode, x.CampusId })
-            .OrderBy(x => x.Id).Take(10001).ToListAsync(ct);
-        if (journals.Count > 10000)
-            return ApiResponse<AccountingPeriodCloseReadinessDto>.ErrorResponse(
-                "More than 10,000 period journals; use a controlled reconciliation export.", 422);
+        // Validate the entire period in SQL. A fixed row cap made a valid,
+        // fully balanced high-volume period impossible to close.
+        var journals = db.Journals.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && x.AccountingPeriodId == periodId);
+        var validStates = Enum.GetValues<JournalState>();
+        var summary = await journals.GroupBy(x => 1).Select(g => new
+        {
+            Draft = g.Count(x => x.State == JournalState.Draft),
+            Submitted = g.Count(x => x.State == JournalState.Submitted),
+            Approved = g.Count(x => x.State == JournalState.Approved),
+            Posted = g.Count(x => x.State == JournalState.Posted),
+            Reversed = g.Count(x => x.State == JournalState.Reversed),
+            Invalid = g.Count(x => x.JournalDate < period.StartDate || x.JournalDate > period.EndDate ||
+                !validStates.Contains(x.State) ||
+                ((x.State == JournalState.Posted || x.State == JournalState.Reversed) && x.CurrencyCode != "BDT"))
+        }).SingleOrDefaultAsync(ct);
 
         var result = new AccountingPeriodCloseReadinessDto
         {
             PeriodId = period.Id, PeriodName = period.Name, StartDate = period.StartDate,
             EndDate = period.EndDate, RowVersion = V(period.RowVersion), IsClosed = period.IsClosed,
-            DraftCount = journals.Count(x => x.State == JournalState.Draft),
-            SubmittedCount = journals.Count(x => x.State == JournalState.Submitted),
-            ApprovedCount = journals.Count(x => x.State == JournalState.Approved),
-            PostedCount = journals.Count(x => x.State == JournalState.Posted),
-            ReversedCount = journals.Count(x => x.State == JournalState.Reversed),
+            DraftCount = summary?.Draft ?? 0,
+            SubmittedCount = summary?.Submitted ?? 0,
+            ApprovedCount = summary?.Approved ?? 0,
+            PostedCount = summary?.Posted ?? 0,
+            ReversedCount = summary?.Reversed ?? 0,
             HistoricalDeletedJournalCount = historicalDeletedCount,
-            HistoricalDeletedJournalLineCount = historicalDeletedLineCount
+            HistoricalDeletedJournalLineCount = historicalDeletedLineCount,
+            InvalidJournalCount = summary?.Invalid ?? 0
         };
         var blockers = new List<string>();
         if (period.IsClosed) blockers.Add("This accounting period is already closed.");
@@ -64,54 +74,48 @@ public sealed partial class AccountingSetupService
         if (result.DraftCount + result.SubmittedCount + result.ApprovedCount > 0)
             blockers.Add("Draft, submitted or approved journals must be resolved before closure.");
 
-        var posted = journals.Where(x => x.State == JournalState.Posted || x.State == JournalState.Reversed).ToArray();
-        result.InvalidJournalCount = journals.Count(x =>
-            x.JournalDate < period.StartDate || x.JournalDate > period.EndDate ||
-            !Enum.IsDefined(x.State) ||
-            ((x.State == JournalState.Posted || x.State == JournalState.Reversed) && x.CurrencyCode != "BDT"));
         if (result.InvalidJournalCount > 0)
             blockers.Add("Period contains out-of-range dates, invalid states or non-BDT posted journals.");
 
-        if (posted.Length > 0)
+        if (result.PostedCount + result.ReversedCount > 0)
         {
-            var lines = await (from line in db.JournalLines.AsNoTracking()
-                join journal in db.Journals.AsNoTracking() on line.JournalId equals journal.Id
-                where line.TenantId == user.TenantId && journal.TenantId == user.TenantId &&
-                    !line.IsDeleted && !journal.IsDeleted && journal.AccountingPeriodId == periodId &&
-                    (journal.State == JournalState.Posted || journal.State == JournalState.Reversed)
-                select new { line.JournalId, line.LineNo, line.AccountId, line.CampusId,
-                    line.DebitAmount, line.CreditAmount })
-                .Take(30001).ToListAsync(ct);
-            if (lines.Count > 30000)
-                return ApiResponse<AccountingPeriodCloseReadinessDto>.ErrorResponse(
-                    "More than 30,000 posted journal lines; use a controlled reconciliation export.", 422);
+            var posted = journals.Where(x => x.State == JournalState.Posted || x.State == JournalState.Reversed);
+            var lines = from line in db.JournalLines.AsNoTracking()
+                join journal in posted on new { line.TenantId, Id = line.JournalId }
+                    equals new { journal.TenantId, journal.Id }
+                where line.TenantId == user.TenantId && !line.IsDeleted
+                select new { line.TenantId, line.JournalId, line.LineNo, line.AccountId,
+                    line.CampusId, JournalCampusId = journal.CampusId,
+                    line.DebitAmount, line.CreditAmount };
 
-            var accountIds = lines.Select(x => x.AccountId).Distinct().ToArray();
-            var accounts = await db.Accounts.AsNoTracking()
-                .Where(x => x.TenantId == user.TenantId && !x.IsDeleted && accountIds.Contains(x.Id))
-                .Select(x => new { x.Id, x.CurrencyCode, x.IsGroup, x.AllowsPosting })
-                .ToListAsync(ct);
-            var validAccountIds = accounts.Where(x => x.CurrencyCode == "BDT" &&
-                !x.IsGroup && x.AllowsPosting).Select(x => x.Id).ToHashSet();
-            result.MissingAccountCount = lines.Count(x => !validAccountIds.Contains(x.AccountId));
+            var lineCount = await lines.CountAsync(ct);
+            var distinctNumbers = await lines.Select(x => new { x.JournalId, x.LineNo })
+                .Distinct().CountAsync(ct);
+            result.InvalidLineCount = await lines.CountAsync(x =>
+                x.LineNo <= 0 || x.AccountId <= 0 || x.DebitAmount < 0m || x.CreditAmount < 0m ||
+                (x.DebitAmount > 0m && x.CreditAmount > 0m) ||
+                (x.DebitAmount == 0m && x.CreditAmount == 0m) ||
+                (x.JournalCampusId.HasValue && x.CampusId.HasValue &&
+                    x.JournalCampusId != x.CampusId), ct) + lineCount - distinctNumbers;
+
+            result.MissingAccountCount = await (from line in lines
+                join account in db.Accounts.AsNoTracking().Where(a =>
+                    a.TenantId == user.TenantId && !a.IsDeleted)
+                    on new { line.TenantId, Id = line.AccountId }
+                    equals new { account.TenantId, account.Id } into matching
+                from account in matching.DefaultIfEmpty()
+                where account == null || account.CurrencyCode != "BDT" ||
+                    account.IsGroup || !account.AllowsPosting
+                select line.JournalId).CountAsync(ct);
             if (result.MissingAccountCount > 0)
                 blockers.Add("Posted lines reference missing or non-postable BDT accounts.");
 
-            var byJournal = lines.ToLookup(x => x.JournalId);
-            foreach (var journal in posted)
-            {
-                var entries = byJournal[journal.Id].ToArray();
-                result.InvalidLineCount += entries.Count(x =>
-                    x.LineNo <= 0 || x.AccountId <= 0 || x.DebitAmount < 0m || x.CreditAmount < 0m ||
-                    (x.DebitAmount > 0m && x.CreditAmount > 0m) ||
-                    (x.DebitAmount == 0m && x.CreditAmount == 0m) ||
-                    (journal.CampusId.HasValue && x.CampusId.HasValue && journal.CampusId != x.CampusId));
-                result.InvalidLineCount += entries.Length - entries.Select(x => x.LineNo).Distinct().Count();
-                if (entries.Length < 2 ||
-                    entries.Sum(x => x.DebitAmount) <= 0m ||
-                    entries.Sum(x => x.DebitAmount) != entries.Sum(x => x.CreditAmount))
-                    result.UnbalancedJournalCount++;
-            }
+            var withLines = await lines.Select(x => x.JournalId).Distinct().CountAsync(ct);
+            var unbalancedWithLines = await lines.GroupBy(x => x.JournalId)
+                .Where(g => g.Count() < 2 || g.Sum(x => x.DebitAmount) <= 0m ||
+                    g.Sum(x => x.DebitAmount) != g.Sum(x => x.CreditAmount))
+                .CountAsync(ct);
+            result.UnbalancedJournalCount = result.PostedCount + result.ReversedCount - withLines + unbalancedWithLines;
             if (result.InvalidLineCount > 0)
                 blockers.Add("Posted journal lines have invalid debit/credit, duplicate line numbers or campus attribution.");
             if (result.UnbalancedJournalCount > 0)
