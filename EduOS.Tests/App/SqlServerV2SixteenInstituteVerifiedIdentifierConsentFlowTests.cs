@@ -1,4 +1,7 @@
 using EduOS.Core.DTOs.Learners;
+using EduOS.Core.Entities.Admission;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
@@ -44,6 +47,16 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             new GenericRepository<StudentPersonLink>(db),
             new GenericRepository<LearnerConsentRequest>(db),
             new GenericRepository<LearnerIdentityAccessLog>(db),
+            new PersonTenantIsolationGuard(
+                new GenericRepository<StudentPersonLink>(db),
+                new GenericRepository<Student>(db),
+                new GenericRepository<Guardian>(db),
+                new GenericRepository<Employee>(db),
+                new GenericRepository<AdmissionApplicant>(db),
+                new GenericRepository<TenantMembership>(db),
+                new GenericRepository<ApplicationUser>(db),
+                new GenericRepository<LearnerConsentRequest>(db),
+                new GenericRepository<LearnerDataGrant>(db)),
             db,
             new TenantAdmin(tenantId, userId),
             new LearnerIdentifierProtector(settings, new EphemeralDataProtectionProvider()),
@@ -224,6 +237,68 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 x.PersonId == origin.PersonId && x.GrantedScopes == "1"));
             Assert.Equal(1, await db.LearnerIdentityAccessLogs.CountAsync(x =>
                 x.StudentId == member.StudentId && x.ReasonCode == "CONSENT_APPROVED"));
+        }
+    }
+
+    [Fact]
+    public async Task SQL_shared_person_identifier_append_is_blocked_by_archived_foreign_membership()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+
+        var origin = await SeedAsync(connection);
+        var other = await SeedAsync(connection);
+        long personId;
+        Guid studentReference;
+        await using (var db = ScopedContext(origin.Options, origin.TenantId, origin.UserId))
+        {
+            var student = await db.Students.SingleAsync(x => x.TenantId == origin.TenantId &&
+                x.StudentCode.StartsWith("CAP-A-"));
+            student.DateOfBirth = new DateOnly(2010, 1, 2);
+            personId = student.PersonId;
+            studentReference = student.PublicId;
+            (await db.Users.SingleAsync(x => x.Id == origin.UserId)).PersonId = personId;
+            await db.SaveChangesAsync();
+
+            var local = await CohortIdentityService(db, origin.TenantId, origin.UserId)
+                .RegisterOrRequestByReferenceAsync(new RegisterLearnerIdentityByReferenceRequestDto
+                {
+                    StudentReference = studentReference,
+                    IdentifierType = PersonIdentifierType.NationalId,
+                    IdentifierValue = "9034567890",
+                    Purpose = LearnerIdentityPurpose.Admission,
+                    RequestedScopes = LearnerDataScope.BasicIdentity
+                });
+            Assert.True(local.Success, local.Message);
+            Assert.Equal("IdentifierAdded", local.Data!.State);
+            Assert.Equal(1, await db.PersonIdentifiers.CountAsync(x => x.PersonId == personId));
+        }
+
+        await using (var db = ScopedContext(other.Options, other.TenantId, other.UserId))
+        {
+            db.TenantMemberships.Add(new TenantMembership
+            {
+                TenantId = other.TenantId, UserId = origin.UserId, IsDeleted = true
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = ScopedContext(origin.Options, origin.TenantId, origin.UserId))
+        {
+            var rejected = await CohortIdentityService(db, origin.TenantId, origin.UserId)
+                .RegisterOrRequestByReferenceAsync(new RegisterLearnerIdentityByReferenceRequestDto
+                {
+                    StudentReference = studentReference,
+                    IdentifierType = PersonIdentifierType.BirthRegistration,
+                    IdentifierValue = "20012692510000123",
+                    Purpose = LearnerIdentityPurpose.Admission,
+                    RequestedScopes = LearnerDataScope.BasicIdentity
+                });
+            Assert.Equal(409, rejected.StatusCode);
+            Assert.Equal(1, await db.PersonIdentifiers.CountAsync(x => x.PersonId == personId));
+            Assert.Equal(1, await db.LearnerIdentityAccessLogs.CountAsync(x =>
+                x.TenantId == origin.TenantId && x.PersonId == personId &&
+                x.ReasonCode == "SHARED_PERSON_IDENTIFIER_REVIEW_REQUIRED"));
         }
     }
 }

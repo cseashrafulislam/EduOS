@@ -1,4 +1,7 @@
 using EduOS.Core.DTOs.Learners;
+using EduOS.Core.Entities.Admission;
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums;
@@ -74,6 +77,111 @@ public class LearnerIdentityServiceTests
         (await context.PersonIdentifiers.CountAsync()).Should().Be(1);
         (await context.StudentPersonLinks.CountAsync()).Should().Be(1);
         (await context.LearnerIdentityAccessLogs.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Tenant_local_person_can_add_an_identifier_without_changing_student_identity()
+    {
+        var options = CreateOptions();
+        await using var db = CreateContext(options, 101);
+        var student = await AddStudentAsync(db, 101, "Local Student");
+        var person = new Person { FullName = "Local Student" };
+        db.Persons.Add(person);
+        await db.SaveChangesAsync();
+        student.PersonId = person.Id;
+        db.StudentPersonLinks.Add(new StudentPersonLink
+        {
+            TenantId = 101, StudentId = student.Id, PersonId = person.Id,
+            LinkedAt = DateTime.UtcNow, IsPrimary = true
+        });
+        await db.SaveChangesAsync();
+
+        var result = await CreateService(db, new TestCurrentUser(101), LookupKey)
+            .RegisterOrRequestAsync(Request(student.Id, PersonIdentifierType.NationalId, "1234567890"));
+
+        result.Success.Should().BeTrue();
+        result.Data!.State.Should().Be("IdentifierAdded");
+        (await db.PersonIdentifiers.SingleAsync()).PersonId.Should().Be(person.Id);
+        (await db.Students.SingleAsync()).PersonId.Should().Be(person.Id);
+    }
+
+    [Fact]
+    public async Task Shared_person_cannot_receive_a_new_global_identifier_from_one_institution()
+    {
+        var options = CreateOptions();
+        await using var db = CreateContext(options, 101);
+        var student = await AddStudentAsync(db, 101, "First Student");
+        var person = new Person { FullName = "First Student" };
+        db.Persons.Add(person);
+        await db.SaveChangesAsync();
+        student.PersonId = person.Id;
+        db.StudentPersonLinks.Add(new StudentPersonLink
+        {
+            TenantId = 101, StudentId = student.Id, PersonId = person.Id,
+            LinkedAt = DateTime.UtcNow, IsPrimary = true
+        });
+        await db.SaveChangesAsync();
+
+        await using (var foreign = CreateContext(options, 202))
+        {
+            var otherStudent = await AddStudentAsync(foreign, 202, "Second Student");
+            otherStudent.PersonId = person.Id;
+            foreign.StudentPersonLinks.Add(new StudentPersonLink
+            {
+                TenantId = 202, StudentId = otherStudent.Id, PersonId = person.Id,
+                LinkedAt = DateTime.UtcNow, IsPrimary = true
+            });
+            await foreign.SaveChangesAsync();
+        }
+
+        var result = await CreateService(db, new TestCurrentUser(101), LookupKey)
+            .RegisterOrRequestAsync(Request(student.Id, PersonIdentifierType.NationalId, "1234567890"));
+
+        result.Success.Should().BeFalse();
+        result.StatusCode.Should().Be(409);
+        result.Data.Should().BeNull();
+        (await db.PersonIdentifiers.CountAsync()).Should().Be(0);
+        (await db.StudentPersonLinks.IgnoreQueryFilters().CountAsync()).Should().Be(2);
+        (await db.LearnerIdentityAccessLogs.SingleAsync()).ReasonCode
+            .Should().Be("SHARED_PERSON_IDENTIFIER_REVIEW_REQUIRED");
+    }
+
+    [Fact]
+    public async Task Shared_identifier_cannot_create_a_new_tenant_link_but_replays_an_existing_link()
+    {
+        var options = CreateOptions();
+        long sharedPersonId;
+        await using (var origin = CreateContext(options, 101))
+        {
+            var student = await AddStudentAsync(origin, 101, "Origin Student");
+            var created = await CreateService(origin, new TestCurrentUser(101), LookupKey)
+                .RegisterOrRequestAsync(Request(student.Id, PersonIdentifierType.NationalId, "1234567890"));
+            created.Success.Should().BeTrue();
+            sharedPersonId = (await origin.PersonIdentifiers.SingleAsync()).PersonId;
+        }
+
+        await using var other = CreateContext(options, 202);
+        var local = await AddStudentAsync(other, 202, "Existing Shared Student");
+        local.PersonId = sharedPersonId;
+        await other.SaveChangesAsync();
+        var service = CreateService(other, new TestCurrentUser(202), LookupKey);
+        var attempt = Request(local.Id, PersonIdentifierType.NationalId, "1234567890");
+
+        (await service.RegisterOrRequestAsync(attempt)).StatusCode.Should().Be(409);
+        (await other.StudentPersonLinks.IgnoreQueryFilters().CountAsync()).Should().Be(1);
+        (await other.PersonIdentifiers.CountAsync()).Should().Be(1);
+
+        // This fixture models a link independently granted before the replay.
+        other.StudentPersonLinks.Add(new StudentPersonLink
+        {
+            TenantId = 202, StudentId = local.Id, PersonId = sharedPersonId,
+            IsPrimary = true, LinkedAt = DateTime.UtcNow
+        });
+        await other.SaveChangesAsync();
+        var replay = await service.RegisterOrRequestAsync(attempt);
+        replay.Success.Should().BeTrue();
+        replay.Data!.State.Should().Be("AlreadyLinked");
+        (await other.StudentPersonLinks.IgnoreQueryFilters().CountAsync()).Should().Be(2);
     }
 
     [Fact]
@@ -474,6 +582,16 @@ public class LearnerIdentityServiceTests
             new GenericRepository<StudentPersonLink>(context),
             new GenericRepository<LearnerConsentRequest>(context),
             new GenericRepository<LearnerIdentityAccessLog>(context),
+            new PersonTenantIsolationGuard(
+                new GenericRepository<StudentPersonLink>(context),
+                new GenericRepository<Student>(context),
+                new GenericRepository<Guardian>(context),
+                new GenericRepository<Employee>(context),
+                new GenericRepository<AdmissionApplicant>(context),
+                new GenericRepository<TenantMembership>(context),
+                new GenericRepository<ApplicationUser>(context),
+                new GenericRepository<LearnerConsentRequest>(context),
+                new GenericRepository<LearnerDataGrant>(context)),
             context,
             currentUser,
             protector,

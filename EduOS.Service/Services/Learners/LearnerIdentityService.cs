@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Learners;
@@ -27,6 +28,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
     private readonly IGenericRepository<StudentPersonLink> _links;
     private readonly IGenericRepository<LearnerConsentRequest> _consentRequests;
     private readonly IGenericRepository<LearnerIdentityAccessLog> _accessLogs;
+    private readonly PersonTenantIsolationGuard _isolation;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
     private readonly ILearnerIdentifierProtector _identifierProtector;
@@ -40,6 +42,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         IGenericRepository<StudentPersonLink> links,
         IGenericRepository<LearnerConsentRequest> consentRequests,
         IGenericRepository<LearnerIdentityAccessLog> accessLogs,
+        PersonTenantIsolationGuard isolation,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         ILearnerIdentifierProtector identifierProtector,
@@ -52,6 +55,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         _links = links;
         _consentRequests = consentRequests;
         _accessLogs = accessLogs;
+        _isolation = isolation;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
         _identifierProtector = identifierProtector;
@@ -292,6 +296,22 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
 
         return await _unitOfWork.ExecuteInTransactionAsync(async token =>
         {
+            var activeLink = await _links.GetQueryable()
+                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId &&
+                                          x.StudentId == student.Id &&
+                                          x.PersonId == person.Id &&
+                                          x.UnlinkedAt == null, token);
+            // A new identifier mutates the global Person; a missing local link
+            // would create a new identity claim. Neither may bypass consent
+            // when another institution has ever associated with this Person.
+            if ((matchingIdentifier == null || activeLink == null) &&
+                await _isolation.HasOtherTenantAssociationAsync(person.Id, _currentUser.TenantId, token))
+            {
+                await AddAccessLogAsync(person.Id, student.Id, null, "RegisterOrLink", "Denied",
+                    purpose, "SHARED_PERSON_IDENTIFIER_REVIEW_REQUIRED");
+                await _unitOfWork.SaveChangesAsync(token);
+                return Error("Identity identifier changes require independent review.", 409);
+            }
             if (matchingIdentifier == null)
             {
                 await _identifiers.AddAsync(new PersonIdentifier
@@ -305,12 +325,6 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
                     CreatedAt = DateTime.UtcNow
                 });
             }
-
-            var activeLink = await _links.GetQueryable()
-                .FirstOrDefaultAsync(x => x.TenantId == _currentUser.TenantId &&
-                                          x.StudentId == student.Id &&
-                                          x.PersonId == person.Id &&
-                                          x.UnlinkedAt == null, cancellationToken);
             if (activeLink == null)
             {
                 await _links.AddAsync(new StudentPersonLink
@@ -331,7 +345,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
                 matchingIdentifier == null ? "Created" : "Reused", purpose, matchingIdentifier == null ? "IDENTIFIER_ADDED" : "IDENTITY_ALREADY_LINKED");
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return Success(matchingIdentifier == null ? "IdentifierAdded" : "AlreadyLinked", person.PublicId, "Learner identity is linked.");
-        }, cancellationToken);
+        }, IsolationLevel.Serializable, cancellationToken);
     }
 
     private async Task<ApiResponse<LearnerIdentityResultDto>> CreateIdentityAsync(

@@ -1,9 +1,6 @@
 using System.Data;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Learners;
-using EduOS.Core.Entities.Admission;
-using EduOS.Core.Entities.Auth;
-using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Interfaces;
@@ -21,50 +18,32 @@ namespace EduOS.Service.Services.Learners;
 public sealed class StudentPersonAddressService : IStudentPersonAddressService
 {
     private readonly IGenericRepository<Student> _students;
-    private readonly IGenericRepository<Guardian> _guardians;
-    private readonly IGenericRepository<Employee> _employees;
-    private readonly IGenericRepository<AdmissionApplicant> _applicants;
-    private readonly IGenericRepository<TenantMembership> _memberships;
-    private readonly IGenericRepository<ApplicationUser> _identityUsers;
     private readonly IGenericRepository<Person> _persons;
     private readonly IGenericRepository<StudentPersonLink> _links;
     private readonly IGenericRepository<PersonAddress> _addresses;
-    private readonly IGenericRepository<LearnerConsentRequest> _consents;
-    private readonly IGenericRepository<LearnerDataGrant> _grants;
     private readonly IGenericRepository<LearnerIdentityAccessLog> _logs;
+    private readonly PersonTenantIsolationGuard _isolation;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _user;
     private readonly ILogger<StudentPersonAddressService> _logger;
 
     public StudentPersonAddressService(
         IGenericRepository<Student> students,
-        IGenericRepository<Guardian> guardians,
-        IGenericRepository<Employee> employees,
-        IGenericRepository<AdmissionApplicant> applicants,
-        IGenericRepository<TenantMembership> memberships,
-        IGenericRepository<ApplicationUser> identityUsers,
         IGenericRepository<Person> persons,
         IGenericRepository<StudentPersonLink> links,
         IGenericRepository<PersonAddress> addresses,
-        IGenericRepository<LearnerConsentRequest> consents,
-        IGenericRepository<LearnerDataGrant> grants,
         IGenericRepository<LearnerIdentityAccessLog> logs,
+        PersonTenantIsolationGuard isolation,
         IUnitOfWork unitOfWork,
         ICurrentUserService user,
         ILogger<StudentPersonAddressService> logger)
     {
         _students = students;
-        _guardians = guardians;
-        _employees = employees;
-        _applicants = applicants;
-        _memberships = memberships;
-        _identityUsers = identityUsers;
         _persons = persons;
         _links = links;
         _addresses = addresses;
-        _consents = consents;
-        _grants = grants;
         _logs = logs;
+        _isolation = isolation;
         _unitOfWork = unitOfWork;
         _user = user;
         _logger = logger;
@@ -95,24 +74,7 @@ public sealed class StudentPersonAddressService : IStudentPersonAddressService
                 !x.IsDeleted && x.UnlinkedAt == null, ct))
             return null;
 
-        if (await _links.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
-            || await _students.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
-            || await _guardians.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
-            || await _employees.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
-            || await _applicants.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
-            || await _memberships.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.TenantId != _user.TenantId &&
-                    _identityUsers.GetQueryable().IgnoreQueryFilters().Any(u =>
-                        u.Id == x.UserId && u.PersonId == personId), ct)
-            || await _consents.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct)
-            || await _grants.GetQueryable().IgnoreQueryFilters().AsNoTracking()
-                .AnyAsync(x => x.PersonId == personId && x.TenantId != _user.TenantId, ct))
+        if (await _isolation.HasOtherTenantAssociationAsync(personId, _user.TenantId, ct))
             return null;
         return student;
     }

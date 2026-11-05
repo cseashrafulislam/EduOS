@@ -213,18 +213,23 @@ public sealed class StudentPersonAddressWorkflowTests
 
     private static StudentPersonAddressService CreateService(EduOSDbContext db, ICurrentUserService user) => new(
         new GenericRepository<Student>(db),
+        new GenericRepository<Person>(db),
+        new GenericRepository<StudentPersonLink>(db),
+        new GenericRepository<PersonAddress>(db),
+        new GenericRepository<LearnerIdentityAccessLog>(db),
+        PersonIsolationGuard(db),
+        db, user, NullLogger<StudentPersonAddressService>.Instance);
+
+    private static PersonTenantIsolationGuard PersonIsolationGuard(EduOSDbContext db) => new(
+        new GenericRepository<StudentPersonLink>(db),
+        new GenericRepository<Student>(db),
         new GenericRepository<Guardian>(db),
         new GenericRepository<Employee>(db),
         new GenericRepository<AdmissionApplicant>(db),
         new GenericRepository<TenantMembership>(db),
         new GenericRepository<ApplicationUser>(db),
-        new GenericRepository<Person>(db),
-        new GenericRepository<StudentPersonLink>(db),
-        new GenericRepository<PersonAddress>(db),
         new GenericRepository<LearnerConsentRequest>(db),
-        new GenericRepository<LearnerDataGrant>(db),
-        new GenericRepository<LearnerIdentityAccessLog>(db),
-        db, user, NullLogger<StudentPersonAddressService>.Instance);
+        new GenericRepository<LearnerDataGrant>(db));
 
     private static string Read(params string[] segments)
     {
