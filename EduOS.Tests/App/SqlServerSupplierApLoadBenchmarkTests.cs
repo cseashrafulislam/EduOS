@@ -125,14 +125,20 @@ public sealed class SqlServerSupplierApLoadBenchmarkTests(ITestOutputHelper outp
 
         var fixture = Stopwatch.StartNew();
         await using (var seed = new EduOSDbContext(options))
-        await using (var tx = await seed.Database.BeginTransactionAsync())
         {
-            // One-time setup intentionally inserts up to 150K accounting rows.
-            // Do not apply this relaxed timeout to the measured report path.
-            seed.Database.SetCommandTimeout(TimeSpan.FromMinutes(5));
-            await InsertSyntheticBatchAsync(seed, invoiceCount, "APB-" + suffix + "-",
-                asOf, tenantId, poId, supplierId, campusId, periodId,
-                inventoryId, payableId, invoiceAmount);
+            seed.Database.SetCommandTimeout(TimeSpan.FromSeconds(90));
+            // The benchmark must not spend five minutes building one giant
+            // fixture transaction. Commit bounded, fully linked synthetic
+            // batches; audit timing starts only after all data is present.
+            const int fixtureBatchSize = 2500;
+            for (var offset = 0; offset < invoiceCount; offset += fixtureBatchSize)
+            {
+                await using var tx = await seed.Database.BeginTransactionAsync();
+                await InsertSyntheticBatchAsync(seed, Math.Min(fixtureBatchSize, invoiceCount - offset),
+                    "APB-" + suffix + "-" + offset + "-", asOf, tenantId, poId,
+                    supplierId, campusId, periodId, inventoryId, payableId, invoiceAmount);
+                await tx.CommitAsync();
+            }
             using (seed.BeginSystemTenantScope(tenantId))
             {
                 Assert.Equal(invoiceCount, await seed.ProcurementSupplierInvoices
@@ -140,7 +146,6 @@ public sealed class SqlServerSupplierApLoadBenchmarkTests(ITestOutputHelper outp
                 Assert.Equal(invoiceCount * 2, await seed.JournalLines.CountAsync(x =>
                     x.TenantId == tenantId && (x.AccountId == inventoryId || x.AccountId == payableId)));
             }
-            await tx.CommitAsync();
         }
         fixture.Stop();
 

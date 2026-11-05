@@ -52,6 +52,7 @@ test('5001-invoice AP load rehearsal is opt-in, disposable, measured and tenant-
     assert.match(benchmark, /\[InlineData\(5001\)\]/);
     assert.match(benchmark, /\[InlineData\(10001\)\]/);
     assert.match(benchmark, /\[InlineData\(50001\)\]/);
+    assert.match(benchmark, /const int fixtureBatchSize = 2500/);
     assert.match(benchmark, /PopulationCountObserved/);
     assert.match(benchmark, /concurrent_writer_wait_ms=/);
     assert.match(benchmark, /ControlAccountGlBalance/);
