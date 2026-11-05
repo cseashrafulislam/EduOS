@@ -134,15 +134,16 @@ public class LearnerIdentityServiceTests
             await foreign.SaveChangesAsync();
         }
 
-        var result = await CreateService(db, new TestCurrentUser(101), LookupKey)
+        await using var localTenant = CreateContext(options, 101);
+        var result = await CreateService(localTenant, new TestCurrentUser(101), LookupKey)
             .RegisterOrRequestAsync(Request(student.Id, PersonIdentifierType.NationalId, "1234567890"));
 
         result.Success.Should().BeFalse();
         result.StatusCode.Should().Be(409);
         result.Data.Should().BeNull();
-        (await db.PersonIdentifiers.CountAsync()).Should().Be(0);
-        (await db.StudentPersonLinks.IgnoreQueryFilters().CountAsync()).Should().Be(2);
-        (await db.LearnerIdentityAccessLogs.SingleAsync()).ReasonCode
+        (await localTenant.PersonIdentifiers.CountAsync()).Should().Be(0);
+        (await localTenant.StudentPersonLinks.IgnoreQueryFilters().CountAsync()).Should().Be(2);
+        (await localTenant.LearnerIdentityAccessLogs.SingleAsync()).ReasonCode
             .Should().Be("SHARED_PERSON_IDENTIFIER_REVIEW_REQUIRED");
     }
 

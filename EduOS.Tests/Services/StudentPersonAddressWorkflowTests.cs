@@ -98,7 +98,8 @@ public sealed class StudentPersonAddressWorkflowTests
             });
             await otherTenant.SaveChangesAsync();
         }
-        var service = CreateService(db, new CurrentUser(101));
+        await using var ownTenant = CreateDb(101, options);
+        var service = CreateService(ownTenant, new CurrentUser(101));
         (await service.GetAsync(student.PublicId)).StatusCode.Should().Be(404);
         (await service.SaveAsync(student.PublicId, "Current", Request())).StatusCode.Should().Be(404);
     }
@@ -120,10 +121,11 @@ public sealed class StudentPersonAddressWorkflowTests
             });
             await otherTenant.SaveChangesAsync();
         }
-        var service = CreateService(db, new CurrentUser(101));
+        await using var ownTenant = CreateDb(101, options);
+        var service = CreateService(ownTenant, new CurrentUser(101));
         (await service.GetAsync(student.PublicId)).StatusCode.Should().Be(404);
         (await service.SaveAsync(student.PublicId, "Current", Request())).StatusCode.Should().Be(404);
-        (await db.PersonAddresses.CountAsync()).Should().Be(0);
+        (await ownTenant.PersonAddresses.CountAsync()).Should().Be(0);
     }
 
     [Fact]
@@ -146,9 +148,11 @@ public sealed class StudentPersonAddressWorkflowTests
                 IsDeleted = true });
             await otherTenant.SaveChangesAsync();
         }
-        (await service.GetAsync(student.PublicId)).StatusCode.Should().Be(404);
-        (await service.SaveAsync(student.PublicId, "Permanent", Request())).StatusCode.Should().Be(404);
-        (await db.PersonAddresses.CountAsync()).Should().Be(1);
+        await using var ownTenant = CreateDb(101, options);
+        var ownerService = CreateService(ownTenant, new CurrentUser(101));
+        (await ownerService.GetAsync(student.PublicId)).StatusCode.Should().Be(404);
+        (await ownerService.SaveAsync(student.PublicId, "Permanent", Request())).StatusCode.Should().Be(404);
+        (await ownTenant.PersonAddresses.CountAsync()).Should().Be(1);
     }
 
     [Fact]
