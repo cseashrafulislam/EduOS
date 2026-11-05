@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.Payroll;
@@ -98,6 +99,51 @@ public sealed class CentralFinancePostingAuditTests
         returns.StatusCode.Should().Be(200);
         returns.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 2 &&
             x.PostingStatus == "Posted" && x.SourceState == "Reversed");
+    }
+
+    [Fact]
+    public async Task Procurement_inventory_and_facility_service_share_GL_without_double_counting_purchase_as_expense()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.Accounts.AddRange(
+            new Account { Id=3, TenantId=41, Code="EXP", Name="Facility expense", AccountType=AccountType.Expense },
+            new Account { Id=4, TenantId=41, Code="AP", Name="Supplier payable", AccountType=AccountType.Liability },
+            new Account { Id=5, TenantId=41, Code="INV", Name="Inventory asset", AccountType=AccountType.Asset });
+        db.ProcurementSupplierInvoices.Add(new ProcurementSupplierInvoice {
+            Id=1, TenantId=41, PurchaseOrderId=7, SupplierId=8, CampusId=10,
+            SupplierInvoiceNumber="SUP-1", NormalizedSupplierInvoiceNumber="SUP-1",
+            InvoiceDate=From, DueDate=To, TotalAmount=90m, StockValue=90m,
+            StateCode="Posted", JournalId=61 });
+        db.FacilityVendorServiceBills.Add(new FacilityVendorServiceBill {
+            Id=2, TenantId=41, FacilityWorkOrderId=9, SupplierId=8, CampusId=10,
+            SupplierInvoiceNumber="FAC-2", NormalizedSupplierInvoiceNumber="FAC-2",
+            InvoiceDate=From, DueDate=To, AmountBdt=90m,
+            StateCode="Posted", JournalId=62 });
+        Journal(db, 61, "ProcurementSupplierInvoice", 1, 90m);
+        Journal(db, 62, "FacilityVendorServiceBill", 2, 90m);
+        db.Journals.Local.Single(x => x.Id == 61).CampusId = 10;
+        db.Journals.Local.Single(x => x.Id == 62).CampusId = 10;
+        db.JournalLines.Local.Single(x => x.JournalId == 61 && x.DebitAmount > 0m).AccountId = 5;
+        db.JournalLines.Local.Single(x => x.JournalId == 61 && x.CreditAmount > 0m).AccountId = 4;
+        db.JournalLines.Local.Single(x => x.JournalId == 62 && x.DebitAmount > 0m).AccountId = 3;
+        db.JournalLines.Local.Single(x => x.JournalId == 62 && x.CreditAmount > 0m).AccountId = 4;
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var procurement = await service.GetFinanceSourcePostingAuditAsync(From, To, "procurement");
+        var facility = await service.GetFinanceSourcePostingAuditAsync(From, To, "facilities");
+        procurement.StatusCode.Should().Be(200);
+        facility.StatusCode.Should().Be(200);
+        procurement.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 1 && x.PostingStatus == "Posted");
+        facility.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 2 && x.PostingStatus == "Posted");
+
+        var incomeCost = await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To);
+        incomeCost.StatusCode.Should().Be(200);
+        incomeCost.Data!.TotalIncome.Should().Be(0m);
+        incomeCost.Data.TotalExpenses.Should().Be(90m);
+        incomeCost.Data.Entries.Items.Should().ContainSingle(x =>
+            x.SourceType == "FacilityVendorServiceBill" && x.Amount == 90m);
     }
 
     [Fact]

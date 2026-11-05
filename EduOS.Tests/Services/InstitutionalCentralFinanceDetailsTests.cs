@@ -65,6 +65,56 @@ public sealed class InstitutionalCentralFinanceDetailsTests
     }
 
     [Fact]
+    public async Task Fee_payroll_procurement_and_facilities_share_one_reconciled_institutional_GL()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.Accounts.AddRange(
+            new Account { Id = 4, TenantId = 41, Code = "FAC", Name = "Facilities expense", AccountType = AccountType.Expense },
+            new Account { Id = 5, TenantId = 41, Code = "INV", Name = "Inventory", AccountType = AccountType.Asset },
+            new Account { Id = 6, TenantId = 41, Code = "AR", Name = "Student receivables", AccountType = AccountType.Asset },
+            new Account { Id = 7, TenantId = 41, Code = "AP", Name = "Supplier payables", AccountType = AccountType.Liability },
+            new Account { Id = 8, TenantId = 41, Code = "SALPAY", Name = "Salary payables", AccountType = AccountType.Liability });
+        Add(db, 1, From, JournalState.Posted, 6, 2, 100m, "StudentInvoice", 10);
+        Add(db, 2, From.AddDays(1), JournalState.Posted, 3, 8, 30m, "PayrollRun", 20);
+        Add(db, 3, From.AddDays(2), JournalState.Posted, 5, 7, 40m, "ProcurementSupplierInvoice", 30);
+        Add(db, 4, From.AddDays(3), JournalState.Posted, 4, 7, 20m, "FacilityVendorServiceBill", 40);
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var statement = await service.GetIncomeStatementAsync(From, To);
+        var first = await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To, page: 1, pageSize: 2);
+        var second = await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To, page: 2, pageSize: 2);
+
+        statement.StatusCode.Should().Be(200);
+        first.StatusCode.Should().Be(200);
+        second.StatusCode.Should().Be(200);
+        first.Data!.Entries.TotalCount.Should().Be(3);
+        first.Data.Entries.Items.Should().HaveCount(2);
+        second.Data!.Entries.Items.Should().ContainSingle();
+        first.Data.TotalIncome.Should().Be(100m);
+        first.Data.TotalExpenses.Should().Be(50m);
+        first.Data.NetSurplus.Should().Be(50m);
+        first.Data.TotalIncome.Should().Be(statement.Data!.TotalIncome);
+        first.Data.TotalExpenses.Should().Be(statement.Data.TotalExpenses);
+
+        foreach (var source in new[] { "StudentInvoice", "PayrollRun", "FacilityVendorServiceBill" })
+        {
+            var filtered = await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To, sourceType: source);
+            filtered.StatusCode.Should().Be(200);
+            filtered.Data!.Entries.TotalCount.Should().Be(1);
+            filtered.Data.Entries.Items.Single().SourceType.Should().Be(source);
+        }
+        // Acquiring inventory creates an asset and a payable, not an immediate P&L expense.
+        var procurement = await service.GetInstitutionalIncomeExpenseDetailsAsync(
+            From, To, sourceType: "ProcurementSupplierInvoice");
+        procurement.StatusCode.Should().Be(200);
+        procurement.Data!.Entries.TotalCount.Should().Be(0);
+        procurement.Data.TotalIncome.Should().Be(0m);
+        procurement.Data.TotalExpenses.Should().Be(0m);
+    }
+
+    [Fact]
     public async Task Unauthorized_invalid_cross_tenant_and_unbalanced_history_fail_closed()
     {
         await using var db = Database();
