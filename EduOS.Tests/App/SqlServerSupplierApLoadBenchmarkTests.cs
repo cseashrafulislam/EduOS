@@ -161,14 +161,14 @@ public sealed class SqlServerSupplierApLoadBenchmarkTests(ITestOutputHelper outp
                 WHERE i.TenantId = {tenantId} AND i.PurchaseOrderId = {poId};
 
                 INSERT INTO dbo.JournalLines
-                  (JournalId, LineNo, AccountId, CampusId, DebitAmount, CreditAmount,
+                  (JournalId, [LineNo], AccountId, CampusId, DebitAmount, CreditAmount,
                    CreatedAt, IsDeleted, TenantId)
-                SELECT j.Id, leg.LineNo, leg.AccountId, {campusId}, leg.Debit, leg.Credit,
+                SELECT j.Id, leg.[LineNo], leg.[AccountId], {campusId}, leg.[Debit], leg.[Credit],
                    SYSUTCDATETIME(), 0, {tenantId}
                 FROM dbo.Journals j
                 CROSS APPLY (VALUES (1, {inventoryId}, {invoiceAmount}, CAST(0 AS decimal(18,2))),
                                     (2, {payableId}, CAST(0 AS decimal(18,2)), {invoiceAmount}))
-                  leg(LineNo, AccountId, Debit, Credit)
+                  leg([LineNo], [AccountId], [Debit], [Credit])
                 WHERE j.TenantId = {tenantId} AND j.SourceType = N'ProcurementSupplierInvoice'
                   AND j.SourceId IN (SELECT Id FROM dbo.ProcurementSupplierInvoices
                                     WHERE TenantId = {tenantId} AND PurchaseOrderId = {poId});
