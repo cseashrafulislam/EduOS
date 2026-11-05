@@ -107,16 +107,14 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             var financeRole = new ApplicationRole { TenantId=tenantId,
                 Name="TenantAdmin",NormalizedName="TENANTADMIN",IsActive=true };
             setup.Roles.Add(financeRole);
-            setup.TenantMemberships.AddRange(
-                new TenantMembership { TenantId=tenantId,UserId=makerId,Status=MembershipStatus.Active },
-                new TenantMembership { TenantId=tenantId,UserId=checkerId,Status=MembershipStatus.Active });
-            setup.UserCampusAccesses.AddRange(
-                new UserCampusAccess { TenantId=tenantId,UserId=makerId,CampusId=campus.Id,IsActive=true },
-                new UserCampusAccess { TenantId=tenantId,UserId=checkerId,CampusId=campus.Id,IsActive=true });
+            // Only the checker gets the central Finance audit grant. The maker
+            // must remain campus-denied for the later IDOR/revocation probes.
+            setup.TenantMemberships.Add(new TenantMembership {
+                TenantId=tenantId,UserId=checkerId,Status=MembershipStatus.Active });
+            setup.UserCampusAccesses.Add(new UserCampusAccess {
+                TenantId=tenantId,UserId=checkerId,CampusId=campus.Id,IsActive=true });
             await setup.SaveChangesAsync();
-            setup.UserRoles.AddRange(
-                new IdentityUserRole<long> { UserId=makerId,RoleId=financeRole.Id },
-                new IdentityUserRole<long> { UserId=checkerId,RoleId=financeRole.Id });
+            setup.UserRoles.Add(new IdentityUserRole<long> { UserId=checkerId,RoleId=financeRole.Id });
             await setup.SaveChangesAsync();
             var location = new InventoryLocation { TenantId=tenantId,CampusId=campus.Id,
                 Code="SI-L-"+suffix,Name="Store",IsActive=true };
@@ -312,45 +310,46 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 .Where(x => x.PublicId == first.Reference)
                 .Select(x => x.JournalId).SingleAsync();
             Assert.True(originalJournalId.HasValue);
-            var campusId = await probeDb.ProcurementSupplierInvoices.AsNoTracking()
+            await using (var auditDb = Open(options, tenantId, checkerId))
+            {
+                var campusId = await auditDb.ProcurementSupplierInvoices.AsNoTracking()
                 .Where(x => x.PublicId == first.Reference).Select(x => x.CampusId).SingleAsync();
-            var central = new FacilityVendorServiceBillService(probeDb,
-                new Actor(tenantId, makerId), TimeProvider.System,
+                var central = new FacilityVendorServiceBillService(auditDb,
+                new Actor(tenantId, checkerId), TimeProvider.System,
                 NullLogger<FacilityVendorServiceBillService>.Instance);
-            var baseline = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
-            Assert.True(baseline.Success, baseline.Message);
-            Assert.Equal(2, baseline.Data!.Page.Items.Count);
-            Assert.All(baseline.Data.Page.Items, x => Assert.Equal("Reconciled", x.GlReconciliationStatus));
-            Assert.Equal(38m, baseline.Data.Page.Items.Sum(x => x.PostedGlPayableBalance!.Value));
-            // Even with the exact AP credit and a balanced journal, stock must
-            // debit an inventory asset, not a price-variance expense ledger.
-            await using (var transaction = await probeDb.Database.BeginTransactionAsync())
-            {
-                await probeDb.JournalLines.Where(x => x.JournalId == originalJournalId.Value && x.LineNo == 1)
-                    .ExecuteUpdateAsync(x => x.SetProperty(l => l.AccountId, varianceAccountId));
-                var corrupted = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
-                Assert.True(corrupted.Success, corrupted.Message);
-                Assert.Equal("InvalidOriginal", corrupted.Data!.Page.Items.Single(x =>
-                    x.InvoiceSource == "Stock" && x.InvoiceReference == first.Reference).GlReconciliationStatus);
-                await transaction.RollbackAsync();
+                var baseline = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
+                Assert.True(baseline.Success, baseline.Message);
+                Assert.Equal(2, baseline.Data!.Page.Items.Count);
+                Assert.All(baseline.Data.Page.Items, x => Assert.Equal("Reconciled", x.GlReconciliationStatus));
+                Assert.Equal(38m, baseline.Data.Page.Items.Sum(x => x.PostedGlPayableBalance!.Value));
+                // A balanced GL cannot debit an expense for delivered inventory.
+                await using (var transaction = await auditDb.Database.BeginTransactionAsync())
+                {
+                    await auditDb.JournalLines.Where(x => x.JournalId == originalJournalId.Value && x.LineNo == 1)
+                        .ExecuteUpdateAsync(x => x.SetProperty(l => l.AccountId, varianceAccountId));
+                    var corrupted = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
+                    Assert.True(corrupted.Success, corrupted.Message);
+                    Assert.Equal("InvalidOriginal", corrupted.Data!.Page.Items.Single(x =>
+                        x.InvoiceSource == "Stock" && x.InvoiceReference == first.Reference).GlReconciliationStatus);
+                    await transaction.RollbackAsync();
+                }
+                // Signed variance must remain an expense credit, not an asset.
+                var discountedJournalId = await auditDb.ProcurementSupplierInvoices.AsNoTracking()
+                    .Where(x => x.PublicId == second.Reference).Select(x => x.JournalId!.Value).SingleAsync();
+                await using (var transaction = await auditDb.Database.BeginTransactionAsync())
+                {
+                    await auditDb.JournalLines.Where(x => x.JournalId == discountedJournalId && x.LineNo == 3)
+                        .ExecuteUpdateAsync(x => x.SetProperty(l => l.AccountId, assetAccountId));
+                    var corrupted = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
+                    Assert.True(corrupted.Success, corrupted.Message);
+                    Assert.Equal("InvalidOriginal", corrupted.Data!.Page.Items.Single(x =>
+                        x.InvoiceSource == "Stock" && x.InvoiceReference == second.Reference).GlReconciliationStatus);
+                    await transaction.RollbackAsync();
+                }
+                var recovered = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
+                Assert.True(recovered.Success, recovered.Message);
+                Assert.All(recovered.Data!.Page.Items, x => Assert.Equal("Reconciled", x.GlReconciliationStatus));
             }
-            // Signed price variance has its own exact expense credit leg; it
-            // cannot silently become a second inventory asset credit.
-            var discountedJournalId = await probeDb.ProcurementSupplierInvoices.AsNoTracking()
-                .Where(x => x.PublicId == second.Reference).Select(x => x.JournalId!.Value).SingleAsync();
-            await using (var transaction = await probeDb.Database.BeginTransactionAsync())
-            {
-                await probeDb.JournalLines.Where(x => x.JournalId == discountedJournalId && x.LineNo == 3)
-                    .ExecuteUpdateAsync(x => x.SetProperty(l => l.AccountId, assetAccountId));
-                var corrupted = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
-                Assert.True(corrupted.Success, corrupted.Message);
-                Assert.Equal("InvalidOriginal", corrupted.Data!.Page.Items.Single(x =>
-                    x.InvoiceSource == "Stock" && x.InvoiceReference == second.Reference).GlReconciliationStatus);
-                await transaction.RollbackAsync();
-            }
-            var recovered = await central.SupplierAgingWithGlAsync(date, campusId, 1, 25);
-            Assert.True(recovered.Success, recovered.Message);
-            Assert.All(recovered.Data!.Page.Items, x => Assert.Equal("Reconciled", x.GlReconciliationStatus));
             var trace = new V3EnterpriseSupplierPayableTraceService(
                 probeDb, new Actor(tenantId, makerId));
             Assert.Equal(200, (await trace.GetAsync(first.Reference)).StatusCode);
