@@ -39,7 +39,7 @@ assert(js.includes(".svg") && js.includes("/demo/"),"Fallback image or demo link
 assert(!js.includes("infoDialog.showModal()"),"Old inactive demo modal still in use");
 for (const shot of ["dashboard","student-management","fees-billing","academics","reports"]) {
  const img=await read("assets/screenshots/"+shot+".svg");
- assert(img.includes("ILLUSTRATIVE PREVIEW"),"Demo image lacks concept label: "+shot);
+ assert(img.includes("SAMPLE DATA"),"Image preview should identify sample data: "+shot);
 }
 for (const p of ["solutions/index.html","bn/solutions/index.html"]) {
  const doc=await read(p);
@@ -53,4 +53,11 @@ assert(!demo.includes("/bn/demo/"),"Demo page must not link to an unavailable Be
 assert(demo.includes('/assets/demo.js') && htmlPages[1].includes('/assets/demo.js'),"Screenshot replacement script not loaded");
 const screenshotUpdater = await read("assets/demo.js");
 assert(screenshotUpdater.includes("probe.onload") && screenshotUpdater.includes(".webp"),"Real screenshot replacement is missing");
+for (let i = 0; i < paths.length; i++) {
+  const html = htmlPages[i];
+  const unfinished = /under development|coming soon|not yet implemented|not production-ready|not a production-verified feature|উন্নয়নাধীন|পরিকল্পিত|সম্পন্ন হয়নি|যাচাই করতে হবে/i;
+  assert(!unfinished.test(html), paths[i] + ": visitor-visible unfinished-work banner or claim remains");
+}
+assert(!/coming soon|under development|উন্নয়নাধীন|শিগগিরই আসছে/i.test(js),
+  "Translation strings must not revive unfinished-work copy after hydration");
 console.log("Marketing content checks passed for "+paths.length+" routes and "+translations.length+" translated labels");
