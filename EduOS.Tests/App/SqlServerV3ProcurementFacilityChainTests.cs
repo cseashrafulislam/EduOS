@@ -304,6 +304,56 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
         {
             var original = await probe.Journals.AsNoTracking()
                 .SingleAsync(j => j.PublicId == journalReference);
+            await using (var balancedDrift = await probe.Database.BeginTransactionAsync())
+            {
+                // Still balanced 11/11, but source stock cost is 10.
+                await probe.JournalLines.Where(l => l.JournalId == original.Id && l.LineNo == 1)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.DebitAmount, 11m));
+                await probe.JournalLines.Where(l => l.JournalId == original.Id && l.LineNo == 2)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.CreditAmount, 11m));
+                var wrongValue = await new V3EnterpriseLedgerTraceService(
+                    probe, new Actor(tenantId, makerId)).GetAsync(issueReference);
+                Assert.True(wrongValue.Success, wrongValue.Message);
+                Assert.Equal("JournalAmountMismatch", wrongValue.Data!.FinanceEvidenceStatus);
+                Assert.All(wrongValue.Data.Journals, j => Assert.True(j.Balanced));
+                var register = await new V3EnterpriseReconciliationRegisterService(
+                    probe, new Actor(tenantId, makerId))
+                    .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
+                Assert.True(register.Success, register.Message);
+                Assert.Contains(register.Data!.Items, row => row.Reference == issueReference &&
+                    row.EvidenceStatus == "JournalAmountMismatch");
+                await balancedDrift.RollbackAsync();
+            }
+            await using (var rejectedHistory = await probe.Database.BeginTransactionAsync())
+            {
+                // A rejected older attempt is auditable, not a second active GL posting.
+                var history = new Journal { TenantId = tenantId,
+                    JournalNumber = "FPI-REJ-" + Guid.NewGuid().ToString("N"),
+                    JournalDate = accountingDate, AccountingPeriodId = periodId,
+                    CampusId = campusId, SourceType = "InventoryMovement", SourceId = issueId,
+                    State = JournalState.Rejected, CreatedBy = makerId };
+                probe.Journals.Add(history);
+                await probe.SaveChangesAsync();
+                probe.JournalLines.AddRange(
+                    new JournalLine { TenantId = tenantId, JournalId = history.Id, LineNo = 1,
+                        CampusId = campusId, AccountId = expenseAccountId, DebitAmount = 10m },
+                    new JournalLine { TenantId = tenantId, JournalId = history.Id, LineNo = 2,
+                        CampusId = campusId, AccountId = inventoryAccountId, CreditAmount = 10m });
+                await probe.SaveChangesAsync();
+                var trace = await new V3EnterpriseLedgerTraceService(
+                    probe, new Actor(tenantId, makerId)).GetAsync(issueReference);
+                Assert.True(trace.Success, trace.Message);
+                Assert.Equal(2, trace.Data!.Journals.Count);
+                Assert.Equal("ExplicitBalancedReference", trace.Data.FinanceEvidenceStatus);
+                var register = await new V3EnterpriseReconciliationRegisterService(
+                    probe, new Actor(tenantId, makerId))
+                    .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
+                Assert.True(register.Success, register.Message);
+                Assert.Contains(register.Data!.Items, row => row.Reference == issueReference &&
+                    row.EvidenceStatus == "ExplicitBalancedReference");
+                await rejectedHistory.RollbackAsync();
+                probe.ChangeTracker.Clear();
+            }
             await using (var tx = await probe.Database.BeginTransactionAsync())
             {
                 await probe.JournalLines.Where(l => l.JournalId == original.Id && l.LineNo == 2)

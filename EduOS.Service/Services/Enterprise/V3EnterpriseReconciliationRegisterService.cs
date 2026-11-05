@@ -118,6 +118,10 @@ public sealed class V3EnterpriseReconciliationRegisterService(
         {
             valueMap.TryGetValue(m.Id, out var v);
             linkMap.TryGetValue(m.Id, out var link);
+            var facilitySource = m.SourceType == "FacilityWorkOrder" &&
+                facilityIssues.Verified.Contains(m.Id);
+            var activeLinks = facilitySource ? link?.Where(j =>
+                j.State != JournalState.Rejected && j.State != JournalState.Cancelled).ToArray() : link;
             var endpoints = new[] { m.FromLocationId, m.ToLocationId }
                 .Where(id => id.HasValue).Select(id => id!.Value).Distinct().ToArray();
             var missingLocation = endpoints.Any(id =>
@@ -134,6 +138,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 procurementReceipts.Invalid.Contains(m.Id) ||
                 facilityIssues.Invalid.Contains(m.Id) ||
                 (link?.Length ?? 0) > 100 ||
+                (facilitySource && (activeLinks?.Length ?? 0) > 1) ||
                 v?.Deleted == true || v == null ? "EvidenceConflict" :
                 link == null ? "NoExplicitReference" :
                 link.Any(j => j.IsDeleted ||
@@ -142,8 +147,12 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 link.Any(j => !journalTotals.TryGetValue(j.Id, out var t) ||
                     t.Debit <= 0m || t.Debit != t.Credit)
                     ? "JournalImbalance" :
-                link.Any(j => j.State != JournalState.Posted && j.State != JournalState.Reversed)
-                    ? "UnpostedJournal" : "ExplicitBalancedReference";
+                facilitySource && activeLinks?.Length == 0 ? "NoExplicitReference" :
+                activeLinks!.Any(j => j.State != JournalState.Posted && j.State != JournalState.Reversed)
+                    ? "UnpostedJournal" :
+                facilitySource && activeLinks.Any(j => j.State == JournalState.Posted &&
+                    journalTotals[j.Id].Debit != decimal.Round(v.Amount, 2, MidpointRounding.AwayFromZero))
+                    ? "JournalAmountMismatch" : "ExplicitBalancedReference";
             return new V3EnterpriseReconciliationRegisterRowDto
             {
                 Reference = m.PublicId, Number = m.MovementNumber,

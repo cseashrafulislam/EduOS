@@ -162,10 +162,23 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
                     x.Id == movement.ReversalOfMovementId.Value)
                 .Select(x => (Guid?)x.PublicId).FirstOrDefaultAsync(ct);
 
-        var financeStatus = evidence.Length == 0 ? "NoExplicitReference" :
+        // Facility Finance recognizes the posted issue's rounded stock cost.
+        // A balanced but wrong-value or multiply posted GL is not reconciled.
+        // Rejected attempts remain in history, but are not active postings.
+        var facilityActive = verifiedFacility ? journals.Where(x =>
+            x.State != JournalState.Rejected && x.State != JournalState.Cancelled).ToArray() : [];
+        var facilityValue = decimal.Round(amount?.Value ?? 0m, 2, MidpointRounding.AwayFromZero);
+        var facilityAmountMismatch = verifiedFacility && facilityActive.Any(x =>
+            x.State == JournalState.Posted &&
+            (!byId.TryGetValue(x.Id, out var total) || total.Debit != facilityValue));
+        var financeStatus = evidence.Length == 0 ||
+            (verifiedFacility && facilityActive.Length == 0) ? "NoExplicitReference" :
             evidence.Any(x => !x.Balanced) ? "JournalImbalance" :
-            journals.Any(x => x.State != JournalState.Posted && x.State != JournalState.Reversed)
-                ? "UnpostedJournal" : "ExplicitBalancedReference";
+            verifiedFacility && facilityActive.Length > 1 ? "EvidenceConflict" :
+            (verifiedFacility ? facilityActive : journals).Any(x =>
+                x.State != JournalState.Posted && x.State != JournalState.Reversed)
+                ? "UnpostedJournal" :
+            facilityAmountMismatch ? "JournalAmountMismatch" : "ExplicitBalancedReference";
         return ApiResponse<V3EnterpriseLedgerTraceDto>.SuccessResponse(new V3EnterpriseLedgerTraceDto {
             MovementReference = movement.PublicId, MovementNumber = movement.MovementNumber,
             MovementType = movement.MovementTypeCode, State = movement.StateCode,

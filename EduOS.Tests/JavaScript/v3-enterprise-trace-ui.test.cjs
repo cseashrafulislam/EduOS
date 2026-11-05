@@ -13,6 +13,8 @@ test('enterprise trace JavaScript parses and shows bilingual UNPOSTED settlement
     assert.match(source, /NOT PAID/);
     assert.match(source, /অপরিশোধিত/);
     assert.match(source, /textContent = String\(value \?\? ''\)/);
+    assert.match(source, /Source\/journal amount mismatch/);
+    assert.match(source, /উৎসের অঙ্ক ও জার্নালের অঙ্ক মেলে না/);
 });
 
 test('asset Finance detail and register reject campusless journal evidence', () => {
