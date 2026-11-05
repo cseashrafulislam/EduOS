@@ -119,6 +119,38 @@ public sealed class FacilitySupplierAgingTotalsDto
     public decimal? SubledgerVsGlDifferenceOnPage { get; set; }
 }
 
+/// <summary>Full authorized supplier AP control, not a sum of the displayed invoice page.</summary>
+public sealed class InstitutionalSupplierApControlDto
+{
+    public DateOnly AsOf { get; set; }
+    public long? CampusId { get; set; }
+    public int InvoiceCount { get; set; }
+    public int InvalidSourceCount { get; set; }
+    public decimal SubledgerOutstanding { get; set; }
+    public decimal LinkedPostedGlBalance { get; set; }
+    public decimal ControlAccountGlBalance { get; set; }
+    public decimal UnattributedGlBalance { get; set; }
+    public decimal SubledgerVsControlDifference { get; set; }
+    public bool Reconciled { get; set; }
+    public IReadOnlyList<InstitutionalSupplierApControlAccountDto> Accounts { get; set; } =
+        Array.Empty<InstitutionalSupplierApControlAccountDto>();
+}
+
+public sealed class InstitutionalSupplierApControlAccountDto
+{
+    public long AccountId { get; set; }
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public int SourceCount { get; set; }
+    public int ExceptionCount { get; set; }
+    public decimal SubledgerOutstanding { get; set; }
+    public decimal LinkedPostedGlBalance { get; set; }
+    public decimal ControlAccountGlBalance { get; set; }
+    public decimal UnattributedGlBalance => ControlAccountGlBalance - LinkedPostedGlBalance;
+    public decimal Difference => SubledgerOutstanding - ControlAccountGlBalance;
+    public bool Reconciled => ExceptionCount == 0 && Difference == 0m && UnattributedGlBalance == 0m;
+}
+
 public sealed class FacilityVendorPaymentOptionsDto
 {
     public decimal InvoiceAmount { get; set; }

@@ -3,7 +3,7 @@ const root = document.getElementById('institutionAccountingReports');
 if (root && document.getElementById('dayBookForm')) {
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|sourceAmount|invoiceAmount|netPostedPayments|postedSupplierCredits|openBalance|outstandingOnPage|currentOnPage|days1To30OnPage|days31To60OnPage|days61To90OnPage|over90DaysOnPage|postedGlPayableBalance|subledgerVsGlDifference|postedGlPayableOnPage|subledgerVsGlDifferenceOnPage|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:debitAmount|creditAmount|totalDebit|totalCredit|amount|sourceAmount|invoiceAmount|netPostedPayments|postedSupplierCredits|openBalance|outstandingOnPage|currentOnPage|days1To30OnPage|days31To60OnPage|days61To90OnPage|over90DaysOnPage|postedGlPayableBalance|subledgerVsGlDifference|postedGlPayableOnPage|subledgerVsGlDifferenceOnPage|subledgerOutstanding|linkedPostedGlBalance|controlAccountGlBalance|unattributedGlBalance|subledgerVsControlDifference|difference|currentAmount|comparisonAmount|variance|currentIncome|comparisonIncome|currentExpenses|comparisonExpenses|currentNetSurplus|comparisonNetSurplus|currentAssets|comparisonAssets|currentLiabilities|comparisonLiabilities|currentEquity|comparisonEquity|currentUnclosedSurplus|comparisonUnclosedSurplus|income|expenses|netSurplus|totalIncome|totalExpenses)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     const cents = value => {
         const s = String(value ?? '0');
         if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw new Error('Invalid financial amount precision.');
@@ -50,6 +50,68 @@ if (root && document.getElementById('dayBookForm')) {
     // Reuse its dated-payment/return/reversal policy instead of computing AP
     // from two source tables or adding it to GL liabilities a second time.
     $('supplierPayablesAsOf').value = today;
+    let supplierApControl = null, supplierApControlRevision = 0;
+    const resetApControl = () => {
+        supplierApControlRevision++; supplierApControl = null;
+        $('supplierApControlRows').replaceChildren();
+        $('supplierApControlSummary').textContent = '';
+        $('supplierApControlCsv').disabled = true;
+    };
+    $('supplierPayablesAsOf').addEventListener('input', resetApControl);
+    $('supplierPayablesAsOf').addEventListener('change', resetApControl);
+    $('supplierApControlRun').addEventListener('click', () => run(async () => {
+        const asOf = $('supplierPayablesAsOf').value;
+        if (!asOf) throw new Error('Select the AP control as-of date.');
+        resetApControl();
+        const revision = supplierApControlRevision;
+        $('supplierApControlRun').disabled = true;
+        try {
+            const data = await get('/api/finance/accounting/reports/supplier-ap-control?' +
+                new URLSearchParams({asOf}));
+            if (revision !== supplierApControlRevision || asOf !== $('supplierPayablesAsOf').value) return;
+            let fullGl = 0n, linked = 0n, unattributed = 0n;
+            for (const x of data.accounts || []) {
+                fullGl += cents(x.controlAccountGlBalance);
+                linked += cents(x.linkedPostedGlBalance);
+                unattributed += cents(x.unattributedGlBalance);
+                if (cents(x.controlAccountGlBalance) - cents(x.linkedPostedGlBalance) !== cents(x.unattributedGlBalance) ||
+                    cents(x.subledgerOutstanding) - cents(x.controlAccountGlBalance) !== cents(x.difference))
+                    throw new Error('AP control account balances do not reconcile.');
+            }
+            if (fullGl !== cents(data.controlAccountGlBalance) ||
+                linked !== cents(data.linkedPostedGlBalance) ||
+                unattributed !== cents(data.unattributedGlBalance) ||
+                cents(data.subledgerOutstanding) - fullGl !== cents(data.subledgerVsControlDifference))
+                throw new Error('Institution AP control totals do not reconcile.');
+            $('supplierApControlRows').innerHTML = (data.accounts || []).map(x => '<tr><td>' +
+                esc(x.accountCode + ' — ' + x.accountName) + '</td><td class="text-end">' + esc(x.sourceCount) +
+                '</td>' + [x.subledgerOutstanding,x.linkedPostedGlBalance,x.controlAccountGlBalance,
+                    x.unattributedGlBalance,x.difference].map(n => '<td class="text-end">' + money(n) + '</td>').join('') +
+                '<td>' + (x.reconciled ? 'Reconciled' : 'Investigate (' + esc(x.exceptionCount) + ' exceptions)') +
+                '</td></tr>').join('') || '<tr><td colspan="8">No supplier AP control accounts found.</td></tr>';
+            $('supplierApControlSummary').textContent = (data.reconciled ? 'RECONCILED' : 'REQUIRES INVESTIGATION') +
+                ' • ' + data.invoiceCount + ' invoices • ' + data.invalidSourceCount +
+                ' invalid source links • Subledger BDT ' + money(data.subledgerOutstanding) +
+                ' • Full control GL BDT ' + money(data.controlAccountGlBalance) +
+                ' • Difference BDT ' + money(data.subledgerVsControlDifference) +
+                ' • Unattributed GL BDT ' + money(data.unattributedGlBalance);
+            supplierApControl = data;
+            $('supplierApControlCsv').disabled = false;
+        } finally { $('supplierApControlRun').disabled = false; }
+    }));
+    $('supplierApControlCsv').addEventListener('click', () => {
+        if (!supplierApControl || supplierApControl.asOf !== $('supplierPayablesAsOf').value) return;
+        csv('institution-supplier-ap-control-' + supplierApControl.asOf + '.csv',
+            [['GL code','GL account','Invoice count','Exception count','Subledger BDT','Linked GL BDT',
+                'Entire GL BDT','Unattributed GL BDT','Difference BDT','Reconciled'],
+            ...supplierApControl.accounts.map(x => [x.accountCode,x.accountName,x.sourceCount,x.exceptionCount,
+                x.subledgerOutstanding,x.linkedPostedGlBalance,x.controlAccountGlBalance,
+                x.unattributedGlBalance,x.difference,x.reconciled]),
+            ['TOTAL','',supplierApControl.invoiceCount,supplierApControl.invalidSourceCount,
+                supplierApControl.subledgerOutstanding,supplierApControl.linkedPostedGlBalance,
+                supplierApControl.controlAccountGlBalance,supplierApControl.unattributedGlBalance,
+                supplierApControl.subledgerVsControlDifference,supplierApControl.reconciled]]);
+    });
     let supplierPayables = null, supplierPayablesPage = 1,
         supplierPayablesRevision = 0, supplierPayablesDate = '';
     const resetSupplierPayables = () => {

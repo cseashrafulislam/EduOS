@@ -344,6 +344,7 @@ public class EduOSDbContext :
     // Accounting
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<CashLedgerDesignationRequest> CashLedgerDesignationRequests => Set<CashLedgerDesignationRequest>();
+    public DbSet<CashFlowActivityRule> CashFlowActivityRules => Set<CashFlowActivityRule>();
     public DbSet<InstitutionBudget> InstitutionBudgets => Set<InstitutionBudget>();
     public DbSet<InstitutionBudgetLine> InstitutionBudgetLines => Set<InstitutionBudgetLine>();
     public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
@@ -1024,6 +1025,9 @@ public class EduOSDbContext :
         TenantReference<CashLedgerDesignationRequest, Account>(modelBuilder, nameof(CashLedgerDesignationRequest.AccountId));
         Reference<CashLedgerDesignationRequest, ApplicationUser>(modelBuilder, nameof(CashLedgerDesignationRequest.SubmittedByUserId));
         Reference<CashLedgerDesignationRequest, ApplicationUser>(modelBuilder, nameof(CashLedgerDesignationRequest.ReviewedByUserId));
+        TenantReference<CashFlowActivityRule, Account>(modelBuilder, nameof(CashFlowActivityRule.AccountId));
+        Reference<CashFlowActivityRule, ApplicationUser>(modelBuilder, nameof(CashFlowActivityRule.SubmittedByUserId));
+        Reference<CashFlowActivityRule, ApplicationUser>(modelBuilder, nameof(CashFlowActivityRule.ReviewedByUserId));
         TenantReference<InstitutionBudgetLine, InstitutionBudget>(modelBuilder, nameof(InstitutionBudgetLine.InstitutionBudgetId));
         TenantReference<InstitutionBudgetLine, Account>(modelBuilder, nameof(InstitutionBudgetLine.AccountId));
         Reference<InstitutionBudget, ApplicationUser>(modelBuilder, nameof(InstitutionBudget.SubmittedByUserId));
@@ -1742,6 +1746,17 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[StateCode] = N'Submitted' AND [IsDeleted] = 0");
         modelBuilder.Entity<CashLedgerDesignationRequest>().ToTable(t => t.HasCheckConstraint(
             "CK_CashLedgerDesignation_Workflow",
+            "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND " +
+            "(([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR " +
+            "([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))"));
+        modelBuilder.Entity<CashFlowActivityRule>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<CashFlowActivityRule>().HasIndex(x => new { x.TenantId, x.ReviewRequestId })
+            .IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
+        modelBuilder.Entity<CashFlowActivityRule>().HasIndex(x => new { x.TenantId, x.AccountId, x.EffectiveFromDate })
+            .IsUnique().HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
+        modelBuilder.Entity<CashFlowActivityRule>().ToTable(t => t.HasCheckConstraint(
+            "CK_CashFlowActivityRule_Approval",
+            "[ActivityCode] IN (N'Operating',N'Investing',N'Financing') AND " +
             "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND " +
             "(([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR " +
             "([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))"));

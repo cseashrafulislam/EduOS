@@ -26,6 +26,7 @@
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#supplierPayablesPanel">Supplier Payables</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#cashBookPanel">@(bn ? "নগদ খাতা" : "Cash Book")</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#cashMovementsPanel">@(bn ? "নগদ প্রবাহ" : "Cash Movements")</button></li>
+            <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#cashFlowPanel">@(bn ? "নগদ প্রবাহ বিবরণী" : "Cash Flow Statement")</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankBookPanel">Bank Book</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankStatementPanel">Bank Statement Comparison</button></li>
             <li class="nav-item"><button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#bankLiquidityPanel">Bank Liquidity</button></li>
@@ -41,7 +42,11 @@
                     <div class="col-md-3"><label for="supplierPayablesAsOf" class="form-label">As of date</label><input type="date" id="supplierPayablesAsOf" class="form-control" required /></div>
                     <div class="col-md-3"><button id="supplierPayablesRun" type="submit" class="btn btn-primary w-100">Run Supplier Aging</button></div>
                     <div class="col-md-3"><button id="supplierPayablesCsv" type="button" class="btn btn-outline-secondary w-100" disabled>Export Visible Page CSV</button></div>
+                    <div class="col-md-3"><button id="supplierApControlRun" type="button" class="btn btn-outline-primary w-100">Audit Entire Institution AP</button></div>
                 </form>
+                <button id="supplierApControlCsv" class="btn btn-outline-secondary btn-sm mb-2" type="button" disabled>Export AP Control CSV</button>
+                <p id="supplierApControlSummary" class="small fw-semibold" role="status" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>GL Account</th><th class="text-end">Invoices</th><th class="text-end">Subledger BDT</th><th class="text-end">Source GL BDT</th><th class="text-end">Entire GL BDT</th><th class="text-end">Unattributed BDT</th><th class="text-end">Difference BDT</th><th>Control</th></tr></thead><tbody id="supplierApControlRows"></tbody></table></div>
                 <p id="supplierPayablesSummary" class="small fw-semibold" role="status" aria-live="polite"></p>
                 <div class="table-responsive"><table class="table table-sm table-striped">
                     <thead><tr><th>Source</th><th>Supplier ID</th><th>Campus ID</th><th>Invoice</th><th>Invoice date</th><th>Due</th><th class="text-end">Invoice BDT</th><th class="text-end">Paid BDT</th><th class="text-end">Credit BDT</th><th class="text-end">Outstanding BDT</th><th class="text-end">Posted GL AP</th><th class="text-end">Difference</th><th>GL Status</th><th>Days overdue</th><th>Status</th></tr></thead>
@@ -479,6 +484,23 @@
                     <thead><tr><th>Kind</th><th>GL</th><th class="text-end">Opening</th><th class="text-end">Receipts</th><th class="text-end">Payments</th><th class="text-end">Transfers in</th><th class="text-end">Transfers out</th><th class="text-end">Closing</th></tr></thead>
                     <tbody id="cashMovementsRows"></tbody><tfoot id="cashMovementsTotals"></tfoot>
                 </table></div>
+            </div>
+            <div class="tab-pane fade" id="cashFlowPanel">
+                <h3 class="h6">@(bn ? "শ্রেণিবদ্ধ নগদ প্রবাহ বিবরণী" : "Classified Direct-Method Cash Flow Statement")</h3>
+                <p class="small text-muted">@(bn ? "অনুমোদিত GL নিয়ম অনুযায়ী Operating, Investing ও Financing। অনির্ধারিত প্রবাহ আলাদা থাকবে এবং পূর্ণাঙ্গ বিবরণী হিসেবে চিহ্নিত হবে না। নিয়ম পরিবর্তনের ইতিহাস রক্ষায় অনুমোদনের UTC cutoff রাখা হয়।" : "Approved effective-dated counterparty policies classify Operating, Investing and Financing. Unclassified activity stays visible and prevents a complete-statement claim. The UTC approval cutoff allows reproducible historical reports.")</p>
+                <form id="cashFlowForm" class="row g-2 align-items-end mb-3">
+                    <div class="col-md-3"><label class="form-label" for="cashFlowFrom">From</label><input id="cashFlowFrom" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><label class="form-label" for="cashFlowTo">To</label><input id="cashFlowTo" type="date" class="form-control" required /></div>
+                    <div class="col-md-3"><button id="cashFlowRun" type="submit" class="btn btn-primary w-100">Run Classified Cash Flow</button></div>
+                    <div class="col-md-3"><button id="cashFlowCsv" type="button" class="btn btn-outline-secondary w-100" disabled>Export Statement CSV</button></div>
+                </form>
+                <p id="cashFlowSummary" class="small fw-semibold" role="status" aria-live="polite"></p>
+                <div class="table-responsive"><table class="table table-sm table-striped">
+                    <thead><tr><th>Activity</th><th class="text-end">Inflows BDT</th><th class="text-end">Outflows BDT</th><th class="text-end">Net BDT</th></tr></thead><tbody id="cashFlowRows"></tbody>
+                    <tfoot id="cashFlowTotals"></tfoot></table></div>
+                <h4 class="h6">Unclassified journal review (first 50)</h4>
+                <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Journal</th><th>Date</th><th>Reason</th></tr></thead><tbody id="cashFlowExceptions"></tbody></table></div>
+                <a href="/AccountingSetup/Index" class="btn btn-outline-primary btn-sm">Manage Cash Flow Classification Rules</a>
             </div>
         }
     </div>

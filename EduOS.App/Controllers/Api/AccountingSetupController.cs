@@ -33,4 +33,10 @@ public sealed class AccountingSetupController : ControllerBase
     public async Task<IActionResult> SubmitCashDesignation([FromBody] SubmitCashLedgerDesignationDto r,CancellationToken ct) => Reply(await service.SubmitHistoricCashDesignationAsync(r,ct));
     [HttpPost("cash-designations/{id:long}/review"),Authorize(Roles="TenantAdmin")]
     public async Task<IActionResult> ReviewCashDesignation(long id,[FromBody] ReviewCashLedgerDesignationDto r,CancellationToken ct) => Reply(await service.ReviewHistoricCashDesignationAsync(id,r,ct));
+    [HttpGet("cash-flow-rules"),Authorize(Roles="TenantAdmin,Principal"),ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public async Task<IActionResult> CashFlowRules(int page=1,int pageSize=25,CancellationToken ct=default) => Reply(await service.GetCashFlowRulesAsync(page,pageSize,ct));
+    [HttpPost("cash-flow-rules"),Authorize(Roles="TenantAdmin,Principal")]
+    public async Task<IActionResult> SubmitCashFlowRule([FromBody] SubmitCashFlowRuleDto r,CancellationToken ct) => Reply(await service.SubmitCashFlowRuleAsync(r,ct));
+    [HttpPost("cash-flow-rules/{id:long}/review"),Authorize(Roles="TenantAdmin")]
+    public async Task<IActionResult> ReviewCashFlowRule(long id,[FromBody] ReviewCashFlowRuleDto r,CancellationToken ct) => Reply(await service.ReviewCashFlowRuleAsync(id,r,ct));
 }

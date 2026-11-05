@@ -17,4 +17,7 @@ public interface IAccountingSetupService
     Task<ApiResponse<PagedResult<CashLedgerDesignationDto>>> GetCashDesignationRequestsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<CashLedgerDesignationDto>> SubmitHistoricCashDesignationAsync(SubmitCashLedgerDesignationDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CashLedgerDesignationDto>> ReviewHistoricCashDesignationAsync(long requestId, ReviewCashLedgerDesignationDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<CashFlowRuleDto>>> GetCashFlowRulesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CashFlowRuleDto>> SubmitCashFlowRuleAsync(SubmitCashFlowRuleDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CashFlowRuleDto>> ReviewCashFlowRuleAsync(long id, ReviewCashFlowRuleDto request, CancellationToken cancellationToken = default);
 }

@@ -56,6 +56,27 @@ public sealed class CashLedgerDesignationRequest : BaseTenantEntity
     [MaxLength(500)] public string? ReviewReason { get; set; }
 }
 
+/// <summary>
+/// Approved, immutable effective-dated mapping for a NON-cash counterparty GL
+/// account. This classifies cash movement only; it never changes posted GL.
+/// Multiple effective dates are retained so historical policy is auditable.
+/// </summary>
+public sealed class CashFlowActivityRule : BaseTenantEntity
+{
+    public long AccountId { get; set; }
+    public DateOnly EffectiveFromDate { get; set; }
+    [Required, MaxLength(20)] public string ActivityCode { get; set; } = string.Empty;
+    [Required, MaxLength(20)] public string StateCode { get; set; } = "Submitted";
+    public Guid ClientRequestId { get; set; }
+    [Required, MaxLength(500)] public string Reason { get; set; } = string.Empty;
+    public long SubmittedByUserId { get; set; }
+    public DateTime SubmittedAtUtc { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    public Guid? ReviewRequestId { get; set; }
+    [MaxLength(500)] public string? ReviewReason { get; set; }
+}
+
 public class Journal : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();

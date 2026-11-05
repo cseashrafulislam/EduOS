@@ -284,6 +284,76 @@ public sealed class InstitutionalCashMovementDto
     public bool IsActivityClassified => false;
 }
 
+public sealed class SubmitCashFlowRuleDto
+{
+    public long AccountId { get; set; }
+    public DateOnly EffectiveFromDate { get; set; }
+    public string ActivityCode { get; set; } = string.Empty;
+    public Guid ClientRequestId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class ReviewCashFlowRuleDto
+{
+    public bool Approve { get; set; }
+    public Guid ReviewRequestId { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+    public string? Reason { get; set; }
+}
+
+public sealed class CashFlowRuleDto
+{
+    public long Id { get; set; }
+    public long AccountId { get; set; }
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public DateOnly EffectiveFromDate { get; set; }
+    public string ActivityCode { get; set; } = string.Empty;
+    public string StateCode { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public long SubmittedByUserId { get; set; }
+    public DateTime SubmittedAtUtc { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    public string? ReviewReason { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class InstitutionalCashFlowActivityDto
+{
+    public string ActivityCode { get; set; } = string.Empty;
+    public decimal Inflows { get; set; }
+    public decimal Outflows { get; set; }
+    public decimal Net => Inflows - Outflows;
+}
+
+public sealed class CashFlowUnclassifiedDto
+{
+    public long JournalId { get; set; }
+    public DateOnly Date { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class InstitutionalCashFlowStatementDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public DateTime PolicyApprovedThroughUtc { get; set; }
+    public decimal OpeningCashAndBank { get; set; }
+    public decimal ClosingCashAndBank { get; set; }
+    public IReadOnlyList<InstitutionalCashFlowActivityDto> Activities { get; set; } =
+        Array.Empty<InstitutionalCashFlowActivityDto>();
+    public decimal UnclassifiedInflows { get; set; }
+    public decimal UnclassifiedOutflows { get; set; }
+    public int UnclassifiedJournalCount { get; set; }
+    public IReadOnlyList<CashFlowUnclassifiedDto> Exceptions { get; set; } =
+        Array.Empty<CashFlowUnclassifiedDto>();
+    public bool IsComplete => UnclassifiedJournalCount == 0;
+    public decimal NetCashChange => ClosingCashAndBank - OpeningCashAndBank;
+}
+
 public sealed class BankBookLineDto
 {
     // Stable identity and optimistic version of the exact posted bank ledger line.

@@ -19,6 +19,7 @@ public interface IAccountingReportingService
     Task<ApiResponse<BankLiquidityDto>> GetBankLiquidityAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
     Task<ApiResponse<LedgerStatementDto>> GetCashBookAsync(long accountId, DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
     Task<ApiResponse<InstitutionalCashMovementDto>> GetInstitutionalCashMovementsAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
+    Task<ApiResponse<InstitutionalCashFlowStatementDto>> GetInstitutionalCashFlowStatementAsync(DateOnly fromDate, DateOnly toDate, DateTime? policyApprovedThroughUtc = null, CancellationToken cancellationToken = default);
     Task<ApiResponse<BankStatementPreviewDto>> PreviewBankStatementAsync(BankStatementPreviewRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<BankReconciliationBatchDto>> SaveBankReconciliationDraftAsync(
         BankReconciliationSaveRequestDto request, CancellationToken cancellationToken = default);

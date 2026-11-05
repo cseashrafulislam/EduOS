@@ -47,7 +47,7 @@ public sealed partial class FacilityVendorServiceBillService
                 x.JournalId.HasValue &&
                 db.Journals.Any(j => j.TenantId == user.TenantId &&
                     j.Id == x.JournalId.Value && !j.IsDeleted &&
-                    j.State == JournalState.Posted && j.JournalDate <= asOf) &&
+                    (j.State == JournalState.Posted || j.State == JournalState.Reversed) && j.JournalDate <= asOf) &&
                 (global || db.UserCampusAccesses.Any(g =>
                     g.TenantId == user.TenantId && g.UserId == user.UserId &&
                     g.CampusId == x.CampusId && g.IsActive && !g.IsDeleted)))
@@ -64,7 +64,7 @@ public sealed partial class FacilityVendorServiceBillService
                 x.JournalId.HasValue &&
                 db.Journals.Any(j => j.TenantId == user.TenantId &&
                     j.Id == x.JournalId.Value && !j.IsDeleted &&
-                    j.State == JournalState.Posted && j.JournalDate <= asOf) &&
+                    (j.State == JournalState.Posted || j.State == JournalState.Reversed) && j.JournalDate <= asOf) &&
                 (global || db.UserCampusAccesses.Any(g =>
                     g.TenantId == user.TenantId && g.UserId == user.UserId &&
                     g.CampusId == x.CampusId && g.IsActive && !g.IsDeleted)))

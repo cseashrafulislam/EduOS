@@ -34,4 +34,11 @@ public sealed class CentralSupplierPayablesController(
         var result = await supplierPayables.SupplierAgingWithGlAsync(asOf, campusId, page, pageSize, ct);
         return StatusCode(result.StatusCode, result);
     }
+    [HttpGet("supplier-ap-control")]
+    public async Task<IActionResult> SupplierApControl([FromQuery] DateOnly asOf,
+        [FromQuery] long? campusId, CancellationToken ct = default)
+    {
+        var result = await supplierPayables.SupplierApInstitutionControlAsync(asOf, campusId, ct);
+        return StatusCode(result.StatusCode, result);
+    }
 }

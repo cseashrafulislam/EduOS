@@ -30,7 +30,7 @@ public sealed partial class FacilityVendorServiceBillService
         // SQL transaction prevents an in-flight posting/reversal from producing
         // a false audit variance between these independently queried tables.
         // No transaction is started for EF's non-relational test provider.
-        await using var snapshot = db.Database.IsRelational()
+        await using var snapshot = db.Database.IsRelational() && db.Database.CurrentTransaction == null
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         var aging = await SupplierAgingAsync(asOf, campusId, page, pageSize, ct);
         if (!aging.Success || aging.Data == null)

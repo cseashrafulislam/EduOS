@@ -86,7 +86,9 @@ public sealed class SqlServerFacilityVendorBillingTests
                     Name = "Accountant", NormalizedName = "ACCOUNTANT", IsActive = true };
                 var principalRole = new ApplicationRole { TenantId = tenantId,
                     Name = "Principal", NormalizedName = "PRINCIPAL", IsActive = true };
-                setup.Roles.AddRange(accountantRole, principalRole);
+                var tenantAdminRole = new ApplicationRole { TenantId = tenantId,
+                    Name = "TenantAdmin", NormalizedName = "TENANTADMIN", IsActive = true };
+                setup.Roles.AddRange(accountantRole, principalRole, tenantAdminRole);
                 foreach (var person in people)
                 {
                     setup.TenantMemberships.Add(new TenantMembership {
@@ -99,7 +101,8 @@ public sealed class SqlServerFacilityVendorBillingTests
                 bankId = bank.Id;
                 setup.UserRoles.AddRange(
                     new IdentityUserRole<long> { UserId = makerId, RoleId = accountantRole.Id },
-                    new IdentityUserRole<long> { UserId = checkerId, RoleId = principalRole.Id });
+                    new IdentityUserRole<long> { UserId = checkerId, RoleId = principalRole.Id },
+                    new IdentityUserRole<long> { UserId = checkerId, RoleId = tenantAdminRole.Id });
                 var request = new FacilityServiceRequest { TenantId = tenantId,
                     CampusId = campusId, FacilitySpaceId = space.Id, ClientRequestId = Guid.NewGuid(),
                     RequesterUserId = requesterId, CategoryCode = "REPAIR", PriorityCode = "Normal",
@@ -337,6 +340,14 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.Equal("Reconciled", glRow.GlReconciliationStatus);
             Assert.Equal(800m, glRow.PostedGlPayableBalance);
             Assert.Equal(0m, glRow.SubledgerVsGlDifference);
+            var institution = await Service(db, tenantId, checkerId, "TenantAdmin")
+                .SupplierApInstitutionControlAsync(invoiceDate, null);
+            Assert.True(institution.Success, institution.Message);
+            Assert.True(institution.Data!.Reconciled);
+            Assert.Equal(800m, institution.Data.SubledgerOutstanding);
+            Assert.Equal(800m, institution.Data.ControlAccountGlBalance);
+            Assert.Equal(0m, institution.Data.UnattributedGlBalance);
+            Assert.Equal(403, (await service.SupplierApInstitutionControlAsync(invoiceDate, null)).StatusCode);
             Assert.Equal(409, (await service.RequestReversalAsync(bill.Reference,
                 new FacilityVendorBillReversalRequestDto {
                     ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
@@ -437,6 +448,13 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.Equal(2400m, lines.Sum(x => x.CreditAmount));
             Assert.Equal(0, await db.InventoryMovements.CountAsync(x =>
                 x.TenantId == tenantId && x.SourceType == "FacilityVendorServiceBill"));
+            var afterReversal = await Service(db, tenantId, checkerId, "TenantAdmin")
+                .SupplierApInstitutionControlAsync(invoiceDate, campusId);
+            Assert.True(afterReversal.Success, afterReversal.Message);
+            Assert.True(afterReversal.Data!.Reconciled);
+            Assert.Equal(1, afterReversal.Data.InvoiceCount);
+            Assert.Equal(0m, afterReversal.Data.SubledgerOutstanding);
+            Assert.Equal(0m, afterReversal.Data.ControlAccountGlBalance);
             // Historical/corrupt reference probe: a same-tenant posted GL
             // journal is not a valid substitute for the invoice's own source.
             // Roll back the corruption, retaining immutable posted evidence.
