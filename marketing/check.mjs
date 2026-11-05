@@ -49,4 +49,8 @@ for (const p of ["modules/index.html","bn/modules/index.html"]) {
  const doc=await read(p);
  assert(doc.includes("Research") || doc.includes("গবেষণা"),"Module catalogue incomplete: "+p);
 }
+assert(!demo.includes("/bn/demo/"),"Demo page must not link to an unavailable Bengali route");
+assert(demo.includes('/assets/demo.js') && bnHome.includes('/assets/demo.js'),"Screenshot replacement script not loaded");
+const screenshotUpdater = await read("assets/demo.js");
+assert(screenshotUpdater.includes("probe.onload") && screenshotUpdater.includes(".webp"),"Real screenshot replacement is missing");
 console.log("Marketing content checks passed for "+paths.length+" routes and "+translations.length+" translated labels");

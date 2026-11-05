@@ -34,3 +34,5 @@ Google and AI search engine recommendations are **not guaranteed** by SEO. Descr
 ## Privacy / security
 
 This public site is static, has no login, analytics cookies, CRM lead forms or external scripts. It exposes only owner-approved contact channels. Cloudflare Pages `_headers` constrains script/connect, microphone permissions, framing and other browser capabilities. No customer records, private source code, app keys, external API secrets or student data belong in the marketing build.
+
+**Screenshot replacement:** A privacy-reviewed matching `.webp` is preferred automatically over each SVG concept on the homepage, `/demo/` and `/bn/` using `/assets/demo.js`. The fallback SVG remains visible until a real capture is uploaded.
