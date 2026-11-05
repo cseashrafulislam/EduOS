@@ -1,0 +1,24 @@
+name: EduOS AI product language release gate
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'marketing/public/**'
+      - 'EduOS.App/Views/**'
+      - 'EduOS.App/wwwroot/js/**'
+      - 'EduOS.App/wwwroot/locales/**'
+      - 'scripts/check_ai_product_language.py'
+      - '.github/workflows/ai-product-language-gate.yml'
+  pull_request:
+    branches: [Ashraful]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  language-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test policy fixtures and scan shipped product sources
+        run: python3 scripts/check_ai_product_language.py --self-test
