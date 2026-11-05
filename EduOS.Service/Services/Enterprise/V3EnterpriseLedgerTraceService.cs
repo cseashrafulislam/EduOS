@@ -175,7 +175,7 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             (verifiedFacility && facilityActive.Length == 0) ? "NoExplicitReference" :
             evidence.Any(x => !x.Balanced) ? "JournalImbalance" :
             verifiedFacility && facilityActive.Length > 1 ? "EvidenceConflict" :
-            (verifiedFacility ? facilityActive : journals).Any(x =>
+            (verifiedFacility ? facilityActive : journals.ToArray()).Any(x =>
                 x.State != JournalState.Posted && x.State != JournalState.Reversed)
                 ? "UnpostedJournal" :
             facilityAmountMismatch ? "JournalAmountMismatch" : "ExplicitBalancedReference";
