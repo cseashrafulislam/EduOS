@@ -191,7 +191,10 @@ public sealed class CentralFinancePostingAuditTests
         db.JournalLines.Local.Single(x => x.JournalId == 78 && x.CreditAmount > 0).AccountId = 3;
         await db.SaveChangesAsync();
 
-        var audit = await Service(db).GetFinanceSourcePostingAuditAsync(From, To, "fee-refunds");
+        // SaveChanges assigns the actual UTC CreatedAt to pending requests;
+        // include that date rather than pretending the seeded creation date survived.
+        var reportEnd = DateOnly.FromDateTime(db.Refunds.Local.Single(x => x.Id == 9).CreatedAt);
+        var audit = await Service(db).GetFinanceSourcePostingAuditAsync(From, reportEnd, "fee-refunds");
         audit.StatusCode.Should().Be(200);
         audit.Data!.LinkedCount.Should().Be(1);
         audit.Data.PendingPostingCount.Should().Be(1);
@@ -210,9 +213,9 @@ public sealed class CentralFinancePostingAuditTests
             line.CampusId = 10;
         }
         await db.SaveChangesAsync();
-        var duplicate = await Service(db).GetFinanceSourcePostingAuditAsync(From, To, "fee-refunds");
+        var duplicate = await Service(db).GetFinanceSourcePostingAuditAsync(From, reportEnd, "fee-refunds");
         duplicate.Data!.Sources.Items.Single(x => x.SourceId == 7).PostingStatus.Should().Be("InvalidJournal");
-        (await Service(db, false).GetFinanceSourcePostingAuditAsync(From, To, "fee-refunds"))
+        (await Service(db, false).GetFinanceSourcePostingAuditAsync(From, reportEnd, "fee-refunds"))
             .StatusCode.Should().Be(403);
     }
 
