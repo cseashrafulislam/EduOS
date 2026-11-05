@@ -151,8 +151,9 @@ public sealed class InstitutionalClassifiedCashFlowTests
         db.Journals.Count().Should().Be(1);
         db.JournalLines.Count().Should().Be(3);
         db.JournalLines.Single(x => x.Id == 312).CreditAmount = 121m;
-        await db.SaveChangesAsync();
-        (await report.GetInstitutionalCashFlowStatementAsync(From,To)).StatusCode.Should().Be(409);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+        (await report.GetInstitutionalCashFlowStatementAsync(From,To)).Data!.IsComplete.Should().BeTrue();
     }
 
     private static void Seed(EduOSDbContext db)

@@ -4,6 +4,7 @@ if (scope && document.getElementById('cashFlowAllocationForm')) {
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const admin = scope.dataset.admin === 'true';
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const decimalKeys = /("(?:operatingAmount|investingAmount|financingAmount)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     let page = 1, pages = 1, rows = [], selected = null, busy = false;
     let submitKey = crypto.randomUUID(), reviewKey = crypto.randomUUID(), reviewApprove = null;
     const status = (message, error = false) => { $('cashFlowAllocationStatus').textContent = (error ? 'Error: ' : '') + message; };
@@ -13,10 +14,13 @@ if (scope && document.getElementById('cashFlowAllocationForm')) {
         if (body !== null) {
             options.headers['Content-Type'] = 'application/json';
             options.headers.RequestVerificationToken = token;
-            options.body = JSON.stringify(body);
+            // JSON numeric tokens are built only from validated BDT strings;
+            // do not round approved money through IEEE-754 Number.
+            options.body = JSON.stringify(body).replace(
+                /("(?:operatingAmount|investingAmount|financingAmount)"\s*:\s*)"(\d+(?:\.\d{1,2})?)"/g, '$1$2');
         }
         const response = await fetch('/api/finance/accounting/setup/' + path, options);
-        const data = await response.json();
+        const data = JSON.parse((await response.text()).replace(decimalKeys, '$1"$2"'));
         if (!response.ok || !data.success) throw new Error(data.message || 'Journal classification unavailable.');
         return data.data;
     };
@@ -37,7 +41,7 @@ if (scope && document.getElementById('cashFlowAllocationForm')) {
     const money = id => {
         const s = $(id).value.trim();
         if (!/^(?:0|[1-9]\d{0,15})(?:\.\d{1,2})?$/.test(s)) throw new Error('Amounts must be positive BDT with at most two decimal places.');
-        return Number(s);
+        return s;
     };
     $('cashFlowAllocationForm').addEventListener('input', () => { if (!busy) submitKey = crypto.randomUUID(); });
     $('cashFlowAllocationForm').addEventListener('submit', e => { e.preventDefault(); run(async () => {
@@ -47,8 +51,12 @@ if (scope && document.getElementById('cashFlowAllocationForm')) {
         const investingAmount = money('cashFlowAllocationInvesting');
         const financingAmount = money('cashFlowAllocationFinancing');
         const reason = $('cashFlowAllocationReason').value.trim();
+        const toCents = amount => {
+            const parts = amount.split('.');
+            return BigInt(parts[0]) * 100n + BigInt((parts[1] || '').padEnd(2,'0'));
+        };
         if (!Number.isSafeInteger(journalId) || journalId <= 0 || reason.length < 20 || reason.length > 500 ||
-            operatingAmount + investingAmount + financingAmount <= 0)
+            toCents(operatingAmount) + toCents(investingAmount) + toCents(financingAmount) <= 0n)
             throw new Error('Journal ID, exact BDT allocation and 20–500 character evidence required.');
         busy = true; $('cashFlowAllocationSubmit').disabled = true;
         try {

@@ -51,6 +51,8 @@ test('compound journal manual allocation is tenant-scoped, exact, immutable, mak
     assert.match(setupView, /id="cashFlowAllocationForm"/);
     assert.match(allocationJs, /crypto\.randomUUID\(\)/);
     assert.match(allocationJs, /RequestVerificationToken/);
+    assert.match(allocationJs, /toCents\(operatingAmount\) \+ toCents\(investingAmount\)/);
+    assert.match(allocationJs, /JSON\.parse\(\(await response\.text\(\)\)\.replace\(decimalKeys/);
     assert.match(report, /manuallyApproved\.TryGetValue/);
     assert.match(report, /CashFlowJournalProof\.Fingerprint/);
     assert.match(js, /cashFlowJournal=/);
