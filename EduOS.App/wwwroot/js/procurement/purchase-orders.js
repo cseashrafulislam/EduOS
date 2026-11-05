@@ -268,4 +268,8 @@ window.addEventListener('pagehide',()=>{++epoch;++detailEpoch;++lookupEpoch;++hi
  $('poRows').replaceChildren();$('poHistoryRows').replaceChildren();$('poDetailLines').replaceChildren();$('poEditLines').replaceChildren();$('poReqResults').replaceChildren();$('poSupplierResults').replaceChildren();
 });
 load();
+// Central Work Center only opens the source record. All decisions remain here.
+const workIdText = new URLSearchParams(window.location?.search || '').get('workId');
+if (/^[1-9]\d{0,14}$/.test(workIdText || '') && Number.isSafeInteger(Number(workIdText)))
+ showDetail(Number(workIdText));
 })();

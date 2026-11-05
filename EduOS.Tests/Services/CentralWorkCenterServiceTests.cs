@@ -1,0 +1,177 @@
+using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Facilities;
+using EduOS.Core.Entities.Inventory;
+using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Enums.Domain;
+using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Services.Platform;
+using FluentAssertions;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Moq;
+using Xunit;
+
+namespace EduOS.Tests.Services;
+
+public sealed class CentralWorkCenterServiceTests
+{
+    [Fact]
+    public async Task Central_queue_shows_three_independent_sources_without_own_or_other_tenant_records()
+    {
+        var databaseName = "work-center-" + Guid.NewGuid().ToString("N");
+        await using (var otherTenant = Database(databaseName, scoped: false))
+        {
+            otherTenant.Campuses.Add(new Campus { Id = 20, TenantId = 42, Code = "FOREIGN", Name = "Other institute" });
+            otherTenant.ProcurementRequisitions.Add(new ProcurementRequisition { Id = 9, TenantId = 42,
+                CampusId = 20, RequestNumber = "PR-9", Purpose = "Foreign tenant",
+                StateCode = "Submitted", CreatedBy = 8 });
+            await otherTenant.SaveChangesAsync();
+        }
+        await using var db = Database(databaseName);
+        SeedIdentity(db, "TenantAdmin");
+        SeedWork(db);
+        await db.SaveChangesAsync();
+
+        var service = Service(db, "TenantAdmin");
+        var first = await service.GetPendingAsync(1, 2);
+        var second = await service.GetPendingAsync(2, 2);
+        first.StatusCode.Should().Be(200);
+        first.Data!.InventoryIncluded.Should().BeTrue();
+        first.Data.FacilitiesIncluded.Should().BeTrue();
+        first.Data.Pending.TotalCount.Should().Be(4);
+        second.Data!.Pending.TotalCount.Should().Be(4);
+        var rows = first.Data.Pending.Items.Concat(second.Data.Pending.Items).ToArray();
+        rows.Should().HaveCount(4);
+        rows.Select(x => x.Source + ":" + x.SourceId).Should().OnlyHaveUniqueItems();
+        rows.Select(x => x.Source).Should().Contain("ProcurementRequisition")
+            .And.Contain("ProcurementPurchaseOrder").And.Contain("FacilityVisitorPolicy");
+        rows.Should().OnlyContain(x => x.CampusId == 10 && x.SourceId != 2 && x.SourceId != 9);
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Inventory_reviewer_sees_only_entitled_campus_and_cannot_review_own_request()
+    {
+        await using var db = Database();
+        SeedIdentity(db, "InventoryManager");
+        SeedWork(db);
+        db.Campuses.Add(new Campus { Id = 11, TenantId = 41, Code = "C11", Name = "Other campus" });
+        db.ProcurementRequisitions.Add(new ProcurementRequisition { Id = 7, TenantId = 41,
+            CampusId = 11, RequestNumber = "PR-7", Purpose = "Other campus",
+            StateCode = "Submitted", CreatedBy = 8 });
+        await db.SaveChangesAsync();
+
+        var service = Service(db, "InventoryManager");
+        var result = await service.GetPendingAsync();
+        result.StatusCode.Should().Be(200);
+        result.Data!.InventoryIncluded.Should().BeTrue();
+        result.Data.FacilitiesIncluded.Should().BeFalse();
+        result.Data.Pending.TotalCount.Should().Be(3);
+        result.Data.Pending.Items.Should().OnlyContain(x => x.CampusId == 10 &&
+            x.Source != "FacilityVisitorPolicy");
+        (await service.GetPendingAsync(campusId: 11)).StatusCode.Should().Be(403);
+    }
+
+    [Fact]
+    public async Task Disabled_module_pilot_and_revoked_role_never_expose_pending_work()
+    {
+        await using var db = Database();
+        SeedIdentity(db, "TenantAdmin");
+        SeedWork(db);
+        await db.SaveChangesAsync();
+
+        var none = await Service(db, "TenantAdmin", inventory: false, facilities: false).GetPendingAsync();
+        none.StatusCode.Should().Be(200);
+        none.Data!.Pending.TotalCount.Should().Be(0);
+        (await Service(db, "TenantAdmin", pilot: true).GetPendingAsync())
+            .Data!.Pending.TotalCount.Should().Be(0);
+        (await Service(db, "TenantAdmin").GetPendingAsync(pageSize: 101)).StatusCode.Should().Be(400);
+        (await Service(db, "TenantAdmin").GetPendingAsync(campusId: -1)).StatusCode.Should().Be(400);
+
+        db.UserRoles.Remove(db.UserRoles.Single());
+        await db.SaveChangesAsync();
+        (await Service(db, "TenantAdmin").GetPendingAsync()).StatusCode.Should().Be(403);
+        db.TenantMemberships.Single().Status = MembershipStatus.Suspended;
+        await db.SaveChangesAsync();
+        (await Service(db, "TenantAdmin").GetPendingAsync()).StatusCode.Should().Be(403);
+    }
+
+    private static CentralWorkCenterService Service(EduOSDbContext db, string role,
+        bool inventory = true, bool facilities = true, bool pilot = false)
+    {
+        var modules = new Mock<ITenantModuleService>();
+        modules.Setup(x => x.IsCurrentTenantModuleAvailableAsync("INVENTORY"))
+            .ReturnsAsync(inventory);
+        modules.Setup(x => x.IsCurrentTenantModuleAvailableAsync("FACILITIES"))
+            .ReturnsAsync(facilities);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            { ["PilotRelease:Enabled"] = pilot.ToString() }).Build();
+        return new CentralWorkCenterService(db, new User(role), modules.Object, config);
+    }
+
+    private static void SeedIdentity(EduOSDbContext db, string role)
+    {
+        db.Users.Add(new ApplicationUser { Id = 9, UserName = "reviewer" });
+        db.TenantMemberships.Add(new TenantMembership { Id = 1, TenantId = 41,
+            UserId = 9, Status = MembershipStatus.Active });
+        db.Roles.Add(new ApplicationRole { Id = 2, TenantId = 41,
+            Name = role, NormalizedName = role.ToUpperInvariant() });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 9, RoleId = 2 });
+        db.Campuses.Add(new Campus { Id = 10, TenantId = 41, Code = "MAIN", Name = "Main campus" });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 1, TenantId = 41,
+            UserId = 9, CampusId = 10, IsActive = true });
+    }
+
+    private static void SeedWork(EduOSDbContext db)
+    {
+        var at = new DateTime(2026, 11, 1, 9, 0, 0, DateTimeKind.Utc);
+        db.ProcurementRequisitions.AddRange(
+            new ProcurementRequisition { Id = 1, TenantId = 41, CampusId = 10,
+                RequestNumber = "PR-1", Purpose = "For independent review", StateCode = "Submitted",
+                CreatedBy = 8, SubmittedAt = at },
+            new ProcurementRequisition { Id = 2, TenantId = 41, CampusId = 10,
+                RequestNumber = "PR-2", Purpose = "Created by reviewer", StateCode = "Submitted",
+                CreatedBy = 9, SubmittedAt = at });
+        db.ProcurementPurchaseOrders.AddRange(
+            new ProcurementPurchaseOrder { Id = 3, TenantId = 41, CampusId = 10,
+                OrderNumber = "PO-3", StateCode = "Submitted", CreatedBy = 8,
+                SubmittedAt = at.AddMinutes(1) },
+            new ProcurementPurchaseOrder { Id = 4, TenantId = 41, CampusId = 10,
+                OrderNumber = "PO-4", StateCode = "CancelRequested", CreatedBy = 8,
+                SubmittedAt = at.AddMinutes(2) });
+        db.FacilityVisitorPolicyChanges.AddRange(
+            new FacilityVisitorPolicyChange { Id = 5, TenantId = 41, CampusId = 10,
+                PolicyCode = "RetentionDays", ProposedValue = "365", RequestReason = "Adjust policy",
+                RequestedByUserId = 8, CreatedAt = at.AddMinutes(3), StateCode = "Submitted" },
+            new FacilityVisitorPolicyChange { Id = 6, TenantId = 41, CampusId = 10,
+                PolicyCode = "LegalHold", ProposedValue = "true", RequestReason = "Own policy",
+                RequestedByUserId = 9, StateCode = "Submitted" });
+    }
+
+    private static EduOSDbContext Database(string? databaseName = null, bool scoped = true)
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        if (scoped) accessor.HttpContext.Items["TenantId"] = 41L;
+        return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase(databaseName ?? "work-center-" + Guid.NewGuid().ToString("N")).Options, accessor);
+    }
+
+    private sealed class User(string role) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public long UserId => 9;
+        public long TenantId => 41;
+        public string? FullName => null;
+        public string? Email => null;
+        public bool IsSuperAdmin => false;
+        public bool IsTenantAdmin => role == "TenantAdmin";
+        public IReadOnlyList<string> Roles => [role];
+        public bool IsInRole(string value) => value == role;
+        public string? IpAddress => null;
+        public string? UserAgent => null;
+    }
+}

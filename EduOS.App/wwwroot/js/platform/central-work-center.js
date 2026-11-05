@@ -1,0 +1,105 @@
+(() => {
+    'use strict';
+    const root = document.getElementById('centralWorkCenter');
+    if (!root) return;
+    const byId = id => document.getElementById(id);
+    const bn = (document.documentElement.lang || '').toLowerCase().startsWith('bn');
+    const sourceRoutes = Object.freeze({
+        ProcurementRequisition: '/ProcurementRequisitions/Index',
+        ProcurementPurchaseOrder: '/ProcurementPurchaseOrders/Index',
+        FacilityVisitorPolicy: '/FacilityVisitors/Index'
+    });
+    const names = {
+        ProcurementRequisition: bn ? 'ক্রয় চাহিদাপত্র' : 'Purchase requisition',
+        ProcurementPurchaseOrder: bn ? 'ক্রয়াদেশ' : 'Purchase order',
+        FacilityVisitorPolicy: bn ? 'ভিজিটর গোপনীয়তা নীতি' : 'Visitor privacy policy'
+    };
+    let page = 1, lastPage = 1, request = 0, pending = null;
+    function alertMessage(message, error = true) {
+        const box = byId('cwcAlert');
+        box.className = error ? 'alert alert-danger' : 'alert alert-info';
+        box.textContent = message;
+    }
+    function cell(row, value) {
+        const td = document.createElement('td');
+        td.textContent = value == null ? '' : String(value);
+        row.appendChild(td);
+        return td;
+    }
+    function render(data) {
+        const body = byId('cwcRows');
+        body.replaceChildren();
+        const result = data.pending;
+        lastPage = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
+        byId('cwcPage').textContent = `${result.page} / ${lastPage} (${result.totalCount})`;
+        byId('cwcPrevious').disabled = page <= 1;
+        byId('cwcNext').disabled = page >= lastPage;
+        if (!result.items.length) {
+            const empty = document.createElement('tr');
+            const td = cell(empty, bn ? 'কোনো অপেক্ষমাণ কাজ নেই' : 'No pending work in this scope.');
+            td.colSpan = 6;
+            body.appendChild(empty);
+        }
+        for (const item of result.items) {
+            const row = document.createElement('tr');
+            cell(row, names[item.source] || item.source);
+            cell(row, item.reference);
+            cell(row, item.campusId);
+            cell(row, item.state);
+            const instant = new Date(item.submittedAtUtc);
+            cell(row, Number.isFinite(instant.getTime()) ? instant.toLocaleString() : '');
+            const action = document.createElement('td');
+            if (sourceRoutes[item.source] === item.workspaceUrl) {
+                const link = document.createElement('a');
+                const params = new URLSearchParams();
+                const sourceId = Number(item.sourceId);
+                const campusId = Number(item.campusId);
+                if (Number.isSafeInteger(sourceId) && sourceId > 0 &&
+                    item.source !== 'FacilityVisitorPolicy') params.set('workId', String(sourceId));
+                if (item.source === 'FacilityVisitorPolicy' &&
+                    Number.isSafeInteger(campusId) && campusId > 0) params.set('campusId', String(campusId));
+                link.href = sourceRoutes[item.source] + (params.size ? '?' + params : '');
+                link.className = 'btn btn-outline-primary btn-sm';
+                link.textContent = bn ? 'খুলুন' : 'Open';
+                action.appendChild(link);
+            }
+            row.appendChild(action);
+            body.appendChild(row);
+        }
+    }
+    async function load() {
+        if (pending) pending.abort();
+        const controller = new AbortController();
+        pending = controller;
+        const serial = ++request;
+        const campus = byId('cwcCampus').value.trim();
+        const params = new URLSearchParams({ page: String(page), pageSize: '25' });
+        if (campus) params.set('campusId', campus);
+        try {
+            const response = await fetch('/api/platform/work-center/pending?' + params,
+                { credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
+            const json = await response.json();
+            if (!response.ok || !json.success || !json.data)
+                throw new Error(json.message || (bn ? 'তালিকা লোড করা যায়নি' : 'Cannot load work list.'));
+            if (request !== serial) return;
+            byId('cwcAlert').className = 'd-none';
+            render(json.data);
+        } catch (error) {
+            if (error.name !== 'AbortError' && request === serial)
+                alertMessage(error.message || 'Unable to load.');
+        } finally {
+            if (pending === controller) pending = null;
+        }
+    }
+    byId('cwcFilters').addEventListener('submit', event => {
+        event.preventDefault(); page = 1; load();
+    });
+    byId('cwcPrevious').addEventListener('click', () => {
+        if (page > 1) { --page; load(); }
+    });
+    byId('cwcNext').addEventListener('click', () => {
+        if (page < lastPage) { ++page; load(); }
+    });
+    window.addEventListener('pagehide', () => { if (pending) pending.abort(); });
+    load();
+})();

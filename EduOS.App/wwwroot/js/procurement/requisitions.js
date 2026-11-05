@@ -271,4 +271,9 @@
         dialog.close(); $('prHistory').hidden = true; load();
     } });
     load();
+    // Read-only deep link from Central Work Center. The source GET rechecks
+    // institution/campus access; decisions still require current rowversion.
+    const workIdText = new URLSearchParams(window.location?.search || '').get('workId');
+    if (/^[1-9]\d{0,14}$/.test(workIdText || '') && Number.isSafeInteger(Number(workIdText)))
+        openDetail(Number(workIdText));
 })();

@@ -432,4 +432,10 @@
         }
     });
     load();
+    const workCampusText = new URLSearchParams(window.location?.search || '').get('campusId');
+    if (/^[1-9]\d{0,14}$/.test(workCampusText || '') && Number.isSafeInteger(Number(workCampusText)) &&
+        $('fvPolicyCampus')) {
+        $('fvPolicyCampus').value = workCampusText;
+        loadPolicies();
+    }
 })();
