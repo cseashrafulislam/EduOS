@@ -49,7 +49,11 @@ test('5001-invoice AP load rehearsal is opt-in, disposable, measured and tenant-
     assert.match(benchmark, /EDUOS_SQL_AP_BENCHMARK/);
     assert.match(benchmark, /127\.0\.0\.1,14333/);
     assert.match(benchmark, /EduOS_MigrationSmoke/);
-    assert.match(benchmark, /const int invoiceCount = 5001/);
+    assert.match(benchmark, /\[InlineData\(5001\)\]/);
+    assert.match(benchmark, /\[InlineData\(10001\)\]/);
+    assert.match(benchmark, /\[InlineData\(50001\)\]/);
+    assert.match(benchmark, /PopulationCountObserved/);
+    assert.match(benchmark, /concurrent_writer_wait_ms=/);
     assert.match(benchmark, /ControlAccountGlBalance/);
     assert.match(benchmark, /cross_tenant_clean=true/);
     assert.match(benchmark, /sql_p95_ms=/);
