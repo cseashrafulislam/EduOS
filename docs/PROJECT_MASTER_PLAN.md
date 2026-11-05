@@ -1,6 +1,20 @@
 # EduOS — unified project scope, engineering inventory and remaining work
 
-**Owner decision: 2026-10-31.** EduOS is **one product and one active development backlog**. The former V1/V2/V3 names are historical delivery milestones, **not** active release partitions, sprint names, reasons to defer a workflow, or reasons to rebuild an already working module. This is the authoritative active scope and backlog for people, coding agents, GitHub issues and the five existing scheduled development tasks: **four core-domain/integration tracks plus one dedicated whole-product UI/UX modernization track**. Follow [AGENTS.md](../AGENTS.md) for engineering/security rules and [PRODUCT_BLUEPRINT.md](PRODUCT_BLUEPRINT.md) for the product catalogue.
+**Owner decision: 2026-10-31; automation ownership revised 2026-11-06.** EduOS is **one product and one active development backlog**. The former V1/V2/V3 names are historical delivery milestones, **not** active release partitions, sprint names, reasons to defer a workflow, or reasons to rebuild an already working module. This is the authoritative active scope for people, coding agents, GitHub issues and the five scheduled development tasks. Follow [AGENTS.md](../AGENTS.md) for engineering/security rules and [PRODUCT_BLUEPRINT.md](PRODUCT_BLUEPRINT.md) for the product catalogue.
+
+### Active scheduled EduOS workstreams — owner decision 2026-11-06
+
+The five **display names intentionally resemble garments modules**; the target project is **EduOS only**. Never work on Advice/Daywise/Requisition/Received/Article Control garments data or stored procedures merely because of an automation name. The owner requested hourly recurrence with staggered Bangladesh-time starts (the first slot was manually triggered immediately after 00:40 had passed):
+
+| Automation display name | Exclusive primary EduOS responsibility | Hourly scheduled minute (Asia/Dhaka) |
+| --- | --- | --- |
+| Advice Sheet | Full central-based architecture and shared cross-module integration | :40 |
+| Daywise | Complete UI/UX modernization and voice-entry page/single-assistant presentation | :50 |
+| Requisition | Five domain AI agents, optional AI-model + approved predefined SQL SELECT fallback, voice processing | :00 |
+| Received | Whole-project automated QA, tenant/security, data integrity and representative performance | :10 |
+| Article Control | Remaining business workflows, reports and their end-to-end integration closure | :20 |
+
+These are **scheduled start slots, not proof of execution or completion**. Each run must inspect the latest `Ashraful` SHA and check competing work before safe changes; preserve the existing canonical Finance journal, Inventory movement ledger, tenant/campus access and working module-specific behavior. The UI track owns presentation, while AI track owns backend routing and voice processing; there is one coherent user-facing assistant, not five duplicated interfaces. A protected write from voice always requires server validation, preview/confirmation, authorization and the existing posting workflow. The older numbered Task 2/Task 3 references below are dated historical delivery descriptions, **not current automation ownership**.
 
 ## 1. Current source of truth and safety boundaries
 
