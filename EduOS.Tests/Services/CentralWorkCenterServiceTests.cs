@@ -34,7 +34,11 @@ public sealed class CentralWorkCenterServiceTests
         await using var db = Database(databaseName);
         SeedIdentity(db, "TenantAdmin");
         SeedWork(db);
+        db.ProcurementRequisitions.Add(new ProcurementRequisition { Id = 8, TenantId = 41,
+            CampusId = 10, RequestNumber = "PR-8", Purpose = "Legacy creator not recorded",
+            StateCode = "Submitted" });
         await db.SaveChangesAsync();
+        await RestoreSeedMakerAuditAsync(db);
 
         var service = Service(db, "TenantAdmin");
         var first = await service.GetPendingAsync(1, 2);
@@ -64,6 +68,7 @@ public sealed class CentralWorkCenterServiceTests
             CampusId = 11, RequestNumber = "PR-7", Purpose = "Other campus",
             StateCode = "Submitted", CreatedBy = 8 });
         await db.SaveChangesAsync();
+        await RestoreSeedMakerAuditAsync(db);
 
         var service = Service(db, "InventoryManager");
         var result = await service.GetPendingAsync();
@@ -150,6 +155,18 @@ public sealed class CentralWorkCenterServiceTests
             new FacilityVisitorPolicyChange { Id = 6, TenantId = 41, CampusId = 10,
                 PolicyCode = "LegalHold", ProposedValue = "true", RequestReason = "Own policy",
                 RequestedByUserId = 9, StateCode = "Submitted" });
+    }
+
+    private static Task RestoreSeedMakerAuditAsync(EduOSDbContext db)
+    {
+        // SaveChanges applies the HTTP actor on inserts. This synthetic test context has no
+        // maker principal, so restore the historical creator snapshots after insertion.
+        // Missing creator remains missing and must never enter a maker-checker inbox.
+        foreach (var requisition in db.ProcurementRequisitions.Local.Where(x => x.Id is 1 or 2 or 7))
+            requisition.CreatedBy = requisition.Id == 2 ? 9 : 8;
+        foreach (var order in db.ProcurementPurchaseOrders.Local)
+            order.CreatedBy = 8;
+        return db.SaveChangesAsync();
     }
 
     private static EduOSDbContext Database(string? databaseName = null, bool scoped = true)

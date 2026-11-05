@@ -113,6 +113,9 @@ async function run(browser, bn, manager, mobile) {
                 new URL(response.url()).pathname.endsWith('/occupancy'));
             await page.locator('#fvOccupancy button[type="submit"]').click();
             await occupancyResponse;
+            // HTTP completion is not a render barrier; wait for the real async UI update.
+            await page.waitForFunction(() => /1\s*\/\s*2/.test(
+                document.getElementById('fvOccupancyResult')?.textContent || ''));
             assert.match(await page.locator('#fvOccupancyResult').innerText(), /1\s*\/\s*2/);
             assert.match(await page.locator('#fvOccupancyResult').innerText(),
                 bn ? /নির্ধারিত সময় পার:\s*1/ : /Overdue:\s*1/);
