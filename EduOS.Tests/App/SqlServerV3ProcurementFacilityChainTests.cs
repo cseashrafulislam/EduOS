@@ -432,6 +432,20 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 new FacilityPartsFinanceReviewDto { RowVersion = reversalVersion,
                     Approve = true })).StatusCode);
         }
+        await using (var pending = Open(options, tenantId, checkerId))
+        {
+            var trace = await new V3EnterpriseLedgerTraceService(
+                pending, new Actor(tenantId, checkerId)).GetAsync(issueReference);
+            Assert.True(trace.Success, trace.Message);
+            Assert.Equal("ReversalPending", trace.Data!.FinanceEvidenceStatus);
+            Assert.Null(trace.Data.ReversalReference);
+            var register = await new V3EnterpriseReconciliationRegisterService(
+                pending, new Actor(tenantId, checkerId))
+                .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
+            Assert.True(register.Success, register.Message);
+            Assert.Contains(register.Data!.Items, x => x.Reference == issueReference &&
+                x.EvidenceStatus == "ReversalPending");
+        }
         var competingReversal = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ =>
         {
             await using var reviewer = Open(options, tenantId, checkerId);
@@ -495,6 +509,90 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
                 select line.CreditAmount - line.DebitAmount).SumAsync();
             Assert.Equal(20m, inventoryNet); // Two physical units at BDT 10 after joint contra.
             Assert.Equal(29m, payableNet); // BDT 9 credit-adjusted bill + BDT 20 replacement bill.
+
+            // Central read models must prove the joint reversal, not merely the
+            // original balanced GL entry. Every corruption probe rolls back.
+            async Task AssertCentralEvidenceAsync(string expected)
+            {
+                var trace = await new V3EnterpriseLedgerTraceService(
+                    reviewer, new Actor(tenantId, checkerId)).GetAsync(issueReference);
+                Assert.True(trace.Success, trace.Message);
+                Assert.Equal(expected, trace.Data!.FinanceEvidenceStatus);
+                if (expected == "ExplicitReversedReference")
+                    Assert.Equal(stockContra.PublicId, trace.Data.ReversalReference);
+                var register = await new V3EnterpriseReconciliationRegisterService(
+                    reviewer, new Actor(tenantId, checkerId))
+                    .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
+                Assert.True(register.Success, register.Message);
+                Assert.Contains(register.Data!.Items, x => x.Reference == issueReference &&
+                    x.EvidenceStatus == expected);
+            }
+            await AssertCentralEvidenceAsync("ExplicitReversedReference");
+
+            await using (var tamper = await reviewer.Database.BeginTransactionAsync())
+            {
+                await reviewer.JournalLines.Where(l => l.JournalId == contra.Id && l.LineNo == 1)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.CreditAmount, 11m));
+                await reviewer.JournalLines.Where(l => l.JournalId == contra.Id && l.LineNo == 2)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.DebitAmount, 11m));
+                await AssertCentralEvidenceAsync("EvidenceConflict");
+                await tamper.RollbackAsync();
+            }
+            await AssertCentralEvidenceAsync("ExplicitReversedReference");
+
+            await using (var tamper = await reviewer.Database.BeginTransactionAsync())
+            {
+                await reviewer.InventoryMovementLines.Where(l =>
+                    l.InventoryMovementId == stockContra.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.UnitCost, 12m));
+                await AssertCentralEvidenceAsync("EvidenceConflict");
+                await tamper.RollbackAsync();
+            }
+            await using (var tamper = await reviewer.Database.BeginTransactionAsync())
+            {
+                await reviewer.Journals.Where(j => j.Id == contra.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.SourceId, 0L));
+                await AssertCentralEvidenceAsync("EvidenceConflict");
+                await tamper.RollbackAsync();
+            }
+            await using (var tamper = await reviewer.Database.BeginTransactionAsync())
+            {
+                // A deleted Finance contra cannot leave its posted stock reversal
+                // looking reconciled, even if tenant query filters hide the tombstone.
+                await reviewer.Journals.Where(j => j.Id == contra.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.IsDeleted, true));
+                await AssertCentralEvidenceAsync("EvidenceConflict");
+                await tamper.RollbackAsync();
+            }
+            await using (var tamper = await reviewer.Database.BeginTransactionAsync())
+            {
+                // Campus-neutral inventory is allowed, but it cannot authorize
+                // a GL contra assigned to an unrelated campus.
+                await reviewer.InventoryLocations.Where(l => l.Id == locationId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.CampusId, (long?)null));
+                await AssertCentralEvidenceAsync("ExplicitReversedReference");
+                await reviewer.Journals.Where(j => j.Id == contra.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.CampusId, campusId + 99999));
+                await AssertCentralEvidenceAsync("EvidenceConflict");
+                await tamper.RollbackAsync();
+            }
+            await using (var tamper = await reviewer.Database.BeginTransactionAsync())
+            {
+                await reviewer.InventoryLocations.Where(l => l.Id == locationId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.CampusId, (long?)null));
+                await reviewer.Journals.Where(j => j.Id == original.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(j => j.CampusId, campusId + 99999));
+                Assert.Equal(409, (await new V3EnterpriseLedgerTraceService(
+                    reviewer, new Actor(tenantId, checkerId)).GetAsync(issueReference)).StatusCode);
+                var register = await new V3EnterpriseReconciliationRegisterService(
+                    reviewer, new Actor(tenantId, checkerId))
+                    .GetAsync("stock", accountingDate, accountingDate, campusId, 1, 50);
+                Assert.True(register.Success, register.Message);
+                Assert.Contains(register.Data!.Items, x => x.Reference == issueReference &&
+                    x.EvidenceStatus == "EvidenceConflict");
+                await tamper.RollbackAsync();
+            }
+            await AssertCentralEvidenceAsync("ExplicitReversedReference");
         }
     }
 }

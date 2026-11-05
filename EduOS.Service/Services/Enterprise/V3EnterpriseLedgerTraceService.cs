@@ -70,6 +70,7 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
                     "Canonical procurement receipt, purchase order or posted stock evidence requires reconciliation.", 409);
         }
         var verifiedFacility = false;
+        long? facilityCampus = null;
         if (movement.SourceType == "FacilityWorkOrder")
         {
             var facility = await V3EnterpriseFacilityEvidenceValidator.InspectAsync(
@@ -82,6 +83,7 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
                 return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                     "Facility work order, campus or posted stock evidence requires reconciliation.", 409);
             verifiedFacility = true;
+            facilityCampus = facility.CampusByMovement[movement.Id];
         }
 
         // Historical tombstones are integrity failures, never silently excluded.
@@ -120,6 +122,9 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
             !x.CampusId.HasValue || !allowedCampuses.Contains(x.CampusId.Value)))
             return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
                 "Journal campus does not match either stock location.", 409);
+        if (verifiedFacility && journals.Any(x => x.CampusId != facilityCampus))
+            return ApiResponse<V3EnterpriseLedgerTraceDto>.ErrorResponse(
+                "Finance journal campus differs from the facility request campus.", 409);
         var journalIds = journals.Select(x => x.Id).ToArray();
         var journalLines = db.JournalLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && journalIds.Contains(x.JournalId));
@@ -179,6 +184,21 @@ public sealed class V3EnterpriseLedgerTraceService(EduOSDbContext db, ICurrentUs
                 x.State != JournalState.Posted && x.State != JournalState.Reversed)
                 ? "UnpostedJournal" :
             facilityAmountMismatch ? "JournalAmountMismatch" : "ExplicitBalancedReference";
+        if (verifiedFacility)
+        {
+            var originalJournalId = facilityActive.Length == 1
+                ? (long?)facilityActive[0].Id : null;
+            var reversalEvidence = await V3EnterpriseFacilityReversalEvidenceValidator.InspectAsync(
+                db, user.TenantId,
+                [new V3EnterpriseFacilityReversalEvidenceValidator.Issue(
+                    movement.Id, originalJournalId, facilityCampus!.Value,
+                    movement.FromLocationId, movement.ToLocationId)], ct);
+            if (reversalEvidence.TryGetValue(movement.Id, out var reversalStatus))
+            {
+                if (reversalStatus == "EvidenceConflict") financeStatus = reversalStatus;
+                else if (financeStatus == "ExplicitBalancedReference") financeStatus = reversalStatus;
+            }
+        }
         return ApiResponse<V3EnterpriseLedgerTraceDto>.SuccessResponse(new V3EnterpriseLedgerTraceDto {
             MovementReference = movement.PublicId, MovementNumber = movement.MovementNumber,
             MovementType = movement.MovementTypeCode, State = movement.StateCode,

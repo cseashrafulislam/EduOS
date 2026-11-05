@@ -47,10 +47,24 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
                 x.MovementAt >= start && x.MovementAt <= endExclusive);
         if (campusId.HasValue)
+        {
+            // A shared warehouse can have CampusId NULL. Facility stock belongs
+            // to its request campus, including the linked stock reversal.
+            var facilityCampusIssueIds =
+                from issue in db.InventoryMovements.IgnoreQueryFilters()
+                join workOrder in db.FacilityWorkOrders.IgnoreQueryFilters()
+                    on issue.SourceId equals (long?)workOrder.Id
+                join request in db.FacilityServiceRequests.IgnoreQueryFilters()
+                    on workOrder.FacilityServiceRequestId equals request.Id
+                where issue.TenantId == user.TenantId && workOrder.TenantId == user.TenantId &&
+                    request.TenantId == user.TenantId && issue.SourceType == "FacilityWorkOrder" &&
+                    request.CampusId == campusId.Value
+                select issue.Id;
             query = query.Where(x => db.InventoryLocations.IgnoreQueryFilters().Any(loc =>
-                loc.TenantId == user.TenantId &&
-                loc.CampusId == campusId.Value &&
-                (loc.Id == x.FromLocationId || loc.Id == x.ToLocationId)));
+                    loc.TenantId == user.TenantId && loc.CampusId == campusId.Value &&
+                    (loc.Id == x.FromLocationId || loc.Id == x.ToLocationId)) ||
+                facilityCampusIssueIds.Any(id => id == x.Id || id == x.ReversalOfMovementId));
+        }
         var count = await query.CountAsync(ct);
         var pageRows = await query.OrderByDescending(x => x.MovementAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * size).Take(size)
@@ -112,6 +126,20 @@ public sealed class V3EnterpriseReconciliationRegisterService(
         var journalTotals = await LoadJournalTotalsAsync(journals.Select(x => x.Id).ToArray(), ct);
         var linkMap = journals.GroupBy(x => x.SourceId)
             .ToDictionary(g => g.Key, g => g.ToArray());
+        // Reconcile the Finance contra and stock contra as one facility event.
+        // Resolve all affected issues in a bounded batch to avoid N+1 queries.
+        var reversalIssues = pageRows.Where(m => facilityIssues.Verified.Contains(m.Id))
+            .Select(m =>
+            {
+                linkMap.TryGetValue(m.Id, out var linked);
+                var active = linked?.Where(j => j.State != JournalState.Rejected &&
+                    j.State != JournalState.Cancelled).ToArray();
+                return new V3EnterpriseFacilityReversalEvidenceValidator.Issue(
+                    m.Id, active?.Length == 1 ? (long?)active[0].Id : null,
+                    facilityIssues.CampusByMovement[m.Id], m.FromLocationId, m.ToLocationId);
+            }).ToArray();
+        var facilityReversals = await V3EnterpriseFacilityReversalEvidenceValidator.InspectAsync(
+            db, user.TenantId, reversalIssues, ct);
         // The register deliberately does not infer a single campus for inter-campus transfers.
         // A campus filter is applied in SQL above; the detail endpoint validates finance evidence.
         var rows = pageRows.Select(m =>
@@ -129,9 +157,11 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             var allowedCampuses = endpoints.Where(id =>
                 locationMap.TryGetValue(id, out var loc) && loc.CampusId.HasValue)
                 .Select(id => locationMap[id].CampusId!.Value).ToHashSet();
-            var foreignCampusJournal = allowedCampuses.Count > 0 && link != null &&
-                link.Any(j => !j.CampusId.HasValue ||
-                    !allowedCampuses.Contains(j.CampusId.Value));
+            var foreignCampusJournal = link != null &&
+                ((allowedCampuses.Count > 0 && link.Any(j => !j.CampusId.HasValue ||
+                    !allowedCampuses.Contains(j.CampusId.Value))) ||
+                 (facilitySource && link.Any(j =>
+                    j.CampusId != facilityIssues.CampusByMovement[m.Id])));
             var status = missingLocation || foreignCampusJournal ||
                 foreignMovementIds.Contains(m.Id) ||
                 invalidTransferReceipts.Contains(m.Id) ||
@@ -153,6 +183,11 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 facilitySource && activeLinks.Any(j => j.State == JournalState.Posted &&
                     journalTotals[j.Id].Debit != decimal.Round(v.Amount, 2, MidpointRounding.AwayFromZero))
                     ? "JournalAmountMismatch" : "ExplicitBalancedReference";
+            if (facilityReversals.TryGetValue(m.Id, out var reversalStatus))
+            {
+                if (reversalStatus == "EvidenceConflict") status = reversalStatus;
+                else if (status == "ExplicitBalancedReference") status = reversalStatus;
+            }
             return new V3EnterpriseReconciliationRegisterRowDto
             {
                 Reference = m.PublicId, Number = m.MovementNumber,

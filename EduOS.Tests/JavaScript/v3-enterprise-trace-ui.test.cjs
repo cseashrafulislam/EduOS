@@ -25,3 +25,22 @@ test('asset Finance detail and register reject campusless journal evidence', () 
     assert.match(detail, /journals\.Any\(x => x\.IsDeleted \|\| x\.CampusId != run\.CampusId\)/);
     assert.match(register, /j\.IsDeleted \|\| j\.CampusId != r\.CampusId/);
 });
+
+test('facility Finance and stock contras require one shared tenant-scoped proof', () => {
+    const detail = readFileSync(resolve(__dirname,
+        '../../EduOS.Service/Services/Enterprise/V3EnterpriseLedgerTraceService.cs'), 'utf8');
+    const register = readFileSync(resolve(__dirname,
+        '../../EduOS.Service/Services/Enterprise/V3EnterpriseReconciliationRegisterService.cs'), 'utf8');
+    const validator = readFileSync(resolve(__dirname,
+        '../../EduOS.Service/Services/Enterprise/V3EnterpriseFacilityReversalEvidenceValidator.cs'), 'utf8');
+    const ui = readFileSync(resolve(__dirname,
+        '../../EduOS.App/wwwroot/js/inventory/v3-enterprise-trace.js'), 'utf8');
+    assert.match(detail, /V3EnterpriseFacilityReversalEvidenceValidator\.InspectAsync/);
+    assert.match(register, /V3EnterpriseFacilityReversalEvidenceValidator\.InspectAsync/);
+    assert.match(validator, /IgnoreQueryFilters\(\)/);
+    assert.match(validator, /reversal\.ClientRequestId != contra\.PublicId/);
+    assert.match(validator, /a\.UnitCost == b\.UnitCost/);
+    assert.match(validator, /a\.DebitAmount == b\.CreditAmount/);
+    assert.match(ui, /ExplicitReversedReference/);
+    assert.match(ui, /ReversalPending/);
+});

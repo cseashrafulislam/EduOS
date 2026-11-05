@@ -16,6 +16,8 @@ public static class V3EnterpriseFacilityEvidenceValidator
     {
         public HashSet<long> Invalid { get; } = [];
         public HashSet<long> Verified { get; } = [];
+        // Authoritative work-order campus, even when the stock location is shared.
+        public Dictionary<long, long> CampusByMovement { get; } = [];
     }
 
     public static async Task<Result> InspectAsync(EduOSDbContext db, long tenantId,
@@ -68,7 +70,10 @@ public static class V3EnterpriseFacilityEvidenceValidator
                     movement.CreatedBy == movement.PostedByUserId)))
                 result.Invalid.Add(movement.Id);
             else
+            {
                 result.Verified.Add(movement.Id);
+                result.CampusByMovement.Add(movement.Id, request.CampusId);
+            }
         }
         return result;
     }
