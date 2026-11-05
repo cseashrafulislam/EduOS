@@ -210,6 +210,23 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.Equal(1200m, lines.Sum(x => x.CreditAmount));
             Assert.Equal(expenseId, lines[0].AccountId);
             Assert.Equal(payableId, lines[1].AccountId);
+            // A balanced journal with the correct AP liability is not valid if
+            // the counter-leg is an asset instead of the approved expense.
+            await using (var tamper = await db.Database.BeginTransactionAsync())
+            {
+                var bankLedger = await db.BankAccounts.AsNoTracking().Where(x => x.Id == bankId)
+                    .Select(x => x.AccountId).SingleAsync();
+                await db.JournalLines.Where(x => x.JournalId == journal.Id && x.LineNo == 1)
+                    .ExecuteUpdateAsync(x => x.SetProperty(l => l.AccountId, bankLedger));
+                var audit = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+                Assert.True(audit.Success, audit.Message);
+                Assert.Equal("InvalidOriginal", audit.Data!.Page.Items.Single(x =>
+                    x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference).GlReconciliationStatus);
+                await tamper.RollbackAsync();
+            }
+            var restored = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+            Assert.Equal("Reconciled", restored.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference).GlReconciliationStatus);
         }
         // Payment instruction is NOT a bank transfer; only independently
         // approved and externally confirmed payment reduces payable aging.
@@ -348,6 +365,24 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.Equal(800m, institution.Data.ControlAccountGlBalance);
             Assert.Equal(0m, institution.Data.UnattributedGlBalance);
             Assert.Equal(403, (await service.SupplierApInstitutionControlAsync(invoiceDate, null)).StatusCode);
+            // Payment remains arithmetically balanced and the payable matches
+            // the subledger even when its bank credit is diverted to expense.
+            var paymentJournal = await db.Journals.AsNoTracking().Where(x =>
+                x.TenantId == tenantId && x.SourceType == "FacilityVendorServicePayment" &&
+                x.State == JournalState.Posted).Select(x => x.Id).SingleAsync();
+            await using (var tamper = await db.Database.BeginTransactionAsync())
+            {
+                await db.JournalLines.Where(x => x.JournalId == paymentJournal && x.LineNo == 2)
+                    .ExecuteUpdateAsync(x => x.SetProperty(l => l.AccountId, expenseId));
+                var corrupted = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+                Assert.True(corrupted.Success, corrupted.Message);
+                Assert.Equal("InvalidLinkedJournal", corrupted.Data!.Page.Items.Single(x =>
+                    x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference).GlReconciliationStatus);
+                await tamper.RollbackAsync();
+            }
+            var restored = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+            Assert.Equal("Reconciled", restored.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference).GlReconciliationStatus);
             Assert.Equal(409, (await service.RequestReversalAsync(bill.Reference,
                 new FacilityVendorBillReversalRequestDto {
                     ClientRequestId = Guid.NewGuid(), RowVersion = bill.RowVersion,
@@ -455,6 +490,24 @@ public sealed class SqlServerFacilityVendorBillingTests
             Assert.Equal(1, afterReversal.Data.InvoiceCount);
             Assert.Equal(0m, afterReversal.Data.SubledgerOutstanding);
             Assert.Equal(0m, afterReversal.Data.ControlAccountGlBalance);
+            // A contra must mirror every original GL leg, not merely cancel
+            // the AP liability while redirecting the non-liability account.
+            await using (var tamper = await db.Database.BeginTransactionAsync())
+            {
+                var billContra = journals.Single(x => x.SourceType == "FacilityVendorServiceBillReversal");
+                var bankLedger = await db.BankAccounts.AsNoTracking().Where(x => x.Id == bankId)
+                    .Select(x => x.AccountId).SingleAsync();
+                await db.JournalLines.Where(x => x.JournalId == billContra.Id && x.LineNo == 1)
+                    .ExecuteUpdateAsync(x => x.SetProperty(l => l.AccountId, bankLedger));
+                var corrupted = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+                Assert.True(corrupted.Success, corrupted.Message);
+                Assert.Equal("InvalidLinkedJournal", corrupted.Data!.Page.Items.Single(x =>
+                    x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference).GlReconciliationStatus);
+                await tamper.RollbackAsync();
+            }
+            var reconciled = await service.SupplierAgingWithGlAsync(invoiceDate, campusId, 1, 25);
+            Assert.Equal("Reconciled", reconciled.Data!.Page.Items.Single(x =>
+                x.InvoiceSource == "Service" && x.InvoiceReference == bill.Reference).GlReconciliationStatus);
             // Historical/corrupt reference probe: a same-tenant posted GL
             // journal is not a valid substitute for the invoice's own source.
             // Roll back the corruption, retaining immutable posted evidence.
