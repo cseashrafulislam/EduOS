@@ -319,6 +319,36 @@ public sealed class CashFlowRuleDto
     public string RowVersion { get; set; } = string.Empty;
 }
 
+public sealed class SubmitCashFlowJournalAllocationDto
+{
+    public long JournalId { get; set; }
+    public decimal OperatingAmount { get; set; }
+    public decimal InvestingAmount { get; set; }
+    public decimal FinancingAmount { get; set; }
+    public Guid ClientRequestId { get; set; }
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class CashFlowJournalAllocationDto
+{
+    public long Id { get; set; }
+    public long JournalId { get; set; }
+    public string JournalNumber { get; set; } = string.Empty;
+    public DateOnly JournalDate { get; set; }
+    public string Direction { get; set; } = string.Empty;
+    public decimal OperatingAmount { get; set; }
+    public decimal InvestingAmount { get; set; }
+    public decimal FinancingAmount { get; set; }
+    public string StateCode { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public long SubmittedByUserId { get; set; }
+    public DateTime SubmittedAtUtc { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    public string? ReviewReason { get; set; }
+    public string RowVersion { get; set; } = string.Empty;
+}
+
 public sealed class InstitutionalCashFlowActivityDto
 {
     public string ActivityCode { get; set; } = string.Empty;
@@ -333,6 +363,9 @@ public sealed class CashFlowUnclassifiedDto
     public DateOnly Date { get; set; }
     public string JournalNumber { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
+    public IReadOnlyList<long> CounterpartyAccountIds { get; set; } = Array.Empty<long>();
+    public decimal CashInflows { get; set; }
+    public decimal CashOutflows { get; set; }
 }
 
 public sealed class InstitutionalCashFlowStatementDto

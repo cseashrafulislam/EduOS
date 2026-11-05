@@ -20,4 +20,7 @@ public interface IAccountingSetupService
     Task<ApiResponse<PagedResult<CashFlowRuleDto>>> GetCashFlowRulesAsync(int page, int pageSize, CancellationToken cancellationToken = default);
     Task<ApiResponse<CashFlowRuleDto>> SubmitCashFlowRuleAsync(SubmitCashFlowRuleDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<CashFlowRuleDto>> ReviewCashFlowRuleAsync(long id, ReviewCashFlowRuleDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<CashFlowJournalAllocationDto>>> GetCashFlowJournalAllocationsAsync(int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CashFlowJournalAllocationDto>> SubmitCashFlowJournalAllocationAsync(SubmitCashFlowJournalAllocationDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponse<CashFlowJournalAllocationDto>> ReviewCashFlowJournalAllocationAsync(long id, ReviewCashFlowRuleDto request, CancellationToken cancellationToken = default);
 }

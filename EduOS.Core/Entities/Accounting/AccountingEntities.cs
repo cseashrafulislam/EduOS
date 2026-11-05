@@ -77,6 +77,30 @@ public sealed class CashFlowActivityRule : BaseTenantEntity
     [MaxLength(500)] public string? ReviewReason { get; set; }
 }
 
+/// <summary>
+/// Audited allocation of a single posted journal's external cash movement.
+/// Used only where account-level rules cannot represent a compound journal.
+/// Does not change or duplicate the authoritative journal ledger.
+/// </summary>
+public sealed class CashFlowJournalAllocation : BaseTenantEntity
+{
+    public long JournalId { get; set; }
+    [Required, MaxLength(64)] public string JournalFingerprint { get; set; } = string.Empty;
+    [Required, MaxLength(10)] public string Direction { get; set; } = string.Empty;
+    [Column(TypeName = "decimal(18,2)")] public decimal OperatingAmount { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal InvestingAmount { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal FinancingAmount { get; set; }
+    [Required, MaxLength(20)] public string StateCode { get; set; } = "Submitted";
+    public Guid ClientRequestId { get; set; }
+    [Required, MaxLength(500)] public string Reason { get; set; } = string.Empty;
+    public long SubmittedByUserId { get; set; }
+    public DateTime SubmittedAtUtc { get; set; }
+    public long? ReviewedByUserId { get; set; }
+    public DateTime? ReviewedAtUtc { get; set; }
+    public Guid? ReviewRequestId { get; set; }
+    [MaxLength(500)] public string? ReviewReason { get; set; }
+}
+
 public class Journal : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();

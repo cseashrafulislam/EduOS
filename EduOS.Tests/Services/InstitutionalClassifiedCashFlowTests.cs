@@ -108,6 +108,53 @@ public sealed class InstitutionalClassifiedCashFlowTests
         report.Data.UnclassifiedJournalCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Compound_journal_needs_exact_idempotent_independently_approved_allocation()
+    {
+        await using var db = Database();
+        Seed(db);
+        Journal(db, 31, From, (1,100m,0m), (3,0m,120m), (4,20m,0m));
+        await db.SaveChangesAsync();
+        var report = new AccountingReportingService(db, User(20,"TenantAdmin"));
+        var before = await report.GetInstitutionalCashFlowStatementAsync(From,To);
+        before.Data!.UnclassifiedJournalCount.Should().Be(1);
+        before.Data.Exceptions[0].CounterpartyAccountIds.Should().BeEquivalentTo(new long[] {3,4});
+        var maker = new AccountingSetupService(db, User(10,"Principal"), TimeProvider.System);
+        var request = new SubmitCashFlowJournalAllocationDto { JournalId=31, OperatingAmount=70m,
+            InvestingAmount=30m, FinancingAmount=0m, ClientRequestId=Guid.NewGuid(), Reason=Reason };
+        (await maker.SubmitCashFlowJournalAllocationAsync(new() { JournalId=31, OperatingAmount=99m,
+            ClientRequestId=Guid.NewGuid(), Reason=Reason })).StatusCode.Should().Be(409);
+        var submitted = await maker.SubmitCashFlowJournalAllocationAsync(request);
+        submitted.StatusCode.Should().Be(200);
+        (await maker.SubmitCashFlowJournalAllocationAsync(request)).Data!.Id.Should().Be(submitted.Data!.Id);
+        (await maker.SubmitCashFlowJournalAllocationAsync(new() { JournalId=31, OperatingAmount=100m,
+            ClientRequestId=Guid.NewGuid(), Reason=Reason })).StatusCode.Should().Be(409);
+        (await report.GetInstitutionalCashFlowStatementAsync(From,To)).Data!.IsComplete.Should().BeFalse();
+        var pending = db.CashFlowJournalAllocations.Single();
+        pending.RowVersion = [7,8,9];
+        var review = new ReviewCashFlowRuleDto { Approve=true, ReviewRequestId=Guid.NewGuid(),
+            RowVersion=Convert.ToBase64String(pending.RowVersion) };
+        (await new AccountingSetupService(db, User(10,"TenantAdmin"), TimeProvider.System)
+            .ReviewCashFlowJournalAllocationAsync(pending.Id, review)).StatusCode.Should().Be(403);
+        var checker = new AccountingSetupService(db, User(20,"TenantAdmin"), TimeProvider.System);
+        var approved = await checker.ReviewCashFlowJournalAllocationAsync(pending.Id,review);
+        approved.StatusCode.Should().Be(200);
+        (await checker.ReviewCashFlowJournalAllocationAsync(pending.Id,review)).StatusCode.Should().Be(200);
+        var beforeApproval = approved.Data!.ReviewedAtUtc!.Value.AddTicks(-1);
+        (await report.GetInstitutionalCashFlowStatementAsync(From,To,beforeApproval)).Data!.IsComplete.Should().BeFalse();
+        var after = await report.GetInstitutionalCashFlowStatementAsync(From,To);
+        after.StatusCode.Should().Be(200);
+        after.Data!.IsComplete.Should().BeTrue();
+        after.Data.Activities.Single(x => x.ActivityCode == "Operating").Inflows.Should().Be(70m);
+        after.Data.Activities.Single(x => x.ActivityCode == "Investing").Inflows.Should().Be(30m);
+        after.Data.NetCashChange.Should().Be(100m);
+        db.Journals.Count().Should().Be(1);
+        db.JournalLines.Count().Should().Be(3);
+        db.JournalLines.Single(x => x.Id == 312).CreditAmount = 121m;
+        await db.SaveChangesAsync();
+        (await report.GetInstitutionalCashFlowStatementAsync(From,To)).StatusCode.Should().Be(409);
+    }
+
     private static void Seed(EduOSDbContext db)
     {
         db.Accounts.AddRange(

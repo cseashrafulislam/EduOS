@@ -25,7 +25,6 @@ public sealed partial class FacilityVendorServiceBillService
         await using var snapshot = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct) : null;
         const int batchSize = 50;
-        const int maximumInvoices = 5000;
         var totals = new Dictionary<long, InstitutionalSupplierApControlAccountDto>();
         var count = -1;
         var processed = 0;
@@ -40,9 +39,9 @@ public sealed partial class FacilityVendorServiceBillService
             if (count < 0)
             {
                 count = result.Page.TotalCount;
-                if (count > maximumInvoices)
-                    return Error<InstitutionalSupplierApControlDto>(
-                        "More than 5,000 supplier invoices; select a campus or use the paged reconciliation. No partial institutional total was returned.", 422);
+                // The control is an aggregate audit, not a paged display. Never
+                // silently cap the source population: every source must be checked.
+                // SQL remains the paging authority; only 50 rows are held per pass.
             }
             if (result.Page.TotalCount != count || result.Page.Items.Count == 0 && processed < count)
                 return Error<InstitutionalSupplierApControlDto>("Supplier source population changed during reconciliation.", 409);
@@ -82,37 +81,40 @@ public sealed partial class FacilityVendorServiceBillService
             where line.TenantId == user.TenantId && !line.IsDeleted &&
                 account.TenantId == user.TenantId && !account.IsDeleted &&
                 account.AccountType == AccountType.Liability
-            select line.AccountId).Distinct().Take(502).ToListAsync(ct);
-        if (discovered.Count > 500 || totals.Count > 500)
-            return Error<InstitutionalSupplierApControlDto>("More than 500 AP control ledgers; narrow the control scope.", 422);
+            select line.AccountId).Distinct().ToListAsync(ct);
         foreach (var id in discovered)
             if (!totals.ContainsKey(id)) totals.Add(id, new InstitutionalSupplierApControlAccountDto { AccountId = id });
         var ids = totals.Keys.ToArray();
         if (ids.Length > 0)
         {
-            var accounts = await db.Accounts.AsNoTracking().Where(a => a.TenantId == user.TenantId &&
-                !a.IsDeleted && ids.Contains(a.Id) && !a.IsGroup && a.AllowsPosting &&
-                a.AccountType == AccountType.Liability && a.CurrencyCode == "BDT")
-                .Select(a => new { a.Id, a.Code, a.Name }).ToListAsync(ct);
-            if (accounts.Count != ids.Length)
-                return Error<InstitutionalSupplierApControlDto>("Supplier control ledger is missing or invalid.", 409);
-            foreach (var a in accounts)
-            {
-                totals[a.Id].AccountCode = a.Code;
-                totals[a.Id].AccountName = a.Name;
-            }
             // This reads the actual entire GL balance for the control account,
             // including unmatched manual entries and journals outside AP modules.
+            // Chunk only the SQL IN parameter list, never the audit population.
+            // A single serializable snapshot protects every batch's consistency.
             var journals = db.Journals.AsNoTracking().Where(j => j.TenantId == user.TenantId &&
                 !j.IsDeleted && (j.State == JournalState.Posted || j.State == JournalState.Reversed) &&
                 j.JournalDate <= asOf && (!campusId.HasValue || j.CampusId == campusId));
-            var gl = await (from line in db.JournalLines.AsNoTracking()
-                join j in journals on line.JournalId equals j.Id
-                where line.TenantId == user.TenantId && !line.IsDeleted && ids.Contains(line.AccountId)
-                group line by line.AccountId into g
-                select new { AccountId = g.Key, Balance = g.Sum(x => x.CreditAmount - x.DebitAmount) })
-                .ToListAsync(ct);
-            foreach (var row in gl) totals[row.AccountId].ControlAccountGlBalance = row.Balance;
+            foreach (var slice in ids.Chunk(400))
+            {
+                var accounts = await db.Accounts.AsNoTracking().Where(a => a.TenantId == user.TenantId &&
+                    !a.IsDeleted && slice.Contains(a.Id) && !a.IsGroup && a.AllowsPosting &&
+                    a.AccountType == AccountType.Liability && a.CurrencyCode == "BDT")
+                    .Select(a => new { a.Id, a.Code, a.Name }).ToListAsync(ct);
+                if (accounts.Count != slice.Length)
+                    return Error<InstitutionalSupplierApControlDto>("Supplier control ledger is missing or invalid.", 409);
+                foreach (var a in accounts)
+                {
+                    totals[a.Id].AccountCode = a.Code;
+                    totals[a.Id].AccountName = a.Name;
+                }
+                var gl = await (from line in db.JournalLines.AsNoTracking()
+                    join j in journals on line.JournalId equals j.Id
+                    where line.TenantId == user.TenantId && !line.IsDeleted && slice.Contains(line.AccountId)
+                    group line by line.AccountId into g
+                    select new { AccountId = g.Key, Balance = g.Sum(x => x.CreditAmount - x.DebitAmount) })
+                    .ToListAsync(ct);
+                foreach (var row in gl) totals[row.AccountId].ControlAccountGlBalance = row.Balance;
+            }
         }
         var values = totals.Values.OrderBy(x => x.AccountCode).ThenBy(x => x.AccountId).ToArray();
         var totalGl = values.Sum(x => x.ControlAccountGlBalance);

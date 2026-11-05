@@ -2,7 +2,7 @@ const root = document.getElementById('institutionAccountingReports');
 if (root && document.getElementById('cashBookForm')) {
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-    const decimalKeys = /("(?:openingBalance|closingBalance|debitAmount|creditAmount|runningBalance|receipts|payments|transfersIn|transfersOut|inflows|outflows|net|unclassifiedInflows|unclassifiedOutflows|openingCashAndBank|closingCashAndBank|netCashChange)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
+    const decimalKeys = /("(?:openingBalance|closingBalance|debitAmount|creditAmount|runningBalance|receipts|payments|transfersIn|transfersOut|inflows|outflows|net|unclassifiedInflows|unclassifiedOutflows|cashInflows|cashOutflows|openingCashAndBank|closingCashAndBank|netCashChange)"\s*:\s*)(-?\d+(?:\.\d+)?)/g;
     const cents = value => {
         const s = String(value ?? '0');
         if (!/^-?\d+(?:\.\d{1,2})?$/.test(s)) throw new Error('Invalid financial precision.');
@@ -141,8 +141,12 @@ if (root && document.getElementById('cashBookForm')) {
                     '</th><th class="text-end">' + money(totalOut) + '</th><th class="text-end">' + money(data.netCashChange) +
                     '</th></tr>';
                 $('cashFlowExceptions').innerHTML = (data.exceptions || []).map(x => '<tr><td>' + esc(x.journalNumber) +
-                    '</td><td>' + esc(x.date) + '</td><td>' + esc(x.reason) + '</td></tr>').join('') ||
-                    '<tr><td colspan="3">No unclassified journals in this period.</td></tr>';
+                    ' (#' + esc(x.journalId) + ') <a class="btn btn-outline-primary btn-sm" href="/AccountingSetup/Index?cashFlowJournal=' +
+                    encodeURIComponent(String(x.journalId)) + '">Review allocation</a></td><td>' + esc(x.date) +
+                    '</td><td>' + money(x.cashInflows) + ' / ' + money(x.cashOutflows) +
+                    '</td><td>' + esc((x.counterpartyAccountIds || []).join(', ')) +
+                    '</td><td>' + esc(x.reason) + '</td></tr>').join('') ||
+                    '<tr><td colspan="5">No unclassified journals in this period.</td></tr>';
                 $('cashFlowSummary').textContent = (data.isComplete ? 'CLASSIFIED & RECONCILED' : 'INCOMPLETE — NOT FOR STATUTORY SUBMISSION') +
                     ' • Opening BDT ' + money(data.openingCashAndBank) +
                     ' • Closing BDT ' + money(data.closingCashAndBank) +
@@ -165,8 +169,9 @@ if (root && document.getElementById('cashBookForm')) {
             ['Closing Cash & Bank',d.closingCashAndBank,'',''],
             ['Complete',d.isComplete,'',''],['Unclassified journal count',d.unclassifiedJournalCount,'',''],
             ['Policy approval cutoff UTC',d.policyApprovedThroughUtc,'',''],
-            [],['Journal','Date','Unclassified reason',''],
-            ...(d.exceptions || []).map(x => [x.journalNumber,x.date,x.reason,''])],
+            [],['Journal','Journal ID','Date','Cash In','Cash Out','Counterparty account IDs','Unclassified reason'],
+            ...(d.exceptions || []).map(x => [x.journalNumber,x.journalId,x.date,x.cashInflows,x.cashOutflows,
+                (x.counterpartyAccountIds || []).join('; '),x.reason])],
             'institution-cash-flow-' + d.fromDate + '-' + d.toDate + '.csv');
     });
     loadCashLedgers().catch(error => { $('cashBookLedger').innerHTML = '<option value="">Cash ledger unavailable</option>';

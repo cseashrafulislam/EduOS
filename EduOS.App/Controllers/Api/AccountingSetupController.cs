@@ -39,4 +39,10 @@ public sealed class AccountingSetupController : ControllerBase
     public async Task<IActionResult> SubmitCashFlowRule([FromBody] SubmitCashFlowRuleDto r,CancellationToken ct) => Reply(await service.SubmitCashFlowRuleAsync(r,ct));
     [HttpPost("cash-flow-rules/{id:long}/review"),Authorize(Roles="TenantAdmin")]
     public async Task<IActionResult> ReviewCashFlowRule(long id,[FromBody] ReviewCashFlowRuleDto r,CancellationToken ct) => Reply(await service.ReviewCashFlowRuleAsync(id,r,ct));
+    [HttpGet("cash-flow-journal-allocations"),Authorize(Roles="TenantAdmin,Principal"),ResponseCache(NoStore=true,Location=ResponseCacheLocation.None)]
+    public async Task<IActionResult> CashFlowJournalAllocations(int page=1,int pageSize=25,CancellationToken ct=default) => Reply(await service.GetCashFlowJournalAllocationsAsync(page,pageSize,ct));
+    [HttpPost("cash-flow-journal-allocations"),Authorize(Roles="TenantAdmin,Principal")]
+    public async Task<IActionResult> SubmitCashFlowJournalAllocation([FromBody] SubmitCashFlowJournalAllocationDto r,CancellationToken ct) => Reply(await service.SubmitCashFlowJournalAllocationAsync(r,ct));
+    [HttpPost("cash-flow-journal-allocations/{id:long}/review"),Authorize(Roles="TenantAdmin")]
+    public async Task<IActionResult> ReviewCashFlowJournalAllocation(long id,[FromBody] ReviewCashFlowRuleDto r,CancellationToken ct) => Reply(await service.ReviewCashFlowJournalAllocationAsync(id,r,ct));
 }

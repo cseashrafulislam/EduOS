@@ -2747,6 +2747,50 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashFlowJournalAllocation", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<string>("Direction").IsRequired().HasMaxLength(10).HasColumnType("nvarchar(10)");
+                    b.Property<decimal>("FinancingAmount").HasColumnType("decimal(18,2)");
+                    b.Property<decimal>("InvestingAmount").HasColumnType("decimal(18,2)");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<string>("JournalFingerprint").IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
+                    b.Property<long>("JournalId").HasColumnType("bigint");
+                    b.Property<decimal>("OperatingAmount").HasColumnType("decimal(18,2)");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<Guid?>("ReviewRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
+                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<string>("StateCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<DateTime>("SubmittedAtUtc").HasColumnType("datetime2");
+                    b.Property<long>("SubmittedByUserId").HasColumnType("bigint");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("ReviewedByUserId");
+                    b.HasIndex("SubmittedByUserId");
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "JournalId").IsUnique()
+                        .HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
+                    b.HasIndex("TenantId", "ReviewRequestId").IsUnique()
+                        .HasFilter("[ReviewRequestId] IS NOT NULL");
+                    b.ToTable("CashFlowJournalAllocations", t =>
+                        {
+                            t.HasCheckConstraint("CK_CashFlowJournalAllocation_Approval", "[Direction] IN (N'Inflow',N'Outflow') AND [StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND [OperatingAmount] >= 0 AND [InvestingAmount] >= 0 AND [FinancingAmount] >= 0 AND ([OperatingAmount]+[InvestingAmount]+[FinancingAmount]) > 0 AND (([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR ([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashLedgerDesignationRequest", b =>
                 {
                     b.Property<long>("Id")
@@ -25029,6 +25073,20 @@ namespace EduOS.Persistence.Migrations
                         .WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.HasOne("EduOS.Core.Entities.Accounting.Account", null)
                         .WithMany().HasForeignKey("TenantId", "AccountId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashFlowJournalAllocation", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("ReviewedByUserId").OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("SubmittedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Accounting.Journal", null)
+                        .WithMany().HasForeignKey("TenantId", "JournalId")
                         .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });

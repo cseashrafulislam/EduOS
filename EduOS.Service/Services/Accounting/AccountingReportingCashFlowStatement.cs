@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Accounting;
+using EduOS.Core.Entities.Accounting;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 
@@ -49,8 +50,9 @@ public sealed partial class AccountingReportingService
             Lines.Any(l => l.JournalId == j.Id && liquidIds.Contains(l.AccountId)));
         var rows = await (from l in Lines
             join j in journals on l.JournalId equals j.Id
-            select new { j.Id, j.JournalDate, j.JournalNumber,
-                l.AccountId, l.DebitAmount, l.CreditAmount })
+            select new { j.Id, j.JournalDate, j.JournalNumber, j.CampusId, j.CurrencyCode, j.State,
+                LineId = l.Id, l.LineNo, l.AccountId, LineCampusId = l.CampusId,
+                l.DebitAmount, l.CreditAmount })
             .Take(50001).ToListAsync(ct);
         if (rows.Count > 50000)
             return ApiResponse<InstitutionalCashFlowStatementDto>.ErrorResponse("Cash flow journal exceeds 50,000 lines; narrow the reporting period.", 422);
@@ -63,6 +65,11 @@ public sealed partial class AccountingReportingService
             return ApiResponse<InstitutionalCashFlowStatementDto>.ErrorResponse("More than 10,000 classification rules; request a scoped policy audit.", 422);
         var byAccount = rules.GroupBy(x => x.AccountId).ToDictionary(x => x.Key,
             x => x.OrderByDescending(r => r.EffectiveFromDate).ThenByDescending(r => r.Id).ToArray());
+        var journalIds = rows.Select(x => x.Id).Distinct().ToArray();
+        var manuallyApproved = await db.CashFlowJournalAllocations.AsNoTracking().Where(a =>
+            a.TenantId == user.TenantId && !a.IsDeleted && a.StateCode == "Approved" &&
+            a.ReviewedAtUtc.HasValue && a.ReviewedAtUtc <= cutoff && journalIds.Contains(a.JournalId))
+            .ToDictionaryAsync(x => x.JournalId, ct);
         var exceptions = new List<CashFlowUnclassifiedDto>(50);
         foreach (var journal in rows.GroupBy(x => new { x.Id, x.JournalDate, x.JournalNumber }))
         {
@@ -72,6 +79,39 @@ public sealed partial class AccountingReportingService
             var cashIn = cashLines.Sum(x => x.DebitAmount);
             var cashOut = cashLines.Sum(x => x.CreditAmount);
             var counterpart = lines.Where(x => !liquidIds.Contains(x.AccountId)).ToArray();
+            if (manuallyApproved.TryGetValue(journal.Key.Id, out var allocation))
+            {
+                var original = new Journal {
+                    Id = journal.Key.Id, JournalDate = journal.Key.JournalDate,
+                    JournalNumber = journal.Key.JournalNumber, CampusId = lines[0].CampusId,
+                    CurrencyCode = lines[0].CurrencyCode, State = lines[0].State
+                };
+                var sourceLines = lines.Select(x => new JournalLine {
+                    Id = x.LineId, LineNo = x.LineNo, AccountId = x.AccountId,
+                    CampusId = x.LineCampusId, DebitAmount = x.DebitAmount, CreditAmount = x.CreditAmount
+                });
+                var direction = cashIn > 0m && cashOut == 0m ? "Inflow" :
+                    cashOut > 0m && cashIn == 0m ? "Outflow" : "Invalid";
+                if (direction != allocation.Direction ||
+                    allocation.OperatingAmount + allocation.InvestingAmount + allocation.FinancingAmount !=
+                        (direction == "Inflow" ? cashIn : cashOut) ||
+                    allocation.JournalFingerprint != CashFlowJournalProof.Fingerprint(original, sourceLines))
+                    return ApiResponse<InstitutionalCashFlowStatementDto>.ErrorResponse(
+                        "Approved journal allocation no longer matches the posted cash source; reconcile and re-approve before reporting.", 409);
+                if (direction == "Inflow")
+                {
+                    categories["Operating"].Inflows += allocation.OperatingAmount;
+                    categories["Investing"].Inflows += allocation.InvestingAmount;
+                    categories["Financing"].Inflows += allocation.FinancingAmount;
+                }
+                else
+                {
+                    categories["Operating"].Outflows += allocation.OperatingAmount;
+                    categories["Investing"].Outflows += allocation.InvestingAmount;
+                    categories["Financing"].Outflows += allocation.FinancingAmount;
+                }
+                continue;
+            }
             string? problem = null;
             if (cashIn > 0m && cashOut > 0m || cashIn == 0m && cashOut == 0m ||
                 counterpart.Any(x => cashIn > 0m ? x.DebitAmount > 0m : x.CreditAmount > 0m) ||
@@ -111,7 +151,9 @@ public sealed partial class AccountingReportingService
                 if (exceptions.Count < 50)
                     exceptions.Add(new CashFlowUnclassifiedDto { JournalId = journal.Key.Id,
                         Date = journal.Key.JournalDate, JournalNumber = journal.Key.JournalNumber,
-                        Reason = problem ?? "Approved classification missing for a counterparty on this journal date." });
+                        Reason = problem ?? "Approved classification missing for a counterparty on this journal date.",
+                        CounterpartyAccountIds = counterpart.Select(x => x.AccountId).Distinct().Order().ToArray(),
+                        CashInflows = cashIn, CashOutflows = cashOut });
             }
         }
         statement.Activities = categories.Values.ToArray();

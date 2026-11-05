@@ -345,6 +345,7 @@ public class EduOSDbContext :
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<CashLedgerDesignationRequest> CashLedgerDesignationRequests => Set<CashLedgerDesignationRequest>();
     public DbSet<CashFlowActivityRule> CashFlowActivityRules => Set<CashFlowActivityRule>();
+    public DbSet<CashFlowJournalAllocation> CashFlowJournalAllocations => Set<CashFlowJournalAllocation>();
     public DbSet<InstitutionBudget> InstitutionBudgets => Set<InstitutionBudget>();
     public DbSet<InstitutionBudgetLine> InstitutionBudgetLines => Set<InstitutionBudgetLine>();
     public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
@@ -1028,6 +1029,9 @@ public class EduOSDbContext :
         TenantReference<CashFlowActivityRule, Account>(modelBuilder, nameof(CashFlowActivityRule.AccountId));
         Reference<CashFlowActivityRule, ApplicationUser>(modelBuilder, nameof(CashFlowActivityRule.SubmittedByUserId));
         Reference<CashFlowActivityRule, ApplicationUser>(modelBuilder, nameof(CashFlowActivityRule.ReviewedByUserId));
+        TenantReference<CashFlowJournalAllocation, Journal>(modelBuilder, nameof(CashFlowJournalAllocation.JournalId));
+        Reference<CashFlowJournalAllocation, ApplicationUser>(modelBuilder, nameof(CashFlowJournalAllocation.SubmittedByUserId));
+        Reference<CashFlowJournalAllocation, ApplicationUser>(modelBuilder, nameof(CashFlowJournalAllocation.ReviewedByUserId));
         TenantReference<InstitutionBudgetLine, InstitutionBudget>(modelBuilder, nameof(InstitutionBudgetLine.InstitutionBudgetId));
         TenantReference<InstitutionBudgetLine, Account>(modelBuilder, nameof(InstitutionBudgetLine.AccountId));
         Reference<InstitutionBudget, ApplicationUser>(modelBuilder, nameof(InstitutionBudget.SubmittedByUserId));
@@ -1758,6 +1762,18 @@ public class EduOSDbContext :
             "CK_CashFlowActivityRule_Approval",
             "[ActivityCode] IN (N'Operating',N'Investing',N'Financing') AND " +
             "[StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND " +
+            "(([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR " +
+            "([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))"));
+        modelBuilder.Entity<CashFlowJournalAllocation>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<CashFlowJournalAllocation>().HasIndex(x => new { x.TenantId, x.ReviewRequestId })
+            .IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
+        modelBuilder.Entity<CashFlowJournalAllocation>().HasIndex(x => new { x.TenantId, x.JournalId })
+            .IsUnique().HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
+        modelBuilder.Entity<CashFlowJournalAllocation>().ToTable(t => t.HasCheckConstraint(
+            "CK_CashFlowJournalAllocation_Approval",
+            "[Direction] IN (N'Inflow',N'Outflow') AND [StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND " +
+            "[OperatingAmount] >= 0 AND [InvestingAmount] >= 0 AND [FinancingAmount] >= 0 AND " +
+            "([OperatingAmount]+[InvestingAmount]+[FinancingAmount]) > 0 AND " +
             "(([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR " +
             "([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))"));
         modelBuilder.Entity<BankAccount>().HasIndex(x => new { x.TenantId, x.AccountId })
