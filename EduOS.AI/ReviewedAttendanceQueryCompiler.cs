@@ -17,7 +17,7 @@ public static class ReviewedAttendanceQueryCompiler
     private static readonly HashSet<string> Attendance = new(StringComparer.Ordinal)
         { "attendance", "attendence", "হাজিরা", "উপস্থিতি", "hajira", "uposthiti" };
     private static readonly HashSet<string> Quantity = new(StringComparer.Ordinal)
-        { "count", "number", "total", "কত", "কতজন", "কয়জন", "কয়জন", "সংখ্যা", "koto", "mot" };
+        { "count", "number", "total", "many", "কত", "কতজন", "কয়জন", "কয়জন", "সংখ্যা", "koto", "mot" };
     private static readonly HashSet<string> Present = new(StringComparer.Ordinal)
         { "present", "উপস্থিত", "uposthit" };
     private static readonly HashSet<string> Absent = new(StringComparer.Ordinal)
