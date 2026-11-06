@@ -15,6 +15,12 @@ public sealed class LedgerActivityPageDto
     public decimal TotalDebit { get; set; }
     public decimal TotalCredit { get; set; }
     public decimal ClosingBalance { get; set; }
+    // Derived from the same posted movements. These balances cover only the
+    // requested SQL page; the existing balances above cover the entire period.
+    public decimal PageOpeningBalance { get; set; }
+    public decimal PageDebit { get; set; }
+    public decimal PageCredit { get; set; }
+    public decimal PageClosingBalance { get; set; }
     public PagedResult<LedgerActivityRowDto> Entries { get; set; } = new();
 }
 
@@ -32,4 +38,5 @@ public sealed class LedgerActivityRowDto
     public bool IsReversedOriginal { get; set; }
     public decimal DebitAmount { get; set; }
     public decimal CreditAmount { get; set; }
+    public decimal RunningBalance { get; set; }
 }

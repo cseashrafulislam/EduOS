@@ -100,12 +100,40 @@ public sealed partial class AccountingReportingService
                     DebitAmount = x.DebitAmount, CreditAmount = x.CreditAmount
                 }).ToListAsync(ct);
 
+        // A page must not present its subtotal as the full-period ledger
+        // balance. Aggregate only the preceding ordered rows in SQL; never
+        // materialize all earlier journal lines merely to calculate a running
+        // balance. Ordering is exactly the same as the paged detail query.
+        var pageOpening = opening;
+        if (offset >= count)
+            pageOpening = opening + debit - credit;
+        else if (offset > 0)
+        {
+            var prior = await period.OrderBy(x => x.JournalDate).ThenBy(x => x.JournalNumber)
+                .ThenBy(x => x.LineNo).ThenBy(x => x.Id).Take((int)offset)
+                .GroupBy(x => 1)
+                .Select(g => new { Debit = g.Sum(x => x.DebitAmount),
+                    Credit = g.Sum(x => x.CreditAmount) }).FirstOrDefaultAsync(ct);
+            pageOpening += (prior?.Debit ?? 0m) - (prior?.Credit ?? 0m);
+        }
+        var running = pageOpening;
+        decimal pageDebit = 0m, pageCredit = 0m;
+        foreach (var line in rows)
+        {
+            pageDebit += line.DebitAmount;
+            pageCredit += line.CreditAmount;
+            running += line.DebitAmount - line.CreditAmount;
+            line.RunningBalance = running;
+        }
+
         return ApiResponse<LedgerActivityPageDto>.SuccessResponse(new LedgerActivityPageDto
         {
             AccountId = account.Id, AccountCode = account.Code, AccountName = account.Name,
             FromDate = fromDate, ToDate = toDate,
             OpeningBalance = opening, TotalDebit = debit, TotalCredit = credit,
             ClosingBalance = opening + debit - credit,
+            PageOpeningBalance = pageOpening, PageDebit = pageDebit,
+            PageCredit = pageCredit, PageClosingBalance = running,
             Entries = new PagedResult<LedgerActivityRowDto>
             {
                 Items = rows, TotalCount = count, Page = page, PageSize = pageSize

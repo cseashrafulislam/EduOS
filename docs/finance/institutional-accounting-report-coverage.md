@@ -12,7 +12,7 @@
 
 | Report | Source / eligibility | Status and correctness boundary |
 | --- | --- | --- |
-| General Ledger / Posted Activity | Posted GL journal lines, tenant-wide TenantAdmin | Existing; audit activity is paged and reconciled for the full selected period |
+| General Ledger / Posted Activity | Posted GL journal lines, tenant-wide TenantAdmin | Existing; audit activity is paged and reconciled for the full selected period. The page DTO now also provides SQL-derived `PageOpeningBalance`, `PageDebit`, `PageCredit`, `PageClosingBalance` and each line's `RunningBalance` without materializing all preceding rows |
 | Trial Balance | Posted GL through date | Existing; debits equal credits, detects invalid historical entries |
 | Income Statement | Posted GL Income/Expense accounts | Existing; signed contra balances preserved |
 | **Central Income & Cost Details** | Single tenant-scoped posted GL, restricted to Income/Expense journal lines with source ID, reference, account and campus | **Added**; default institutional Finance view. Category/account/source filters, SQL-bounded pages, full filtered-period totals, signed reversals, P&L reconciliation, read-only journal drill-down and page-only CSV |
@@ -30,6 +30,8 @@
 | **Institution Budget vs Actual** | Approved tenant-wide `InstitutionBudgets` + immutable `InstitutionBudgetLines` planning snapshots; posted GL Income/Expense from canonical `GetIncomeStatementAsync` | **Added**. TenantAdmin/Principal can propose up to 100 positive BDT budget lines, TenantAdmin independently approves/rejects, self-review denied, optimistic concurrency and idempotency enforced, overlapping approved periods rejected. TenantAdmin-only variance lists planned and unbudgeted actual accounts with favorable/unfavorable signed differences. No new journal is created. Plans intentionally have no separate campus/project dimension or amendment-in-place workflow. |
 
 ## Open design decisions / release gates
+
+**Manual Task 1 → Task 5 UI handoff (2026-11-06):** `GET /api/finance/accounting/reports/ledger/{accountId}/activity` retains its current contract and now adds per-page balance fields. Task 5 may display running balance and accurate page opening/closing in the existing bilingual Posted Activity Audit and its **page-only** CSV, without replacing the canonical journal API or implying a page subtotal is the institutional balance. The legacy full `GET /ledger/{accountId}` remains capped at 5,000 lines for compatibility; use the bounded activity endpoint for larger historical inspections until a separately reviewed paginated General Ledger UI replaces that legacy rendering. Exact-SHA SQL translation, authenticated browser and representative high-volume query-plan evidence remain required before production acceptance.
 
 **Accrual vs. collection:** posted revenue or cost does not prove the corresponding fee/supplier amount has been paid. Use existing Fee Receivables, Payables, Bank Book and individual module settlements for outstanding and actual bank movements. Never add source invoice totals to these GL-derived income/cost totals: that would double-count. Report CSV includes only the visible page; aggregate cards reflect every matching page.
 
