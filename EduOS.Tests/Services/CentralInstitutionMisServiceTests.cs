@@ -123,6 +123,32 @@ public sealed class CentralInstitutionMisServiceTests
     }
 
     [Fact]
+    public async Task Mis_honors_owner_membership_and_rejects_unscoped_system_role()
+    {
+        await using var db = Database();
+        SeedAdmin(db);
+        await db.SaveChangesAsync();
+        var service = Service(db, Modules(), Finance().Object);
+        var role = db.Roles.Single(x => x.Id == 2);
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        (await service.GetAsync(From, To)).StatusCode.Should().Be(403);
+
+        var member = db.TenantMemberships.Single(x => x.UserId == 9);
+        member.IsOwner = true;
+        await db.SaveChangesAsync();
+        (await service.GetAsync(From, To)).StatusCode.Should().Be(200);
+
+        member.IsOwner = false;
+        db.Roles.Add(new ApplicationRole { Id = 3, TenantId = null,
+            Name = "TenantAdmin", NormalizedName = "TENANTADMIN", IsSystemRole = true,
+            IsActive = true });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 9, RoleId = 3 });
+        await db.SaveChangesAsync();
+        (await service.GetAsync(From, To)).StatusCode.Should().Be(403);
+    }
+
+    [Fact]
     public async Task Mis_fail_closes_financial_integrity_errors_instead_of_showing_partial_totals()
     {
         await using var db = Database();

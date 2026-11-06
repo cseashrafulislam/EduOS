@@ -31,16 +31,7 @@ public sealed class CentralInstitutionMisService(
                 "Select a valid MIS period of at most 366 days.", 400);
 
         var tenant = user.TenantId;
-        var active = await db.Users.AsNoTracking().AnyAsync(x =>
-            x.Id == user.UserId && x.IsActive && !x.IsDeleted, ct) &&
-            await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.UserId == user.UserId && !x.IsDeleted &&
-                x.Status == MembershipStatus.Active, ct) &&
-            await db.UserRoles.AsNoTracking().AnyAsync(ur => ur.UserId == user.UserId &&
-                db.Roles.IgnoreQueryFilters().AsNoTracking().Any(r => r.Id == ur.RoleId &&
-                    r.IsActive && !r.IsDeleted && r.NormalizedName == "TENANTADMIN" &&
-                    (r.TenantId == tenant || (r.TenantId == null && r.IsSystemRole))), ct);
-        if (!active)
+        if (!await CentralPrivilegedAccess.HasRoleAsync(db, user, new[] { "TENANTADMIN" }, ct))
             return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
                 "Institution membership or administrator role is no longer active.", 403);
 

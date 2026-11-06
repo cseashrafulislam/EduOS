@@ -9,14 +9,17 @@ const mis = read('EduOS.Service/Services/Platform/CentralInstitutionMisService.c
 const controller = read('EduOS.App/Controllers/Api/CentralInstitutionMisController.cs');
 const totals = read('EduOS.Service/Services/Accounting/AccountingReportingIncomeExpenseTotals.cs');
 const financeDetails = read('EduOS.Service/Services/Accounting/AccountingReportingIncomeExpenseDetails.cs');
+const privileged = read('EduOS.Service/Services/Platform/CentralPrivilegedAccess.cs');
 
 test('institution-wide MIS requires live tenant-admin membership and never writes alternate KPIs', () => {
     assert.match(controller, /Authorize\(Roles = "TenantAdmin"\)/);
     assert.match(controller, /RequireModule\("REPORTING"\)/);
     assert.match(controller, /NoStore = true/);
     assert.match(mis, /db\.CurrentTenantId != user\.TenantId/);
-    assert.match(mis, /MembershipStatus\.Active/);
-    assert.match(mis, /r\.NormalizedName == "TENANTADMIN"/);
+    assert.match(mis, /CentralPrivilegedAccess\.HasRoleAsync\(db, user, new\[\] \{ "TENANTADMIN" \}, ct\)/);
+    assert.match(privileged, /MembershipStatus\.Active/);
+    assert.match(privileged, /roles\.Contains\(role\.NormalizedName!/);
+    assert.doesNotMatch(privileged, /role\.TenantId == null && role\.IsSystemRole/);
     assert.match(mis, /x\.TenantId == tenant && !x\.IsDeleted/);
     assert.doesNotMatch(mis, /SaveChangesAsync|ExecuteUpdateAsync|ExecuteDeleteAsync/);
 });

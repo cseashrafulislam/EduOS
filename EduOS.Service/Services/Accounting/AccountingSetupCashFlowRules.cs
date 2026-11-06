@@ -1,7 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Accounting;
 using EduOS.Core.Entities.Accounting;
-using EduOS.Core.Enums.Domain;
+using EduOS.Service.Services.Platform;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 
@@ -16,13 +16,8 @@ public sealed partial class AccountingSetupService
     {
         if (!TenantMatched || !(reviewer ? user.IsTenantAdmin : Writable) || user.UserId <= 0)
             return false;
-        return await db.Users.AsNoTracking().AnyAsync(x => x.Id == user.UserId && x.IsActive && !x.IsDeleted, ct) &&
-            await db.TenantMemberships.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
-                x.UserId == user.UserId && !x.IsDeleted && x.Status == MembershipStatus.Active, ct) &&
-            await db.UserRoles.AnyAsync(ur => ur.UserId == user.UserId &&
-                db.Roles.IgnoreQueryFilters().Any(r => r.Id == ur.RoleId && r.IsActive && !r.IsDeleted &&
-                    (r.TenantId == user.TenantId || r.TenantId == null && r.IsSystemRole) &&
-                    (r.NormalizedName == "TENANTADMIN" || !reviewer && r.NormalizedName == "PRINCIPAL")), ct);
+        return await CentralPrivilegedAccess.HasRoleAsync(db, user,
+            reviewer ? new[] { "TENANTADMIN" } : new[] { "TENANTADMIN", "PRINCIPAL" }, ct);
     }
 
     private static CashFlowRuleDto FlowMap(CashFlowActivityRule x, Account account) => new()

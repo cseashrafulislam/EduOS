@@ -109,6 +109,37 @@ public sealed class InstitutionalClassifiedCashFlowTests
     }
 
     [Fact]
+    public async Task Cash_flow_classification_checks_live_institution_authority_and_owner_compatibility()
+    {
+        await using var db = Database();
+        Seed(db);
+        await db.SaveChangesAsync();
+        var checker = new AccountingSetupService(db, User(20, "TenantAdmin"), TimeProvider.System);
+        (await checker.GetCashFlowRulesAsync(1, 20)).StatusCode.Should().Be(200);
+        var role = db.Roles.Single(x => x.Id == 102);
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        (await checker.GetCashFlowRulesAsync(1, 20)).StatusCode.Should().Be(403);
+
+        var membership = db.TenantMemberships.Single(x => x.UserId == 20);
+        membership.IsOwner = true;
+        await db.SaveChangesAsync();
+        (await checker.GetCashFlowRulesAsync(1, 20)).StatusCode.Should().Be(200);
+
+        membership.IsOwner = false;
+        db.Roles.Add(new ApplicationRole { Id = 103, TenantId = null,
+            Name = "TenantAdmin", NormalizedName = "TENANTADMIN",
+            IsSystemRole = true, IsActive = true });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 20, RoleId = 103 });
+        await db.SaveChangesAsync();
+        (await checker.GetCashFlowRulesAsync(1, 20)).StatusCode.Should().Be(403);
+        role.IsActive = true;
+        membership.Status = MembershipStatus.Suspended;
+        await db.SaveChangesAsync();
+        (await checker.GetCashFlowRulesAsync(1, 20)).StatusCode.Should().Be(403);
+    }
+
+    [Fact]
     public async Task Compound_journal_needs_exact_idempotent_independently_approved_allocation()
     {
         await using var db = Database();
