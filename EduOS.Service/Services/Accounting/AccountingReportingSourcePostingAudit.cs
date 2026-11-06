@@ -147,6 +147,13 @@ public sealed partial class AccountingReportingService
                 x.CreditAmount, x.CampusId, x.IsDeleted }).Take(5001).ToListAsync(ct);
         if (lines.Count > 5000)
             return ApiResponse<FinanceSourcePostingAuditPageDto>.ErrorResponse("Too many journal lines on this page; narrow the report.", 422);
+        // A foreign-tenant line attached to a local journal must invalidate the
+        // entire posting; excluding it from the balance calculation would make
+        // a corrupt cross-tenant journal look legitimate in the central audit.
+        var foreignLineJournalIds = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => postingIds.Contains(x.JournalId) && x.TenantId != tenant)
+            .Select(x => x.JournalId).Distinct().ToArrayAsync(ct);
+        var foreignLineJournals = foreignLineJournalIds.ToHashSet();
         var accountIds = lines.Select(x => x.AccountId).Distinct().ToArray();
         if (accountIds.Length > 1500)
             return ApiResponse<FinanceSourcePostingAuditPageDto>.ErrorResponse("Too many posting accounts on this page; narrow the report.", 422);
@@ -192,7 +199,8 @@ public sealed partial class AccountingReportingService
                     var entries = byJournal[journal.Id].ToArray();
                     var debit = entries.Sum(x => x.DebitAmount);
                     var credit = entries.Sum(x => x.CreditAmount);
-                    var invalid = journal.CurrencyCode != "BDT" || entries.Length < 2 || debit <= 0m ||
+                    var invalid = journal.CurrencyCode != "BDT" || foreignLineJournals.Contains(journal.Id) ||
+                        entries.Length < 2 || debit <= 0m ||
                         debit != credit || entries.Any(x => x.IsDeleted || x.LineNo <= 0 ||
                             !validIds.Contains(x.AccountId) || x.DebitAmount < 0m || x.CreditAmount < 0m ||
                             (x.DebitAmount > 0m) == (x.CreditAmount > 0m) ||

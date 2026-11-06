@@ -73,6 +73,32 @@ public sealed class CentralFinancePostingAuditTests
     }
 
     [Fact]
+    public async Task Posted_source_audit_rejects_foreign_tenant_lines_even_when_local_lines_balance()
+    {
+        var store = "cross-tenant-line-audit-" + Guid.NewGuid().ToString("N");
+        await using (var local = Database(store))
+        {
+            SeedAccounts(local);
+            local.StudentInvoices.Add(Invoice(1, InvoiceState.Issued, 11));
+            Journal(local, 11, "StudentInvoice", 1, 90m);
+            await local.SaveChangesAsync();
+        }
+        // Simulate legacy/import corruption through a different authorized tenant
+        // context; the normal application writer does not allow cross-tenant inserts.
+        await using (var foreign = Database(store, 42))
+        {
+            foreign.JournalLines.Add(new JournalLine { Id = 113, TenantId = 42,
+                JournalId = 11, AccountId = 1, LineNo = 3, DebitAmount = 10m });
+            await foreign.SaveChangesAsync();
+        }
+        await using var db = Database(store);
+        var result = await Service(db).GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices");
+        result.StatusCode.Should().Be(200);
+        result.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 1 &&
+            x.PostingStatus == "InvalidJournal");
+    }
+
+    [Fact]
     public async Task Payroll_payment_and_supplier_return_audit_keep_the_original_posted_lineage()
     {
         await using var db = Database();
