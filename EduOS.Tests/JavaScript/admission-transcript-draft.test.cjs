@@ -64,3 +64,13 @@ test('preview has explicit accessible labels and validation focuses an invalid f
     assert.match(source,/snapshot\[invalid\[0\]\]\.focus\(\)/);
     assert.doesNotMatch(source,/requestSubmit\s*\(|\.submit\s*\(/);
 });
+
+test('draft refuses partial application when destination fields disappear or become read-only', () => {
+    assert.match(source, /const destinations = reviewed\.map/);
+    assert.match(source, /const unavailable = destinations\.find/);
+    assert.match(source, /target\.disabled \|\| target\.readOnly \|\| !target\.isConnected/);
+    assert.match(source, /if \(unavailable\) \{/);
+    assert.match(source, /No fields applied; reload and review again/);
+    assert.ok(source.indexOf('if (unavailable) {') < source.indexOf('destinations.forEach'));
+    assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(/);
+});
