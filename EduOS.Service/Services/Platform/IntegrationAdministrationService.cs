@@ -241,6 +241,8 @@ public sealed partial class IntegrationAdministrationService(
         {
             return await unit.ExecuteInTransactionAsync(async token =>
             {
+            if (!await CanManageAsync(token))
+                return ApiResponse<ApiCredentialCreatedDto>.ErrorResponse("Institution permission changed; reload.", 403);
             var used = await db.IdempotencyRecords.AsNoTracking().AnyAsync(
                 x => x.TenantId == user.TenantId && x.Scope == CredentialScope &&
                      x.RequestId == request.ClientRequestId && !x.IsDeleted, token);
@@ -263,7 +265,7 @@ public sealed partial class IntegrationAdministrationService(
                 RequestId = request.ClientRequestId, RequestHash = requestHash,
                 ResultHash = keyHash, ExpiresAt = now.AddDays(30), CreatedBy = user.UserId
             });
-            await db.SaveChangesAsync(cancellationToken);
+            await db.SaveChangesAsync(token);
             return ApiResponse<ApiCredentialCreatedDto>.SuccessResponse(new()
             {
                 Credential = Map(row), PlainTextKey = plaintext

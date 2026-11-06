@@ -30,6 +30,8 @@ public sealed partial class IntegrationAdministrationService
         {
             var result = await unit.ExecuteInTransactionAsync(async token =>
             {
+                if (!await CanManageAsync(token))
+                    return (Response: ApiResponse<WebhookDeliveryDto>.ErrorResponse("Institution permission changed; reload.", 403), Created: false, Id: 0L);
                 var existing = await db.IdempotencyRecords.AsNoTracking().FirstOrDefaultAsync(
                     x => x.TenantId == user.TenantId && x.Scope == WebhookTestScope &&
                          x.RequestId == request.ClientRequestId && !x.IsDeleted, token);
@@ -101,6 +103,8 @@ public sealed partial class IntegrationAdministrationService
         {
             var claim = await unit.ExecuteInTransactionAsync(async token =>
             {
+                if (!await CanManageAsync(token))
+                    return (Code: 403, Message: "Institution permission changed; reload.", Delivery: (WebhookDelivery?)null, Endpoint: (WebhookEndpoint?)null, Attempt: 0);
                 var row = await db.WebhookDeliveries.FirstOrDefaultAsync(
                     x => x.Id == deliveryId && x.TenantId == user.TenantId && !x.IsDeleted, token);
                 if (row == null) return (Code: 404, Message: "Delivery not found.", Delivery: (WebhookDelivery?)null, Endpoint: (WebhookEndpoint?)null, Attempt: 0);
@@ -166,6 +170,11 @@ public sealed partial class IntegrationAdministrationService
             return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Delivery claim failed.", 500);
         }
 
+        // Authorization may have been revoked while the outbound attempt was
+        // claimed. Do not contact a previously configured external endpoint
+        // after revocation; the normal pending lease permits controlled recovery.
+        if (!await CanManageAsync(cancellationToken))
+            return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Institution permission changed before delivery.", 403);
         (bool Succeeded, string? Failure) outcome;
         try
         {
