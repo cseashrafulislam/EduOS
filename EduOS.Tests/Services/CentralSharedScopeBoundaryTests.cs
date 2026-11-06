@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.System;
 using EduOS.Core.DTOs.Communication;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.Communication;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -27,6 +28,9 @@ public sealed class CentralSharedScopeBoundaryTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("central-scope-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = context });
+        context.Items["TenantId"] = 11L;
+        CentralPrivilegedTestIdentity.Seed(db, 11, 10);
+        context.Items["TenantId"] = 22L;
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(x => x.IsAuthenticated).Returns(true);
         user.SetupGet(x => x.UserId).Returns(10);
@@ -71,5 +75,19 @@ public sealed class CentralSharedScopeBoundaryTests
         Assert.Equal(200, (await communication.GetNoticesAsync(1, 20, null)).StatusCode);
         Assert.Equal(200, (await messages.GetMyThreadsAsync(1, 20)).StatusCode);
         Assert.Equal(200, (await administration.GetNoticeCategoriesAsync()).StatusCode);
+
+        // Existing role claims are not authority after an administrator is revoked.
+        var role = await db.Roles.IgnoreQueryFilters().SingleAsync(x => x.Id == 9001);
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(403, (await audit.ExportCsvAsync(new AuditLogFilterDto())).StatusCode);
+        Assert.Equal(403, (await integration.GetApiCredentialsAsync(1, 20)).StatusCode);
+        Assert.Equal(403, (await administration.GetGatewaysAsync()).StatusCode);
+        role.IsActive = true;
+        db.TenantMemberships.Single(x => x.UserId == 10).Status = MembershipStatus.Suspended;
+        await db.SaveChangesAsync();
+        Assert.Equal(403, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+        Assert.Equal(403, (await integration.GetWebhookEndpointsAsync(1, 20)).StatusCode);
+        Assert.Equal(403, (await administration.GetNoticeCategoriesAsync()).StatusCode);
     }
 }

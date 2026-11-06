@@ -83,6 +83,7 @@ public sealed class WebhookConfigurationPersistenceTests
         var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("webhook-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 71);
         var service = new IntegrationAdministrationService(db, new Admin(),
             new EphemeralDataProtectionProvider(), db,
             NullLogger<IntegrationAdministrationService>.Instance);

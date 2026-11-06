@@ -25,6 +25,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("gateway-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         CommunicationAdministrationService Service(long tenant) => new(
             new GenericRepository<CommunicationGateway>(db),
             new GenericRepository<MessageTemplate>(db),
@@ -55,6 +56,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("gateway-setup-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         var service = Create(db, 101);
         var sms = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
         {
@@ -103,6 +105,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("sms-security-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         var response = await Create(db, 101).SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
         {
             ProviderCode = "CUSTOM", Channel = NotificationChannelType.Sms,
@@ -121,6 +124,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("sms-incomplete-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         var service = Create(db, 101);
         var missingSender = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
         {
@@ -147,6 +151,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("email-api-incomplete-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         var service = Create(db, 101);
         var incomplete = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
         {
@@ -175,6 +180,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("smtp-security-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         var service = Create(db, 101);
         var noTls = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
         {
@@ -203,6 +209,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("sms-switch-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         var service = Create(db, 101);
         foreach (var provider in new[] { "BULKSMSBD", "TWILIO" })
         {
@@ -229,6 +236,7 @@ public sealed class CommunicationGatewaySecurityTests
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("gateway-update-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
         var service = Create(db, 101);
         var created = await service.SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
         {

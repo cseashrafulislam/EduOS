@@ -21,7 +21,7 @@ public sealed partial class IntegrationAdministrationService
     public async Task<ApiResponse<WebhookDeliveryDto>> TestWebhookAsync(
         long endpointId, CreateWebhookTestRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Tenant administrator required.", 403);
         if (endpointId <= 0 || request == null || request.ClientRequestId == Guid.Empty)
             return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Valid webhook and request ID are required.");
         var fingerprint = Convert.ToHexString(SHA256.HashData(
@@ -85,7 +85,7 @@ public sealed partial class IntegrationAdministrationService
     public async Task<ApiResponse<WebhookDeliveryDto>> RetryWebhookAsync(
         long deliveryId, RetryWebhookDeliveryRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Tenant administrator required.", 403);
         if (deliveryId <= 0 || request == null || request.ClientRequestId == Guid.Empty || request.ExpectedAttemptCount < 1)
             return ApiResponse<WebhookDeliveryDto>.ErrorResponse("Delivery and version are required.");
         return await SendWebhookAttemptAsync(deliveryId, request, cancellationToken);

@@ -10,7 +10,7 @@ public sealed partial class CommunicationAdministrationService
 {
     public async Task<ApiResponse<string>> ExportDeliveriesCsvAsync(int? channel, int? state, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<string>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(ct)) return ApiResponse<string>.ErrorResponse("Tenant administrator required.", 403);
         if ((channel.HasValue && !Enum.IsDefined(typeof(NotificationChannelType), channel.Value)) ||
             (state.HasValue && !Enum.IsDefined(typeof(DeliveryState), state.Value)))
             return ApiResponse<string>.ErrorResponse("Invalid delivery filters.", 400);

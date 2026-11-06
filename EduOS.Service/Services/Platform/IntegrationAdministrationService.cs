@@ -24,8 +24,11 @@ public sealed partial class IntegrationAdministrationService(
     IUnitOfWork unit, ILogger<IntegrationAdministrationService> logger) : IIntegrationAdministrationService
 {
     private const string CredentialScope = "integration.api-credential.create";
-    private bool CanManage => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
-        db.CurrentTenantId == user.TenantId && user.IsTenantAdmin;
+    private Task<bool> CanManageAsync(CancellationToken ct) => user.IsTenantAdmin &&
+        user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId
+            ? CentralPrivilegedAccess.HasRoleAsync(db, user, new[] { "TENANTADMIN" }, ct)
+            : Task.FromResult(false);
     private static string Version(byte[] value) => Convert.ToBase64String(value);
     private static bool VersionMatches(byte[] current, string? supplied)
     {
@@ -97,7 +100,7 @@ public sealed partial class IntegrationAdministrationService(
     public async Task<ApiResponse<PagedResult<WebhookEndpointDto>>> GetWebhookEndpointsAsync(
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<PagedResult<WebhookEndpointDto>>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<PagedResult<WebhookEndpointDto>>.ErrorResponse("Tenant administrator required.", 403);
         if (!ValidPage(page, pageSize)) return ApiResponse<PagedResult<WebhookEndpointDto>>.ErrorResponse("Invalid paging.");
         var query = db.WebhookEndpoints.AsNoTracking().Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
         var count = await query.CountAsync(cancellationToken);
@@ -112,7 +115,7 @@ public sealed partial class IntegrationAdministrationService(
     public async Task<ApiResponse<WebhookEndpointDto>> SaveWebhookEndpointAsync(
         long? endpointId, SaveWebhookEndpointRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<WebhookEndpointDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<WebhookEndpointDto>.ErrorResponse("Tenant administrator required.", 403);
         var events = NormalizeEventCodes(request?.EventCodes);
         if (request == null || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length > 150 || !IsPublicWebhookUrl(request.Url) ||
@@ -185,7 +188,7 @@ public sealed partial class IntegrationAdministrationService(
     public async Task<ApiResponse<PagedResult<WebhookDeliveryDto>>> GetWebhookDeliveriesAsync(
         long endpointId, int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<PagedResult<WebhookDeliveryDto>>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<PagedResult<WebhookDeliveryDto>>.ErrorResponse("Tenant administrator required.", 403);
         if (endpointId <= 0 || !ValidPage(page, pageSize))
             return ApiResponse<PagedResult<WebhookDeliveryDto>>.ErrorResponse("Invalid delivery filter.");
         if (!await db.WebhookEndpoints.AsNoTracking().AnyAsync(
@@ -205,7 +208,7 @@ public sealed partial class IntegrationAdministrationService(
     public async Task<ApiResponse<PagedResult<ApiCredentialDto>>> GetApiCredentialsAsync(
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<PagedResult<ApiCredentialDto>>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<PagedResult<ApiCredentialDto>>.ErrorResponse("Tenant administrator required.", 403);
         if (!ValidPage(page, pageSize)) return ApiResponse<PagedResult<ApiCredentialDto>>.ErrorResponse("Invalid paging.");
         var query = db.ApiCredentials.AsNoTracking().Where(x => x.TenantId == user.TenantId && !x.IsDeleted);
         var count = await query.CountAsync(cancellationToken);
@@ -220,7 +223,7 @@ public sealed partial class IntegrationAdministrationService(
     public async Task<ApiResponse<ApiCredentialCreatedDto>> CreateApiCredentialAsync(
         CreateApiCredentialRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<ApiCredentialCreatedDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<ApiCredentialCreatedDto>.ErrorResponse("Tenant administrator required.", 403);
         var scopes = NormalizeScopes(request?.AllowedScopes);
         var now = DateTime.UtcNow;
         if (request == null || request.ClientRequestId == Guid.Empty ||
@@ -279,7 +282,7 @@ public sealed partial class IntegrationAdministrationService(
     public async Task<ApiResponse<bool>> RevokeApiCredentialAsync(
         long credentialId, RevokeApiCredentialRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<bool>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<bool>.ErrorResponse("Tenant administrator required.", 403);
         if (credentialId <= 0 || request == null)
             return ApiResponse<bool>.ErrorResponse("Invalid credential request.");
         var row = await db.ApiCredentials.FirstOrDefaultAsync(

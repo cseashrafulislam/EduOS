@@ -5,6 +5,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
+using EduOS.Service.Services.Platform;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -28,7 +29,7 @@ public sealed class AuditLogService : IAuditLogService
 
     public async Task<ApiResponse<PagedResult<AuditLogDto>>> SearchAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("Tenant audit permission is required.", 403);
+        if (!await CanReadAsync(cancellationToken)) return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("Tenant audit permission is required.", 403);
         if (filter == null) return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("A valid audit filter is required.");
         if (!ValidRange(filter)) return ApiResponse<PagedResult<AuditLogDto>>.ErrorResponse("UTC date range is invalid.");
         try
@@ -61,7 +62,7 @@ public sealed class AuditLogService : IAuditLogService
 
     public async Task<ApiResponse<AuditLogStatisticsDto>> GetStatisticsAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<AuditLogStatisticsDto>.ErrorResponse("Tenant audit permission is required.", 403);
+        if (!await CanReadAsync(cancellationToken)) return ApiResponse<AuditLogStatisticsDto>.ErrorResponse("Tenant audit permission is required.", 403);
         if (filter == null || !ValidRange(filter)) return ApiResponse<AuditLogStatisticsDto>.ErrorResponse("UTC date range is invalid.");
         try
         {
@@ -113,7 +114,7 @@ public sealed class AuditLogService : IAuditLogService
     /// <summary>Bounded, tenant-scoped audit export. Never includes old/new entity values.</summary>
     public async Task<ApiResponse<string>> ExportCsvAsync(AuditLogFilterDto filter, CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<string>.ErrorResponse("Tenant audit permission is required.", 403);
+        if (!await CanReadAsync(cancellationToken)) return ApiResponse<string>.ErrorResponse("Tenant audit permission is required.", 403);
         if (filter == null || !ValidRange(filter))
             return ApiResponse<string>.ErrorResponse("UTC date range is invalid.", 400);
         try
@@ -176,9 +177,13 @@ public sealed class AuditLogService : IAuditLogService
         return query;
     }
 
-    private bool CanRead() => _user.IsAuthenticated && _user.UserId > 0 &&
-        _user.TenantId > 0 && _db.CurrentTenantId == _user.TenantId &&
-        (_user.IsTenantAdmin || _user.IsInRole("Principal"));
+    private Task<bool> CanReadAsync(CancellationToken ct)
+    {
+        var roles = new List<string>(2);
+        if (_user.IsTenantAdmin) roles.Add("TENANTADMIN");
+        if (_user.IsInRole("Principal")) roles.Add("PRINCIPAL");
+        return CentralPrivilegedAccess.HasRoleAsync(_db, _user, roles, ct);
+    }
 
     private static bool ValidRange(AuditLogFilterDto filter) =>
         (!filter.FromUtc.HasValue || filter.FromUtc.Value.Kind == DateTimeKind.Utc) &&

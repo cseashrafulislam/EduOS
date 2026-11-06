@@ -52,9 +52,11 @@ public sealed class WebhookDeliveryExportDataTests
     {
         var http = new DefaultHttpContext();
         http.Items["TenantId"] = 101L;
-        return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+        var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("webhook-csv-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
+        return db;
     }
 
     private static IntegrationAdministrationService Service(EduOSDbContext db)

@@ -10,7 +10,7 @@ public sealed partial class CommunicationAdministrationService
 {
     public async Task<ApiResponse<IReadOnlyList<NoticeCategoryDto>>> GetNoticeCategoriesAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return ApiResponse<IReadOnlyList<NoticeCategoryDto>>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<IReadOnlyList<NoticeCategoryDto>>.ErrorResponse("Tenant administrator access is required.", 403);
         var rows = await _categories.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId)
             .OrderBy(x => x.Name).ThenBy(x => x.Id).Take(500).ToListAsync(cancellationToken);
         return ApiResponse<IReadOnlyList<NoticeCategoryDto>>.SuccessResponse(rows.Select(Map).ToList());
@@ -19,7 +19,7 @@ public sealed partial class CommunicationAdministrationService
     public async Task<ApiResponse<NoticeCategoryDto>> SaveNoticeCategoryAsync(long? categoryId,
         SaveNoticeCategoryRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return ApiResponse<NoticeCategoryDto>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<NoticeCategoryDto>.ErrorResponse("Tenant administrator access is required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50
             || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100)
             return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category details are invalid.");

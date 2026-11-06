@@ -6,6 +6,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Enums.Domain;
 using EduOS.Persistence.Context;
+using EduOS.Service.Services.Platform;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -37,8 +38,11 @@ public sealed partial class CommunicationAdministrationService : ICommunicationA
         _logger = logger;
     }
 
-    private bool CanManage() => _user.IsAuthenticated && _user.UserId > 0 && _user.TenantId > 0 &&
-        _db.CurrentTenantId == _user.TenantId && _user.IsTenantAdmin;
+    private Task<bool> CanManageAsync(CancellationToken ct) => _user.IsTenantAdmin &&
+        _user.IsAuthenticated && _user.UserId > 0 && _user.TenantId > 0 &&
+        _db.CurrentTenantId == _user.TenantId
+            ? CentralPrivilegedAccess.HasRoleAsync(_db, _user, new[] { "TENANTADMIN" }, ct)
+            : Task.FromResult(false);
     private static bool ValidChannel(NotificationChannelType channel) => Enum.IsDefined(channel);
     private static bool MatchesVersion(byte[] version, string? encoded)
     {

@@ -22,7 +22,7 @@ public sealed partial class IntegrationAdministrationService
 
     public async Task<ApiResponse<string>> ExportWebhookDeliveriesCsvAsync(long endpointId, CancellationToken cancellationToken = default)
     {
-        if (!CanManage) return ApiResponse<string>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<string>.ErrorResponse("Tenant administrator required.", 403);
         if (endpointId <= 0) return ApiResponse<string>.ErrorResponse("Valid webhook endpoint required.");
         var exists = await db.WebhookEndpoints.AsNoTracking().AnyAsync(
             x => x.Id == endpointId && x.TenantId == user.TenantId && !x.IsDeleted, cancellationToken);

@@ -12,7 +12,7 @@ public sealed partial class CommunicationAdministrationService
     public async Task<ApiResponse<PagedResult<CommunicationDeliveryDto>>> GetDeliveriesAsync(
         int page, int pageSize, int? channel, int? state, CancellationToken ct = default)
     {
-        if (!CanManage())
+        if (!await CanManageAsync(ct))
             return ApiResponse<PagedResult<CommunicationDeliveryDto>>.ErrorResponse("Tenant administrator required.", 403);
         if (page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize ||
             (channel.HasValue && !Enum.IsDefined(typeof(NotificationChannelType), channel.Value)) ||

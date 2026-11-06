@@ -50,9 +50,11 @@ public sealed class CommunicationAdministrationServiceTests
     {
         var http = new DefaultHttpContext();
         http.Items["TenantId"] = 101L;
-        return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+        var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("communication-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
+        CentralPrivilegedTestIdentity.Seed(db, 101, 10);
+        return db;
     }
 
     private static CommunicationAdministrationService Service(EduOSDbContext db, long tenant, bool admin) => new(

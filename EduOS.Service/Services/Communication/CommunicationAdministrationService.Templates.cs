@@ -11,7 +11,7 @@ public sealed partial class CommunicationAdministrationService
     public async Task<ApiResponse<PagedResult<MessageTemplateDto>>> GetTemplatesAsync(int page, int pageSize,
         CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return ApiResponse<PagedResult<MessageTemplateDto>>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<PagedResult<MessageTemplateDto>>.ErrorResponse("Tenant administrator access is required.", 403);
         page = Math.Max(1, page); pageSize = Math.Clamp(pageSize, 1, 100);
         var query = _templates.GetQueryable().AsNoTracking().Where(x => x.TenantId == _user.TenantId);
         var count = await query.CountAsync(cancellationToken);
@@ -25,7 +25,7 @@ public sealed partial class CommunicationAdministrationService
     public async Task<ApiResponse<MessageTemplateDto>> SaveTemplateAsync(long? templateId,
         SaveMessageTemplateRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (!CanManage()) return ApiResponse<MessageTemplateDto>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (!await CanManageAsync(cancellationToken)) return ApiResponse<MessageTemplateDto>.ErrorResponse("Tenant administrator access is required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 100
             || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200
             || string.IsNullOrWhiteSpace(request.BodyTemplate) || request.BodyTemplate.Length > 10000

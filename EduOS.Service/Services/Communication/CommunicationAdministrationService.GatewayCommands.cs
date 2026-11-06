@@ -15,7 +15,7 @@ public sealed partial class CommunicationAdministrationService
     public async Task<ApiResponse<CommunicationGatewayDto>> SaveGatewayAsync(long? gatewayId,
         SaveCommunicationGatewayRequestDto request, CancellationToken ct = default)
     {
-        if (!CanManage()) return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (!await CanManageAsync(ct)) return ApiResponse<CommunicationGatewayDto>.ErrorResponse("Tenant administrator required.", 403);
         if (request == null || string.IsNullOrWhiteSpace(request.ProviderCode) || request.ProviderCode.Trim().Length > 100
             || !ValidChannel(request.Channel) || request.Endpoint?.Length > 1000 || request.Credential?.Length > 4000
             || request.SmsSenderId?.Length > 20 || request.SmtpHost?.Length > 253 ||
