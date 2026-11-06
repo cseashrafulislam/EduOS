@@ -141,4 +141,9 @@ public sealed class AccountingReportsController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
         CancellationToken ct = default)
         => Reply(await service.GetTrialBalancePageAsync(asOfDate, page, pageSize, ct));
+    [HttpGet("balance-sheet-page"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> BalanceSheetPage([FromQuery] DateOnly asOfDate,
+        [FromQuery] string category = "all", [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken ct = default)
+        => Reply(await service.GetBalanceSheetPageAsync(asOfDate, category, page, pageSize, ct));
 }

@@ -22,6 +22,7 @@ public sealed class BalanceSheetServiceTests
     {
         await using var db = Database();
         (await Service(db, role).GetBalanceSheetAsync(AsOf)).StatusCode.Should().Be(403);
+        (await Service(db, role).GetBalanceSheetPageAsync(AsOf)).StatusCode.Should().Be(403);
     }
 
     [Fact]
@@ -29,6 +30,9 @@ public sealed class BalanceSheetServiceTests
     {
         await using var db = Database();
         (await Service(db).GetBalanceSheetAsync(default)).StatusCode.Should().Be(400);
+        (await Service(db).GetBalanceSheetPageAsync(default)).StatusCode.Should().Be(400);
+        (await Service(db).GetBalanceSheetPageAsync(AsOf, category: "bad")).StatusCode.Should().Be(400);
+        (await Service(db).GetBalanceSheetPageAsync(AsOf, pageSize: 101)).StatusCode.Should().Be(400);
     }
 
     [Fact]
@@ -49,6 +53,23 @@ public sealed class BalanceSheetServiceTests
         result.Data.UnclosedNetSurplus.Should().Be(350m);
         result.Data.TotalLiabilitiesAndEquity.Should().Be(850m);
         result.Data.AssetRows.Should().ContainSingle(x => x.AccountCode == "CASH" && x.Amount == 850m);
+        var pageOne = await Service(db).GetBalanceSheetPageAsync(AsOf, page: 1, pageSize: 1);
+        var pageTwo = await Service(db).GetBalanceSheetPageAsync(AsOf, page: 2, pageSize: 1);
+        pageOne.StatusCode.Should().Be(200);
+        pageOne.Data!.Accounts.TotalCount.Should().Be(3);
+        pageOne.Data.TotalAssets.Should().Be(850m);
+        pageOne.Data.TotalLiabilities.Should().Be(300m);
+        pageOne.Data.TotalEquity.Should().Be(200m);
+        pageOne.Data.UnclosedNetSurplus.Should().Be(350m);
+        pageTwo.StatusCode.Should().Be(200);
+        pageTwo.Data!.Accounts.TotalCount.Should().Be(3);
+        pageTwo.Data.TotalLiabilitiesAndEquity.Should().Be(850m);
+        (await Service(db).GetBalanceSheetPageAsync(AsOf, "asset")).Data!.Accounts.Items
+            .Should().ContainSingle(x => x.AccountCode == "CASH" && x.Amount == 850m);
+        (await Service(db).GetBalanceSheetPageAsync(AsOf, "liability")).Data!.Accounts.Items
+            .Should().ContainSingle(x => x.AccountCode == "PAYABLE" && x.Amount == 300m);
+        (await Service(db).GetBalanceSheetPageAsync(AsOf, "equity")).Data!.Accounts.Items
+            .Should().ContainSingle(x => x.AccountCode == "CAPITAL" && x.Amount == 200m);
     }
 
     [Fact]
@@ -60,6 +81,7 @@ public sealed class BalanceSheetServiceTests
         db.JournalLines.Local.Single(x => x.JournalId == 1 && x.AccountId == 2).CreditAmount = 299m;
         await db.SaveChangesAsync();
         (await Service(db).GetBalanceSheetAsync(AsOf)).StatusCode.Should().Be(409);
+        (await Service(db).GetBalanceSheetPageAsync(AsOf)).StatusCode.Should().Be(409);
     }
 
     [Fact]

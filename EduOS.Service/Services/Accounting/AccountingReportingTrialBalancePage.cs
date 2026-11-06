@@ -17,37 +17,15 @@ public sealed partial class AccountingReportingService
         if (asOfDate == default || page < 1 || pageSize is < 1 or > 100)
             return ApiResponse<TrialBalancePageDto>.ErrorResponse("Valid as-of date and page size (1–100) required.", 400);
 
-        var tenant = user.TenantId;
-        var historyError = await HistoricalPostingErrorAsync(null, asOfDate, null, ct);
-        if (historyError != null)
-            return ApiResponse<TrialBalancePageDto>.ErrorResponse(historyError, 409);
-
-        var journals = Posted.Where(j => j.JournalDate <= asOfDate);
-        if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
-            return ApiResponse<TrialBalancePageDto>.ErrorResponse("Mixed-currency journals require an approved FX policy.", 409);
-        if (await journals.AnyAsync(j => !Lines.Any(l => l.JournalId == j.Id), ct))
-            return ApiResponse<TrialBalancePageDto>.ErrorResponse("A posted journal has no lines.", 409);
-        if (await db.JournalLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(l =>
-            l.TenantId != tenant && journals.Any(j => j.Id == l.JournalId), ct))
-            return ApiResponse<TrialBalancePageDto>.ErrorResponse("Posted journal contains a foreign-institution line.", 409);
+        var error = await ValidateInstitutionalAsOfPostedGLAsync(asOfDate, ct);
+        if (error != null)
+            return ApiResponse<TrialBalancePageDto>.ErrorResponse(error, 409);
 
         var entries = from line in Lines
-            join journal in journals on line.JournalId equals journal.Id
-            select new { JournalId = journal.Id, line.AccountId, line.DebitAmount, line.CreditAmount };
-        if (await entries.AnyAsync(x => x.DebitAmount < 0m || x.CreditAmount < 0m ||
-            (x.DebitAmount > 0m) == (x.CreditAmount > 0m), ct))
-            return ApiResponse<TrialBalancePageDto>.ErrorResponse("Invalid posted journal line.", 409);
-        if (await entries.GroupBy(x => x.JournalId).Select(g => new
-            {
-                Count = g.Count(), Debit = g.Sum(x => x.DebitAmount),
-                Credit = g.Sum(x => x.CreditAmount)
-            }).AnyAsync(x => x.Count < 2 || x.Debit <= 0m || x.Debit != x.Credit, ct))
-            return ApiResponse<TrialBalancePageDto>.ErrorResponse("Unbalanced posted journal.", 409);
-
-        var accounts = db.Accounts.AsNoTracking().Where(a => a.TenantId == tenant &&
+            join journal in Posted.Where(j => j.JournalDate <= asOfDate) on line.JournalId equals journal.Id
+            select new { line.AccountId, line.DebitAmount, line.CreditAmount };
+        var accounts = db.Accounts.AsNoTracking().Where(a => a.TenantId == user.TenantId &&
             !a.IsDeleted && a.CurrencyCode == "BDT" && !a.IsGroup && a.AllowsPosting);
-        if (await entries.AnyAsync(e => !accounts.Any(a => a.Id == e.AccountId), ct))
-            return ApiResponse<TrialBalancePageDto>.ErrorResponse("Missing or invalid posting account.", 409);
 
         var balances = from e in entries
             join a in accounts on e.AccountId equals a.Id
@@ -86,5 +64,39 @@ public sealed partial class AccountingReportingService
                 Page = page, PageSize = pageSize, TotalCount = totals?.Count ?? 0, Items = rows
             }
         });
+    }
+
+    // Shared strict as-of validation for the new paged Trial Balance and Balance
+    // Sheet. Existing full-list report contracts remain unchanged.
+    private async Task<string?> ValidateInstitutionalAsOfPostedGLAsync(DateOnly asOfDate, CancellationToken ct)
+    {
+        var historical = await HistoricalPostingErrorAsync(null, asOfDate, null, ct);
+        if (historical != null) return historical;
+
+        var journals = Posted.Where(j => j.JournalDate <= asOfDate);
+        if (await journals.AnyAsync(j => j.CurrencyCode != "BDT", ct))
+            return "Mixed-currency journals require an approved FX policy.";
+        if (await journals.AnyAsync(j => !Lines.Any(l => l.JournalId == j.Id), ct))
+            return "A posted journal has no lines.";
+        if (await db.JournalLines.IgnoreQueryFilters().AsNoTracking().AnyAsync(l =>
+            l.TenantId != user.TenantId && journals.Any(j => j.Id == l.JournalId), ct))
+            return "Posted journal contains a foreign-institution line.";
+
+        var entries = from line in Lines
+            join journal in journals on line.JournalId equals journal.Id
+            select new { JournalId = journal.Id, line.AccountId, line.DebitAmount, line.CreditAmount };
+        if (await entries.AnyAsync(x => x.DebitAmount < 0m || x.CreditAmount < 0m ||
+            (x.DebitAmount > 0m) == (x.CreditAmount > 0m), ct))
+            return "Invalid posted journal line.";
+        if (await entries.GroupBy(x => x.JournalId).Select(g => new
+            {
+                Count = g.Count(), Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount)
+            }).AnyAsync(x => x.Count < 2 || x.Debit <= 0m || x.Debit != x.Credit, ct))
+            return "Unbalanced posted journal.";
+
+        var accounts = db.Accounts.AsNoTracking().Where(a => a.TenantId == user.TenantId &&
+            !a.IsDeleted && a.CurrencyCode == "BDT" && !a.IsGroup && a.AllowsPosting);
+        return await entries.AnyAsync(e => !accounts.Any(a => a.Id == e.AccountId), ct)
+            ? "Missing or invalid posting account." : null;
     }
 }

@@ -57,6 +57,12 @@ public sealed class InstitutionalCentralFinanceDetailsTests
         finalPage.StatusCode.Should().Be(200);
         finalPage.Data!.Accounts.Items.Should().HaveCount(2);
         finalPage.Data.TotalDebitBalance.Should().Be(5001m);
+        var balanceSheet = await service.GetBalanceSheetPageAsync(To, pageSize: 10);
+        balanceSheet.StatusCode.Should().Be(200);
+        balanceSheet.Data!.TotalAssets.Should().Be(5001m);
+        balanceSheet.Data.UnclosedNetSurplus.Should().Be(5001m);
+        balanceSheet.Data.Accounts.TotalCount.Should().Be(1);
+        balanceSheet.Data.Accounts.Items.Should().ContainSingle(x => x.AccountCode == "CASH" && x.Amount == 5001m);
         // The existing full-detail statement keeps its legacy bounded contract.
         (await service.GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(422);
     }
