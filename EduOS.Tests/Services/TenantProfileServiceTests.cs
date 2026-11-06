@@ -10,6 +10,7 @@ using EduOS.Service.Helpers.Storage;
 using EduOS.Service.Services.Tenants;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -20,6 +21,23 @@ namespace EduOS.Tests.Services;
 
 public sealed class TenantProfileServiceTests
 {
+    [Fact]
+    public async Task Swapped_database_tenant_blocks_profile_reads_writes_and_restoring_scope_recovers()
+    {
+        await using var setup = await CreateSetupAsync();
+        Assert.True((await setup.Service.GetProfileAsync()).Success);
+        setup.Http.Items["TenantId"] = 999L;
+        Assert.Equal(403, (await setup.Service.GetProfileAsync()).StatusCode);
+        Assert.Equal(403, (await setup.Service.UpdateRegionalSettingsAsync(new UpdateTenantRegionalSettingsRequestDto
+        {
+            CurrencyCode = "BDT", TimeZoneId = "Asia/Dhaka", DefaultLanguage = "en-BD",
+            RowVersion = Convert.ToBase64String(setup.Tenant.RowVersion)
+        })).StatusCode);
+        Assert.Equal("BDT", setup.Tenant.CurrencyCode);
+        setup.Http.Items["TenantId"] = setup.Tenant.Id;
+        Assert.True((await setup.Service.GetProfileAsync()).Success);
+    }
+
     [Fact]
     public async Task Canonical_legal_name_and_registration_number_round_trip_without_erasing_omitted_fields()
     {
@@ -220,12 +238,15 @@ public sealed class TenantProfileServiceTests
 
     private static async Task<TestSetup> CreateSetupAsync()
     {
+        var http = new DefaultHttpContext();
         var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("tenant-profile-" + Guid.NewGuid().ToString("N")).Options);
+            .UseInMemoryDatabase("tenant-profile-" + Guid.NewGuid().ToString("N")).Options,
+            new FixedHttpContextAccessor { HttpContext = http });
         var tenant = new Tenant { Id = 812, Name = "Green School", Code = "GREEN-SCHOOL",
             Email = "admin@example.test", RowVersion = [1, 2, 3, 4, 5, 6, 7, 8] };
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync();
+        http.Items["TenantId"] = tenant.Id;
         var storage = new Mock<IFileUploadService>();
         var service = new TenantProfileService(
             new GenericRepository<Tenant>(db), new GenericRepository<TenantDomain>(db),
@@ -233,13 +254,18 @@ public sealed class TenantProfileServiceTests
             new TestUser(812),
             storage.Object, db, Options.Create(new FileUploadSettings()),
             NullLogger<TenantProfileService>.Instance);
-        return new TestSetup(db, tenant, service, storage);
+        return new TestSetup(db, tenant, service, storage, http);
     }
 
     private sealed record TestSetup(EduOSDbContext Db, Tenant Tenant,
-        TenantProfileService Service, Mock<IFileUploadService> Storage) : IAsyncDisposable
+        TenantProfileService Service, Mock<IFileUploadService> Storage, HttpContext Http) : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => Db.DisposeAsync();
+    }
+
+    private sealed class FixedHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 
     private sealed class TestUser(long tenant) : ICurrentUserService

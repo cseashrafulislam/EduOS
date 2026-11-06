@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Settings;
+using EduOS.Persistence.Context;
 using EduOS.Service.Helpers.Storage;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -378,6 +379,7 @@ public sealed class TenantProfileService : ITenantProfileService
         catch (FormatException) { return false; }
     }
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0;
+    private bool CanRead() => _user.IsAuthenticated && _user.UserId > 0 && _user.TenantId > 0 &&
+        _unitOfWork is EduOSDbContext db && db.CurrentTenantId == _user.TenantId;
     private bool CanManage() => CanRead() && _user.IsTenantAdmin;
 }

@@ -46,10 +46,11 @@ namespace EduOS.App.Middleware
             context.Response.OnStarting(() =>
             {
                 context.Response.Headers.Remove("X-Powered-By");
-                // API responses may contain institution, learner, payroll or
-                // billing data. No intermediary/browser may reuse one user's
-                // payload across authentication or institution switches.
-                if (isApi)
+                // All authenticated MVC pages, print views and CSV/downloads can
+                // contain tenant data, not just /api routes. Evaluate the principal
+                // here because authentication runs after this outer middleware.
+                // Public static assets and anonymous marketing pages keep caching.
+                if (isApi || context.User.Identity?.IsAuthenticated == true)
                 {
                     context.Response.Headers.CacheControl = "no-store";
                     context.Response.Headers.Pragma = "no-cache";

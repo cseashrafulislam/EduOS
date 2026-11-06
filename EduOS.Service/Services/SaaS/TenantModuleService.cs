@@ -5,6 +5,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -157,9 +158,10 @@ public sealed class TenantModuleService : ITenantModuleService
 
     public async Task<ApiResponse<bool>> ApplyInstitutionPresetAsync(long tenantId, long institutionTypeDefinitionId, CancellationToken cancellationToken = default)
     {
-        if (!_currentUser.IsAuthenticated || !(_currentUser.IsSuperAdmin ||
-            (_currentUser.IsTenantAdmin && _currentUser.TenantId == tenantId)))
-            return ApiResponse<bool>.ErrorResponse("Not authorized to configure modules for this institution.");
+        if (tenantId <= 0 || _unitOfWork is not EduOSDbContext db || db.CurrentTenantId != tenantId ||
+            !_currentUser.IsAuthenticated || !(_currentUser.IsSuperAdmin ||
+            (CanManage() && _currentUser.TenantId == tenantId)))
+            return ApiResponse<bool>.ErrorResponse("Not authorized to configure modules for this institution.", 403);
         if (tenantId <= 0 || institutionTypeDefinitionId <= 0)
             return ApiResponse<bool>.ErrorResponse("Valid institution type and tenant are required.");
         try
@@ -276,6 +278,8 @@ public sealed class TenantModuleService : ITenantModuleService
         return code.Length is > 0 and <= 100 &&
             code.All(x => char.IsAsciiLetterOrDigit(x) || x is '_' or '-');
     }
-    private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0;
+    private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.UserId > 0 &&
+        _currentUser.TenantId > 0 && _unitOfWork is EduOSDbContext db &&
+        db.CurrentTenantId == _currentUser.TenantId;
     private bool CanManage() => CanRead() && (_currentUser.IsTenantAdmin || _currentUser.IsSuperAdmin);
 }

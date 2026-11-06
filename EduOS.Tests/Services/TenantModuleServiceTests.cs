@@ -17,6 +17,23 @@ namespace EduOS.Tests.Services;
 public sealed class TenantModuleServiceTests
 {
     [Fact]
+    public async Task Module_entitlements_and_preset_writes_fail_closed_when_ambient_institution_changes()
+    {
+        await using var setup = await CreateAsync("PRO", SubscriptionState.Active);
+        var service = Service(setup.Context, setup.User);
+        Assert.True((await service.GetCurrentTenantModulesAsync()).Success);
+        setup.Http.Items["TenantId"] = 999L;
+        Assert.Equal(403, (await service.GetCurrentTenantModulesAsync()).StatusCode);
+        Assert.False(await service.IsCurrentTenantModuleAvailableAsync("STUDENT"));
+        Assert.Equal(403, (await service.UpdateCurrentTenantModuleAsync("LIBRARY",
+            new() { IsEnabled = false })).StatusCode);
+        Assert.Equal(403, (await service.ApplyInstitutionPresetAsync(setup.Tenant.Id,
+            setup.Tenant.InstitutionTypeDefinitionId!.Value)).StatusCode);
+        setup.Http.Items["TenantId"] = setup.Tenant.Id;
+        Assert.True(await service.IsCurrentTenantModuleAvailableAsync("STUDENT"));
+    }
+
+    [Fact]
     public async Task Preset_and_paid_subscription_both_control_module_availability()
     {
         await using var setup = await CreateAsync("BASIC", SubscriptionState.Active);
@@ -212,10 +229,10 @@ public sealed class TenantModuleServiceTests
             PriceSnapshot = plan.MonthlyPrice
         });
         await db.SaveChangesAsync();
-        return new Setup(db, tenant, new TestUser(tenant.Id));
+        return new Setup(db, tenant, new TestUser(tenant.Id), http);
     }
 
-    private sealed record Setup(EduOSDbContext Context, Tenant Tenant, TestUser User) : IAsyncDisposable
+    private sealed record Setup(EduOSDbContext Context, Tenant Tenant, TestUser User, HttpContext Http) : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => Context.DisposeAsync();
     }

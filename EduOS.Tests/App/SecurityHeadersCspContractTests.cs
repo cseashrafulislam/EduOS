@@ -1,5 +1,9 @@
 using EduOS.App.Middleware;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
+using System.Security.Claims;
 using Xunit;
 
 namespace EduOS.Tests.App;
@@ -37,5 +41,35 @@ public sealed class SecurityHeadersCspContractTests
         Assert.Equal(expectedCacheControl, context.Response.Headers.CacheControl.ToString());
         if (expectedCacheControl.Length > 0)
             Assert.Equal("no-cache", context.Response.Headers.Pragma.ToString());
+    }
+
+    [Theory]
+    [InlineData("/finance/print", true, 200, true)]
+    [InlineData("/attendance/corrections/export.csv", true, 403, true)]
+    [InlineData("/pricing", false, 200, false)]
+    [InlineData("/api/student-documents", false, 401, true)]
+    public async Task Actual_http_authenticated_mvc_print_and_export_responses_never_cache_across_tenant_switches(
+        string path, bool authenticated, int status, bool noStore)
+    {
+        using var server = new TestServer(new WebHostBuilder().Configure(app =>
+        {
+            app.UseSecurityHeaders();
+            app.Run(async context =>
+            {
+                if (context.Request.Headers["X-Test-Authenticated"] == "1")
+                    context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, "51")], "Test"));
+                context.Response.StatusCode = status;
+                await context.Response.WriteAsync("test response");
+            });
+        }));
+        using var client = server.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (authenticated) request.Headers.Add("X-Test-Authenticated", "1");
+        using var response = await client.SendAsync(request);
+        Assert.Equal(status, (int)response.StatusCode);
+        var cache = response.Headers.CacheControl?.ToString() ?? string.Empty;
+        if (noStore) Assert.Contains("no-store", cache, StringComparison.OrdinalIgnoreCase);
+        else Assert.DoesNotContain("no-store", cache, StringComparison.OrdinalIgnoreCase);
     }
 }

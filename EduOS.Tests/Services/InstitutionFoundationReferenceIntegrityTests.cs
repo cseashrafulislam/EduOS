@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.Academic;
+using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Auth;
@@ -18,6 +19,20 @@ namespace EduOS.Tests.Services;
 
 public sealed class InstitutionFoundationReferenceIntegrityTests
 {
+    [Fact]
+    public async Task Campus_and_academic_administration_reject_swapped_database_tenant()
+    {
+        await using var scope = await SetupAsync(false);
+        Assert.True((await scope.Service.GetCampusesAsync()).Success);
+        scope.Http.Items["TenantId"] = 999L;
+        Assert.Equal(403, (await scope.Service.GetCampusesAsync()).StatusCode);
+        Assert.Equal(403, (await scope.Service.GetCampusAsync(scope.North.Id)).StatusCode);
+        Assert.Equal(403, (await scope.Service.SaveCampusAsync(null, new SaveCampusRequestDto())).StatusCode);
+        Assert.Equal(403, (await scope.Service.GetAcademicYearsAsync()).StatusCode);
+        scope.Http.Items["TenantId"] = 101L;
+        Assert.True((await scope.Service.GetCampusesAsync()).Success);
+    }
+
     [Theory]
     [InlineData("enrollment")]
     [InlineData("offering")]
@@ -249,11 +264,12 @@ public sealed class InstitutionFoundationReferenceIntegrityTests
             new GenericRepository<AdmissionIntakeForm>(db), new GenericRepository<TenantSubscription>(db),
             new GenericRepository<SubscriptionPlan>(db), db, db, user, TimeProvider.System,
             NullLogger<InstitutionFoundationService>.Instance);
-        return new Scope(db, service, year, otherYear, term, north, south);
+        return new Scope(db, service, year, otherYear, term, north, south, http);
     }
 
     private sealed record Scope(EduOSDbContext Db, InstitutionFoundationService Service,
-        AcademicYear Year, AcademicYear OtherYear, AcademicTerm? Term, Campus North, Campus South) : IAsyncDisposable
+        AcademicYear Year, AcademicYear OtherYear, AcademicTerm? Term, Campus North, Campus South,
+        HttpContext Http) : IAsyncDisposable
     {
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }

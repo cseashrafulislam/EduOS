@@ -605,7 +605,8 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
             return Error<T>("Setup conflicts with an existing record.", 409);
         }
     }
-    private bool CanManage() => _user.IsAuthenticated && _user.IsTenantAdmin && _user.TenantId > 0;
+    private bool CanManage() => _user.IsAuthenticated && _user.IsTenantAdmin && _user.UserId > 0 &&
+        _user.TenantId > 0 && _db.CurrentTenantId == _user.TenantId;
     private static bool ValidName(string? value, int max) =>
         !string.IsNullOrWhiteSpace(value) && value.Trim().Length <= max;
     private static bool ValidCode(string? value, int max) =>
