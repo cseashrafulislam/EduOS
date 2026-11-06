@@ -98,4 +98,35 @@ public sealed class AdaptiveStudyPlanPolicyTests
         Assert.Equal(PlanStatus.Denied, Build(Request with { ChapterId = "chapter-2" },
             [Row()]).Status);
     }
+    [Fact]
+    public void Extreme_published_marks_fail_closed_instead_of_throwing()
+    {
+        var rows = new[]
+        {
+            Row(earned: decimal.MaxValue, possible: decimal.MaxValue),
+            Row(earned: decimal.MaxValue, possible: decimal.MaxValue)
+        };
+        var result = Build(Request, rows);
+        Assert.Equal(PlanStatus.Invalid, result.Status);
+        Assert.Empty(result.Skills);
+    }
+
+    [Fact]
+    public void Excessive_evidence_batch_fails_closed_without_partial_plan()
+    {
+        var rows = Enumerable.Repeat(Row(), 5001).ToArray();
+        var result = Build(Request, rows);
+        Assert.Equal(PlanStatus.Invalid, result.Status);
+        Assert.Empty(result.Skills);
+    }
+
+    [Fact]
+    public void Normal_published_evidence_still_produces_the_same_plan()
+    {
+        var result = Build(Request, [Row(earned: 7m, possible: 10m)]);
+        Assert.Equal(PlanStatus.Ready, result.Status);
+        Assert.Equal(70m, result.Skills.Single().ObservedPercent);
+        Assert.Equal(StudyPriority.Practice, result.Skills.Single().Priority);
+    }
+
 }
