@@ -32,6 +32,7 @@ public sealed class CommunicationGatewaySecurityTests
             new GenericRepository<CommunicationDelivery>(db),
             new InMemoryUnitOfWork(db), new User(tenant),
             new EphemeralDataProtectionProvider(),
+            db,
             NullLogger<CommunicationAdministrationService>.Instance);
         var saved = await Service(101).SaveGatewayAsync(null, new SaveCommunicationGatewayRequestDto
         {
@@ -43,7 +44,7 @@ public sealed class CommunicationGatewaySecurityTests
         var row = await db.CommunicationGateways.SingleAsync();
         row.ProtectedCredential.Should().NotContain("private-token");
         (await Service(101).GetGatewaysAsync()).Data.Should().ContainSingle(x => x.HasCredential && x.IsDefault);
-        (await Service(202).GetGatewaysAsync()).Data.Should().BeEmpty();
+        (await Service(202).GetGatewaysAsync()).StatusCode.Should().Be(403);
     }
 
     [Fact]
@@ -265,6 +266,7 @@ public sealed class CommunicationGatewaySecurityTests
         new GenericRepository<NoticeCategory>(db), new GenericRepository<CommunicationDelivery>(db),
         new InMemoryUnitOfWork(db), new User(tenant),
         new EphemeralDataProtectionProvider(),
+        db,
         NullLogger<CommunicationAdministrationService>.Instance);
 
     private sealed class InMemoryUnitOfWork(EduOSDbContext db) : IUnitOfWork
