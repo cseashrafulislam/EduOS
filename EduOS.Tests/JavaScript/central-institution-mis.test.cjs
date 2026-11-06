@@ -27,7 +27,14 @@ test('MIS distinguishes unavailable modules from zero and reads posted GL throug
     assert.match(mis, /GetInstitutionalIncomeExpenseTotalsAsync/);
     assert.match(mis, /totals\.Data\.NetSurplus/);
     assert.match(mis, /Scope = "Period", Unit = "BDT"/);
-    assert.doesNotMatch(mis, /StudentPayments|StudentInvoices|InventoryMovements.*Sum/);
+    assert.doesNotMatch(mis, /StudentPayments|InventoryMovements.*Sum/);
+    // Operational invoice receivables are allowed only as distinct CURRENT
+    // source-owned metrics, never as a substitute for posted GL income.
+    assert.match(mis, /Key = "outstanding_fee_invoices", ModuleCode = "FINANCE", Source = "StudentInvoices"/);
+    assert.match(mis, /Key = "outstanding_fee_amount", ModuleCode = "FINANCE", Source = "StudentInvoices"/);
+    assert.match(mis, /Scope = "Current", Unit = "BDT", Available = true/);
+    assert.match(mis, /AddFinance\("posted_income"[\s\S]*?totals\.Data\.TotalIncome\)/);
+    assert.match(mis, /AddFinance\("net_surplus"[\s\S]*?totals\.Data\.NetSurplus\)/);
 });
 
 test('aggregate finance totals keep integrity checks and no fixed posting-account ceiling', () => {
