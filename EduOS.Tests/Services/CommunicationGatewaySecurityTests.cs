@@ -88,7 +88,7 @@ public sealed class CommunicationGatewaySecurityTests
             .ProtectedCredential.Should().NotContain("sms-private-token");
         stored.Single(x => x.Channel == NotificationChannelType.Email)
             .ProtectedCredential.Should().NotContain("smtp-private-password");
-        (await Create(db, 202).GetGatewaysAsync()).Data.Should().BeEmpty();
+        (await Create(db, 202).GetGatewaysAsync()).StatusCode.Should().Be(403);
     }
 
     [Theory]
@@ -162,7 +162,7 @@ public sealed class CommunicationGatewaySecurityTests
         });
         complete.Success.Should().BeTrue(complete.Message);
         complete.Data!.HasCredential.Should().BeTrue();
-        (await Service(202).GetGatewaysAsync()).Data.Should().BeEmpty();
+        (await Service(202).GetGatewaysAsync()).StatusCode.Should().Be(403);
 
         CommunicationAdministrationService Service(long tenant) => Create(db, tenant);
     }

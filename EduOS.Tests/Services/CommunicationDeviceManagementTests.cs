@@ -4,6 +4,7 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Services.Communication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
@@ -25,8 +26,11 @@ public sealed class CommunicationDeviceManagementTests
     [Fact]
     public async Task Invalid_paging_is_rejected_before_database_access()
     {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 11L;
         await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("devices-page-" + Guid.NewGuid().ToString("N")).Options);
+            .UseInMemoryDatabase("devices-page-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(x => x.IsAuthenticated).Returns(true);
         user.SetupGet(x => x.TenantId).Returns(11);

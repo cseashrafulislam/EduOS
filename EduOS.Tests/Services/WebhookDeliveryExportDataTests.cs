@@ -61,6 +61,7 @@ public sealed class WebhookDeliveryExportDataTests
     {
         var user = new Mock<ICurrentUserService>();
         user.SetupGet(x => x.IsAuthenticated).Returns(true);
+        user.SetupGet(x => x.UserId).Returns(10);
         user.SetupGet(x => x.IsTenantAdmin).Returns(true);
         user.SetupGet(x => x.TenantId).Returns(101);
         return new IntegrationAdministrationService(db, user.Object,
