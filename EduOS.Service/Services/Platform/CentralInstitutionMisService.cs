@@ -24,8 +24,9 @@ public sealed class CentralInstitutionMisService(
             user.UserId <= 0 || db.CurrentTenantId != user.TenantId)
             return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
                 "Institution administrator access required.", 403);
+        // Inclusive period: a difference of 365 days spans 366 calendar dates.
         if (fromDate == default || toDate < fromDate ||
-            toDate.DayNumber - fromDate.DayNumber > 366)
+            toDate.DayNumber - fromDate.DayNumber >= 366)
             return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
                 "Select a valid MIS period of at most 366 days.", 400);
 
@@ -61,10 +62,30 @@ public sealed class CentralInstitutionMisService(
             "Current tenant students with StatusCode=Active.", "Current",
             async () => await db.Students.AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && !x.IsDeleted && x.StatusCode == "Active", ct));
+        await Add("ATTENDANCE", "finalized_attendance_sessions", "AttendanceSessions",
+            "Finalized student attendance sessions dated inside the selected period.", "Period",
+            async () => await db.AttendanceSessions.AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && !x.IsDeleted && x.IsFinalized &&
+                x.AttendanceDate >= fromDate && x.AttendanceDate <= toDate, ct));
+        await Add("ATTENDANCE", "finalized_student_absences", "StudentAttendances/AttendanceSessions",
+            "Absent marks in finalized tenant attendance sessions dated inside the selected period; corrected current marks, not an enrollment denominator.",
+            "Period", async () => await (
+                from a in db.StudentAttendances.AsNoTracking()
+                join s in db.AttendanceSessions.AsNoTracking() on a.AttendanceSessionId equals s.Id
+                where a.TenantId == tenant && !a.IsDeleted && s.TenantId == tenant &&
+                      !s.IsDeleted && s.IsFinalized &&
+                      s.AttendanceDate >= fromDate && s.AttendanceDate <= toDate &&
+                      a.State == AttendanceState.Absent
+                select a.Id).CountAsync(ct));
         await Add("HR", "active_employees", "Employees",
             "Current tenant employees with State=Active.", "Current",
             async () => await db.Employees.AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && !x.IsDeleted && x.State == EmployeeState.Active, ct));
+        await Add("PAYROLL", "approved_unposted_payroll_runs", "PayrollRuns",
+            "Payroll runs approved but not posted, with period end inside the selected period.", "Period",
+            async () => await db.PayrollRuns.AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && !x.IsDeleted && x.State == PayrollRunState.Approved &&
+                x.JournalId == null && x.PeriodEnd >= fromDate && x.PeriodEnd <= toDate, ct));
         await Add("INVENTORY", "submitted_requisitions", "ProcurementRequisitions",
             "Current submitted procurement requisitions, not purchase orders.", "Current",
             async () => await db.ProcurementRequisitions.AsNoTracking().CountAsync(x =>
@@ -96,6 +117,30 @@ public sealed class CentralInstitutionMisService(
         var financeAllowed = await modules.IsCurrentTenantModuleAvailableAsync("FINANCE");
         if (financeAllowed)
         {
+            // Operational receivables belong to the canonical StudentInvoice, not the
+            // posted GL income metric. A paid/cancelled/refunded/draft invoice cannot
+            // be counted as an open receivable even if old data has a stale DueAmount.
+            var openInvoices = db.StudentInvoices.AsNoTracking().Where(x =>
+                x.TenantId == tenant && !x.IsDeleted &&
+                (x.State == InvoiceState.Issued || x.State == InvoiceState.PartiallyPaid));
+            if (await openInvoices.AnyAsync(x => x.DueAmount < 0m || x.CurrencyCode != "BDT", ct))
+                return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
+                    "Invalid student receivable amount or currency; reconcile invoices before MIS reporting.", 409);
+            var outstanding = openInvoices.Where(x => x.DueAmount > 0m);
+            metrics.Add(new CentralInstitutionMisMetricDto
+            {
+                Key = "outstanding_fee_invoices", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                Definition = "Issued or partially paid invoices with positive current due; excludes draft, cancelled, paid and refunded invoices.",
+                Scope = "Current", Unit = "Count", Available = true,
+                Value = await outstanding.CountAsync(ct)
+            });
+            metrics.Add(new CentralInstitutionMisMetricDto
+            {
+                Key = "outstanding_fee_amount", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                Definition = "Current operational invoice receivables, not collected cash or posted GL income.",
+                Scope = "Current", Unit = "BDT", Available = true,
+                Value = await outstanding.Select(x => (decimal?)x.DueAmount).SumAsync(ct) ?? 0m
+            });
             var totals = await finance.GetInstitutionalIncomeExpenseTotalsAsync(fromDate, toDate, ct);
             if (!totals.Success || totals.Data == null)
                 return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
@@ -109,6 +154,18 @@ public sealed class CentralInstitutionMisService(
         }
         else
         {
+            metrics.Add(new CentralInstitutionMisMetricDto
+            {
+                Key = "outstanding_fee_invoices", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                Definition = "Issued or partially paid invoices with positive current due; excludes draft, cancelled, paid and refunded invoices.",
+                Scope = "Current", Unit = "Count", Available = false
+            });
+            metrics.Add(new CentralInstitutionMisMetricDto
+            {
+                Key = "outstanding_fee_amount", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                Definition = "Current operational invoice receivables, not collected cash or posted GL income.",
+                Scope = "Current", Unit = "BDT", Available = false
+            });
             AddFinance("posted_income", "Posted GL income account credits minus debits.", null);
             AddFinance("posted_expenses", "Posted GL expense account debits minus credits.", null);
             AddFinance("net_surplus", "Posted GL income minus expenses, including reversals.", null);

@@ -19,7 +19,8 @@ public sealed class NumberSeriesService(
     EduOSDbContext db, ICurrentUserService user, IUnitOfWork unit,
     ILogger<NumberSeriesService> logger) : INumberSeriesService
 {
-    private bool CanConfigure => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin;
+    private bool CanConfigure => user.IsAuthenticated && user.TenantId > 0 &&
+        user.IsTenantAdmin && db.CurrentTenantId == user.TenantId;
     private bool CanIssue => user.IsAuthenticated && user.TenantId > 0;
     private static string Version(byte[] rowVersion) => Convert.ToBase64String(rowVersion);
     private static bool VersionMatches(byte[] current, string? supplied)
@@ -133,6 +134,8 @@ public sealed class NumberSeriesService(
         var key = (seriesKey ?? "").Trim().ToUpperInvariant();
         if (clientRequestId == Guid.Empty || !Regex.IsMatch(key, @"^[A-Z][A-Z0-9_.-]{1,99}$"))
             return ApiResponse<string>.ErrorResponse("Valid key and request ID required.");
+        if (db.CurrentTenantId != user.TenantId)
+            return ApiResponse<string>.ErrorResponse("Institution context does not match the active session.", 403);
         var scope = "number-series.issue." + key;
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         try
