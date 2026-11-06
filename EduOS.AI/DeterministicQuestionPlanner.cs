@@ -16,9 +16,9 @@ public static class DeterministicQuestionPlanner
     private static readonly Regex Spaces = new(@"\s+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex Date = new(@"(?<!\d)(?<date>\d{4}-\d{2}-\d{2})(?!\d)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly string[] Attendance = ["attendance", "attendence", "উপস্থিতি", "হাজিরা", "uposthiti", "hajira"];
-    private static readonly string[] Count = ["count", "number", "total", "কতজন", "কত", "সংখ্যা", "mot", "koto"];
-    private static readonly string[] Today = ["today", "আজ", "aj", "aaj"];
-    private static readonly string[] Yesterday = ["yesterday", "গতকাল", "gotokal"];
+    private static readonly string[] Count = ["count", "number", "total", "কতজন", "কয়জন", "কয়জন", "কত", "সংখ্যা", "mot", "koto"];
+    private static readonly string[] Today = ["today", "আজ", "আজকে", "আজকের", "aj", "aaj", "ajke", "aajke"];
+    private static readonly string[] Yesterday = ["yesterday", "গতকাল", "গতকালকে", "গতকালের", "gotokal", "gotokalke"];
     private static readonly string[] Present = ["present", "উপস্থিত", "uposthit"];
     private static readonly string[] Absent = ["absent", "অনুপস্থিত", "onuposthit"];
 
