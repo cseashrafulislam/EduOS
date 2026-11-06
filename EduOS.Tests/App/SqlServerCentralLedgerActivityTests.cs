@@ -85,12 +85,21 @@ public sealed class SqlServerCentralLedgerActivityTests
             var service = new AccountingReportingService(db, new User(tenantId));
             var first = await service.GetLedgerActivityAsync(cash.Id, From, To, 1, 2);
             var incomeExpense = await service.GetInstitutionalIncomeExpenseTotalsAsync(From, To);
+            var trialPageOne = await service.GetTrialBalancePageAsync(To, 1, 1);
+            var trialPageTwo = await service.GetTrialBalancePageAsync(To, 2, 1);
             var second = await service.GetLedgerActivityAsync(cash.Id, From, To, 2, 2);
             var beyond = await service.GetLedgerActivityAsync(cash.Id, From, To, 4, 2);
             Assert.Equal(200, first.StatusCode);
             Assert.Equal(200, incomeExpense.StatusCode);
             Assert.Equal(10m, incomeExpense.Data!.TotalIncome);
             Assert.Equal(10m, incomeExpense.Data.NetSurplus);
+            Assert.Equal(200, trialPageOne.StatusCode);
+            Assert.Equal(200, trialPageTwo.StatusCode);
+            Assert.Equal(2, trialPageOne.Data!.Accounts.TotalCount);
+            Assert.Equal(110m, trialPageOne.Data.TotalDebitBalance);
+            Assert.Equal(110m, trialPageOne.Data.TotalCreditBalance);
+            Assert.Single(trialPageOne.Data.Accounts.Items);
+            Assert.Single(trialPageTwo.Data!.Accounts.Items);
             Assert.Equal(200, second.StatusCode);
             Assert.Equal(200, beyond.StatusCode);
             Assert.Equal(3, first.Data!.Entries.TotalCount);
@@ -107,6 +116,8 @@ public sealed class SqlServerCentralLedgerActivityTests
             Assert.Equal(110m, beyond.Data.PageClosingBalance);
             Assert.Equal(403, (await new AccountingReportingService(db,
                 new User(tenantId, false)).GetLedgerActivityAsync(cash.Id, From, To)).StatusCode);
+            Assert.Equal(403, (await new AccountingReportingService(db,
+                new User(tenantId, false)).GetTrialBalancePageAsync(To)).StatusCode);
         }
 
         await using (var foreign = Open(options, foreignTenantId))

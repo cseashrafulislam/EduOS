@@ -24,6 +24,30 @@ public sealed class TrialBalanceIntegrityTests
         await db.SaveChangesAsync();
 
         (await Service(db).GetTrialBalanceAsync(AsOf)).StatusCode.Should().Be(409);
+        (await Service(db).GetTrialBalancePageAsync(AsOf)).StatusCode.Should().Be(409);
+    }
+
+    [Fact]
+    public async Task Paged_trial_balance_retains_full_totals_and_stable_account_order()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        AddJournal(db, 1, JournalState.Posted, 100m, 100m);
+        AddJournal(db, 2, JournalState.Reversed, 30m, 30m, reverse: true);
+        await db.SaveChangesAsync();
+
+        var first = await Service(db).GetTrialBalancePageAsync(AsOf, 1, 1);
+        var second = await Service(db).GetTrialBalancePageAsync(AsOf, 2, 1);
+        first.StatusCode.Should().Be(200);
+        first.Data!.Accounts.TotalCount.Should().Be(2);
+        first.Data.TotalDebitBalance.Should().Be(70m);
+        first.Data.TotalCreditBalance.Should().Be(70m);
+        first.Data.Accounts.Items.Should().ContainSingle(x => x.AccountCode == "CASH" && x.DebitBalance == 70m);
+        second.StatusCode.Should().Be(200);
+        second.Data!.Accounts.Items.Should().ContainSingle(x => x.AccountCode == "REVENUE" && x.CreditBalance == 70m);
+        second.Data.TotalDebitBalance.Should().Be(70m);
+        (await Service(db).GetTrialBalancePageAsync(AsOf, pageSize: 101)).StatusCode.Should().Be(400);
+        (await Service(db).GetTrialBalancePageAsync(AsOf, page: 0)).StatusCode.Should().Be(400);
     }
 
     [Fact]
@@ -153,6 +177,7 @@ public sealed class TrialBalanceIntegrityTests
     {
         await using var db = Database(42);
         (await Service(db).GetTrialBalanceAsync(AsOf)).StatusCode.Should().Be(403);
+        (await Service(db).GetTrialBalancePageAsync(AsOf)).StatusCode.Should().Be(403);
     }
 
     private static void SeedAccounts(EduOSDbContext db) =>

@@ -136,4 +136,9 @@ public sealed class AccountingReportsController : ControllerBase
     [HttpGet("trial-balance"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> TrialBalance([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetTrialBalanceAsync(asOfDate, ct));
+    [HttpGet("trial-balance-page"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> TrialBalancePage([FromQuery] DateOnly asOfDate,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+        => Reply(await service.GetTrialBalancePageAsync(asOfDate, page, pageSize, ct));
 }

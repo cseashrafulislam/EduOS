@@ -47,6 +47,16 @@ public sealed class InstitutionalCentralFinanceDetailsTests
         details.Data!.Entries.TotalCount.Should().Be(5001);
         details.Data.Entries.Items.Should().HaveCount(20);
         details.Data.TotalIncome.Should().Be(totals.Data.TotalIncome);
+        var trialBalance = await service.GetTrialBalancePageAsync(To, 1, 25);
+        trialBalance.StatusCode.Should().Be(200);
+        trialBalance.Data!.Accounts.TotalCount.Should().Be(5002);
+        trialBalance.Data.Accounts.Items.Should().HaveCount(25);
+        trialBalance.Data.TotalDebitBalance.Should().Be(5001m);
+        trialBalance.Data.TotalCreditBalance.Should().Be(5001m);
+        var finalPage = await service.GetTrialBalancePageAsync(To, 201, 25);
+        finalPage.StatusCode.Should().Be(200);
+        finalPage.Data!.Accounts.Items.Should().HaveCount(2);
+        finalPage.Data.TotalDebitBalance.Should().Be(5001m);
         // The existing full-detail statement keeps its legacy bounded contract.
         (await service.GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(422);
     }
