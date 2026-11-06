@@ -15,7 +15,7 @@ node --test EduOS.Tests/JavaScript/*.test.cjs
 dotnet test EduOS.slnx -c Release --no-build
 ```
 
-The container's post-create script restores the pinned `dotnet-ef` tool and project dependencies. The first restore requires internet access to NuGet. Do not paste production credentials or import a real institution database.
+The container's post-create script installs the pinned global `dotnet-ef` 10.0.12 tool and project dependencies. The first restore requires internet access to NuGet. Do not paste production credentials or import a real institution database.
 
 ## Local disposable SQL Server
 
@@ -44,7 +44,7 @@ For interactive application testing, start SQL then execute `bash .devcontainer/
 - **No dotnet SDK:** Rebuild/reopen using the supplied devcontainer; outside Codespaces use .NET 10 SDK.
 - **DNS / git fails inside task sandbox:** not repairable by a repository file; use connected GitHub operations or open Codespaces.
 - **SQL Server not available:** check Docker daemon; `bash .devcontainer/sqlserver.sh start` starts the local-only instance. Do not assume a running Codespace is free of cloud compute charges.
-- **EF tool mismatch:** `dotnet tool restore` uses the checked-in 10.0.12 manifest.
+- **EF tool mismatch:** use `dotnet tool update --global dotnet-ef --version 10.0.12` in the development container; do not add a local tool manifest because the existing GitHub CI installs global EF tools.
 - **SQL tests:** existing suites may require additional named `EDUOS_SQL_*_TEST_CONNECTION` variables; use their existing test/CI contracts rather than assuming all tests read `ConnectionStrings__DefaultConnection`.
 
 ## Actual dev container image validation
