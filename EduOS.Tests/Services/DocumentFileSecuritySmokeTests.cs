@@ -16,8 +16,31 @@ namespace EduOS.Tests.Services;
 
 public sealed class DocumentFileSecuritySmokeTests
 {
-    private static EduOSDbContext Context() => new(new DbContextOptionsBuilder<EduOSDbContext>()
-        .UseInMemoryDatabase("document-security-" + Guid.NewGuid().ToString("N")).Options);
+    private static EduOSDbContext Context(long tenantId = 42)
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = tenantId;
+        return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("document-security-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+    }
+
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(99L)]
+    public async Task MismatchedOrMissingAmbientTenantDeniesAllPrivateFileEntryPoints(long contextTenantId)
+    {
+        await using var db = Context(contextTenantId);
+        var service = new DocumentFileService(db, new User(true), null!,
+            NullLogger<DocumentFileService>.Instance, null!);
+        var reference = Guid.NewGuid();
+        Assert.Equal(403, (await service.DownloadAsync(reference)).StatusCode);
+        Assert.Equal(403, (await service.GetUnattachedAsync(1, 10)).StatusCode);
+        Assert.Equal(403, (await service.UploadAsync(reference, null!)).StatusCode);
+        Assert.Equal(403, (await service.UploadForLmsAsync(reference, null!)).StatusCode);
+        Assert.Equal(403, (await service.UploadForLeaveAsync(reference, null!)).StatusCode);
+        Assert.Empty(db.FileAssets);
+    }
 
     [Fact]
     public async Task NonAdminCannotDownload()

@@ -24,8 +24,10 @@ public sealed class StudentPhotoService(
     IFileUploadService storage, ILogger<StudentPhotoService> logger) : IStudentPhotoService
 {
     private const long MaxPhotoBytes = 2 * 1024 * 1024;
-    private bool Allowed => user.IsAuthenticated && user.IsTenantAdmin && user.UserId > 0 && user.TenantId > 0;
-    private bool PortalAllowed => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+    private bool InTenantContext => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId;
+    private bool Allowed => InTenantContext && user.IsTenantAdmin;
+    private bool PortalAllowed => InTenantContext &&
         (user.IsInRole("Student") || user.IsInRole("Guardian") || user.IsInRole("Parent"));
 
     private IQueryable<Student> PortalStudents(bool tracking = false)

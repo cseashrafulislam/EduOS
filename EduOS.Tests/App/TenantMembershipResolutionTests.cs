@@ -106,6 +106,46 @@ public sealed class TenantMembershipResolutionTests
         Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
     }
 
+    [Fact]
+    public async Task A_revoked_role_rejects_an_existing_authenticated_cookie_before_any_domain_handler_runs()
+    {
+        using var db = CreateContext();
+        var tenantId = await SeedTenantAsync(db, "role-revoked");
+        await SeedMembershipAsync(db, tenantId, 51, MembershipStatus.Active);
+        var role = await db.Roles.SingleAsync(x => x.Name == "Teacher");
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        var context = HttpContextFor(51, tenantId);
+        var invoked = false;
+        var middleware = new TenantContextMiddleware(_ => { invoked = true; return Task.CompletedTask; },
+            NullLogger<TenantContextMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, CreateUserManager(51), db);
+
+        Assert.False(invoked);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.False(context.Items.ContainsKey("TenantId"));
+    }
+
+    [Fact]
+    public async Task Conflicting_selected_tenant_claims_reject_the_cookie_even_with_a_valid_membership()
+    {
+        using var db = CreateContext();
+        var tenantId = await SeedTenantAsync(db, "conflicting-claims");
+        await SeedMembershipAsync(db, tenantId, 51, MembershipStatus.Active);
+        var context = HttpContextFor(51, tenantId);
+        context.User.AddIdentity(new ClaimsIdentity(new[] { new Claim("tenantId", (tenantId + 1).ToString()) }));
+        var invoked = false;
+        var middleware = new TenantContextMiddleware(_ => { invoked = true; return Task.CompletedTask; },
+            NullLogger<TenantContextMiddleware>.Instance);
+
+        await middleware.InvokeAsync(context, CreateUserManager(51), db);
+
+        Assert.False(invoked);
+        Assert.Equal(StatusCodes.Status401Unauthorized, context.Response.StatusCode);
+        Assert.False(context.Items.ContainsKey("TenantId"));
+    }
+
     [Theory]
     [InlineData(TenantState.Suspended)]
     [InlineData(TenantState.Closed)]

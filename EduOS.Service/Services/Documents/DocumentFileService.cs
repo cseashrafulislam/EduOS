@@ -20,7 +20,9 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
     IFileUploadService storage, ILogger<DocumentFileService> logger,
     IDocumentVerificationService verification) : IDocumentFileService
 {
-    private bool CanManage => user.IsAuthenticated && user.IsTenantAdmin && user.TenantId > 0;
+    private bool InTenantContext => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId;
+    private bool CanManage => InTenantContext && user.IsTenantAdmin;
     // Storage-provider results are untrusted until verified against the caller's tenant.
     // Never scan or delete a key belonging to a different tenant or namespace.
     internal static bool IsTenantDocumentKey(string? key, long tenantId) =>
@@ -121,7 +123,7 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
     public Task<ApiResponse<FileAssetDto>> UploadForLmsAsync(Guid clientRequestId,
         PrivateFileUploadDto upload, CancellationToken ct = default)
     {
-        if (!user.IsAuthenticated || user.TenantId <= 0 || user.UserId <= 0 ||
+        if (!InTenantContext ||
             !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Teacher")))
             return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("LMS author permission required.", 403));
         return UploadCoreAsync(clientRequestId, upload, ct, "lms");
@@ -132,7 +134,7 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
     public Task<ApiResponse<FileAssetDto>> UploadForLeaveAsync(Guid clientRequestId,
         PrivateFileUploadDto upload, CancellationToken ct = default)
     {
-        if (!user.IsAuthenticated || user.TenantId <= 0 || user.UserId <= 0 ||
+        if (!InTenantContext ||
             !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal")))
             return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("Leave administrator required.", 403));
         return UploadCoreAsync(clientRequestId, upload, ct);
@@ -145,7 +147,7 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
     {
         var self = user.IsInRole("Student");
         var guardianRole = user.IsInRole("Guardian") || user.IsInRole("Parent");
-        if (!user.IsAuthenticated || user.TenantId <= 0 || user.UserId <= 0 || (!self && !guardianRole))
+        if (!InTenantContext || (!self && !guardianRole))
             return ApiResponse<FileAssetDto>.ErrorResponse("Portal account required.", 403);
         var linkedIds = from link in db.StudentGuardians.AsNoTracking()
                         join guardian in db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id

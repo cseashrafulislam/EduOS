@@ -26,8 +26,10 @@ public sealed partial class StudentDocumentService(
     EduOSDbContext db, ICurrentUserService user, IFileUploadService storage,
     ILogger<StudentDocumentService> logger, IDocumentFileService fileService) : IStudentDocumentService
 {
-    private bool Allowed => user.IsAuthenticated && user.IsTenantAdmin && user.TenantId > 0;
-    private bool PortalAllowed => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0 &&
+    private bool InTenantContext => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0 &&
+        db.CurrentTenantId == user.TenantId;
+    private bool Allowed => InTenantContext && user.IsTenantAdmin;
+    private bool PortalAllowed => InTenantContext &&
         (user.IsInRole("Student") || user.IsInRole("Guardian") || user.IsInRole("Parent"));
 
     // The portal never trusts a student reference without checking the signed-in user's
