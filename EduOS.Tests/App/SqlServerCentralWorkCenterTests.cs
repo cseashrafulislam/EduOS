@@ -67,14 +67,17 @@ public sealed class SqlServerCentralWorkCenterTests
         await db.SaveChangesAsync();
 
         var reviewerOwned = new ProcurementRequisition { TenantId = tenantId,
+            ClientRequestId = Guid.NewGuid(),
             CampusId = campus.Id, RequestNumber = "CW-OWN-" + suffix,
             Purpose = "Maker cannot approve own request", StateCode = "Submitted",
             CreatedBy = userId, SubmittedAt = new DateTime(2026, 11, 5, 7, 0, 0, DateTimeKind.Utc) };
         var pendingReq = new ProcurementRequisition { TenantId = tenantId,
+            ClientRequestId = Guid.NewGuid(),
             CampusId = campus.Id, RequestNumber = "CW-R-" + suffix,
             Purpose = "Independent approval", StateCode = "Submitted",
             CreatedBy = userId + 100, SubmittedAt = new DateTime(2026, 11, 5, 8, 0, 0, DateTimeKind.Utc) };
         var pendingPolicy = new FacilityVisitorPolicyChange { TenantId = tenantId,
+            ClientRequestId = Guid.NewGuid(),
             CampusId = campus.Id, PolicyCode = "RetentionDays", ProposedValue = "90",
             RequestReason = "Review visitor retention", StateCode = "Submitted",
             RequestedByUserId = userId + 100,
