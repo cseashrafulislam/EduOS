@@ -401,27 +401,33 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         db.ChangeTracker.Clear();
         var parallelMark = await db.StudentAttendances.AsNoTracking().SingleAsync();
         var parallelVersion = Convert.ToBase64String(parallelMark.RowVersion);
-        await using (var firstDb = TenantDb(options, tenantId))
-        await using (var secondDb = TenantDb(options, tenantId))
-        {
-            var firstWriter = AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"));
-            var secondWriter = AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"));
-            var attempts = await Task.WhenAll(
-                firstWriter.CorrectAttendanceAsync(parallelMark.Id, new AttendanceCorrectionRequestDto
-                {
-                    NewState = AttendanceState.Present,
-                    Reason = "Concurrent audit correction A",
-                    RowVersion = parallelVersion
-                }),
-                secondWriter.CorrectAttendanceAsync(parallelMark.Id, new AttendanceCorrectionRequestDto
-                {
-                    NewState = AttendanceState.Late,
-                    Reason = "Concurrent audit correction B",
-                    RowVersion = parallelVersion
-                }));
-            Assert.Single(attempts.Where(x => x.Success));
-            Assert.Single(attempts.Where(x => x.StatusCode == 409));
-        }
+        // HttpContextAccessor is AsyncLocal. Each competing request must create
+        // its own synthetic context *inside* its parallel execution flow.
+        var attempts = await Task.WhenAll(
+            Task.Run(async () =>
+            {
+                await using var firstDb = TenantDb(options, tenantId);
+                return await AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"))
+                    .CorrectAttendanceAsync(parallelMark.Id, new AttendanceCorrectionRequestDto
+                    {
+                        NewState = AttendanceState.Present,
+                        Reason = "Concurrent audit correction A",
+                        RowVersion = parallelVersion
+                    });
+            }),
+            Task.Run(async () =>
+            {
+                await using var secondDb = TenantDb(options, tenantId);
+                return await AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"))
+                    .CorrectAttendanceAsync(parallelMark.Id, new AttendanceCorrectionRequestDto
+                    {
+                        NewState = AttendanceState.Late,
+                        Reason = "Concurrent audit correction B",
+                        RowVersion = parallelVersion
+                    });
+            }));
+        Assert.Single(attempts.Where(x => x.Success));
+        Assert.Single(attempts.Where(x => x.StatusCode == 409));
         db.ChangeTracker.Clear();
         Assert.Equal(2, await db.StudentAttendanceAdjustments.AsNoTracking().CountAsync());
         var corrected = await db.StudentAttendances.AsNoTracking().SingleAsync();
@@ -515,18 +521,22 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         var draftSession = await db.AttendanceSessions.AsNoTracking()
             .SingleAsync(x => x.Id == newSession.Data.AttendanceSessionId);
         var finalizeVersion = Convert.ToBase64String(draftSession.RowVersion);
-        await using (var firstDb = TenantDb(options, tenantId))
-        await using (var secondDb = TenantDb(options, tenantId))
-        {
-            var firstFinalizer = AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"));
-            var secondFinalizer = AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"));
-            var results = await Task.WhenAll(
-                firstFinalizer.FinalizeSessionAsync(draftSession.Id, finalizeVersion),
-                secondFinalizer.FinalizeSessionAsync(draftSession.Id, finalizeVersion));
-            Assert.Contains(results, x => x.Success);
-            Assert.All(results, x => Assert.True(x.Success || x.StatusCode == 409,
-                $"Unexpected concurrent finalization response: {x.StatusCode} {x.Message}"));
-        }
+        var results = await Task.WhenAll(
+            Task.Run(async () =>
+            {
+                await using var firstDb = TenantDb(options, tenantId);
+                return await AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"))
+                    .FinalizeSessionAsync(draftSession.Id, finalizeVersion);
+            }),
+            Task.Run(async () =>
+            {
+                await using var secondDb = TenantDb(options, tenantId);
+                return await AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"))
+                    .FinalizeSessionAsync(draftSession.Id, finalizeVersion);
+            }));
+        Assert.Contains(results, x => x.Success);
+        Assert.All(results, x => Assert.True(x.Success || x.StatusCode == 409,
+            $"Unexpected concurrent finalization response: {x.StatusCode} {x.Message}"));
         db.ChangeTracker.Clear();
         var finalizedOnce = await db.AttendanceSessions.AsNoTracking()
             .SingleAsync(x => x.Id == draftSession.Id);
