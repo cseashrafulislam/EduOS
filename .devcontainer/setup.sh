@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 echo "EduOS developer environment: checking required tools"
-dotnet --info | head -n 32
+dotnet --version
 node --version
 npm --version
 if ! dotnet --list-sdks | grep -Eq '^10\.'; then

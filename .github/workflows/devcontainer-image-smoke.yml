@@ -1,0 +1,36 @@
+name: Dev Container Image Smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [ Ashraful ]
+    paths:
+      - '.devcontainer/**'
+      - '.config/dotnet-tools.json'
+      - '.github/workflows/devcontainer-image-smoke.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devcontainer-image-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build-devcontainer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pinned official devcontainers/ci v0.3 commit, no registry push.
+      - name: Build actual EduOS Dev Container and inspect installed tools
+        uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca
+        with:
+          push: never
+          runCmd: |
+            dotnet --version
+            node --version
+            npm --version
+            docker --version
+            dotnet ef --version
