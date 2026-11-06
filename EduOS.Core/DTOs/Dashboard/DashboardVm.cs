@@ -39,8 +39,11 @@ namespace EduOS.Core.DTOs.Dashboard
         public int TotalStaff { get; set; }
         public int TotalCampuses { get; set; }
         public int TotalClasses { get; set; }
-        public decimal MonthlyCollection { get; set; }
-        public decimal TotalDues { get; set; }
+        // These are domain StudentPayment receipts and StudentInvoice dues,
+        // not central GL income. Unavailable is NULL, never a fabricated zero.
+        public bool FinancialSummaryAvailable { get; set; }
+        public decimal? MonthlyCollection { get; set; }
+        public decimal? TotalDues { get; set; }
 
         // ── Alerts (shown as banners on dashboard) ─────────────
         public List<DashboardAlert> Alerts { get; set; } = new();

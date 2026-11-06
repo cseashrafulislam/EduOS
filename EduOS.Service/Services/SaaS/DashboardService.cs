@@ -10,6 +10,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -31,6 +32,7 @@ public sealed class DashboardService : IDashboardService
     private readonly ICurrentUserService _currentUser;
     private readonly ILogger<DashboardService> _logger;
     private readonly ISubscriptionPaymentService? _platformPayments;
+    private readonly EduOSDbContext? _securityDb;
 
     public DashboardService(IGenericRepository<Tenant> tenants,
         IGenericRepository<InstitutionTypeDefinition> institutionTypes,
@@ -40,13 +42,15 @@ public sealed class DashboardService : IDashboardService
         IGenericRepository<Campus> campuses, IGenericRepository<AcademicLevel> levels,
         IGenericRepository<StudentPayment> payments, IGenericRepository<StudentInvoice> invoices,
         ICurrentUserService currentUser, ILogger<DashboardService> logger,
-        ISubscriptionPaymentService? platformPayments = null)
+        ISubscriptionPaymentService? platformPayments = null,
+        EduOSDbContext? securityDb = null)
     {
         _tenants = tenants; _institutionTypes = institutionTypes;
         _plans = plans; _planFeatures = planFeatures; _subscriptions = subscriptions;
         _students = students; _employees = employees; _campuses = campuses;
         _levels = levels; _payments = payments; _invoices = invoices;
         _currentUser = currentUser; _logger = logger; _platformPayments = platformPayments;
+        _securityDb = securityDb;
     }
 
     public async Task<ApiResponse<DashboardVm>> GetDashboardAsync()
@@ -97,14 +101,35 @@ public sealed class DashboardService : IDashboardService
             }
             var monthStart = new DateOnly(localNow.Year, localNow.Month, 1);
             var nextMonth = monthStart.AddMonths(1);
-            var monthlyCollection = await _payments.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.State == PaymentState.Successful &&
-                    x.PaymentDate >= monthStart && x.PaymentDate < nextMonth)
-                .SumAsync(x => (decimal?)x.Amount) ?? 0m;
-            var totalDues = await _invoices.GetQueryable().AsNoTracking()
-                .Where(x => x.TenantId == tenantId && x.State != InvoiceState.Cancelled &&
-                    x.State != InvoiceState.Refunded && x.DueAmount > 0m)
-                .SumAsync(x => (decimal?)x.DueAmount) ?? 0m;
+            // Dashboard is open to ordinary institute members. Student payment
+            // totals and institution-wide dues are not. Revalidate the current
+            // live admin membership. Missing security context fails closed.
+            var financialAccess = false;
+            if (_currentUser.IsTenantAdmin && _securityDb is { } securityDb)
+                financialAccess = securityDb.CurrentTenantId == tenantId &&
+                    await securityDb.Users.AsNoTracking().AnyAsync(x =>
+                        x.Id == _currentUser.UserId && x.IsActive && !x.IsDeleted) &&
+                    await securityDb.TenantMemberships.AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenantId && x.UserId == _currentUser.UserId &&
+                        x.Status == MembershipStatus.Active && !x.IsDeleted) &&
+                    await securityDb.UserRoles.AsNoTracking().AnyAsync(ur =>
+                        ur.UserId == _currentUser.UserId &&
+                        securityDb.Roles.IgnoreQueryFilters().Any(r =>
+                            r.Id == ur.RoleId && r.IsActive && !r.IsDeleted &&
+                            r.NormalizedName == "TENANTADMIN" &&
+                            (r.TenantId == tenantId || (r.TenantId == null && r.IsSystemRole))));
+            decimal? monthlyCollection = null, totalDues = null;
+            if (financialAccess)
+            {
+                monthlyCollection = await _payments.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.State == PaymentState.Successful &&
+                        x.PaymentDate >= monthStart && x.PaymentDate < nextMonth)
+                    .SumAsync(x => (decimal?)x.Amount) ?? 0m;
+                totalDues = await _invoices.GetQueryable().AsNoTracking()
+                    .Where(x => x.TenantId == tenantId && x.State != InvoiceState.Cancelled &&
+                        x.State != InvoiceState.Refunded && x.DueAmount > 0m)
+                    .SumAsync(x => (decimal?)x.DueAmount) ?? 0m;
+            }
 
             var expiryDays = subscription == null ? 0 : Math.Max(0, (int)Math.Ceiling((subscription.EndsAt - nowUtc).TotalDays));
             var trialDays = subscription?.IsTrial == true ? expiryDays : (int?)null;
@@ -130,6 +155,7 @@ public sealed class DashboardService : IDashboardService
                 TotalStudents = totalStudents, TotalTeachers = totalTeachers,
                 TotalStaff = Math.Max(0, totalEmployees - totalTeachers),
                 TotalCampuses = totalCampuses, TotalClasses = totalLevels,
+                FinancialSummaryAvailable = financialAccess,
                 MonthlyCollection = monthlyCollection, TotalDues = totalDues
             };
             vm.Alerts = BuildAlerts(tenant, subscription, plan, totalStudents, trialDays, expiryDays);

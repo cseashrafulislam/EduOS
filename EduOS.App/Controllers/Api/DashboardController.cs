@@ -32,9 +32,11 @@ namespace EduOS.App.Controllers.Api
         }
 
         [HttpGet]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Get()
         {
             var result = await _dashboardService.GetDashboardAsync();
+            Response.Headers.CacheControl = "no-store, private";
             return StatusCode(result.StatusCode, result);
         }
     }

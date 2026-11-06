@@ -89,7 +89,7 @@ public sealed class SqlServerCentralLedgerActivityTests
             var beyond = await service.GetLedgerActivityAsync(cash.Id, From, To, 4, 2);
             Assert.Equal(200, first.StatusCode);
             Assert.Equal(200, incomeExpense.StatusCode);
-            Assert.Equal(0m, incomeExpense.Data!.TotalIncome);
+            Assert.Equal(10m, incomeExpense.Data!.TotalIncome);
             Assert.Equal(10m, incomeExpense.Data.NetSurplus);
             Assert.Equal(200, second.StatusCode);
             Assert.Equal(200, beyond.StatusCode);

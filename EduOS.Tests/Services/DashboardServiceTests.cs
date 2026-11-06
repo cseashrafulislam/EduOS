@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.SaaS;
@@ -11,6 +12,7 @@ using EduOS.Persistence.Seed;
 using EduOS.Service.Services.SaaS;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
@@ -20,6 +22,55 @@ namespace EduOS.Tests.Services;
 
 public sealed class DashboardServiceTests
 {
+    [Fact]
+    public async Task Ordinary_members_never_receive_institution_financial_values()
+    {
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(Options(),
+            new HttpContextAccessor { HttpContext = http });
+        db.Tenants.Add(new Tenant { Id = 41, Name = "Finance privacy school",
+            Code = "DASH-SEC-41", Email = "sec41@example.test" });
+        http.Items["TenantId"] = 41L;
+        await db.SaveChangesAsync();
+        var result = await CreateService(db, new TestCurrentUser(41, admin: false))
+            .GetDashboardAsync();
+        result.StatusCode.Should().Be(200);
+        result.Data!.FinancialSummaryAvailable.Should().BeFalse();
+        result.Data.MonthlyCollection.Should().BeNull();
+        result.Data.TotalDues.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Dashboard_finance_requires_current_live_administrator_role_and_membership()
+    {
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(Options(),
+            new HttpContextAccessor { HttpContext = http });
+        db.Tenants.Add(new Tenant { Id = 41, Name = "Admin school",
+            Code = "DASH-SEC-ADMIN", Email = "secadmin@example.test" });
+        http.Items["TenantId"] = 41L;
+        db.Users.Add(new ApplicationUser { Id = 99, UserName = "admin" });
+        db.TenantMemberships.Add(new TenantMembership { Id = 1, TenantId = 41,
+            UserId = 99, Status = MembershipStatus.Active });
+        db.Roles.Add(new ApplicationRole { Id = 2, TenantId = 41,
+            Name = "TenantAdmin", NormalizedName = "TENANTADMIN" });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 99, RoleId = 2 });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, new TestCurrentUser(41), liveSecurity: true);
+        var authorized = await service.GetDashboardAsync();
+        authorized.StatusCode.Should().Be(200);
+        authorized.Data!.FinancialSummaryAvailable.Should().BeTrue();
+        authorized.Data.MonthlyCollection.Should().Be(0m);
+        authorized.Data.TotalDues.Should().Be(0m);
+        db.UserRoles.Remove(db.UserRoles.Single());
+        await db.SaveChangesAsync();
+        var revoked = await service.GetDashboardAsync();
+        revoked.StatusCode.Should().Be(200);
+        revoked.Data!.FinancialSummaryAvailable.Should().BeFalse();
+        revoked.Data.MonthlyCollection.Should().BeNull();
+        revoked.Data.TotalDues.Should().BeNull();
+    }
     [Fact]
     public async Task Dashboard_derives_plan_capacity_and_alerts_from_authoritative_records()
     {
@@ -107,7 +158,8 @@ public sealed class DashboardServiceTests
         result.StatusCode.Should().Be(403);
     }
 
-    private static DashboardService CreateService(EduOSDbContext db, ICurrentUserService user) => new(
+    private static DashboardService CreateService(EduOSDbContext db, ICurrentUserService user,
+        bool liveSecurity = false) => new(
         new GenericRepository<Tenant>(db),
         new GenericRepository<InstitutionTypeDefinition>(db),
         new GenericRepository<SubscriptionPlan>(db),
@@ -119,7 +171,8 @@ public sealed class DashboardServiceTests
         new GenericRepository<AcademicLevel>(db),
         new GenericRepository<StudentPayment>(db),
         new GenericRepository<StudentInvoice>(db),
-        user, NullLogger<DashboardService>.Instance);
+        user, NullLogger<DashboardService>.Instance,
+        securityDb: liveSecurity ? db : null);
 
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>().UseInMemoryDatabase(
@@ -129,7 +182,7 @@ public sealed class DashboardServiceTests
         [new Claim(ClaimTypes.NameIdentifier, "99"), new Claim(ClaimTypes.Role, "TenantAdmin"),
             new Claim("TenantId", tenant.ToString())], "TestAuthentication"));
 
-    private sealed class TestCurrentUser(long tenant) : ICurrentUserService
+    private sealed class TestCurrentUser(long tenant, bool admin = true) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 99;
@@ -137,9 +190,9 @@ public sealed class DashboardServiceTests
         public string? FullName => "Tenant Admin";
         public string? Email => "admin@example.test";
         public bool IsSuperAdmin => false;
-        public bool IsTenantAdmin => true;
-        public IReadOnlyList<string> Roles => ["TenantAdmin"];
-        public bool IsInRole(string role) => role == "TenantAdmin";
+        public bool IsTenantAdmin => admin;
+        public IReadOnlyList<string> Roles => admin ? ["TenantAdmin"] : ["Student"];
+        public bool IsInRole(string role) => admin ? role == "TenantAdmin" : role == "Student";
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
     }
