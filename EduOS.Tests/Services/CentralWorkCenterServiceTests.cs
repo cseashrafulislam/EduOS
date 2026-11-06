@@ -27,7 +27,9 @@ public sealed class CentralWorkCenterServiceTests
         SeedIdentity(db, "TenantAdmin");
         SeedFinanceWork(db);
         await db.SaveChangesAsync();
-        foreach (var journal in db.Journals.Local)
+        // Posted journals are immutable even in synthetic test contexts. Only
+        // the submitted records need their historical maker attribution fixed.
+        foreach (var journal in db.Journals.Local.Where(x => x.State == JournalState.Submitted))
             journal.CreatedBy = journal.Id == 102 ? 9 : 8;
         await db.SaveChangesAsync();
 
