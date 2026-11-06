@@ -134,13 +134,19 @@ public sealed class TenantHttpSecurityMatrixTests
                 app.UseAuthentication();
                 app.UseAuthSessionGuard();
                 app.UseTenantContext();
-                app.Run(async context => await context.Response.WriteAsync(
-                    "tenant=" + (context.Items["TenantId"]?.ToString() ?? "none")));
+                app.Run(async context =>
+                {
+                    if (context.Request.Path == "/api/private/downstream-failure")
+                        throw new InvalidOperationException("Synthetic downstream failure");
+                    await context.Response.WriteAsync(
+                        "tenant=" + (context.Items["TenantId"]?.ToString() ?? "none"));
+                });
             }));
         using var client = server.CreateClient();
-        async Task<HttpResponseMessage> Read(string sid, long tenant, string role)
+        async Task<HttpResponseMessage> Read(string sid, long tenant, string role,
+            string path = "/api/private/membership-check")
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/private/membership-check");
+            using var request = new HttpRequestMessage(HttpMethod.Get, path);
             request.Headers.Add("X-Test-Session", sid);
             request.Headers.Add("X-Test-Tenant", tenant.ToString());
             request.Headers.Add("X-Test-Role", role);
@@ -152,6 +158,8 @@ public sealed class TenantHttpSecurityMatrixTests
             Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
             Assert.Equal("tenant=101", await authorized.Content.ReadAsStringAsync());
         }
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            Read(original, TenantA, "Teacher", "/api/private/downstream-failure"));
         using (var sidFromWrongTenant = await Read(original, TenantB, "Accountant"))
             Assert.Equal(HttpStatusCode.Unauthorized, sidFromWrongTenant.StatusCode);
         using (var forgedAdmin = await Read(original, TenantA, "TenantAdmin"))

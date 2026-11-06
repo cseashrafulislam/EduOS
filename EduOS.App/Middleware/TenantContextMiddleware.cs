@@ -34,6 +34,10 @@ namespace EduOS.App.Middleware
                 return;
             }
 
+            // Authorization failures are handled here, but exceptions from an
+            // already-authorized controller must reach the application exception
+            // handler rather than being misreported as tenant-resolution 503s.
+            var tenantResolutionComplete = false;
             try
             {
                 var userIdStr = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -70,6 +74,7 @@ namespace EduOS.App.Middleware
                         await RejectAsync(context, StatusCodes.Status401Unauthorized, "Your roles changed. Sign in again.");
                         return;
                     }
+                    tenantResolutionComplete = true;
                     await _next(context);
                     return;
                 }
@@ -147,9 +152,10 @@ namespace EduOS.App.Middleware
                 }
 
                 context.Items["TenantId"] = tenantId;
+                tenantResolutionComplete = true;
                 await _next(context);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!tenantResolutionComplete)
             {
                 // Tenant/account resolution is an authorization boundary. Never continue without trusted
                 // canonical state when an authenticated request cannot be resolved safely.
