@@ -12,6 +12,8 @@ public sealed class V3EnterpriseReconciliationRegisterDto
     public int Page { get; set; }
     public int PageSize { get; set; }
     public int TotalCount { get; set; }
+    /// <summary>Tenant-wide only; NULL when campus-specific evidence cannot be inferred safely.</summary>
+    public int? OrphanPostedJournalCount { get; set; }
     public IReadOnlyList<V3EnterpriseReconciliationRegisterRowDto> Items { get; set; } =
         Array.Empty<V3EnterpriseReconciliationRegisterRowDto>();
 }

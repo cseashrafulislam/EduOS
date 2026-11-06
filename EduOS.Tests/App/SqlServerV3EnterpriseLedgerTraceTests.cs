@@ -134,6 +134,7 @@ public sealed class SqlServerV3EnterpriseLedgerTraceTests
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var listing = await register.GetAsync("stock", today.AddDays(-1), today.AddDays(1));
             Assert.Equal(200, listing.StatusCode);
+            Assert.Equal(0, listing.Data!.OrphanPostedJournalCount);
             var row = Assert.Single(listing.Data!.Items.Where(x => x.Reference == movementReference));
             Assert.Equal(60m, row.RecordedValue);
             Assert.Equal("ExplicitBalancedReference", row.EvidenceStatus);

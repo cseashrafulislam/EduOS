@@ -46,6 +46,18 @@ public sealed class V3EnterpriseReconciliationRegisterService(
         var query = db.InventoryMovements.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && !x.IsDeleted &&
                 x.MovementAt >= start && x.MovementAt <= endExclusive);
+        // A posted GL entry can outlive its linked movement after accidental
+        // deletion. A movement-first page would otherwise never show it.
+        // JournalDate is the reporting period, even when MovementAt differs.
+        // An orphan cannot be assigned to a campus from stock endpoints.
+        int? orphanPostedJournalCount = campusId.HasValue ? null :
+            await db.Journals.IgnoreQueryFilters().AsNoTracking().CountAsync(j =>
+                j.TenantId == user.TenantId && !j.IsDeleted &&
+                j.SourceType == "InventoryMovement" &&
+                j.JournalDate >= from && j.JournalDate <= to &&
+                (j.State == JournalState.Posted || j.State == JournalState.Reversed) &&
+                (!j.SourceId.HasValue || !db.InventoryMovements.IgnoreQueryFilters().Any(m =>
+                    m.TenantId == user.TenantId && !m.IsDeleted && m.Id == j.SourceId.Value)), ct);
         if (campusId.HasValue)
         {
             // A shared warehouse can have CampusId NULL. Facility stock belongs
@@ -206,7 +218,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 EvidenceStatus = status
             };
         }).ToArray();
-        return Success("stock", from, to, campusId, page, size, count, rows);
+        return Success("stock", from, to, campusId, page, size, count, rows, orphanPostedJournalCount);
     }
 
     private async Task<ApiResponse<V3EnterpriseReconciliationRegisterDto>> AssetAsync(
@@ -355,11 +367,13 @@ public sealed class V3EnterpriseReconciliationRegisterService(
 
     private static ApiResponse<V3EnterpriseReconciliationRegisterDto> Success(
         string kind, DateOnly from, DateOnly to, long? campusId,
-        int page, int size, int count, V3EnterpriseReconciliationRegisterRowDto[] rows)
+        int page, int size, int count, V3EnterpriseReconciliationRegisterRowDto[] rows,
+        int? orphanPostedJournalCount = null)
         => ApiResponse<V3EnterpriseReconciliationRegisterDto>.SuccessResponse(
             new V3EnterpriseReconciliationRegisterDto
             {
                 Kind = kind, From = from, To = to, CampusId = campusId,
-                Page = page, PageSize = size, TotalCount = count, Items = rows
+                Page = page, PageSize = size, TotalCount = count, Items = rows,
+                OrphanPostedJournalCount = orphanPostedJournalCount
             });
 }

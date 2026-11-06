@@ -99,6 +99,33 @@ public sealed class V3EnterpriseLedgerTraceTests
     }
 
     [Fact]
+    public async Task Stock_register_finds_GL_orphans_without_inventing_campus_or_changing_stock()
+    {
+        await using var db = Open(101);
+        db.InventoryMovements.Add(new InventoryMovement {
+            Id = 71, TenantId = 101, MovementNumber = "STOCK-71", MovementTypeCode = "Receipt",
+            StateCode = "Posted", MovementAt = new DateTime(2026, 9, 30, 10, 0, 0)
+        });
+        db.Journals.AddRange(
+            new Journal { TenantId = 101, JournalNumber = "J-VALID", SourceType = "InventoryMovement",
+                SourceId = 71, State = JournalState.Posted, JournalDate = new DateOnly(2026, 10, 5) },
+            new Journal { TenantId = 101, JournalNumber = "J-ORPHAN", SourceType = "InventoryMovement",
+                SourceId = 99, State = JournalState.Posted, JournalDate = new DateOnly(2026, 10, 5) },
+            new Journal { TenantId = 101, JournalNumber = "J-OTHER", SourceType = "UnrelatedSource",
+                SourceId = 99, State = JournalState.Posted, JournalDate = new DateOnly(2026, 10, 5) });
+        await db.SaveChangesAsync();
+        var service = new V3EnterpriseReconciliationRegisterService(db, new Actor(101, "TenantAdmin"));
+        var result = await service.GetAsync("stock", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        Assert.Equal(200, result.StatusCode);
+        Assert.Equal(0, result.Data!.TotalCount);
+        Assert.Equal(1, result.Data.OrphanPostedJournalCount);
+        Assert.False(db.ChangeTracker.HasChanges());
+        Assert.Equal(403, (await new V3EnterpriseReconciliationRegisterService(
+            db, new Actor(999, "TenantAdmin")).GetAsync("stock",
+                new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31))).StatusCode);
+    }
+
+    [Fact]
     public async Task Unlinked_movement_is_not_misrepresented_as_unposted_finance()
     {
         await using var db = Open(101);
