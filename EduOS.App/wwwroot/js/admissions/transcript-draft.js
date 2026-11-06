@@ -130,16 +130,17 @@
             const destinations = reviewed.map(([key, result]) => ({
                 key, result, target: form.querySelector('#' + key)
             }));
-            const unavailable = destinations.find(({target}) =>
-                !target || target.disabled || target.readOnly || !target.isConnected);
+            const unavailable = destinations.find(({result,target}) =>
+                !target || target.disabled || target.readOnly || !target.isConnected ||
+                (Number(target.maxLength) >= 0 && result.value.length > Number(target.maxLength)));
             if (unavailable) {
-                status.textContent = t('The form changed. No fields applied; reload and review again.',
-                    'ফরম পরিবর্তিত হয়েছে। কোনো তথ্য বসানো হয়নি; পুনরায় খুলে যাচাই করুন।');
+                status.textContent = t('A destination field is unavailable or too short. No fields applied; review the form.',
+                    'ফরমের কোনো ঘর অনুপস্থিত বা তথ্যের জন্য ছোট। কোনো তথ্য বসানো হয়নি; ফরম যাচাই করুন।');
                 invalidate();
                 return;
             }
             destinations.forEach(({result,target}) => {
-                target.value = result.value.slice(0, Number(target.maxLength) > 0 ? target.maxLength : 1000);
+                target.value = result.value;
                 target.dispatchEvent(new Event('input',{bubbles:true}));
                 target.dispatchEvent(new Event('change',{bubbles:true}));
             });
