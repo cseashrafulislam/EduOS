@@ -40,9 +40,9 @@ test('Bangladesh mobile entry accepts Bengali digits but rejects malformed phone
     assert.equal(validateDraftField('applicantName','  আমিনা  ').value,'আমিনা');
 });
 test('typed-only admission draft offers offline fallback, clear action and provider privacy disclosure', () => {
-    assert.match(source,/window.addEventListener\\('offline'/);
+    assert.match(source,/window\.addEventListener\('offline'/);
     assert.match(source,/Clear draft/);
     assert.match(source,/may send audio to their provider/);
     assert.match(source,/reviewed.some/);
-    assert.doesNotMatch(source,/\\.submit\\s*\\(|requestSubmit\\s*\\(|fetch\\s*\\(|localStorage|sessionStorage|SpeechRecognition|webkitSpeechRecognition/);
+    assert.doesNotMatch(source,/\.submit\s*\(|requestSubmit\s*\(|fetch\s*\(|localStorage|sessionStorage|SpeechRecognition|webkitSpeechRecognition/);
 });
