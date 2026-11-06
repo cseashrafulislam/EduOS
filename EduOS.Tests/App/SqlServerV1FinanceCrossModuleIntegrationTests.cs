@@ -13,6 +13,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.DTOs.Payroll;
 using EduOS.Persistence.Context;
+using EduOS.Service.Services.Accounting;
 using EduOS.Service.Services.Finance;
 using EduOS.Service.Services.HR;
 using Microsoft.AspNetCore.Http;
@@ -194,6 +195,15 @@ public sealed class SqlServerV1FinanceCrossModuleIntegrationTests
             var originalPayment = await db.StudentPayments.AsNoTracking().SingleAsync(x => x.Id == paymentId);
             Assert.Equal(PaymentState.Successful, originalPayment.State);
             Assert.Equal(100m, originalPayment.Amount);
+            var sourceAudit = new AccountingReportingService(db, new Actor(tenantId, payerId));
+            var invoiceAudit = await sourceAudit.GetFinanceSourcePostingAuditAsync(date, date, "fee-invoices");
+            var paymentAudit = await sourceAudit.GetFinanceSourcePostingAuditAsync(date, date, "fee-payments");
+            Assert.Equal(200, invoiceAudit.StatusCode);
+            Assert.Equal(200, paymentAudit.StatusCode);
+            Assert.Contains(invoiceAudit.Data!.Sources.Items, x => x.SourceId == invoiceId &&
+                x.PostingStatus == "Posted");
+            Assert.Contains(paymentAudit.Data!.Sources.Items, x => x.SourceId == paymentId &&
+                x.PostingStatus == "Posted");
             var creditAllocation = await db.RefundAllocations.AsNoTracking().SingleAsync(x => x.RefundId == refundId);
             Assert.True(creditAllocation.IsCreditNote);
             Assert.Equal(20m, creditAllocation.Amount);

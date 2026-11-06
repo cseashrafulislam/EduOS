@@ -99,6 +99,43 @@ public sealed class CentralFinancePostingAuditTests
     }
 
     [Fact]
+    public async Task Source_audit_validates_more_than_five_thousand_lines_and_fifteen_hundred_accounts()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        var invoice = Invoice(1, InvoiceState.Issued, 11);
+        invoice.TotalAmount = 25.01m;
+        db.StudentInvoices.Add(invoice);
+        db.Journals.Add(new Journal { Id = 11, TenantId = 41, PublicId = Guid.NewGuid(),
+            JournalDate = From, JournalNumber = "JV-LARGE", AccountingPeriodId = 1,
+            SourceType = "StudentInvoice", SourceId = invoice.Id, State = JournalState.Posted });
+        var accounts = Enumerable.Range(0, 1601).Select(i => new Account { Id = 100 + i,
+            TenantId = 41, Code = $"A{i:0000}", Name = $"Posting account {i}",
+            AccountType = AccountType.Asset }).ToArray();
+        db.Accounts.AddRange(accounts);
+        db.JournalLines.AddRange(Enumerable.Range(0, 2501).SelectMany(i => new[] {
+            new JournalLine { Id = 10000 + i * 2, TenantId = 41, JournalId = 11,
+                AccountId = accounts[i % accounts.Length].Id, LineNo = i * 2 + 1,
+                DebitAmount = 0.01m },
+            new JournalLine { Id = 10001 + i * 2, TenantId = 41, JournalId = 11,
+                AccountId = 2, LineNo = i * 2 + 2, CreditAmount = 0.01m }
+        }));
+        await db.SaveChangesAsync();
+
+        var audit = await Service(db).GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices");
+        audit.StatusCode.Should().Be(200);
+        audit.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 1 &&
+            x.PostingStatus == "Posted" && x.JournalNumber == "JV-LARGE");
+
+        accounts[^1].IsDeleted = true;
+        await db.SaveChangesAsync();
+        var invalid = await Service(db).GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices");
+        invalid.StatusCode.Should().Be(200);
+        invalid.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 1 &&
+            x.PostingStatus == "InvalidJournal");
+    }
+
+    [Fact]
     public async Task Payroll_payment_and_supplier_return_audit_keep_the_original_posted_lineage()
     {
         await using var db = Database();

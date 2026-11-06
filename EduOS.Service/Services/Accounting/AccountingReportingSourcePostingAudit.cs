@@ -141,12 +141,30 @@ public sealed partial class AccountingReportingService
 
         var postingIds = journals.Where(x => x.State is JournalState.Posted or JournalState.Reversed)
             .Select(x => x.Id).Distinct().ToArray();
-        var lines = await db.JournalLines.IgnoreQueryFilters().AsNoTracking()
-            .Where(x => x.TenantId == tenant && postingIds.Contains(x.JournalId))
-            .Select(x => new { x.JournalId, x.AccountId, x.LineNo, x.DebitAmount,
-                x.CreditAmount, x.CampusId, x.IsDeleted }).Take(5001).ToListAsync(ct);
-        if (lines.Count > 5000)
-            return ApiResponse<FinanceSourcePostingAuditPageDto>.ErrorResponse("Too many journal lines on this page; narrow the report.", 422);
+        // The source page is bounded, but a single valid payroll or fee journal
+        // may have thousands of lines/accounts. Validate the complete history in
+        // SQL rather than loading or silently truncating it at a fixed row limit.
+        var postingLines = db.JournalLines.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == tenant && postingIds.Contains(x.JournalId));
+        var lineTotals = await postingLines.GroupBy(x => x.JournalId)
+            .Select(g => new { JournalId = g.Key, Count = g.Count(),
+                Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
+            .ToDictionaryAsync(x => x.JournalId, ct);
+        var repeatedLineNumbers = (await postingLines.GroupBy(x => new { x.JournalId, x.LineNo })
+            .Where(g => g.Count() > 1).Select(g => g.Key.JournalId).Distinct()
+            .ToArrayAsync(ct)).ToHashSet();
+        var invalidLineJournals = (await (
+            from line in postingLines
+            join journal in db.Journals.IgnoreQueryFilters().AsNoTracking()
+                on line.JournalId equals journal.Id
+            where journal.TenantId == tenant && (line.IsDeleted || line.LineNo <= 0 ||
+                line.DebitAmount < 0m || line.CreditAmount < 0m ||
+                (line.DebitAmount > 0m) == (line.CreditAmount > 0m) ||
+                (journal.CampusId.HasValue && line.CampusId.HasValue &&
+                    journal.CampusId != line.CampusId) ||
+                !db.Accounts.AsNoTracking().Any(a => a.Id == line.AccountId && a.TenantId == tenant &&
+                    !a.IsDeleted && !a.IsGroup && a.AllowsPosting && a.CurrencyCode == "BDT"))
+            select line.JournalId).Distinct().ToArrayAsync(ct)).ToHashSet();
         // A foreign-tenant line attached to a local journal must invalidate the
         // entire posting; excluding it from the balance calculation would make
         // a corrupt cross-tenant journal look legitimate in the central audit.
@@ -154,14 +172,6 @@ public sealed partial class AccountingReportingService
             .Where(x => postingIds.Contains(x.JournalId) && x.TenantId != tenant)
             .Select(x => x.JournalId).Distinct().ToArrayAsync(ct);
         var foreignLineJournals = foreignLineJournalIds.ToHashSet();
-        var accountIds = lines.Select(x => x.AccountId).Distinct().ToArray();
-        if (accountIds.Length > 1500)
-            return ApiResponse<FinanceSourcePostingAuditPageDto>.ErrorResponse("Too many posting accounts on this page; narrow the report.", 422);
-        var validAccounts = await db.Accounts.AsNoTracking().Where(x => x.TenantId == tenant &&
-            !x.IsDeleted && accountIds.Contains(x.Id) && !x.IsGroup && x.AllowsPosting &&
-            x.CurrencyCode == "BDT").Select(x => x.Id).ToArrayAsync(ct);
-        var validIds = validAccounts.ToHashSet();
-        var byJournal = lines.ToLookup(x => x.JournalId);
         var byId = journals.ToDictionary(x => x.Id);
         var bySource = journals.Where(x => x.SourceType == expectedType && x.SourceId.HasValue)
             .ToLookup(x => x.SourceId!.Value);
@@ -196,17 +206,12 @@ public sealed partial class AccountingReportingService
                     result.PostingStatus = "NotPostedJournal";
                 else
                 {
-                    var entries = byJournal[journal.Id].ToArray();
-                    var debit = entries.Sum(x => x.DebitAmount);
-                    var credit = entries.Sum(x => x.CreditAmount);
+                    var hasTotals = lineTotals.TryGetValue(journal.Id, out var totals);
+                    var debit = hasTotals ? totals!.Debit : 0m;
+                    var credit = hasTotals ? totals!.Credit : 0m;
                     var invalid = journal.CurrencyCode != "BDT" || foreignLineJournals.Contains(journal.Id) ||
-                        entries.Length < 2 || debit <= 0m ||
-                        debit != credit || entries.Any(x => x.IsDeleted || x.LineNo <= 0 ||
-                            !validIds.Contains(x.AccountId) || x.DebitAmount < 0m || x.CreditAmount < 0m ||
-                            (x.DebitAmount > 0m) == (x.CreditAmount > 0m) ||
-                            (journal.CampusId.HasValue && x.CampusId.HasValue &&
-                             journal.CampusId != x.CampusId)) ||
-                        entries.Select(x => x.LineNo).Distinct().Count() != entries.Length ||
+                        !hasTotals || totals!.Count < 2 || debit <= 0m || debit != credit ||
+                        invalidLineJournals.Contains(journal.Id) || repeatedLineNumbers.Contains(journal.Id) ||
                         (source.CampusId.HasValue && journal.CampusId != source.CampusId);
                     if (!invalid && source.Amount.HasValue &&
                         (kind is "fee-payments" or "admission-payments" or "facilities") &&
