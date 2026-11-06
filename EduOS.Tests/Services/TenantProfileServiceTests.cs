@@ -240,6 +240,10 @@ public sealed class TenantProfileServiceTests
     private static async Task<TestSetup> CreateSetupAsync()
     {
         var http = new DefaultHttpContext();
+        http.TraceIdentifier = "profile-tests-" + Guid.NewGuid().ToString("N");
+        http.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "71"), new Claim("TenantId", "812"),
+                new Claim(ClaimTypes.Role, "TenantAdmin")], "TestAuthentication"));
         var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("tenant-profile-" + Guid.NewGuid().ToString("N")).Options,
             new FixedHttpContextAccessor { HttpContext = http });
@@ -248,10 +252,6 @@ public sealed class TenantProfileServiceTests
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync();
         http.Items["TenantId"] = tenant.Id;
-        http.TraceIdentifier = "profile-tests-" + Guid.NewGuid().ToString("N");
-        http.User = new ClaimsPrincipal(new ClaimsIdentity(
-            [new Claim(ClaimTypes.NameIdentifier, "71"), new Claim("TenantId", tenant.Id.ToString()),
-                new Claim(ClaimTypes.Role, "TenantAdmin")], "TestAuthentication"));
         var storage = new Mock<IFileUploadService>();
         var service = new TenantProfileService(
             new GenericRepository<Tenant>(db), new GenericRepository<TenantDomain>(db),
