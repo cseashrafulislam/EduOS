@@ -27,12 +27,12 @@ public sealed class V3EnterpriseLedgerTraceTests
         public string? UserAgent => null;
     }
 
-    private static EduOSDbContext Open(long tenant)
+    private static EduOSDbContext Open(long tenant, string? store = null)
     {
         var http = new DefaultHttpContext();
         http.Items["TenantId"] = tenant;
         return new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("v3-trace-" + Guid.NewGuid().ToString("N")).Options,
+            .UseInMemoryDatabase(store ?? "v3-trace-" + Guid.NewGuid().ToString("N")).Options,
             new HttpContextAccessor { HttpContext = http });
     }
 
@@ -101,7 +101,16 @@ public sealed class V3EnterpriseLedgerTraceTests
     [Fact]
     public async Task Stock_register_finds_GL_orphans_without_inventing_campus_or_changing_stock()
     {
-        await using var db = Open(101);
+        var store = "stock-orphan-isolation-" + Guid.NewGuid().ToString("N");
+        await using (var foreign = Open(202, store))
+        {
+            foreign.Journals.Add(new Journal { TenantId = 202,
+                JournalNumber = "FOREIGN-J", SourceType = "InventoryMovement",
+                SourceId = 998, State = JournalState.Posted,
+                JournalDate = new DateOnly(2026, 10, 5) });
+            await foreign.SaveChangesAsync();
+        }
+        await using var db = Open(101, store);
         db.InventoryMovements.Add(new InventoryMovement {
             Id = 71, TenantId = 101, MovementNumber = "STOCK-71", MovementTypeCode = "Receipt",
             StateCode = "Posted", MovementAt = new DateTime(2026, 9, 30, 10, 0, 0)

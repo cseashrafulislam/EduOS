@@ -65,6 +65,12 @@ jobs:
       - name: Test authentication security regressions
         run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AuthSecurityStampIntegrationTests|FullyQualifiedName~OptionalMfaAuthContractTests|FullyQualifiedName~MfaChallengeServiceTests|FullyQualifiedName~AuthTenantSessionIntegrationTests|FullyQualifiedName~TenantMembershipResolutionTests|FullyQualifiedName~AuthManagementEndpointContractTests|FullyQualifiedName~TenantUserAdministrationTests|FullyQualifiedName~TenantPermissionAccessTests|FullyQualifiedName~TenantUserSecurityContractsTests" --logger "trx;LogFileName=auth-tests.trx" --results-directory TestResults
 
+      # Centralization is not accepted from code review alone. Run the exact
+      # tenancy, GL, stock, person, numbering, MIS, work inbox and integration
+      # regressions as an independently named mandatory gate before full tests.
+      - name: Verify central platform cross-module integrity
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~TenantPermissionAccessTests|FullyQualifiedName~CentralFinancePostingAuditTests|FullyQualifiedName~V3EnterpriseLedgerTraceTests|FullyQualifiedName~GuardianCommunicationAuthorizationTests|FullyQualifiedName~NumberSeriesSecurityTests|FullyQualifiedName~CentralInstitutionMisServiceTests|FullyQualifiedName~CentralWorkCenterServiceTests|FullyQualifiedName~IntegrationAdministrationRevocationTests" --logger "trx;LogFileName=central-platform-tests.trx" --results-directory TestResults
+
       - name: Test public admission regression
         run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~PublicAdmissionServiceTests" --logger "console;verbosity=normal"
 

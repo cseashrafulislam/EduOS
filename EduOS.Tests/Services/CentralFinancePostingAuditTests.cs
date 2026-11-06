@@ -75,7 +75,16 @@ public sealed class CentralFinancePostingAuditTests
     [Fact]
     public async Task Source_audit_finds_posted_orphan_GL_even_with_no_source_rows_in_period()
     {
-        await using var db = Database();
+        var store = "finance-orphan-isolation-" + Guid.NewGuid().ToString("N");
+        await using (var foreign = Database(store, 42))
+        {
+            foreign.Journals.Add(new Journal { Id = 19, TenantId = 42,
+                JournalNumber = "OTHER-TENANT-ORPHAN", JournalDate = From,
+                SourceType = "StudentInvoice", SourceId = 998,
+                State = JournalState.Posted });
+            await foreign.SaveChangesAsync();
+        }
+        await using var db = Database(store);
         SeedAccounts(db);
         db.StudentInvoices.Add(Invoice(1, InvoiceState.Issued, 11));
         Journal(db, 11, "StudentInvoice", 1, 90m);
