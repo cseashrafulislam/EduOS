@@ -44,7 +44,10 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
         _portalDomain = portal.Value.BaseDomain;
     }
 
-    private bool CanManage => _current.IsAuthenticated && _current.IsTenantAdmin && _current.TenantId > 0;
+    // The request-scoped DB tenant and authenticated actor must agree even when
+    // this service is invoked outside the normal HTTP middleware pipeline.
+    private bool CanManage => _current.IsAuthenticated && _current.IsTenantAdmin &&
+        _current.UserId > 0 && _current.TenantId > 0 && _db.CurrentTenantId == _current.TenantId;
     private long TenantId => _current.TenantId;
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Institution administrator access is required.", 403);
     private IQueryable<ApplicationRole> LocalRoles => _db.Roles.IgnoreQueryFilters()

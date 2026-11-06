@@ -17,7 +17,11 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context,
         PermissionAccessRequirement requirement)
     {
-        if (!current.IsAuthenticated || current.TenantId <= 0 || current.UserId <= 0) return;
+        if (!current.IsAuthenticated || current.TenantId <= 0 || current.UserId <= 0 ||
+            db.CurrentTenantId != current.TenantId ||
+            context.User.Identity?.IsAuthenticated != true ||
+            !long.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var actor) ||
+            actor != current.UserId) return;
         var tenant = current.TenantId;
         var user = current.UserId;
         var code = requirement.PermissionCode;

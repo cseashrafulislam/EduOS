@@ -61,6 +61,19 @@ public sealed class TenantPermissionAccessTests
         await db.SaveChangesAsync();
         Assert.True(await Allowed());
 
+        // A direct handler invocation with a stale or swapped DB context must
+        // not grant permissions based on claims from a different institution.
+        http.Items["TenantId"] = 102L;
+        Assert.False(await Allowed());
+        http.Items["TenantId"] = 101L;
+        http.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "99"), new Claim(ClaimTypes.Role, "Teacher")
+        }, "Test"));
+        Assert.False(await Allowed());
+        http.User = authenticatedPrincipal;
+        Assert.True(await Allowed());
+
         db.UserPermissions.Add(new UserPermission
         {
             UserId = 51, TenantId = 101, PermissionId = 3, IsAllowed = false

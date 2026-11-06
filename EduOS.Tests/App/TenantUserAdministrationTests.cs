@@ -93,6 +93,22 @@ public sealed class TenantUserAdministrationTests
     }
 
     [Fact]
+    public async Task Tenant_administration_rejects_a_swapped_request_database_tenant()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        var service = Service(db, access.User, access.Email);
+        access.Accessor.HttpContext!.Items["TenantId"] = 200L;
+        Assert.Equal(403, (await service.GetRolesAsync()).StatusCode);
+        Assert.Equal(403, (await service.GetMembersAsync(1, 20, null)).StatusCode);
+        Assert.Equal(403, (await service.CreateRoleAsync(new TenantRoleCreateRequestDto
+        { Name = "Teacher" })).StatusCode);
+        Assert.Empty(db.Roles);
+        access.Accessor.HttpContext.Items["TenantId"] = 100L;
+        Assert.Equal(200, (await service.GetRolesAsync()).StatusCode);
+    }
+
+    [Fact]
     public async Task Cross_tenant_role_cannot_be_assigned_to_member_even_with_valid_token()
     {
         var access = ContextFor(100, isAdmin: true);
