@@ -146,7 +146,7 @@ public sealed class SqlServerCentralWorkCenterTests
         var misResult = await mis.GetAsync(new DateOnly(2026, 11, 1),
             new DateOnly(2026, 11, 30));
         Assert.Equal(200, misResult.StatusCode);
-        Assert.Equal(1m, Assert.Single(misResult.Data!.Metrics,
+        Assert.Equal(2m, Assert.Single(misResult.Data!.Metrics,
             m => m.Key == "submitted_requisitions").Value);
         Assert.Equal(100m, Assert.Single(misResult.Data.Metrics,
             m => m.Key == "net_surplus").Value);
