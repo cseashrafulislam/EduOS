@@ -44,31 +44,42 @@ public sealed partial class InventoryMovementService
             return ApiResponse<InventoryStockPositionReportDto>.ErrorResponse(
                 "Negative stock, negative recorded cost or residual lot cost requires reconciliation.", 409);
 
-        var stock = lots.GroupBy(x => x.ItemId)
-            .Select(g => new { ItemId = g.Key, Quantity = g.Sum(x => x.Quantity),
-                Cost = g.Sum(x => x.Cost), Lots = g.Count(x => x.Quantity != 0m) });
-        var positions = from item in query
-                        join balance in stock on item.Id equals balance.ItemId into grouped
-                        from balance in grouped.DefaultIfEmpty()
-                        select new {
-                            item.Id, item.Code, item.Name, item.UnitCode, item.ReorderLevel, item.IsActive,
-                            Quantity = balance == null ? 0m : balance.Quantity,
-                            Cost = balance == null ? 0m : balance.Cost,
-                            Lots = balance == null ? 0 : balance.Lots
-                        };
-        if (!includeZeroStock) positions = positions.Where(x => x.Quantity != 0m);
+        // A separate item-level total filters nonzero stock before paging. Project
+        // catalog rows without a nullable aggregate left join (portable across
+        // SQL Server and EF InMemory); fetch balances only for the chosen page.
+        var positions = query;
+        if (!includeZeroStock)
+        {
+            var stockedItemIds = Ledger(snapshot).Where(x => x.LocationId == locationId)
+                .GroupBy(x => x.ItemId).Where(g => g.Sum(x => x.Quantity) != 0m)
+                .Select(g => g.Key);
+            positions = positions.Where(x => stockedItemIds.Contains(x.Id));
+        }
         var totalCount = includeZeroStock ? catalogCount : await positions.CountAsync(ct);
         var offset = ((long)page - 1L) * pageSize;
-        var paged = offset > int.MaxValue ? new List<InventoryStockPositionRowDto>() :
-            await positions.OrderBy(x => x.Code).ThenBy(x => x.Id)
-                .Skip((int)offset).Take(pageSize)
-                .Select(x => new InventoryStockPositionRowDto {
-                    InventoryItemId = x.Id, ItemCode = x.Code, ItemName = x.Name,
-                    UnitCode = x.UnitCode, ReorderLevel = x.ReorderLevel,
-                    QuantityOnHand = x.Quantity, RecordedCostBalance = x.Cost,
-                    ActiveLotCount = x.Lots, IsActive = x.IsActive,
-                    IsBelowReorder = x.ReorderLevel > 0m && x.Quantity <= x.ReorderLevel
-                }).ToListAsync(ct);
+        var itemPage = positions.OrderBy(x => x.Code).ThenBy(x => x.Id)
+            .Select(x => new { x.Id, x.Code, x.Name, x.UnitCode, x.ReorderLevel, x.IsActive });
+        itemPage = offset > int.MaxValue ? itemPage.Take(0) : itemPage.Skip((int)offset).Take(pageSize);
+        var items = await itemPage.ToListAsync(ct);
+        var balances = items.Count == 0
+            ? new Dictionary<(long, long, string), Balance>()
+            : await Balances(items.Select(x => x.Id).ToArray(), new[] { locationId }, snapshot, ct);
+        if (!Nonnegative(balances.Values))
+            return ApiResponse<InventoryStockPositionReportDto>.ErrorResponse(
+                "Negative stock, negative recorded cost or residual lot cost requires reconciliation.", 409);
+        var pageStock = balances.Values.GroupBy(x => x.ItemId).ToDictionary(x => x.Key,
+            x => (Quantity: x.Sum(v => v.Quantity), Cost: x.Sum(v => v.Value),
+                Lots: x.Count(v => v.Quantity != 0m)));
+        var paged = items.Select(x => {
+            pageStock.TryGetValue(x.Id, out var stock);
+            return new InventoryStockPositionRowDto {
+                InventoryItemId = x.Id, ItemCode = x.Code, ItemName = x.Name,
+                UnitCode = x.UnitCode, ReorderLevel = x.ReorderLevel,
+                QuantityOnHand = stock.Quantity, RecordedCostBalance = stock.Cost,
+                ActiveLotCount = stock.Lots, IsActive = x.IsActive,
+                IsBelowReorder = x.ReorderLevel > 0m && stock.Quantity <= x.ReorderLevel
+            };
+        }).ToList();
         return ApiResponse<InventoryStockPositionReportDto>.SuccessResponse(new InventoryStockPositionReportDto
         {
             InventoryLocationId = location.Id, LocationName = location.Code + " — " + location.Name,
