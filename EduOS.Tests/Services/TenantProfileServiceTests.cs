@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
+using System.Security.Claims;
 using System.Text;
 using Xunit;
 
@@ -247,6 +248,10 @@ public sealed class TenantProfileServiceTests
         db.Tenants.Add(tenant);
         await db.SaveChangesAsync();
         http.Items["TenantId"] = tenant.Id;
+        http.TraceIdentifier = "profile-tests-" + Guid.NewGuid().ToString("N");
+        http.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "71"), new Claim("TenantId", tenant.Id.ToString()),
+                new Claim(ClaimTypes.Role, "TenantAdmin")], "TestAuthentication"));
         var storage = new Mock<IFileUploadService>();
         var service = new TenantProfileService(
             new GenericRepository<Tenant>(db), new GenericRepository<TenantDomain>(db),
