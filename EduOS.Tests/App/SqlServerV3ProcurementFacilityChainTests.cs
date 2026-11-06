@@ -192,12 +192,14 @@ public sealed partial class SqlServerV3ProcurementPurchaseOrderTests
             Assert.Equal(409, (await service.PostMovementAsync(issueReference,
                 new PostInventoryMovementRequestDto { RowVersion = issueVersion })).StatusCode);
         }
-        var competingPost = await Task.WhenAll(Enumerable.Range(0, 2).Select(async _ =>
+        // Scope each HTTP-bound DbContext inside its own execution flow. The
+        // shared AsyncLocal accessor must not mix synthetic tenant requests.
+        var competingPost = await Task.WhenAll(Enumerable.Range(0, 2).Select(_ => Task.Run(async () =>
         {
             await using var db = Open(options, tenantId, checkerId);
             return await Inventory(db, checkerId).PostMovementAsync(issueReference,
                 new PostInventoryMovementRequestDto { RowVersion = issueVersion });
-        }));
+        })));
         Assert.Contains(competingPost, x => x.Success);
         Assert.All(competingPost, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
 
