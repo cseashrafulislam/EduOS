@@ -4,6 +4,8 @@ using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Services.Platform;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -14,18 +16,19 @@ public sealed class ImportHistoryService : IImportHistoryService
     private readonly IGenericRepository<ImportLog> _imports;
     private readonly IGenericRepository<ImportLogItem> _rows;
     private readonly ICurrentUserService _user;
+    private readonly EduOSDbContext _db;
     private readonly ILogger<ImportHistoryService> _logger;
 
     public ImportHistoryService(IGenericRepository<ImportLog> imports, IGenericRepository<ImportLogItem> rows,
-        ICurrentUserService user, ILogger<ImportHistoryService> logger)
+        ICurrentUserService user, EduOSDbContext db, ILogger<ImportHistoryService> logger)
     {
-        _imports = imports; _rows = rows; _user = user; _logger = logger;
+        _imports = imports; _rows = rows; _user = user; _db = db; _logger = logger;
     }
 
     public async Task<ApiResponse<PagedResult<ImportLogDto>>> GetImportsAsync(string? importType,
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<PagedResult<ImportLogDto>>.ErrorResponse("Import history access denied.", 403);
+        if (!await CanReadAsync(cancellationToken)) return ApiResponse<PagedResult<ImportLogDto>>.ErrorResponse("Import history access denied.", 403);
         if (!ValidPage(page, pageSize) || importType?.Trim().Length > 100)
             return ApiResponse<PagedResult<ImportLogDto>>.ErrorResponse("Invalid import search parameters.", 400);
         try
@@ -65,7 +68,7 @@ public sealed class ImportHistoryService : IImportHistoryService
     public async Task<ApiResponse<ImportLogDto>> GetImportAsync(Guid importReference,
         CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<ImportLogDto>.ErrorResponse("Import history access denied.", 403);
+        if (!await CanReadAsync(cancellationToken)) return ApiResponse<ImportLogDto>.ErrorResponse("Import history access denied.", 403);
         if (importReference == Guid.Empty) return ApiResponse<ImportLogDto>.ErrorResponse("Invalid import reference.", 400);
         try
         {
@@ -93,7 +96,7 @@ public sealed class ImportHistoryService : IImportHistoryService
     public async Task<ApiResponse<PagedResult<ImportLogItemDto>>> GetImportRowsAsync(Guid importReference,
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<PagedResult<ImportLogItemDto>>.ErrorResponse("Import history access denied.", 403);
+        if (!await CanReadAsync(cancellationToken)) return ApiResponse<PagedResult<ImportLogItemDto>>.ErrorResponse("Import history access denied.", 403);
         if (importReference == Guid.Empty || !ValidPage(page, pageSize))
             return ApiResponse<PagedResult<ImportLogItemDto>>.ErrorResponse("Invalid import row query.", 400);
         try
@@ -131,7 +134,7 @@ public sealed class ImportHistoryService : IImportHistoryService
     public async Task<ApiResponse<string>> ExportFailedRowsCsvAsync(Guid importReference,
         CancellationToken cancellationToken = default)
     {
-        if (!CanRead()) return ApiResponse<string>.ErrorResponse("Import history access denied.", 403);
+        if (!await CanReadAsync(cancellationToken)) return ApiResponse<string>.ErrorResponse("Import history access denied.", 403);
         if (importReference == Guid.Empty) return ApiResponse<string>.ErrorResponse("Invalid import reference.", 400);
         try
         {
@@ -173,7 +176,12 @@ public sealed class ImportHistoryService : IImportHistoryService
         return "\"" + text.Replace("\"", "\"\"") + "\"";
     }
 
-    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0
-        && (_user.IsTenantAdmin || _user.IsInRole("Principal"));
+    private Task<bool> CanReadAsync(CancellationToken ct)
+    {
+        var roles = new List<string>(2);
+        if (_user.IsTenantAdmin) roles.Add("TENANTADMIN");
+        if (_user.IsInRole("Principal")) roles.Add("PRINCIPAL");
+        return CentralPrivilegedAccess.HasRoleAsync(_db, _user, roles, ct);
+    }
     private static bool ValidPage(int page, int pageSize) => page >= 1 && pageSize >= 1 && pageSize <= 100;
 }

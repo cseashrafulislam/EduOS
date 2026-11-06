@@ -18,7 +18,7 @@ test('existing delivery history API is the single tenant-admin route owner', () 
     assert.match(api, /service\.GetDeliveriesAsync\(page, pageSize, channel, state, ct\)/);
     assert.doesNotMatch(admin, /\[HttpGet\("deliveries"\)\]/);
     assert.match(service, /x\.TenantId == _user\.TenantId/);
-    assert.match(service, /!CanManage\(\)/);
+    assert.match(service, /!await CanManageAsync\(ct\)/);
     assert.match(service, /pageSize is < 1 or > 100/);
     assert.match(view, /id="deliveryRows"/);
     assert.match(js, /\/api\/communication-admin\/deliveries\?/);

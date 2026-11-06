@@ -19,7 +19,7 @@ test('delivery history reuses canonical model and existing tenant administration
     assert.match(entity, /class CommunicationDelivery : BaseTenantEntity/);
     assert.match(dto, /class CommunicationDeliveryDto/);
     assert.match(base, /IGenericRepository<CommunicationDelivery> deliveries/);
-    assert.match(service, /!CanManage\(\)/);
+    assert.match(service, /!await CanManageAsync\(ct\)/);
     assert.match(service, /x\.TenantId == _user\.TenantId && !x\.IsDeleted/);
     assert.doesNotMatch(service, /Body = x\.Body|ProtectedCredential/);
     assert.match(contract, /GetDeliveriesAsync/);

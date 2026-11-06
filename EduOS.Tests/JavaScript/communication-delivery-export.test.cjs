@@ -11,7 +11,7 @@ test('delivery CSV export reuses canonical tenant administration owner', () => {
     const view = read('EduOS.App/Views/CommunicationAdministration/_Deliveries.cshtml');
     const js = read('EduOS.App/wwwroot/js/communication/deliveries.js');
     assert.match(service, /x\.TenantId == _user\.TenantId && !x\.IsDeleted/);
-    assert.match(service, /!CanManage\(\)/);
+    assert.match(service, /!await CanManageAsync\(ct\)/);
     assert.match(service, /Take\(1001\)/);
     assert.match(service, /rows\.Count > 1000/);
     assert.doesNotMatch(service, /x\.Body|x\.ProtectedCredential/);
