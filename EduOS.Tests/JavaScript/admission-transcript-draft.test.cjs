@@ -77,8 +77,8 @@ test('draft refuses partial application when destination fields disappear or bec
 
 
 test('reviewed admission fields are never silently truncated to destination maxlength', () => {
-    assert.match(source, /result\\.value\\.length > Number\\(target\\.maxLength\\)/);
-    assert.match(source, /target\\.value = result\\.value;/);
-    assert.doesNotMatch(source, /target\\.value = result\\.value\\.slice\\(/);
+    assert.ok(source.includes('result.value.length > Number(target.maxLength)'));
+    assert.ok(source.includes('target.value = result.value;'));
+    assert.ok(!source.includes('target.value = result.value.slice('));
     assert.ok(source.indexOf('const unavailable = destinations.find') < source.indexOf('destinations.forEach'));
 });
