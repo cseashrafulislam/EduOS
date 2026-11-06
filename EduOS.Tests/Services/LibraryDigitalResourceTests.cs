@@ -88,6 +88,29 @@ public sealed class LibraryDigitalResourceTests
         return (book, enrollment, asset, bytes);
     }
 
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("\\t")]
+    [InlineData("Science\\nprivate")]
+    [InlineData("History\\u0000")]
+    public async Task Discovery_rejects_blank_or_control_character_search_without_querying_content(string search)
+    {
+        await using var db = Context();
+        var seed = await SeedAsync(db, Guid.NewGuid());
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Science", IsActive = true
+        });
+        await db.SaveChangesAsync();
+        var student = Service(db, "Student");
+        (await student.ListAsync(null, search, 1, 20, false)).StatusCode.Should().Be(400);
+        (await student.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Digital_audit_filters_tenant_action_date_and_actor_without_exposing_raw_values()
     {

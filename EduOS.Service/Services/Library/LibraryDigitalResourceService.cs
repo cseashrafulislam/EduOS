@@ -186,7 +186,9 @@ public sealed class LibraryDigitalResourceService(
     {
         if (!await CanReadAsync(ct)) return Fail<PagedResult<LibraryDigitalResourceDto>>("Library access denied.", 403);
         if (page < 1 || pageSize is < 1 or > 50 || ((long)page - 1) * pageSize > int.MaxValue ||
-            search?.Length > 100 || bookReference == Guid.Empty)
+            search?.Length > 100 || bookReference == Guid.Empty ||
+            (search != null && (string.IsNullOrWhiteSpace(search) ||
+                search.Any(char.IsControl))))
             return Fail<PagedResult<LibraryDigitalResourceDto>>("Invalid digital library filters.");
         var query = ResourceQuery();
         if (!CanPublish || !includeInactive)
