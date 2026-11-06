@@ -403,8 +403,8 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         var parallelVersion = Convert.ToBase64String(parallelMark.RowVersion);
         // HttpContextAccessor is AsyncLocal. Each competing request must create
         // its own synthetic context *inside* its parallel execution flow.
-        var attempts = await Task.WhenAll(
-            Task.Run(async () =>
+        var attempts = await RunIsolatedRequestsAsync(
+            async () =>
             {
                 await using var firstDb = TenantDb(options, tenantId);
                 return await AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"))
@@ -414,8 +414,8 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
                         Reason = "Concurrent audit correction A",
                         RowVersion = parallelVersion
                     });
-            }),
-            Task.Run(async () =>
+            },
+            async () =>
             {
                 await using var secondDb = TenantDb(options, tenantId);
                 return await AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"))
@@ -425,7 +425,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
                         Reason = "Concurrent audit correction B",
                         RowVersion = parallelVersion
                     });
-            }));
+            });
         Assert.Single(attempts.Where(x => x.Success));
         Assert.Single(attempts.Where(x => x.StatusCode == 409));
         db.ChangeTracker.Clear();
@@ -521,19 +521,19 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         var draftSession = await db.AttendanceSessions.AsNoTracking()
             .SingleAsync(x => x.Id == newSession.Data.AttendanceSessionId);
         var finalizeVersion = Convert.ToBase64String(draftSession.RowVersion);
-        var results = await Task.WhenAll(
-            Task.Run(async () =>
+        var results = await RunIsolatedRequestsAsync(
+            async () =>
             {
                 await using var firstDb = TenantDb(options, tenantId);
                 return await AttendanceService(firstDb, new Actor(tenantId, managerId, "TenantAdmin"))
                     .FinalizeSessionAsync(draftSession.Id, finalizeVersion);
-            }),
-            Task.Run(async () =>
+            },
+            async () =>
             {
                 await using var secondDb = TenantDb(options, tenantId);
                 return await AttendanceService(secondDb, new Actor(tenantId, managerId, "TenantAdmin"))
                     .FinalizeSessionAsync(draftSession.Id, finalizeVersion);
-            }));
+            });
         Assert.Contains(results, x => x.Success);
         Assert.All(results, x => Assert.True(x.Success || x.StatusCode == 409,
             $"Unexpected concurrent finalization response: {x.StatusCode} {x.Message}"));
@@ -695,6 +695,20 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             db, new Actor(tenantId + 999, managerId, "TenantAdmin"),
             NullLogger<StudentAttendanceReportService>.Instance)
             .GetSubjectSummaryAsync(subjectQuery, null, "subject")).StatusCode);
+    }
+
+    private static Task<T[]> RunIsolatedRequestsAsync<T>(Func<Task<T>> first, Func<Task<T>> second)
+    {
+        // Suppress the parent's AsyncLocal capture only while scheduling. Every
+        // child creates its own HttpContext; the ongoing parent SQL request must
+        // retain its tenant context for subsequent scoped reads and audit saves.
+        Task<T> firstTask, secondTask;
+        using (ExecutionContext.SuppressFlow())
+        {
+            firstTask = Task.Run(first);
+            secondTask = Task.Run(second);
+        }
+        return Task.WhenAll(firstTask, secondTask);
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenantId)
