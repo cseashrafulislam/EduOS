@@ -21,8 +21,8 @@
     }
     function validateDraftField(key, value) {
         if (key === 'primaryMobile' || key === 'guardianMobile') {
-            const phone = normalizePhone(value);
-            return /^(?:\\+?88)?01[3-9][0-9]{8}$/.test(phone)
+            const phone = normalizePhone(value).replace(/^(?:\+?88)/, '');
+            return /^(?:\+?88)?01[3-9][0-9]{8}$/.test(phone)
                 ? { valid: true, value: phone }
                 : { valid: false, value: phone };
         }
@@ -64,7 +64,7 @@
         const note = el('p', {class:'small text-muted'}, t('Microphone unavailable until an approved speech provider is configured. Type instead. Draft stays in this page only.', 'অনুমোদিত স্পিচ সেবা চালু না হওয়া পর্যন্ত মাইক্রোফোন বন্ধ। লিখে দিন। খসড়া শুধু এই পৃষ্ঠায় থাকবে।'));
         const input = el('textarea', {id:'admissionDraftText',class:'form-control',rows:'3',maxlength:'3000','aria-label':t('Admission transcript draft','ভর্তি আবেদনের লিখিত খসড়া'),placeholder:t('Name: ...\nMobile: ...\nGuardian: ...','নাম: ...\nমোবাইল: ...\nঅভিভাবক: ...')});
         const previewButton = el('button',{type:'button',class:'btn btn-outline-primary mt-2'},t('Preview fields','তথ্য যাচাই'));
-        const preview = el('div',{class:'mt-2','aria-live':'polite'});
+        const preview = el('div',{class:'mt-2','aria-live':'polite',role:'group','aria-label':t('Editable admission field preview','ভর্তির তথ্য সংশোধনের তালিকা')});
         const confirm = el('button',{type:'button',class:'btn btn-outline-success mt-2',disabled:'disabled'},t('Apply reviewed fields to form','যাচাইকৃত তথ্য ফরমে বসান'));
         const status = el('p',{class:'small mt-2',role:'status'},'');
         const privacy = el('p',{class:'small text-muted',role:'note'},t(
@@ -103,11 +103,11 @@
             const editable = {};
             entries.forEach(([key,value]) => {
                 const wrap = el('div',{class:'col-md-6'});
-                const label = el('label',{class:'form-label'},labels[key][bn ? 1 : 0]);
-                const field = el(key === 'presentAddress' ? 'textarea':'input',{class:'form-control',maxlength:String(key === 'presentAddress' ? 1000 : 200)});
+                const label = el('label',{class:'form-label',for:'admissionDraftPreview_'+key},labels[key][bn ? 1 : 0]);
+                const field = el(key === 'presentAddress' ? 'textarea':'input',{id:'admissionDraftPreview_'+key,class:'form-control',maxlength:String(key === 'presentAddress' ? 1000 : 200)});
                 field.value = value;
-                label.append(field);
-                wrap.append(label); table.append(wrap); editable[key] = field;
+                field.addEventListener('input',()=>field.removeAttribute('aria-invalid'));
+                wrap.append(label,field); table.append(wrap); editable[key] = field;
             });
             preview.append(table);
             snapshot = editable;
@@ -118,6 +118,9 @@
             if (!snapshot) return;
             const reviewed = Object.entries(snapshot).map(([key, field]) => [key, validateDraftField(key, field.value)]);
             if (reviewed.some(([, result]) => !result.valid)) {
+                const invalid = reviewed.find(([, result]) => !result.valid);
+                snapshot[invalid[0]].setAttribute('aria-invalid','true');
+                snapshot[invalid[0]].focus();
                 status.textContent = t('Check required values and Bangladesh mobile numbers (01XXXXXXXXX). No fields changed.',
                     'তথ্য এবং বাংলাদেশের মোবাইল নম্বর (01XXXXXXXXX) ঠিক করুন। কোনো তথ্য বদলায়নি।');
                 return;
