@@ -84,9 +84,13 @@ public sealed class SqlServerCentralLedgerActivityTests
             await JournalAsync(4, new DateOnly(2026, 10, 5), -20m);
             var service = new AccountingReportingService(db, new User(tenantId));
             var first = await service.GetLedgerActivityAsync(cash.Id, From, To, 1, 2);
+            var incomeExpense = await service.GetInstitutionalIncomeExpenseTotalsAsync(From, To);
             var second = await service.GetLedgerActivityAsync(cash.Id, From, To, 2, 2);
             var beyond = await service.GetLedgerActivityAsync(cash.Id, From, To, 4, 2);
             Assert.Equal(200, first.StatusCode);
+            Assert.Equal(200, incomeExpense.StatusCode);
+            Assert.Equal(0m, incomeExpense.Data!.TotalIncome);
+            Assert.Equal(10m, incomeExpense.Data.NetSurplus);
             Assert.Equal(200, second.StatusCode);
             Assert.Equal(200, beyond.StatusCode);
             Assert.Equal(3, first.Data!.Entries.TotalCount);

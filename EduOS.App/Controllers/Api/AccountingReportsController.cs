@@ -41,6 +41,10 @@ public sealed class AccountingReportsController : ControllerBase
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25, CancellationToken ct = default)
         => Reply(await service.GetInstitutionalIncomeExpenseDetailsAsync(
             fromDate, toDate, category, accountId, sourceType, page, pageSize, ct));
+    [HttpGet("income-expense-totals"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> IncomeExpenseTotals([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, CancellationToken ct)
+        => Reply(await service.GetInstitutionalIncomeExpenseTotalsAsync(fromDate, toDate, ct));
     [HttpGet("source-posting-audit"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> SourcePostingAudit([FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, [FromQuery] string sourceKind,

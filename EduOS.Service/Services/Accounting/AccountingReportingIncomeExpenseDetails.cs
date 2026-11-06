@@ -32,7 +32,7 @@ public sealed partial class AccountingReportingService
 
         // Checks historical deletion, currency, missing accounts, invalid lines and
         // per-journal double-entry integrity before showing ANY subset of the GL.
-        var statement = await GetIncomeStatementAsync(fromDate, toDate, ct);
+        var statement = await GetInstitutionalIncomeExpenseTotalsAsync(fromDate, toDate, ct);
         if (!statement.Success || statement.Data == null)
             return ApiResponse<InstitutionalIncomeExpenseDetailPageDto>.ErrorResponse(statement.Message, statement.StatusCode);
 

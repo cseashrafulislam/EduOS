@@ -16,6 +16,58 @@ public sealed class InstitutionalCentralFinanceDetailsTests
     private static readonly DateOnly To = new(2026, 10, 31);
 
     [Fact]
+    public async Task Aggregate_only_finance_totals_remain_available_above_5000_posting_accounts()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.Journals.Add(new Journal { Id = 1, TenantId = 41, JournalNumber = "JV-LARGE",
+            JournalDate = From, AccountingPeriodId = 1, State = JournalState.Posted });
+        db.JournalLines.Add(new JournalLine { Id = 1, TenantId = 41, JournalId = 1,
+            LineNo = 1, AccountId = 1, DebitAmount = 5001m });
+        for (var i = 0; i < 5001; i++)
+        {
+            var accountId = 10L + i;
+            db.Accounts.Add(new Account { Id = accountId, TenantId = 41,
+                Code = "INCOME-" + i, Name = "Historic revenue " + i,
+                AccountType = AccountType.Income });
+            db.JournalLines.Add(new JournalLine { Id = 2L + i, TenantId = 41,
+                JournalId = 1, LineNo = 2 + i, AccountId = accountId,
+                CreditAmount = 1m });
+        }
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var totals = await service.GetInstitutionalIncomeExpenseTotalsAsync(From, To);
+        totals.StatusCode.Should().Be(200);
+        totals.Data!.TotalIncome.Should().Be(5001m);
+        totals.Data.TotalExpenses.Should().Be(0m);
+        totals.Data.NetSurplus.Should().Be(5001m);
+        var details = await service.GetInstitutionalIncomeExpenseDetailsAsync(From, To, pageSize: 20);
+        details.StatusCode.Should().Be(200);
+        details.Data!.Entries.TotalCount.Should().Be(5001);
+        details.Data.Entries.Items.Should().HaveCount(20);
+        details.Data.TotalIncome.Should().Be(totals.Data.TotalIncome);
+        // The existing full-detail statement keeps its legacy bounded contract.
+        (await service.GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(422);
+    }
+
+    [Fact]
+    public async Task Aggregate_only_finance_totals_fail_closed_for_unauthorized_and_corrupt_history()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        Add(db, 1, From, JournalState.Posted, 1, 2, 50m, "StudentInvoice", 1);
+        db.JournalLines.Local.Single(x => x.AccountId == 2).CreditAmount = 49m;
+        await db.SaveChangesAsync();
+        (await Service(db, false).GetInstitutionalIncomeExpenseTotalsAsync(From, To))
+            .StatusCode.Should().Be(403);
+        (await Service(db).GetInstitutionalIncomeExpenseTotalsAsync(To, From))
+            .StatusCode.Should().Be(400);
+        (await Service(db).GetInstitutionalIncomeExpenseTotalsAsync(From, To))
+            .StatusCode.Should().Be(409);
+    }
+
+    [Fact]
     public async Task One_central_GL_shows_income_cost_source_and_reversals_on_bounded_pages()
     {
         await using var db = Database();

@@ -80,7 +80,8 @@ test('central income and costs use one posted GL and preserve original source re
     assert.match(incomeDetails, /join account in db\.Accounts\.AsNoTracking\(\)/);
     assert.match(incomeDetails, /journal\.SourceType, journal\.SourceId/);
     assert.match(incomeDetails, /journal\.ReferenceNumber/);
-    assert.match(incomeDetails, /GetIncomeStatementAsync\(fromDate, toDate, ct\)/);
+    assert.match(incomeDetails, /GetInstitutionalIncomeExpenseTotalsAsync\(fromDate, toDate, ct\)/);
+    assert.ok(api.includes('[HttpGet("income-expense-totals"), Authorize(Roles = "TenantAdmin")]'));
     assert.match(incomeDetails, /totalIncome != statement\.Data\.TotalIncome/);
     assert.match(incomeDetails, /Take\(pageSize\)/);
     assert.doesNotMatch(incomeDetails, /SaveChangesAsync|AddAsync|ExecuteUpdate/);

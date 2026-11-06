@@ -61,6 +61,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IApiCredentialUsageService, ApiCredentialUsageService>();
             s.AddScoped<INumberSeriesService, NumberSeriesService>();
             s.AddScoped<ICentralWorkCenterService, CentralWorkCenterService>();
+            s.AddScoped<ICentralInstitutionMisService, CentralInstitutionMisService>();
             s.AddScoped<ICustomFieldService, CustomFieldService>();
             s.AddScoped<IOnboardingService, OnboardingService>();
             s.AddScoped<IInstitutionRegistrationService, InstitutionRegistrationService>();

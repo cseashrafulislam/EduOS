@@ -198,6 +198,18 @@ public sealed class IncomeStatementDto
     public decimal NetSurplus { get; set; }
 }
 
+// Aggregate-only institutional MIS contract. Full account lines are intentionally
+// absent: a large chart of accounts does not impose a document-sized response.
+public sealed class InstitutionalIncomeExpenseTotalsDto
+{
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    public string CurrencyCode { get; set; } = "BDT";
+    public decimal TotalIncome { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal NetSurplus { get; set; }
+}
+
 public sealed class BalanceSheetRowDto
 {
     public long AccountId { get; set; }

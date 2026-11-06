@@ -1,4 +1,6 @@
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.DTOs.Accounting;
+using EduOS.Core.Common;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.Inventory;
@@ -131,8 +133,28 @@ public sealed class SqlServerCentralWorkCenterTests
             x => x.Source == "AccountingJournal");
         Assert.Equal(403, (await service.GetPendingAsync(campusId: campus.Id + 100)).StatusCode);
 
+        // The institution-wide MIS shares the same live membership/role boundary
+        // and queries canonical domain tables on SQL Server rather than snapshots.
+        var financeMock = new Mock<IAccountingReportingService>();
+        financeMock.Setup(x => x.GetInstitutionalIncomeExpenseTotalsAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ApiResponse<InstitutionalIncomeExpenseTotalsDto>.SuccessResponse(
+                new InstitutionalIncomeExpenseTotalsDto { TotalIncome = 120m,
+                    TotalExpenses = 20m, NetSurplus = 100m }));
+        var mis = new CentralInstitutionMisService(db, new User(tenantId, userId),
+            moduleMock.Object, financeMock.Object, TimeProvider.System);
+        var misResult = await mis.GetAsync(new DateOnly(2026, 11, 1),
+            new DateOnly(2026, 11, 30));
+        Assert.Equal(200, misResult.StatusCode);
+        Assert.Equal(1m, Assert.Single(misResult.Data!.Metrics,
+            m => m.Key == "submitted_requisitions").Value);
+        Assert.Equal(100m, Assert.Single(misResult.Data.Metrics,
+            m => m.Key == "net_surplus").Value);
+
         await db.UserRoles.Where(x => x.UserId == userId).ExecuteDeleteAsync();
         Assert.Equal(403, (await service.GetPendingAsync()).StatusCode);
+        Assert.Equal(403, (await mis.GetAsync(new DateOnly(2026, 11, 1),
+            new DateOnly(2026, 11, 30))).StatusCode);
     }
 
     private static EduOSDbContext Open(DbContextOptions<EduOSDbContext> options, long tenant)
