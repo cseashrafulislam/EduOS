@@ -7,6 +7,11 @@ on:
       - 'EduOS.App/Views/**'
       - 'EduOS.App/wwwroot/js/**'
       - 'EduOS.App/wwwroot/locales/**'
+      - 'EduOS.App/Controllers/**'
+      - 'EduOS.App/Areas/**'
+      - 'EduOS.App/Resources/**'
+      - 'EduOS.App/Services/**'
+      - 'EduOS.App/Pages/**'
       - 'scripts/check_ai_product_language.py'
       - '.github/workflows/ai-product-language-gate.yml'
   pull_request:

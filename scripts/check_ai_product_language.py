@@ -7,14 +7,16 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PRODUCT_ROOTS = ("marketing/public", "EduOS.App/Views", "EduOS.App/wwwroot/js", "EduOS.App/wwwroot/locales")
-EXTENSIONS = {".html", ".cshtml", ".js", ".json", ".resx"}
+PRODUCT_ROOTS = ("marketing/public", "EduOS.App/Views", "EduOS.App/wwwroot/js", "EduOS.App/wwwroot/locales", "EduOS.App/Controllers", "EduOS.App/Areas", "EduOS.App/Resources", "EduOS.App/Services", "EduOS.App/Pages")
+EXTENSIONS = {".html", ".cshtml", ".js", ".json", ".resx", ".cs", ".ts", ".tsx", ".razor"}
 # Distinguish counts of scheduled tasks and non-AI numbers from fixed AI-agent claims.
+COUNT = r"(?:[2-9]|[1-9][0-9]+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+AGENT = r"(?:AI[\s-]+)?agents?\b"
+# Match worded and numeric agent claims, with optional short qualifiers.
 FIXED_AGENT_CLAIM = re.compile(
-    r"(?i)(?<![\w])(?:[2-9]|[1-9][0-9]+)\s*(?:[- ]\s*)?"
-    r"(?:AI[- ]powered\s+)?(?:AI\s+)?agents?\b"
-    r"|\b(?:AI\s+)?agents?\s*[:=]\s*(?:[2-9]|[1-9][0-9]+)\b"
-    r"|\b(?:exactly|only|total|all)\s+(?:[2-9]|[1-9][0-9]+)\s+(?:AI\s+)?agents?\b"
+    rf"(?i)(?<![\w]){COUNT}(?:[\s-]+(?:dedicated|specialized|intelligent|autonomous|powered|virtual|digital|AI|agent))*[\s-]+{AGENT}"
+    rf"|\b{AGENT}\s*(?:[:=]|are|of|totaling)\s*{COUNT}\b"
+    rf"|\b(?:exactly|only|total|all)\s+{COUNT}(?:\s+(?:dedicated|specialized|AI))?\s+{AGENT}"
 )
 # Human-readable headlines and product descriptions must not promote computed counts.
 DYNAMIC_HEADLINE = re.compile(
@@ -45,6 +47,7 @@ def violations(root: pathlib.Path):
 def self_test():
     forbidden = [
         "6 AI Agents", "5 agents", "Exactly 6 AI agents", "Agents: 5",
+        "Six AI agents", "5 dedicated AI agents", "six-agent AI platform", "AI agents: five",
         "Total 8 AI agents", "12-agent education platform",
         "agentCount} AI agents", "totalAgents AI agents"
     ]
