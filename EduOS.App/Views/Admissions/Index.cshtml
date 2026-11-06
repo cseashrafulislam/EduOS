@@ -99,6 +99,7 @@
                 <h3 id="newApplicationTitle">@T["NewApplication"]</h3>
             </div>
 
+            <div id="admissionDraftHost" class="mb-3" aria-label="Admission draft / ভর্তি খসড়া"></div>
             <form id="admissionForm" class="row g-3" novalidate>
                 <div class="col-12">
                     <label class="form-label" for="admissionFormReference">@(bn ? "প্রকাশিত ভর্তি ফরম" : "Published intake") *</label>
@@ -343,4 +344,5 @@
     <script src="~/js/public-admission/retry-keys.js" asp-append-version="true"></script>
     <script src="~/js/admissions/offer-workflow.js" asp-append-version="true"></script>
     <script src="~/js/admissions/index.js" asp-append-version="true"></script>
+    <script src="~/js/admissions/transcript-draft.js" asp-append-version="true"></script>
 }
