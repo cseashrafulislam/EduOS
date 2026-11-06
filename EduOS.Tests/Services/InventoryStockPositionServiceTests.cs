@@ -150,4 +150,53 @@ public sealed class InventoryStockPositionServiceTests
         var second = await Service(db).GetStockPositionAsync(store.Id, snapshot, "Paper", true, 2, 1);
         second.Data!.Items.Single().ItemCode.Should().Be("B");
     }
+
+    [Fact]
+    public async Task Position_paginates_catalogs_above_two_thousand_without_truncation()
+    {
+        await using var db = Context(101);
+        var store = new InventoryLocation { TenantId = 101, Code = "MAIN", Name = "Main" };
+        db.InventoryLocations.Add(store);
+        db.InventoryItems.AddRange(Enumerable.Range(1, 2501).Select(i => new InventoryItem {
+            TenantId = 101, Code = $"SKU{i:00000}", Name = $"Stock item {i}"
+        }));
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var page = await service.GetStockPositionAsync(store.Id, null, null, true, 26, 100);
+        page.Success.Should().BeTrue(page.Message);
+        page.Data!.CatalogItemCount.Should().Be(2501);
+        page.Data.TotalCount.Should().Be(2501);
+        page.Data.Items.Should().ContainSingle(x => x.ItemCode == "SKU02501");
+        page.Data.Items.Single().QuantityOnHand.Should().Be(0m);
+
+        var nonzero = await service.GetStockPositionAsync(store.Id, null, null, false, 1, 100);
+        nonzero.Success.Should().BeTrue(nonzero.Message);
+        nonzero.Data!.CatalogItemCount.Should().Be(2501);
+        nonzero.Data.TotalCount.Should().Be(0);
+        nonzero.Data.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Position_rejects_negative_lot_even_when_off_requested_page()
+    {
+        await using var db = Context(101);
+        var store = new InventoryLocation { TenantId = 101, Code = "MAIN", Name = "Main" };
+        var items = Enumerable.Range(1, 102).Select(i => new InventoryItem {
+            TenantId = 101, Code = $"SKU{i:00000}", Name = "Stock item"
+        }).ToArray();
+        db.InventoryLocations.Add(store);
+        db.InventoryItems.AddRange(items);
+        await db.SaveChangesAsync();
+        var issue = new InventoryMovement { TenantId = 101, MovementNumber = "NEG", MovementTypeCode = "Issue",
+            StateCode = "Posted", FromLocationId = store.Id, PostedAt = DateTime.UtcNow.AddMinutes(-1) };
+        db.InventoryMovements.Add(issue);
+        await db.SaveChangesAsync();
+        db.InventoryMovementLines.Add(new InventoryMovementLine { TenantId = 101,
+            InventoryMovementId = issue.Id, InventoryItemId = items[^1].Id, Quantity = 1m, UnitCost = 1m });
+        await db.SaveChangesAsync();
+
+        var result = await Service(db).GetStockPositionAsync(store.Id, null, null, true, 1, 10);
+        result.StatusCode.Should().Be(409);
+    }
 }

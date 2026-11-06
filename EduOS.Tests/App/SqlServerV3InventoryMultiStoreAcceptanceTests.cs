@@ -11,6 +11,35 @@ namespace EduOS.Tests.App;
 public sealed partial class SqlServerV3InventoryTransferLifecycleTests
 {
     [Fact]
+    public async Task Stock_position_is_sql_paged_and_reconciles_to_canonical_posted_ledger()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var f = await SeedAsync(connection);
+        await using var db = OpenAs(f.Options, f.TenantId, f.UserId);
+        var service = Service(db, f);
+        var source = await service.GetStockPositionAsync(f.SourceId, null, null, true, 1, 1);
+        Assert.True(source.Success, source.Message);
+        Assert.Equal(1, source.Data!.CatalogItemCount);
+        Assert.Equal(1, source.Data.TotalCount);
+        var entry = Assert.Single(source.Data.Items);
+        Assert.Equal(f.ItemId, entry.InventoryItemId);
+        Assert.Equal(10m, entry.QuantityOnHand);
+        Assert.Equal(50m, entry.RecordedCostBalance);
+        Assert.Equal(1, entry.ActiveLotCount);
+
+        var destination = await service.GetStockPositionAsync(f.DestinationId, null, null, false, 1, 1);
+        Assert.True(destination.Success, destination.Message);
+        Assert.Equal(1, destination.Data!.CatalogItemCount);
+        Assert.Equal(0, destination.Data.TotalCount);
+        Assert.Empty(destination.Data.Items);
+        var beyond = await service.GetStockPositionAsync(f.SourceId, null, null, true, 2, 1);
+        Assert.True(beyond.Success, beyond.Message);
+        Assert.Equal(1, beyond.Data!.TotalCount);
+        Assert.Empty(beyond.Data.Items);
+    }
+
+    [Fact]
     public async Task Print_count_uses_fresh_authorized_blind_draft_projection_not_private_book_fields()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
