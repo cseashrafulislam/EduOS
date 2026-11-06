@@ -61,6 +61,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             new TenantAdmin(tenantId, userId),
             new LearnerIdentifierProtector(settings, new EphemeralDataProtectionProvider()),
             settings,
+            db,
             NullLogger<LearnerIdentityService>.Instance);
     }
 

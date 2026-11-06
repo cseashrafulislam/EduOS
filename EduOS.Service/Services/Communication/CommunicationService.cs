@@ -24,7 +24,8 @@ public sealed class CommunicationService(
     IDataProtectionProvider protector, ILogger<CommunicationService> logger) : ICommunicationService
 {
     private const string MessageScope = "communication.message.send";
-    private bool SignedIn => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0;
+    private bool SignedIn => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0 &&
+        db.CurrentTenantId == user.TenantId;
     private bool Admin => SignedIn && user.IsTenantAdmin;
     private static bool PageOk(int page, int size) => page > 0 && size is >= 1 and <= 100 && page <= int.MaxValue / size;
     private static string Version(byte[] value) => Convert.ToBase64String(value);

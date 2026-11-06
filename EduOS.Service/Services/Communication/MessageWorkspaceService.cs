@@ -12,7 +12,8 @@ namespace EduOS.Service.Services.Communication;
 /// <summary>Read models and receipts for the canonical CommunicationService messaging workflow.</summary>
 public sealed partial class MessageWorkspaceService(EduOSDbContext db, ICurrentUserService user, IUnitOfWork unit) : IMessageWorkspaceService
 {
-    private bool SignedIn => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0;
+    private bool SignedIn => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0 &&
+        db.CurrentTenantId == user.TenantId;
     private static bool PageOk(int page, int size) => page > 0 && size is >= 1 and <= 100 && page <= int.MaxValue / size;
     private IQueryable<EduOS.Core.Entities.Communication.MessageThread> MyThreads() =>
         db.MessageThreads.AsNoTracking().Where(x => x.TenantId == user.TenantId &&

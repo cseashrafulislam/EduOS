@@ -529,6 +529,18 @@ public class LearnerIdentityServiceTests
         denied.Data.Should().BeNull();
     }
 
+    [Fact]
+    public async Task Direct_identity_service_rejects_switched_institution_before_person_or_audit_access()
+    {
+        var options = CreateOptions();
+        await using var db = CreateContext(options, 101);
+        var service = CreateService(db, new TestCurrentUser(202), LookupKey);
+        (await service.GetAccessHistoryAsync(new LearnerIdentityAccessLogFilterDto())).StatusCode.Should().Be(403);
+        (await service.RegisterOrRequestAsync(Request(1, PersonIdentifierType.BirthRegistration,
+            "12345678901234567"))).StatusCode.Should().Be(403);
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
     private static RegisterLearnerIdentityRequestDto Request(
         long studentId,
         PersonIdentifierType identifierType,
@@ -597,6 +609,7 @@ public class LearnerIdentityServiceTests
             currentUser,
             protector,
             settings,
+            context,
             NullLogger<LearnerIdentityService>.Instance);
     }
 

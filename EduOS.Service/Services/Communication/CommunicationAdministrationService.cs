@@ -5,6 +5,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Enums.Domain;
+using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public sealed partial class CommunicationAdministrationService : ICommunicationA
     private readonly IGenericRepository<CommunicationDelivery> _deliveries;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _user;
+    private readonly EduOSDbContext _db;
     private readonly IDataProtector _protector;
     private readonly ILogger<CommunicationAdministrationService> _logger;
 
@@ -26,15 +28,17 @@ public sealed partial class CommunicationAdministrationService : ICommunicationA
         IGenericRepository<MessageTemplate> templates, IGenericRepository<NoticeCategory> categories,
         IGenericRepository<CommunicationDelivery> deliveries,
         IUnitOfWork unitOfWork, ICurrentUserService user, IDataProtectionProvider provider,
+        EduOSDbContext db,
         ILogger<CommunicationAdministrationService> logger)
     {
         _gateways = gateways; _templates = templates; _categories = categories; _deliveries = deliveries;
-        _unitOfWork = unitOfWork; _user = user;
+        _unitOfWork = unitOfWork; _user = user; _db = db;
         _protector = provider.CreateProtector("EduOS.Communication.GatewayCredentials.v1");
         _logger = logger;
     }
 
-    private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 && _user.IsTenantAdmin;
+    private bool CanManage() => _user.IsAuthenticated && _user.UserId > 0 && _user.TenantId > 0 &&
+        _db.CurrentTenantId == _user.TenantId && _user.IsTenantAdmin;
     private static bool ValidChannel(NotificationChannelType channel) => Enum.IsDefined(channel);
     private static bool MatchesVersion(byte[] version, string? encoded)
     {

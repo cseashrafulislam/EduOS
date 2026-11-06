@@ -23,7 +23,7 @@ public sealed class CommunicationAdministrationServiceTests
         var created = await admin.SaveNoticeCategoryAsync(null, new SaveNoticeCategoryRequestDto
         { Code = "GENERAL", Name = "General notices" });
         created.Success.Should().BeTrue(created.Message);
-        (await Service(db, 202, true).GetNoticeCategoriesAsync()).Data.Should().BeEmpty();
+        (await Service(db, 202, true).GetNoticeCategoriesAsync()).StatusCode.Should().Be(403);
         (await Service(db, 101, false).SaveNoticeCategoryAsync(null, new SaveNoticeCategoryRequestDto
         { Code = "PRIVATE", Name = "Private" })).StatusCode.Should().Be(403);
         (await admin.SaveNoticeCategoryAsync(null, new SaveNoticeCategoryRequestDto
@@ -59,7 +59,7 @@ public sealed class CommunicationAdministrationServiceTests
         new GenericRepository<CommunicationGateway>(db), new GenericRepository<MessageTemplate>(db),
         new GenericRepository<NoticeCategory>(db), new GenericRepository<CommunicationDelivery>(db),
         db, new User(tenant, admin),
-        new EphemeralDataProtectionProvider(), NullLogger<CommunicationAdministrationService>.Instance);
+        new EphemeralDataProtectionProvider(), db, NullLogger<CommunicationAdministrationService>.Instance);
 
     private sealed class User(long tenant, bool admin) : ICurrentUserService
     {

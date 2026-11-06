@@ -9,6 +9,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Core.Settings;
+using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -31,6 +32,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
     private readonly PersonTenantIsolationGuard _isolation;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUser;
+    private readonly EduOSDbContext _db;
     private readonly ILearnerIdentifierProtector _identifierProtector;
     private readonly LearnerIdentitySettings _settings;
     private readonly ILogger<LearnerIdentityService> _logger;
@@ -47,6 +49,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         ICurrentUserService currentUser,
         ILearnerIdentifierProtector identifierProtector,
         IOptions<LearnerIdentitySettings> settings,
+        EduOSDbContext db,
         ILogger<LearnerIdentityService> logger)
     {
         _students = students;
@@ -58,16 +61,20 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         _isolation = isolation;
         _unitOfWork = unitOfWork;
         _currentUser = currentUser;
+        _db = db;
         _identifierProtector = identifierProtector;
         _settings = settings.Value;
         _logger = logger;
     }
 
+    private bool HasTenantContext => _currentUser.IsAuthenticated && _currentUser.UserId > 0 &&
+        _currentUser.TenantId > 0 && _db.CurrentTenantId == _currentUser.TenantId;
+
     public async Task<ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>> GetAccessHistoryAsync(
         LearnerIdentityAccessLogFilterDto filter,
         CancellationToken cancellationToken = default)
     {
-        if (!_currentUser.IsAuthenticated || !_currentUser.IsTenantAdmin || _currentUser.TenantId <= 0)
+        if (!HasTenantContext || !_currentUser.IsTenantAdmin)
             return ApiResponse<PagedResult<LearnerIdentityAccessLogDto>>.ErrorResponse("Tenant administrator access is required.", 403);
         if (filter == null || filter.Page < 1 || filter.PageSize is < 1 or > 100 ||
             filter.UserId is <= 0 || filter.StudentReference == Guid.Empty ||
@@ -125,7 +132,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         RegisterLearnerIdentityByReferenceRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        if (!_currentUser.IsAuthenticated || (!_currentUser.IsTenantAdmin && !_currentUser.IsInRole("AdmissionOfficer")))
+        if (!HasTenantContext || (!_currentUser.IsTenantAdmin && !_currentUser.IsInRole("AdmissionOfficer")))
             return Error("Authorized admission access is required.", 403);
         if (_currentUser.TenantId <= 0) return Error("Tenant context is required.", 403);
         if (request == null || request.StudentReference == Guid.Empty)
@@ -151,7 +158,7 @@ public sealed class LearnerIdentityService : ILearnerIdentityService
         RegisterLearnerIdentityRequestDto request,
         CancellationToken cancellationToken = default)
     {
-        if (!_currentUser.IsAuthenticated || (!_currentUser.IsTenantAdmin && !_currentUser.IsInRole("AdmissionOfficer")))
+        if (!HasTenantContext || (!_currentUser.IsTenantAdmin && !_currentUser.IsInRole("AdmissionOfficer")))
             return Error("Authorized admission access is required.", 403);
         if (_currentUser.TenantId <= 0) return Error("Tenant context is required.", 403);
         if (request == null) return Error("Invalid learner identity request.");

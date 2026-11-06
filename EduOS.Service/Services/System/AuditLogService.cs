@@ -4,6 +4,7 @@ using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,12 +14,15 @@ public sealed class AuditLogService : IAuditLogService
 {
     private readonly IAuditLogRepository _repository;
     private readonly ICurrentUserService _user;
+    private readonly EduOSDbContext _db;
     private readonly ILogger<AuditLogService> _logger;
 
-    public AuditLogService(IAuditLogRepository repository, ICurrentUserService user, ILogger<AuditLogService> logger)
+    public AuditLogService(IAuditLogRepository repository, ICurrentUserService user,
+        EduOSDbContext db, ILogger<AuditLogService> logger)
     {
         _repository = repository;
         _user = user;
+        _db = db;
         _logger = logger;
     }
 
@@ -172,7 +176,8 @@ public sealed class AuditLogService : IAuditLogService
         return query;
     }
 
-    private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0 &&
+    private bool CanRead() => _user.IsAuthenticated && _user.UserId > 0 &&
+        _user.TenantId > 0 && _db.CurrentTenantId == _user.TenantId &&
         (_user.IsTenantAdmin || _user.IsInRole("Principal"));
 
     private static bool ValidRange(AuditLogFilterDto filter) =>

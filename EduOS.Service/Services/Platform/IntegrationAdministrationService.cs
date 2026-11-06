@@ -24,7 +24,8 @@ public sealed partial class IntegrationAdministrationService(
     IUnitOfWork unit, ILogger<IntegrationAdministrationService> logger) : IIntegrationAdministrationService
 {
     private const string CredentialScope = "integration.api-credential.create";
-    private bool CanManage => user.IsAuthenticated && user.TenantId > 0 && user.IsTenantAdmin;
+    private bool CanManage => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId && user.IsTenantAdmin;
     private static string Version(byte[] value) => Convert.ToBase64String(value);
     private static bool VersionMatches(byte[] current, string? supplied)
     {

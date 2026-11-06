@@ -16,7 +16,7 @@ public sealed class AuditLogCsvExportTests
     public async Task Unauthenticated_export_is_rejected_before_database_access()
     {
         var user = new Mock<ICurrentUserService>();
-        var service = new AuditLogService(null!, user.Object, NullLogger<AuditLogService>.Instance);
+        var service = new AuditLogService(null!, user.Object, null!, NullLogger<AuditLogService>.Instance);
         Assert.Equal(403, (await service.ExportCsvAsync(new AuditLogFilterDto())).StatusCode);
     }
 

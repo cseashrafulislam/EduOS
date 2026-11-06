@@ -25,7 +25,8 @@ public sealed class MessageAttachmentService(
 {
     private const long MaxBytes = 5 * 1024 * 1024;
     private const int MaxAttachments = 3;
-    private bool SignedIn => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0;
+    private bool SignedIn => user.IsAuthenticated && user.TenantId > 0 && user.UserId > 0 &&
+        db.CurrentTenantId == user.TenantId;
     internal static bool TenantMessageKey(string? key, long tenant) =>
         tenant > 0 && !string.IsNullOrWhiteSpace(key) &&
         key.StartsWith($"tenant-{tenant}/message-attachments/", StringComparison.Ordinal) &&

@@ -1,0 +1,75 @@
+using EduOS.Core.DTOs.System;
+using EduOS.Core.DTOs.Communication;
+using EduOS.Core.Entities.Communication;
+using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IRepositories;
+using EduOS.Persistence.Context;
+using EduOS.Persistence.Repositories;
+using EduOS.Service.Services;
+using EduOS.Service.Services.Communication;
+using EduOS.Service.Services.Platform;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Xunit;
+
+namespace EduOS.Tests.Services;
+
+public sealed class CentralSharedScopeBoundaryTests
+{
+    [Fact]
+    public async Task Shared_audit_integration_communication_messages_and_files_fail_closed_on_tenant_switch()
+    {
+        var context = new DefaultHttpContext();
+        context.Items["TenantId"] = 22L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("central-scope-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = context });
+        var user = new Mock<ICurrentUserService>();
+        user.SetupGet(x => x.IsAuthenticated).Returns(true);
+        user.SetupGet(x => x.UserId).Returns(10);
+        user.SetupGet(x => x.TenantId).Returns(11);
+        user.SetupGet(x => x.IsTenantAdmin).Returns(true);
+        var auditRepo = new Mock<IAuditLogRepository>();
+        auditRepo.Setup(x => x.GetQueryable()).Returns(db.AuditLogs);
+        var audit = new AuditLogService(auditRepo.Object, user.Object, db,
+            NullLogger<AuditLogService>.Instance);
+        var integration = new IntegrationAdministrationService(db, user.Object, null!, null!,
+            NullLogger<IntegrationAdministrationService>.Instance);
+        var communication = new CommunicationService(db, user.Object, null!, null!, db, null!,
+            NullLogger<CommunicationService>.Instance);
+        var messages = new MessageWorkspaceService(db, user.Object, db);
+        var attachments = new MessageAttachmentService(db, user.Object, null!, db,
+            NullLogger<MessageAttachmentService>.Instance);
+        var administration = new CommunicationAdministrationService(
+            new GenericRepository<CommunicationGateway>(db), new GenericRepository<MessageTemplate>(db),
+            new GenericRepository<NoticeCategory>(db), new GenericRepository<CommunicationDelivery>(db),
+            db, user.Object, new EphemeralDataProtectionProvider(), db,
+            NullLogger<CommunicationAdministrationService>.Instance);
+
+        Assert.Equal(403, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+        Assert.Equal(403, (await audit.GetStatisticsAsync(new AuditLogFilterDto())).StatusCode);
+        Assert.Equal(403, (await audit.ExportCsvAsync(new AuditLogFilterDto())).StatusCode);
+        Assert.Equal(403, (await integration.GetWebhookEndpointsAsync(1, 20)).StatusCode);
+        Assert.Equal(403, (await integration.GetApiCredentialsAsync(1, 20)).StatusCode);
+        Assert.Equal(403, (await integration.SaveWebhookEndpointAsync(null, new())).StatusCode);
+        Assert.Equal(403, (await integration.CreateApiCredentialAsync(new())).StatusCode);
+        Assert.Equal(403, (await communication.GetNoticesAsync(1, 20, null)).StatusCode);
+        Assert.Equal(403, (await messages.GetMyThreadsAsync(1, 20)).StatusCode);
+        Assert.Equal(403, (await attachments.GetForMessageAsync(999)).StatusCode);
+        Assert.Equal(403, (await administration.GetNoticeCategoriesAsync()).StatusCode);
+        Assert.Equal(403, (await administration.SaveNoticeCategoryAsync(null,
+            new SaveNoticeCategoryRequestDto { Code = "SCOPE", Name = "Must not persist" })).StatusCode);
+        Assert.False(db.ChangeTracker.HasChanges());
+
+        // Scope is dynamic: valid same-institution calls must keep working after a fresh selection.
+        context.Items["TenantId"] = 11L;
+        Assert.Equal(200, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+        Assert.Equal(200, (await integration.GetWebhookEndpointsAsync(1, 20)).StatusCode);
+        Assert.Equal(200, (await communication.GetNoticesAsync(1, 20, null)).StatusCode);
+        Assert.Equal(200, (await messages.GetMyThreadsAsync(1, 20)).StatusCode);
+        Assert.Equal(200, (await administration.GetNoticeCategoriesAsync()).StatusCode);
+    }
+}
