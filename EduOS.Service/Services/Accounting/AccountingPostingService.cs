@@ -18,10 +18,12 @@ public sealed partial class AccountingPostingService : IAccountingPostingService
     public AccountingPostingService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock)
     { this.db = db; this.user = user; this.clock = clock; }
 
-    private bool CanRead => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool TenantActor => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId;
+    private bool CanRead => TenantActor &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("Accountant"));
     // Manual journals have no campus. Only institution-wide administrators can mutate them.
-    private bool CanWrite => user.IsAuthenticated && user.TenantId > 0 &&
+    private bool CanWrite => TenantActor &&
         (user.IsTenantAdmin || user.IsInRole("Principal"));
     private async Task<bool> CanReadInstitutionWideAsync(CancellationToken ct)
     {

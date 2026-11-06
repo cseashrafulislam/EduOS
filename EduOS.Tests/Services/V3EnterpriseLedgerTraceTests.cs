@@ -118,4 +118,72 @@ public sealed class V3EnterpriseLedgerTraceTests
         Assert.Equal(200, result.StatusCode);
         Assert.Equal("NoExplicitReference", result.Data!.FinanceEvidenceStatus);
     }
+
+    [Fact]
+    public async Task Central_stock_register_checks_original_reversal_lot_cost_and_duplicate_evidence()
+    {
+        await using var db = Open(101);
+        var at = new DateTime(2026, 10, 5, 10, 0, 0, DateTimeKind.Utc);
+        var location = new InventoryLocation { Id = 4, TenantId = 101, Name = "Main store", Code = "MAIN" };
+        var issue = new InventoryMovement { Id = 31, TenantId = 101,
+            MovementNumber = "ISS-31", MovementTypeCode = "Issue",
+            FromLocationId = 4, StateCode = "Posted", PostedAt = at, MovementAt = at };
+        var reversal = new InventoryMovement { Id = 32, TenantId = 101,
+            MovementNumber = "REV-32", MovementTypeCode = "ReversalIssue",
+            SourceType = "MovementReversal", SourceId = 31, ReversalOfMovementId = 31,
+            FromLocationId = 4, StateCode = "Posted", PostedAt = at, MovementAt = at };
+        db.InventoryLocations.Add(location);
+        db.InventoryMovements.AddRange(issue, reversal);
+        db.InventoryMovementLines.AddRange(
+            new InventoryMovementLine { Id = 41, TenantId = 101, InventoryMovementId = 31,
+                LineNo = 1, InventoryItemId = 9, Quantity = 3m, UnitCost = 4m, LotOrBatchNo = "LOT-A" },
+            new InventoryMovementLine { Id = 42, TenantId = 101, InventoryMovementId = 32,
+                LineNo = 1, InventoryItemId = 9, Quantity = 3m, UnitCost = 4m, LotOrBatchNo = "LOT-A" });
+        await db.SaveChangesAsync();
+        var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(101, "TenantAdmin"));
+        var valid = await register.GetAsync("stock", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        Assert.Equal(200, valid.StatusCode);
+        Assert.Equal("NoExplicitReference", Assert.Single(valid.Data!.Items, x => x.Number == "REV-32").EvidenceStatus);
+
+        // A second posted compensation with a different request ID must not
+        // make either reversal appear reconciled in historical reporting.
+        db.InventoryMovements.Add(new InventoryMovement { Id = 33, TenantId = 101,
+            MovementNumber = "REV-33", MovementTypeCode = "ReversalIssue",
+            SourceType = "MovementReversal", SourceId = 31, ReversalOfMovementId = 31,
+            FromLocationId = 4, StateCode = "Posted", PostedAt = at, MovementAt = at });
+        db.InventoryMovementLines.Add(new InventoryMovementLine { Id = 43, TenantId = 101,
+            InventoryMovementId = 33, LineNo = 1, InventoryItemId = 9,
+            Quantity = 3m, UnitCost = 4m, LotOrBatchNo = "LOT-A" });
+        await db.SaveChangesAsync();
+        var duplicate = await register.GetAsync("stock", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        Assert.Equal("EvidenceConflict", Assert.Single(duplicate.Data!.Items, x => x.Number == "REV-32").EvidenceStatus);
+        Assert.Equal("EvidenceConflict", Assert.Single(duplicate.Data.Items, x => x.Number == "REV-33").EvidenceStatus);
+    }
+
+    [Theory]
+    [InlineData(5, "LOT-A")]
+    [InlineData(4, "LOT-B")]
+    public async Task Central_stock_register_rejects_balanced_but_changed_reversal_line(int unitCost, string lot)
+    {
+        await using var db = Open(101);
+        var at = new DateTime(2026, 10, 5, 10, 0, 0, DateTimeKind.Utc);
+        db.InventoryLocations.Add(new InventoryLocation { Id = 4, TenantId = 101, Name = "Main store", Code = "MAIN" });
+        db.InventoryMovements.AddRange(
+            new InventoryMovement { Id = 31, TenantId = 101, MovementNumber = "ISS-31",
+                MovementTypeCode = "Issue", FromLocationId = 4,
+                StateCode = "Posted", PostedAt = at, MovementAt = at },
+            new InventoryMovement { Id = 32, TenantId = 101, MovementNumber = "REV-32",
+                MovementTypeCode = "ReversalIssue", SourceType = "MovementReversal",
+                SourceId = 31, ReversalOfMovementId = 31, FromLocationId = 4,
+                StateCode = "Posted", PostedAt = at, MovementAt = at });
+        db.InventoryMovementLines.AddRange(
+            new InventoryMovementLine { Id = 41, TenantId = 101, InventoryMovementId = 31,
+                LineNo = 1, InventoryItemId = 9, Quantity = 3m, UnitCost = 4m, LotOrBatchNo = "LOT-A" },
+            new InventoryMovementLine { Id = 42, TenantId = 101, InventoryMovementId = 32,
+                LineNo = 1, InventoryItemId = 9, Quantity = 3m, UnitCost = unitCost, LotOrBatchNo = lot });
+        await db.SaveChangesAsync();
+        var register = new V3EnterpriseReconciliationRegisterService(db, new Actor(101, "TenantAdmin"));
+        var page = await register.GetAsync("stock", new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31));
+        Assert.Equal("EvidenceConflict", Assert.Single(page.Data!.Items, x => x.Number == "REV-32").EvidenceStatus);
+    }
 }

@@ -16,6 +16,13 @@ public sealed partial class AccountingReportingService
         public string Document { get; set; } = string.Empty;
         public string State { get; set; } = string.Empty;
         public decimal? Amount { get; set; }
+        public decimal? StockValue { get; set; }
+        public decimal? UnpaidCredit { get; set; }
+        public decimal? RefundReceivable { get; set; }
+        public long? StockAccountId { get; set; }
+        public long? PayableAccountId { get; set; }
+        public long? RefundReceivableAccountId { get; set; }
+        public long? FixedAssetAccountId { get; set; }
         public bool NeedsPosting { get; set; }
     }
 
@@ -89,6 +96,7 @@ public sealed partial class AccountingReportingService
                     .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
                         Date = x.InvoiceDate, CampusId = x.CampusId,
                         Document = x.SupplierInvoiceNumber, Amount = x.TotalAmount,
+                        StockValue = x.StockValue,
                         State = x.StateCode, NeedsPosting = x.StateCode == "Posted" || x.StateCode == "Reversed" });
                 break;
             case "procurement-returns":
@@ -98,6 +106,10 @@ public sealed partial class AccountingReportingService
                     .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
                         Date = x.ReturnDate, CampusId = x.CampusId,
                         Document = x.SupplierReturnReference, Amount = x.CreditAmount,
+                        StockValue = x.StockValue, UnpaidCredit = x.UnpaidCreditAmount,
+                        RefundReceivable = x.RefundReceivableAmount,
+                        StockAccountId = x.StockAccountId, PayableAccountId = x.PayableAccountId,
+                        RefundReceivableAccountId = x.RefundReceivableAccountId,
                         State = x.StateCode, NeedsPosting = x.StateCode == "Posted" || x.StateCode == "Reversed" });
                 break;
             case "facilities":
@@ -114,6 +126,7 @@ public sealed partial class AccountingReportingService
                     .Select(x => new PostingAuditSource { Id = x.Id, JournalId = x.JournalId,
                         Date = x.CapitalizationDate, CampusId = x.CampusId,
                         Document = x.PublicId.ToString(), Amount = x.ProposedCostBasis,
+                        FixedAssetAccountId = x.FixedAssetAccountId,
                         State = x.StateCode, NeedsPosting = x.StateCode == "Posted" || x.StateCode == "Reversed" });
                 break;
             default:
@@ -172,6 +185,21 @@ public sealed partial class AccountingReportingService
             .Where(x => postingIds.Contains(x.JournalId) && x.TenantId != tenant)
             .Select(x => x.JournalId).Distinct().ToArrayAsync(ct);
         var foreignLineJournals = foreignLineJournalIds.ToHashSet();
+        // The total journal may balance while a source-specific GL leg is wrong.
+        // Aggregate by journal/account in SQL: this accommodates supplier price
+        // variance (debit != invoice total) without reading individual GL lines.
+        var accountLegs = await (
+            from line in postingLines
+            join account in db.Accounts.AsNoTracking() on line.AccountId equals account.Id
+            where account.TenantId == tenant
+            group line by new { line.JournalId, line.AccountId, account.AccountType } into g
+            select new { g.Key.JournalId, g.Key.AccountId, g.Key.AccountType,
+                Debit = g.Sum(x => x.DebitAmount), Credit = g.Sum(x => x.CreditAmount) })
+            .Take(10001).ToListAsync(ct);
+        if (accountLegs.Count > 10000)
+            return ApiResponse<FinanceSourcePostingAuditPageDto>.ErrorResponse(
+                "Excessive GL account fan-out requires investigation.", 422);
+        var legsByJournal = accountLegs.ToLookup(x => x.JournalId);
         var byId = journals.ToDictionary(x => x.Id);
         var bySource = journals.Where(x => x.SourceType == expectedType && x.SourceId.HasValue)
             .ToLookup(x => x.SourceId!.Value);
@@ -213,9 +241,26 @@ public sealed partial class AccountingReportingService
                         !hasTotals || totals!.Count < 2 || debit <= 0m || debit != credit ||
                         invalidLineJournals.Contains(journal.Id) || repeatedLineNumbers.Contains(journal.Id) ||
                         (source.CampusId.HasValue && journal.CampusId != source.CampusId);
-                    if (!invalid && source.Amount.HasValue &&
-                        (kind is "fee-payments" or "admission-payments" or "facilities") &&
-                        debit != source.Amount.Value) invalid = true;
+                    if (!invalid && source.Amount.HasValue)
+                    {
+                        var legs = legsByJournal[journal.Id];
+                        if (kind is "fee-invoices" or "fee-payments" or "admission-payments" or
+                            "payroll-payments" or "facilities")
+                            invalid = debit != source.Amount.Value;
+                        else if (kind == "procurement")
+                            invalid = legs.Where(x => x.AccountType == AccountType.Asset).Sum(x => x.Debit) != source.StockValue ||
+                                legs.Where(x => x.AccountType == AccountType.Liability).Sum(x => x.Credit) != source.Amount.Value;
+                        else if (kind == "procurement-returns")
+                            invalid = source.StockAccountId is not > 0 || source.PayableAccountId is not > 0 ||
+                                legs.Where(x => x.AccountId == source.StockAccountId).Sum(x => x.Credit) != source.StockValue ||
+                                legs.Where(x => x.AccountId == source.PayableAccountId).Sum(x => x.Debit) != source.UnpaidCredit ||
+                                (source.RefundReceivable > 0m && source.RefundReceivableAccountId is not > 0) ||
+                                legs.Where(x => x.AccountId == source.RefundReceivableAccountId).Sum(x => x.Debit) != source.RefundReceivable ||
+                                source.UnpaidCredit + source.RefundReceivable != source.Amount.Value;
+                        else if (kind == "assets")
+                            invalid = source.FixedAssetAccountId is not > 0 ||
+                                legs.Where(x => x.AccountId == source.FixedAssetAccountId).Sum(x => x.Debit) != source.Amount.Value;
+                    }
                     result.PostingStatus = invalid ? "InvalidJournal" :
                         !source.NeedsPosting && journal.State == JournalState.Posted ? "UnexpectedPosting" :
                         journal.State == JournalState.Reversed ? "Reversed" : "Posted";

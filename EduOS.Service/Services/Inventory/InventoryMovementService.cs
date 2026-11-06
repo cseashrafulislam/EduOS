@@ -17,10 +17,12 @@ public sealed partial class InventoryMovementService : IInventoryMovementService
     public InventoryMovementService(EduOSDbContext db, ICurrentUserService user, TimeProvider clock,
         ILogger<InventoryMovementService> logger, ITenantModuleService? modules = null)
     { this.db = db; this.user = user; this.clock = clock; this.logger = logger; this.modules = modules; }
-    private bool Readable => user.IsAuthenticated && user.TenantId > 0 && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager") || user.IsInRole("StoreKeeper") || user.IsInRole("Accountant"));
-    private bool Writable => user.IsAuthenticated && user.TenantId > 0 && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager") || user.IsInRole("StoreKeeper"));
-    private bool Postable => user.IsAuthenticated && user.TenantId > 0 && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager"));
-    private bool Reversible => user.IsAuthenticated && user.TenantId > 0 && (user.IsTenantAdmin || user.IsInRole("Principal"));
+    private bool TenantActor => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId;
+    private bool Readable => TenantActor && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager") || user.IsInRole("StoreKeeper") || user.IsInRole("Accountant"));
+    private bool Writable => TenantActor && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager") || user.IsInRole("StoreKeeper"));
+    private bool Postable => TenantActor && (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("InventoryManager"));
+    private bool Reversible => TenantActor && (user.IsTenantAdmin || user.IsInRole("Principal"));
     private bool AllCampuses => user.IsTenantAdmin || user.IsInRole("Principal");
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Inventory movement access denied.", 403);
     private static bool Version(byte[] actual, string? supplied)

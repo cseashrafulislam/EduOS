@@ -71,7 +71,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
             .Select(x => new { x.Id, x.PublicId, x.MovementNumber, x.MovementAt,
                 x.StateCode, x.MovementTypeCode, x.SourceType, x.SourceId,
                 x.CreatedBy, x.PostedByUserId,
-                x.FromLocationId, x.ToLocationId }).ToListAsync(ct);
+                x.FromLocationId, x.ToLocationId, x.ReversalOfMovementId }).ToListAsync(ct);
         var ids = pageRows.Select(x => x.Id).ToArray();
         // Resolve only the at-most 100 location endpoints on this report page.
         // Missing or soft-deleted locations are historical integrity conflicts.
@@ -100,6 +100,14 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 .Select(x => new V3EnterpriseFacilityEvidenceValidator.Movement(
                     x.Id, x.SourceId, x.FromLocationId, x.ToLocationId,
                     x.StateCode, x.MovementTypeCode, x.CreatedBy, x.PostedByUserId)).ToArray(), ct);
+        var invalidReversals = await V3EnterpriseStockReversalEvidenceValidator.InvalidAsync(
+            db, user.TenantId,
+            pageRows.Where(x => x.ReversalOfMovementId.HasValue ||
+                x.MovementTypeCode.StartsWith("Reversal"))
+                .Select(x => new V3EnterpriseStockReversalEvidenceValidator.Reversal(
+                    x.Id, x.ReversalOfMovementId, x.SourceId, x.SourceType,
+                    x.MovementTypeCode, x.StateCode, x.FromLocationId, x.ToLocationId))
+                .ToArray(), ct);
         var values = await db.InventoryMovementLines.IgnoreQueryFilters().AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && ids.Contains(x.InventoryMovementId))
             .GroupBy(x => x.InventoryMovementId)
@@ -166,6 +174,7 @@ public sealed class V3EnterpriseReconciliationRegisterService(
                 foreignMovementIds.Contains(m.Id) ||
                 invalidTransferReceipts.Contains(m.Id) ||
                 procurementReceipts.Invalid.Contains(m.Id) ||
+                invalidReversals.Contains(m.Id) ||
                 facilityIssues.Invalid.Contains(m.Id) ||
                 (link?.Length ?? 0) > 100 ||
                 (facilitySource && (activeLinks?.Length ?? 0) > 1) ||

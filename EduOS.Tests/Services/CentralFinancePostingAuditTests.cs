@@ -73,6 +73,87 @@ public sealed class CentralFinancePostingAuditTests
     }
 
     [Fact]
+    public async Task Balanced_wrong_fee_and_payroll_payment_amounts_are_invalid()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.StudentInvoices.Add(Invoice(1, InvoiceState.Issued, 11));
+        db.PayrollPayments.Add(new PayrollPayment { Id = 2, TenantId = 41,
+            PayrollEmployeeId = 3, PaymentDate = From, Amount = 85m,
+            State = PaymentState.Successful, JournalId = 12 });
+        Journal(db, 11, "StudentInvoice", 1, 89m);
+        Journal(db, 12, "PayrollPayment", 2, 90m);
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var fees = await service.GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices");
+        var salaries = await service.GetFinanceSourcePostingAuditAsync(From, To, "payroll-payments");
+        fees.Data!.Sources.Items.Should().ContainSingle(x => x.PostingStatus == "InvalidJournal");
+        salaries.Data!.Sources.Items.Should().ContainSingle(x => x.PostingStatus == "InvalidJournal");
+    }
+
+    [Fact]
+    public async Task Supplier_price_variance_and_asset_capitalization_validate_their_own_GL_legs()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.Accounts.AddRange(
+            new Account { Id = 3, TenantId = 41, Code = "AP", Name = "Payable", AccountType = AccountType.Liability },
+            new Account { Id = 4, TenantId = 41, Code = "VAR", Name = "Variance", AccountType = AccountType.Expense },
+            new Account { Id = 5, TenantId = 41, Code = "ASSET", Name = "Fixed Asset", AccountType = AccountType.Asset });
+        db.ProcurementSupplierInvoices.Add(new ProcurementSupplierInvoice {
+            Id = 1, TenantId = 41, PurchaseOrderId = 7, SupplierId = 8, CampusId = 10,
+            SupplierInvoiceNumber = "P-1", NormalizedSupplierInvoiceNumber = "P-1",
+            InvoiceDate = From, DueDate = To, TotalAmount = 90m, StockValue = 100m,
+            PriceVariance = -10m, StateCode = "Posted", JournalId = 61 });
+        db.ProcurementSupplierInvoices.Add(new ProcurementSupplierInvoice {
+            Id = 3, TenantId = 41, PurchaseOrderId = 7, SupplierId = 8, CampusId = 10,
+            SupplierInvoiceNumber = "P-3", NormalizedSupplierInvoiceNumber = "P-3",
+            InvoiceDate = From, DueDate = To, TotalAmount = 90m, StockValue = 99m,
+            PriceVariance = -9m, StateCode = "Posted", JournalId = 63 });
+        db.AssetCapitalizationCommands.Add(new AssetCapitalizationCommand {
+            Id = 2, TenantId = 41, AssetId = 9, CampusId = 10,
+            CapitalizationDate = From, ProposedCostBasis = 100m, FixedAssetAccountId = 5,
+            StateCode = "Posted", JournalId = 62 });
+        db.AssetCapitalizationCommands.Add(new AssetCapitalizationCommand {
+            Id = 4, TenantId = 41, AssetId = 10, CampusId = 10,
+            CapitalizationDate = From, ProposedCostBasis = 99m, FixedAssetAccountId = 5,
+            StateCode = "Posted", JournalId = 64 });
+        Journal(db, 61, "ProcurementSupplierInvoice", 1, 100m);
+        Journal(db, 62, "AssetCapitalization", 2, 130m);
+        Journal(db, 63, "ProcurementSupplierInvoice", 3, 100m);
+        Journal(db, 64, "AssetCapitalization", 4, 130m);
+        foreach (var journal in db.Journals.Local)
+            journal.CampusId = 10;
+        foreach (var id in new long[] { 61, 63 })
+        {
+            db.JournalLines.Local.Single(x => x.JournalId == id && x.DebitAmount > 0).AccountId = 1;
+            var credit = db.JournalLines.Local.Single(x => x.JournalId == id && x.CreditAmount > 0);
+            credit.AccountId = 3;
+            credit.CreditAmount = 90m;
+            db.JournalLines.Add(new JournalLine { Id = id * 10 + 3, TenantId = 41,
+                JournalId = id, AccountId = 4, LineNo = 3, CreditAmount = 10m });
+        }
+        foreach (var id in new long[] { 62, 64 })
+        {
+            var debit = db.JournalLines.Local.Single(x => x.JournalId == id && x.DebitAmount > 0);
+            debit.AccountId = 5;
+            debit.DebitAmount = 100m;
+            db.JournalLines.Add(new JournalLine { Id = id * 10 + 3, TenantId = 41,
+                JournalId = id, AccountId = 4, LineNo = 3, DebitAmount = 30m });
+        }
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var procurement = await service.GetFinanceSourcePostingAuditAsync(From, To, "procurement");
+        var assets = await service.GetFinanceSourcePostingAuditAsync(From, To, "assets");
+        procurement.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 1 && x.PostingStatus == "Posted");
+        assets.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 2 && x.PostingStatus == "Posted");
+        procurement.Data.Sources.Items.Should().ContainSingle(x => x.SourceId == 3 && x.PostingStatus == "InvalidJournal");
+        assets.Data.Sources.Items.Should().ContainSingle(x => x.SourceId == 4 && x.PostingStatus == "InvalidJournal");
+    }
+
+    [Fact]
     public async Task Posted_source_audit_rejects_foreign_tenant_lines_even_when_local_lines_balance()
     {
         var store = "cross-tenant-line-audit-" + Guid.NewGuid().ToString("N");
@@ -140,6 +221,8 @@ public sealed class CentralFinancePostingAuditTests
     {
         await using var db = Database();
         SeedAccounts(db);
+        db.Accounts.Add(new Account { Id = 3, TenantId = 41, Code = "PAYABLE",
+            Name = "Supplier payable", AccountType = AccountType.Liability });
         db.PayrollPayments.Add(new PayrollPayment { Id=1, TenantId=41,
             PayrollEmployeeId=2, PaymentDate=From, Amount=90m,
             State=PaymentState.Successful, JournalId=51 });
@@ -147,11 +230,14 @@ public sealed class CentralFinancePostingAuditTests
             Id=2, TenantId=41, SupplierInvoiceId=5, SupplierInvoiceLineId=6,
             CampusId=10, AccountingPeriodId=1, ReturnDate=From,
             SupplierReturnReference="RET-2", StateCode="Reversed",
-            CreditAmount=90m, JournalId=52, StockAccountId=1,
-            PayableAccountId=2, Reason="Accounting audit fixture" });
+            CreditAmount=90m, StockValue=90m, UnpaidCreditAmount=90m,
+            JournalId=52, StockAccountId=1,
+            PayableAccountId=3, Reason="Accounting audit fixture" });
         Journal(db, 51, "PayrollPayment", 1, 90m);
         Journal(db, 52, "ProcurementSupplierReturnCredit", 2, 90m);
         db.Journals.Local.Single(x => x.Id == 52).CampusId = 10;
+        db.JournalLines.Local.Single(x => x.JournalId == 52 && x.DebitAmount > 0m).AccountId = 3;
+        db.JournalLines.Local.Single(x => x.JournalId == 52 && x.CreditAmount > 0m).AccountId = 1;
         await db.SaveChangesAsync();
 
         var service = Service(db);
