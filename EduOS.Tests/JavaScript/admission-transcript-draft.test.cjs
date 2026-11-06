@@ -46,3 +46,21 @@ test('typed-only admission draft offers offline fallback, clear action and provi
     assert.match(source,/reviewed.some/);
     assert.doesNotMatch(source,/\.submit\s*\(|requestSubmit\s*\(|fetch\s*\(|localStorage|sessionStorage|SpeechRecognition|webkitSpeechRecognition/);
 });
+
+test('Bangladesh phone prefixes normalize consistently and never accept invalid numbers', () => {
+    const {normalizePhone,validateDraftField} = require('../../EduOS.App/wwwroot/js/admissions/transcript-draft.js');
+    assert.equal(normalizePhone('০১৮১২৩৪৫৬৭৮'), '01812345678');
+    assert.deepEqual(validateDraftField('primaryMobile','+৮৮০১৭১২৩৪৫৬৭৮'), {valid:true,value:'01712345678'});
+    assert.deepEqual(validateDraftField('guardianMobile','8801812345678'), {valid:true,value:'01812345678'});
+    for (const bad of ['0171234567','01212345678','017123456789','01712abc678','']) {
+        assert.equal(validateDraftField('primaryMobile',bad).valid,false,bad);
+    }
+});
+test('preview has explicit accessible labels and validation focuses an invalid field', () => {
+    assert.match(source,/role:'group'/);
+    assert.match(source,/for:'admissionDraftPreview_'/);
+    assert.match(source,/id:'admissionDraftPreview_'/);
+    assert.match(source,/setAttribute\('aria-invalid','true'\)/);
+    assert.match(source,/snapshot\[invalid\[0\]\]\.focus\(\)/);
+    assert.doesNotMatch(source,/requestSubmit\s*\(|\.submit\s*\(/);
+});
