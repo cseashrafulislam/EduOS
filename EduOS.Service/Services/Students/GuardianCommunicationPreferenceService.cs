@@ -17,8 +17,20 @@ public sealed class GuardianCommunicationPreferenceService(
     EduOSDbContext db, ICurrentUserService user,
     ILogger<GuardianCommunicationPreferenceService> logger) : IGuardianCommunicationPreferenceService
 {
-    private bool Allowed => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
-        (user.IsInRole("Guardian") || user.IsInRole("Parent"));
+    private Task<bool> AllowedAsync(CancellationToken ct)
+    {
+        if (!user.IsAuthenticated || user.UserId <= 0 || user.TenantId <= 0 ||
+            db.CurrentTenantId != user.TenantId ||
+            !(user.IsInRole("Guardian") || user.IsInRole("Parent")))
+            return Task.FromResult(false);
+        // A portal cookie can outlive an institution membership or active
+        // account. Never expose preferences or write the guardian audit from a
+        // suspended, revoked or deactivated user, even via a direct service call.
+        return db.TenantMemberships.AsNoTracking().AnyAsync(m =>
+            m.TenantId == user.TenantId && m.UserId == user.UserId &&
+            m.Status == EduOS.Core.Enums.Domain.MembershipStatus.Active &&
+            db.ApplicationUsers.Any(a => a.Id == user.UserId && a.IsActive), ct);
+    }
 
     private IQueryable<StudentGuardian> Mine() =>
         from link in db.StudentGuardians
@@ -59,7 +71,7 @@ public sealed class GuardianCommunicationPreferenceService(
     public async Task<ApiResponse<IReadOnlyList<GuardianCommunicationPreferenceDto>>> GetMineAsync(
         CancellationToken ct = default)
     {
-        if (!Allowed) return Fail<IReadOnlyList<GuardianCommunicationPreferenceDto>>("Guardian account required.", 403);
+        if (!await AllowedAsync(ct)) return Fail<IReadOnlyList<GuardianCommunicationPreferenceDto>>("Guardian account required.", 403);
         var rows = await Mine().AsNoTracking().OrderBy(x => x.Id).Take(101).ToListAsync(ct);
         if (rows.Count > 100)
             return Fail<IReadOnlyList<GuardianCommunicationPreferenceDto>>("Too many linked relationships.", 409);
@@ -76,7 +88,7 @@ public sealed class GuardianCommunicationPreferenceService(
     public async Task<ApiResponse<GuardianCommunicationPreferenceDto>> UpdateMineAsync(
         long linkId, UpdateGuardianCommunicationPreferenceDto request, CancellationToken ct = default)
     {
-        if (!Allowed) return Fail<GuardianCommunicationPreferenceDto>("Guardian account required.", 403);
+        if (!await AllowedAsync(ct)) return Fail<GuardianCommunicationPreferenceDto>("Guardian account required.", 403);
         if (linkId <= 0 || request == null || string.IsNullOrWhiteSpace(request.RowVersion))
             return Fail<GuardianCommunicationPreferenceDto>("Relationship and row version are required.", 400);
         try
