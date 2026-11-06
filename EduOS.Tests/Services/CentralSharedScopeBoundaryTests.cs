@@ -63,17 +63,15 @@ public sealed class CentralSharedScopeBoundaryTests
         {
             Id = 9002, UserId = 10, TenantId = 22, Status = MembershipStatus.Suspended
         };
-        using (db.BeginSystemTenantScope(22))
-        {
-            db.TenantMemberships.Add(second);
-            await db.SaveChangesAsync();
-        }
+        context.Items["TenantId"] = 22L;
+        db.TenantMemberships.Add(second);
+        await db.SaveChangesAsync();
+        context.Items["TenantId"] = 11L;
         Assert.Equal(403, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
-        using (db.BeginSystemTenantScope(22))
-        {
-            second.Status = MembershipStatus.Left;
-            await db.SaveChangesAsync();
-        }
+        context.Items["TenantId"] = 22L;
+        second.Status = MembershipStatus.Left;
+        await db.SaveChangesAsync();
+        context.Items["TenantId"] = 11L;
         Assert.Equal(200, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
     }
 
