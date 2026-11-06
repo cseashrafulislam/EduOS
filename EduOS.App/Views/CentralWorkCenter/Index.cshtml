@@ -16,6 +16,7 @@
             <button class="btn btn-primary" type="submit">@(bn ? "তালিকা দেখুন" : "Load pending work")</button>
         </div>
     </form>
+    <p class="small text-muted">@(bn ? "প্রতিষ্ঠানব্যাপী Finance journal দেখতে ক্যাম্পাস ফিল্টার খালি রাখুন। অনুমোদন ও Posting মূল Finance পৃষ্ঠাতেই হবে।" : "Leave campus blank to include institution-wide Finance journals. Approvals and posting remain in the Finance module.")</p>
     <div class="table-responsive">
         <table class="table table-striped table-hover" aria-label="@(bn ? "অপেক্ষমাণ অনুমোদন" : "Pending approvals")">
             <thead><tr>

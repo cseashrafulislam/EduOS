@@ -64,6 +64,22 @@ test('Work Center refuses an arbitrary server-supplied navigation URL', async ()
     assert.equal(b.nodes.cwcRows.children[0].children[5].children.length, 0);
 });
 
+test('Finance approval opens only a validated journal reference and labels institution scope', async () => {
+    const reference = '4da4b719-cb40-4436-8f54-cb2e5536bd70';
+    const item = { source: 'AccountingJournal', sourceId: 101, reference: 'JV-101',
+        campusId: null, state: 'Submitted', sourceReference: reference,
+        submittedAtUtc: '2026-11-05T10:01:00Z', workspaceUrl: '/AccountingJournals/Index' };
+    const b = browser({ pending: { totalCount: 1, page: 1, pageSize: 25, items: [item] } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(b.nodes.cwcRows.children[0].children[2].textContent, 'Institution-wide');
+    assert.equal(b.nodes.cwcRows.children[0].children[5].children[0].href,
+        '/AccountingJournals/Index?reference=' + reference);
+    const untrusted = browser({ pending: { totalCount: 1, page: 1, pageSize: 25,
+        items: [{ ...item, sourceReference: '../bad?x=1' }] } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(untrusted.nodes.cwcRows.children[0].children[5].children.length, 0);
+});
+
 test('Cross-module API and shared page manual keep domain approvals and entitlement checks', () => {
     const service = read('EduOS.Service/Services/Platform/CentralWorkCenterService.cs');
     const api = read('EduOS.App/Controllers/Api/CentralWorkCenterApiController.cs');
@@ -71,6 +87,10 @@ test('Cross-module API and shared page manual keep domain approvals and entitlem
     const { guideFor } = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
     assert.match(service, /IsCurrentTenantModuleAvailableAsync\("INVENTORY"\)/);
     assert.match(service, /IsCurrentTenantModuleAvailableAsync\("FACILITIES"\)/);
+    assert.match(service, /IsCurrentTenantModuleAvailableAsync\("FINANCE"\)/);
+    assert.match(service, /j\.CreatedBy != user\.UserId/);
+    assert.match(service, /j\.CampusId == null/);
+    assert.match(service, /JournalState\.Submitted/);
     assert.match(service, /RequestedByUserId != user\.UserId/);
     assert.match(service, /CreatedBy != user\.UserId/);
     assert.match(service, /visibleCampuses\.Contains/);

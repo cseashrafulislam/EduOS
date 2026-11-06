@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.SaaS;
@@ -19,6 +20,42 @@ namespace EduOS.Tests.Services;
 
 public sealed class CentralWorkCenterServiceTests
 {
+    [Fact]
+    public async Task Finance_queue_includes_only_other_makers_submitted_institution_journals_and_reversals()
+    {
+        await using var db = Database();
+        SeedIdentity(db, "TenantAdmin");
+        SeedFinanceWork(db);
+        await db.SaveChangesAsync();
+        foreach (var journal in db.Journals.Local)
+            journal.CreatedBy = journal.Id == 102 ? 9 : 8;
+        await db.SaveChangesAsync();
+
+        var service = Service(db, "TenantAdmin", inventory: false, facilities: false, finance: true);
+        var result = await service.GetPendingAsync();
+        result.StatusCode.Should().Be(200);
+        result.Data!.FinanceIncluded.Should().BeTrue();
+        result.Data.Pending.TotalCount.Should().Be(2);
+        result.Data.Pending.Items.Select(x => x.SourceId).Should().BeEquivalentTo(new long[] { 101, 103 });
+        result.Data.Pending.Items.Should().OnlyContain(x =>
+            x.Source == "AccountingJournal" && x.CampusId == null &&
+            x.SourceReference.HasValue && x.State == "Submitted" &&
+            x.WorkspaceUrl == "/AccountingJournals/Index");
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+
+        var campus = await service.GetPendingAsync(campusId: 10);
+        campus.StatusCode.Should().Be(200);
+        campus.Data!.FinanceIncluded.Should().BeFalse();
+        campus.Data.Pending.TotalCount.Should().Be(0);
+        var disabled = await Service(db, "TenantAdmin", inventory: false, facilities: false,
+            finance: false).GetPendingAsync();
+        disabled.Data!.FinanceIncluded.Should().BeFalse();
+        disabled.Data.Pending.TotalCount.Should().Be(0);
+        var inventoryOnly = await Service(db, "InventoryManager", inventory: false,
+            facilities: false, finance: true).GetPendingAsync();
+        inventoryOnly.Data!.Pending.TotalCount.Should().Be(0);
+    }
+
     [Fact]
     public async Task Central_queue_shows_three_independent_sources_without_own_or_other_tenant_records()
     {
@@ -156,13 +193,15 @@ public sealed class CentralWorkCenterServiceTests
     }
 
     private static CentralWorkCenterService Service(EduOSDbContext db, string role,
-        bool inventory = true, bool facilities = true, bool pilot = false)
+        bool inventory = true, bool facilities = true, bool pilot = false, bool finance = false)
     {
         var modules = new Mock<ITenantModuleService>();
         modules.Setup(x => x.IsCurrentTenantModuleAvailableAsync("INVENTORY"))
             .ReturnsAsync(inventory);
         modules.Setup(x => x.IsCurrentTenantModuleAvailableAsync("FACILITIES"))
             .ReturnsAsync(facilities);
+        modules.Setup(x => x.IsCurrentTenantModuleAvailableAsync("FINANCE"))
+            .ReturnsAsync(finance);
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             { ["PilotRelease:Enabled"] = pilot.ToString() }).Build();
         return new CentralWorkCenterService(db, new User(role), modules.Object, config);
@@ -205,6 +244,25 @@ public sealed class CentralWorkCenterServiceTests
             new FacilityVisitorPolicyChange { Id = 6, TenantId = 41, CampusId = 10,
                 PolicyCode = "LegalHold", ProposedValue = "true", RequestReason = "Own policy",
                 RequestedByUserId = 9, StateCode = "Submitted" });
+    }
+
+    private static void SeedFinanceWork(EduOSDbContext db)
+    {
+        var at = new DateTime(2026, 11, 5, 10, 0, 0, DateTimeKind.Utc);
+        void Add(long id, JournalState state, string source, long? sourceId = null,
+            long? reversalId = null, long? campusId = null)
+            => db.Journals.Add(new Journal { Id = id, TenantId = 41,
+                PublicId = Guid.NewGuid(), JournalNumber = "JV-" + id,
+                JournalDate = new DateOnly(2026, 11, 5), AccountingPeriodId = 1,
+                State = state, SourceType = source, SourceId = sourceId,
+                ReversalOfJournalId = reversalId, CampusId = campusId,
+                CreatedBy = 8, CreatedAt = at, UpdatedAt = at.AddMinutes((int)(id - 100)) });
+        Add(101, JournalState.Submitted, "Manual");
+        Add(102, JournalState.Submitted, "Manual"); // The reviewer is the maker.
+        Add(103, JournalState.Submitted, "ManualReversal", 90, 90);
+        Add(104, JournalState.Posted, "Manual");
+        Add(105, JournalState.Submitted, "StudentInvoice", 77);
+        Add(106, JournalState.Submitted, "Manual", campusId: 10);
     }
 
     private static Task RestoreSeedMakerAuditAsync(EduOSDbContext db)

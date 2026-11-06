@@ -7,7 +7,9 @@ public sealed class CentralWorkItemDto
 {
     public string Source { get; set; } = string.Empty;
     public long SourceId { get; set; }
-    public long CampusId { get; set; }
+    // Null identifies an institution-wide item, never a synthetic campus.
+    public long? CampusId { get; set; }
+    public Guid? SourceReference { get; set; }
     public string Reference { get; set; } = string.Empty;
     public string State { get; set; } = string.Empty;
     public DateTime SubmittedAtUtc { get; set; }
@@ -19,4 +21,5 @@ public sealed class CentralWorkCenterPageDto
     public PagedResult<CentralWorkItemDto> Pending { get; set; } = new();
     public bool InventoryIncluded { get; set; }
     public bool FacilitiesIncluded { get; set; }
+    public bool FinanceIncluded { get; set; }
 }

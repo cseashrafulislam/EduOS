@@ -1240,17 +1240,17 @@
             version: 1, reviewed: true,
             title: ['Central Approval Work Center', 'কেন্দ্রীয় অনুমোদন তালিকা'],
             purpose: ['View eligible pending decisions from different modules in one read-only list without moving their approval workflows.', 'বিভিন্ন মডিউলের অনুমোদন-অপেক্ষমাণ কাজ মূল অনুমোদন প্রক্রিয়া না বদলে একই তালিকায় দেখুন।'],
-            before: ['Sign in with an active institution membership and an authorized reviewer role. Inventory or Facilities module access is required for its respective entries.', 'সক্রিয় প্রতিষ্ঠানের সদস্যপদ ও অনুমোদিত যাচাইকারী ভূমিকা নিয়ে লগ ইন করুন। সংশ্লিষ্ট কাজের জন্য Inventory বা Facilities মডিউলের অনুমতি প্রয়োজন।'],
+            before: ['Sign in with an active institution membership and an authorized reviewer role. Inventory, Facilities or Finance module access is required for its respective entries.', 'সক্রিয় প্রতিষ্ঠানের সদস্যপদ ও অনুমোদিত যাচাইকারী ভূমিকা নিয়ে লগ ইন করুন। সংশ্লিষ্ট কাজের জন্য Inventory, Facilities বা Finance মডিউলের অনুমতি প্রয়োজন।'],
             steps: [
                 ['Open Central Work Center to view your authorized pending requests, ordered by submission time.', 'কেন্দ্রীয় অনুমোদন তালিকা খুলে জমার সময় অনুযায়ী অপেক্ষমাণ অনুমোদিত অনুরোধ দেখুন।'],
-                ['Optionally enter a permitted campus ID and select Load pending work; use Next or Previous for further rows.', 'প্রয়োজনে অনুমোদিত ক্যাম্পাস আইডি লিখে তালিকা দেখুন চাপুন; পরের বা আগের পৃষ্ঠা ব্যবহার করুন।'],
+                ['Optionally enter a permitted campus ID and select Load pending work; leave it empty for institution-wide Finance journals. Use Next or Previous for further rows.', 'প্রয়োজনে অনুমোদিত ক্যাম্পাস আইডি লিখে তালিকা দেখুন চাপুন; প্রতিষ্ঠানব্যাপী Finance journal দেখতে এটি খালি রাখুন। পরের বা আগের পৃষ্ঠা ব্যবহার করুন।'],
                 ['Choose Open to enter the source module. Review its latest record and make the decision there, subject to that module’s independent approval rules.', 'মূল মডিউলে যেতে খুলুন চাপুন। সর্বশেষ তথ্য দেখে ওই মডিউলের পৃথক অনুমোদন নিয়ম অনুযায়ী সিদ্ধান্ত নিন।']
             ],
-            example: ['An authorized InventoryManager opens the submitted purchase requisitions and purchase orders assigned to permitted campuses.', 'অনুমোদিত InventoryManager তাঁর অনুমোদিত ক্যাম্পাসের জমা দেওয়া ক্রয় চাহিদাপত্র ও ক্রয়াদেশ দেখেন।'],
+            example: ['An authorized InventoryManager opens campus purchase requests; a tenant administrator separately reviews another maker’s submitted manual Finance journal.', 'অনুমোদিত InventoryManager ক্যাম্পাসের ক্রয় অনুরোধ দেখেন; TenantAdmin অন্য প্রস্তুতকারীর জমা দেওয়া manual Finance journal আলাদাভাবে যাচাই করেন।'],
             result: ['A current, server-paged list of eligible pending work; this page itself changes no request, stock or Finance posting.', 'বর্তমান অনুমোদিত কাজের পৃষ্ঠাভিত্তিক তালিকা দেখা যায়; এই পৃষ্ঠা কোনো অনুরোধ, স্টক বা হিসাব পরিবর্তন করে না।'],
             rules: ['Creator and reviewer must be different where required. Tenant, campus, live membership, module entitlement and reviewer role are checked on the server. Open does not grant approval rights.', 'যেখানে প্রয়োজন অনুরোধকারী ও অনুমোদনকারী আলাদা হতে হবে। সার্ভারে প্রতিষ্ঠান, ক্যাম্পাস, সক্রিয় সদস্যপদ, মডিউল ও ভূমিকা যাচাই করা হয়। খুলুন লিংক অনুমোদন ক্ষমতা দেয় না।'],
             recovery: ['If a request has changed or access is denied, reload the list, confirm the institution and module permissions, then review the source record again.', 'অনুরোধ বদলে গেলে বা অনুমতি না থাকলে তালিকা রিফ্রেশ করে প্রতিষ্ঠান ও মডিউলের অনুমতি যাচাই করে মূল তথ্য আবার দেখুন।'],
-            related: [['/ProcurementRequisitions/Index', 'Purchase requisitions', 'ক্রয় চাহিদাপত্র'], ['/ProcurementPurchaseOrders/Index', 'Purchase orders', 'ক্রয়াদেশ'], ['/FacilityVisitors/Index', 'Visitor policy reviews', 'ভিজিটর নীতি যাচাই']]
+            related: [['/ProcurementRequisitions/Index', 'Purchase requisitions', 'ক্রয় চাহিদাপত্র'], ['/ProcurementPurchaseOrders/Index', 'Purchase orders', 'ক্রয়াদেশ'], ['/FacilityVisitors/Index', 'Visitor policy reviews', 'ভিজিটর নীতি যাচাই'], ['/AccountingJournals/Index', 'Manual journal approvals', 'ম্যানুয়াল জার্নাল অনুমোদন']]
         },
         '/account/profile/index': {
             version: 1, reviewed: true,

@@ -10,5 +10,13 @@ if(root){
   accounts:[],periods:[],reload:async()=>{},open:async()=>{}};
  ctx.run=async fn=>{try{await fn();}catch(e){ctx.notify(e.message,true);}};
  setupJournalRegister(ctx);
- ctx.run(async()=>{await setupJournalForm(ctx);await ctx.reload();});
+ ctx.run(async()=>{
+  await setupJournalForm(ctx);
+  await ctx.reload();
+  // Work Center supplies only a public GUID. The source API still enforces
+  // current tenant, role, module entitlement, state and maker-checker rules.
+  const reference=new URLSearchParams(window.location.search).get('reference');
+  if(reference&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reference))
+   await ctx.open(reference);
+ });
 }

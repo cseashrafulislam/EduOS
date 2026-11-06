@@ -21,7 +21,7 @@ public sealed class CentralWorkCenterService(
     {
         public int Kind { get; set; }
         public long SourceId { get; set; }
-        public long CampusId { get; set; }
+        public long? CampusId { get; set; }
         public DateTime SubmittedAtUtc { get; set; }
     }
 
@@ -60,6 +60,10 @@ public sealed class CentralWorkCenterService(
             await modules.IsCurrentTenantModuleAvailableAsync("INVENTORY");
         var facilities = !pilot && liveFacilitiesRole &&
             await modules.IsCurrentTenantModuleAvailableAsync("FACILITIES");
+        // Institution-wide manual journals have no campus; source Finance still
+        // owns approval, rowversion validation and posting, never this inbox.
+        var finance = liveFacilitiesRole &&
+            await modules.IsCurrentTenantModuleAvailableAsync("FINANCE");
 
         var tenant = user.TenantId;
         var allCampuses = (user.IsTenantAdmin &&
@@ -101,10 +105,23 @@ public sealed class CentralWorkCenterService(
                     CampusId = p.CampusId, SubmittedAtUtc = p.CreatedAt });
             pending = pending == null ? policyChanges : pending.Concat(policyChanges);
         }
+        if (finance && !campusId.HasValue)
+        {
+            var journals = db.Journals.AsNoTracking().Where(j =>
+                j.TenantId == tenant && !j.IsDeleted && j.CampusId == null &&
+                j.State == JournalState.Submitted && j.CreatedBy.HasValue &&
+                j.CreatedBy != user.UserId &&
+                ((j.SourceType == "Manual" && j.SourceId == null && j.ReversalOfJournalId == null) ||
+                 (j.SourceType == "ManualReversal" && j.SourceId != null && j.ReversalOfJournalId != null)))
+                .Select(j => new WorkIdentity { Kind = 4, SourceId = j.Id,
+                    CampusId = j.CampusId, SubmittedAtUtc = j.UpdatedAt ?? j.CreatedAt });
+            pending = pending == null ? journals : pending.Concat(journals);
+        }
 
         var result = new CentralWorkCenterPageDto
         {
             InventoryIncluded = inventory, FacilitiesIncluded = facilities,
+            FinanceIncluded = finance && !campusId.HasValue,
             Pending = new PagedResult<CentralWorkItemDto> { Page = page, PageSize = pageSize }
         };
         if (pending == null)
@@ -116,6 +133,7 @@ public sealed class CentralWorkCenterService(
         var requisitionIds = identities.Where(x => x.Kind == 1).Select(x => x.SourceId).ToArray();
         var orderIds = identities.Where(x => x.Kind == 2).Select(x => x.SourceId).ToArray();
         var policyIds = identities.Where(x => x.Kind == 3).Select(x => x.SourceId).ToArray();
+        var journalIds = identities.Where(x => x.Kind == 4).Select(x => x.SourceId).ToArray();
         var req = await db.ProcurementRequisitions.AsNoTracking().Where(x =>
             x.TenantId == tenant && requisitionIds.Contains(x.Id) && !x.IsDeleted &&
             x.StateCode == "Submitted" && x.CreatedBy.HasValue && x.CreatedBy != user.UserId &&
@@ -132,8 +150,15 @@ public sealed class CentralWorkCenterService(
             x.StateCode == "Submitted" && x.RequestedByUserId != user.UserId &&
             visibleCampuses.Contains(x.CampusId) && (!campusId.HasValue || x.CampusId == campusId.Value))
             .Select(x => new { x.Id, x.PolicyCode }).ToDictionaryAsync(x => x.Id, ct);
+        var financeJournals = await db.Journals.AsNoTracking().Where(x =>
+            x.TenantId == tenant && journalIds.Contains(x.Id) && !x.IsDeleted &&
+            x.CampusId == null && x.State == JournalState.Submitted &&
+            x.CreatedBy.HasValue && x.CreatedBy != user.UserId &&
+            ((x.SourceType == "Manual" && x.SourceId == null && x.ReversalOfJournalId == null) ||
+             (x.SourceType == "ManualReversal" && x.SourceId != null && x.ReversalOfJournalId != null)))
+            .Select(x => new { x.Id, x.JournalNumber, x.PublicId }).ToDictionaryAsync(x => x.Id, ct);
         if (req.Count != requisitionIds.Length || po.Count != orderIds.Length ||
-            policies.Count != policyIds.Length)
+            policies.Count != policyIds.Length || financeJournals.Count != journalIds.Length)
             return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse(
                 "Approval state changed while loading; refresh the work list.", 409);
 
@@ -147,10 +172,15 @@ public sealed class CentralWorkCenterService(
                 CampusId = x.CampusId, Reference = po[x.SourceId].OrderNumber,
                 State = po[x.SourceId].StateCode, SubmittedAtUtc = DateTime.SpecifyKind(x.SubmittedAtUtc, DateTimeKind.Utc),
                 WorkspaceUrl = "/ProcurementPurchaseOrders/Index" },
-            _ => new CentralWorkItemDto { Source = "FacilityVisitorPolicy", SourceId = x.SourceId,
+            3 => new CentralWorkItemDto { Source = "FacilityVisitorPolicy", SourceId = x.SourceId,
                 CampusId = x.CampusId, Reference = policies[x.SourceId].PolicyCode,
                 State = "Submitted", SubmittedAtUtc = DateTime.SpecifyKind(x.SubmittedAtUtc, DateTimeKind.Utc),
-                WorkspaceUrl = "/FacilityVisitors/Index" }
+                WorkspaceUrl = "/FacilityVisitors/Index" },
+            _ => new CentralWorkItemDto { Source = "AccountingJournal", SourceId = x.SourceId,
+                SourceReference = financeJournals[x.SourceId].PublicId,
+                CampusId = null, Reference = financeJournals[x.SourceId].JournalNumber,
+                State = "Submitted", SubmittedAtUtc = DateTime.SpecifyKind(x.SubmittedAtUtc, DateTimeKind.Utc),
+                WorkspaceUrl = "/AccountingJournals/Index" }
         }).ToList();
         return ApiResponse<CentralWorkCenterPageDto>.SuccessResponse(result);
     }

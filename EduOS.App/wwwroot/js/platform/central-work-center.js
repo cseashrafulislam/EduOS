@@ -7,12 +7,14 @@
     const sourceRoutes = Object.freeze({
         ProcurementRequisition: '/ProcurementRequisitions/Index',
         ProcurementPurchaseOrder: '/ProcurementPurchaseOrders/Index',
-        FacilityVisitorPolicy: '/FacilityVisitors/Index'
+        FacilityVisitorPolicy: '/FacilityVisitors/Index',
+        AccountingJournal: '/AccountingJournals/Index'
     });
     const names = {
         ProcurementRequisition: bn ? 'ক্রয় চাহিদাপত্র' : 'Purchase requisition',
         ProcurementPurchaseOrder: bn ? 'ক্রয়াদেশ' : 'Purchase order',
-        FacilityVisitorPolicy: bn ? 'ভিজিটর গোপনীয়তা নীতি' : 'Visitor privacy policy'
+        FacilityVisitorPolicy: bn ? 'ভিজিটর গোপনীয়তা নীতি' : 'Visitor privacy policy',
+        AccountingJournal: bn ? 'হিসাবের জার্নাল অনুমোদন' : 'Journal approval'
     };
     let page = 1, lastPage = 1, request = 0, pending = null;
     function alertMessage(message, error = true) {
@@ -44,7 +46,7 @@
             const row = document.createElement('tr');
             cell(row, names[item.source] || item.source);
             cell(row, item.reference);
-            cell(row, item.campusId);
+            cell(row, item.campusId == null ? (bn ? 'প্রতিষ্ঠানব্যাপী' : 'Institution-wide') : item.campusId);
             cell(row, item.state);
             const instant = new Date(item.submittedAtUtc);
             cell(row, Number.isFinite(instant.getTime()) ? instant.toLocaleString() : '');
@@ -55,9 +57,19 @@
                 const sourceId = Number(item.sourceId);
                 const campusId = Number(item.campusId);
                 if (Number.isSafeInteger(sourceId) && sourceId > 0 &&
-                    item.source !== 'FacilityVisitorPolicy') params.set('workId', String(sourceId));
+                    item.source !== 'FacilityVisitorPolicy' &&
+                    item.source !== 'AccountingJournal') params.set('workId', String(sourceId));
                 if (item.source === 'FacilityVisitorPolicy' &&
                     Number.isSafeInteger(campusId) && campusId > 0) params.set('campusId', String(campusId));
+                if (item.source === 'AccountingJournal') {
+                    if (typeof item.sourceReference !== 'string' ||
+                        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.sourceReference)) {
+                        row.appendChild(action);
+                        body.appendChild(row);
+                        continue;
+                    }
+                    params.set('reference', item.sourceReference);
+                }
                 link.href = sourceRoutes[item.source] + (params.size ? '?' + params : '');
                 link.className = 'btn btn-outline-primary btn-sm';
                 link.textContent = bn ? 'খুলুন' : 'Open';
