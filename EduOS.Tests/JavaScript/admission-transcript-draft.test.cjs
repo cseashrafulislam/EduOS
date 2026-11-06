@@ -30,3 +30,19 @@ test('admission draft is mounted only on authorized new-application view and nev
     assert.match(source, /target\.dispatchEvent/);
     assert.doesNotThrow(() => mount({getElementById: () => null}));
 });
+
+test('Bangladesh mobile entry accepts Bengali digits but rejects malformed phone before applying', () => {
+    const {normalizePhone, validateDraftField} = require('../../EduOS.App/wwwroot/js/admissions/transcript-draft.js');
+    assert.equal(normalizePhone('০১৭১২৩৪৫৬৭৮'), '01712345678');
+    assert.deepEqual(validateDraftField('guardianMobile','০১৭১২৩৪৫৬৭৮'), {valid:true,value:'01712345678'});
+    assert.equal(validateDraftField('primaryMobile','123').valid, false);
+    assert.equal(validateDraftField('primaryMobile','01912345678').valid, true);
+    assert.equal(validateDraftField('applicantName','  আমিনা  ').value,'আমিনা');
+});
+test('typed-only admission draft offers offline fallback, clear action and provider privacy disclosure', () => {
+    assert.match(source,/window.addEventListener\\('offline'/);
+    assert.match(source,/Clear draft/);
+    assert.match(source,/may send audio to their provider/);
+    assert.match(source,/reviewed.some/);
+    assert.doesNotMatch(source,/\\.submit\\s*\\(|requestSubmit\\s*\\(|fetch\\s*\\(|localStorage|sessionStorage|SpeechRecognition|webkitSpeechRecognition/);
+});

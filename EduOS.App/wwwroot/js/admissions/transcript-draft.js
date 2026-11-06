@@ -15,6 +15,19 @@
         guardianMobile: ['Guardian mobile', 'অভিভাবকের মোবাইল'],
         presentAddress: ['Address', 'ঠিকানা']
     };
+    // Bangladesh-first input: convert Bangla digits for telephone entry, never for names.
+    function normalizePhone(value) {
+        return String(value || '').replace(/[০-৯]/g, digit => String('০১২৩৪৫৬৭৮৯'.indexOf(digit))).trim();
+    }
+    function validateDraftField(key, value) {
+        if (key === 'primaryMobile' || key === 'guardianMobile') {
+            const phone = normalizePhone(value);
+            return /^(?:\\+?88)?01[3-9][0-9]{8}$/.test(phone)
+                ? { valid: true, value: phone }
+                : { valid: false, value: phone };
+        }
+        return { valid: Boolean(String(value || '').trim()), value: String(value || '').trim() };
+    }
     function parse(text) {
         const result = {};
         const keys = {
@@ -54,6 +67,30 @@
         const preview = el('div',{class:'mt-2','aria-live':'polite'});
         const confirm = el('button',{type:'button',class:'btn btn-outline-success mt-2',disabled:'disabled'},t('Apply reviewed fields to form','যাচাইকৃত তথ্য ফরমে বসান'));
         const status = el('p',{class:'small mt-2',role:'status'},'');
+        const privacy = el('p',{class:'small text-muted',role:'note'},t(
+            'Speech recognition is not enabled. Browser microphone services may send audio to their provider. No audio is captured or transcript stored by this draft.',
+            'স্পিচ রিকগনিশন চালু নেই। ব্রাউজারের মাইক্রোফোন সেবা অডিও সরবরাহকারীর কাছে পাঠাতে পারে। এই খসড়ায় অডিও নেওয়া বা লেখা সংরক্ষণ করা হয় না।'));
+        const clear = el('button',{type:'button',class:'btn btn-outline-secondary mt-2 ms-2'},t('Clear draft','খসড়া মুছুন'));
+        const connectivity = el('p',{class:'small',role:'status'},'');
+        function updateConnectivity() {
+            connectivity.textContent = rootOnline()
+                ? t('Type to continue; microphone provider not configured.','লিখে চালিয়ে যান; মাইক্রোফোন সেবা কনফিগার করা নেই।')
+                : t('Offline: typed draft still works. Do not submit until connected.','অফলাইন: লিখিত খসড়া ব্যবহার করা যাবে। সংযোগ না আসা পর্যন্ত জমা দেবেন না।');
+        }
+        function rootOnline() {
+            return typeof navigator === 'undefined' || navigator.onLine !== false;
+        }
+        updateConnectivity();
+        if (typeof window !== 'undefined') {
+            window.addEventListener('online', updateConnectivity);
+            window.addEventListener('offline', updateConnectivity);
+        }
+        clear.addEventListener('click', () => {
+            input.value = '';
+            invalidate();
+            status.textContent = t('Draft cleared. No form fields changed.','খসড়া মুছে ফেলা হয়েছে। ফরমের তথ্য বদলায়নি।');
+            input.focus();
+        });
         let snapshot = null;
         function invalidate() { snapshot = null; confirm.disabled = true; preview.replaceChildren(); }
         input.addEventListener('input',invalidate);
@@ -79,10 +116,16 @@
         });
         confirm.addEventListener('click',() => {
             if (!snapshot) return;
-            Object.entries(snapshot).forEach(([key,field]) => {
+            const reviewed = Object.entries(snapshot).map(([key, field]) => [key, validateDraftField(key, field.value)]);
+            if (reviewed.some(([, result]) => !result.valid)) {
+                status.textContent = t('Check required values and Bangladesh mobile numbers (01XXXXXXXXX). No fields changed.',
+                    'তথ্য এবং বাংলাদেশের মোবাইল নম্বর (01XXXXXXXXX) ঠিক করুন। কোনো তথ্য বদলায়নি।');
+                return;
+            }
+            reviewed.forEach(([key,result]) => {
                 const target = form.querySelector('#' + key);
                 if (!target || target.disabled || target.readOnly) return;
-                target.value = field.value.slice(0, Number(target.maxLength) > 0 ? target.maxLength : 1000);
+                target.value = result.value.slice(0, Number(target.maxLength) > 0 ? target.maxLength : 1000);
                 target.dispatchEvent(new Event('input',{bubbles:true}));
                 target.dispatchEvent(new Event('change',{bubbles:true}));
             });
@@ -90,7 +133,7 @@
             input.value = '';
             status.textContent = t('Fields applied. Check the form and submit manually when ready.','তথ্য ফরমে বসানো হয়েছে। যাচাই করে নিজে জমা দিন।');
         });
-        host.append(heading,note,input,previewButton,preview,confirm,status);
+        host.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,confirm,status);
     }
-    return {parse,mount};
+    return {parse,mount,normalizePhone,validateDraftField};
 });
