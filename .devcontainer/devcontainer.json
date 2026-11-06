@@ -1,0 +1,46 @@
+{
+  "name": "EduOS — .NET 10 + Node 22 + SQL Server Dev",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:2.0-10.0-noble",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "remoteUser": "vscode",
+  "workspaceFolder": "/workspaces/EduOS",
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "forwardPorts": [
+    5146
+  ],
+  "portsAttributes": {
+    "5146": {
+      "label": "EduOS — local development",
+      "onAutoForward": "notify",
+      "visibility": "private"
+    }
+  },
+  "containerEnv": {
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1",
+    "ASPNETCORE_ENVIRONMENT": "Development"
+  },
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "8gb",
+    "storage": "32gb"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "ms-mssql.mssql",
+        "dbaeumer.vscode-eslint"
+      ],
+      "settings": {
+        "dotnet.server.useOmnisharp": false
+      }
+    }
+  }
+}

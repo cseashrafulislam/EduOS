@@ -1,0 +1,75 @@
+name: Development Environment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ Ashraful ]
+    paths:
+      - '.devcontainer/**'
+      - '.config/dotnet-tools.json'
+      - '.github/workflows/development-environment.yml'
+      - 'docs/DEVELOPMENT_ENVIRONMENT.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eduos-dev-env-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  verify-toolchain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout Ashraful
+        uses: actions/checkout@v4
+
+      - name: Validate devcontainer and tool manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          cfg=json.loads(pathlib.Path('.devcontainer/devcontainer.json').read_text())
+          tools=json.loads(pathlib.Path('.config/dotnet-tools.json').read_text())
+          assert 'dotnet:2.0-10.0-noble' in cfg['image']
+          assert cfg['features']['ghcr.io/devcontainers/features/node:1']['version']=='22'
+          assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in cfg['features']
+          assert tools['tools']['dotnet-ef']['version']=='10.0.12'
+          print('Valid .NET 10 / Node 22 / Docker development configuration')
+          PY
+          bash -n .devcontainer/setup.sh .devcontainer/sqlserver.sh
+
+      - name: Provision .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Provision Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check developer toolchain
+        run: |
+          dotnet --version
+          node --version
+          docker version
+
+      - name: Restore pinned EF CLI
+        run: dotnet tool restore
+
+      - name: Restore whole EduOS solution
+        run: dotnet restore EduOS.slnx
+
+      - name: Build whole EduOS solution
+        run: dotnet build EduOS.slnx --configuration Release --no-restore
+
+      - name: Run shared JavaScript contract tests
+        run: node --test EduOS.Tests/JavaScript/*.test.cjs
+
+      - name: Report pinned toolchain
+        run: |
+          dotnet ef --version
+          echo "Developer toolchain and canonical EduOS build verified at commit $GITHUB_SHA"
