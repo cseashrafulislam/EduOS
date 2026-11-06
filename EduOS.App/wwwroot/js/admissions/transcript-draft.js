@@ -125,9 +125,20 @@
                     'তথ্য এবং বাংলাদেশের মোবাইল নম্বর (01XXXXXXXXX) ঠিক করুন। কোনো তথ্য বদলায়নি।');
                 return;
             }
-            reviewed.forEach(([key,result]) => {
-                const target = form.querySelector('#' + key);
-                if (!target || target.disabled || target.readOnly) return;
+            // Fail closed before mutating any field: a hidden/disabled or missing
+            // destination must never cause a misleading partial application.
+            const destinations = reviewed.map(([key, result]) => ({
+                key, result, target: form.querySelector('#' + key)
+            }));
+            const unavailable = destinations.find(({target}) =>
+                !target || target.disabled || target.readOnly || !target.isConnected);
+            if (unavailable) {
+                status.textContent = t('The form changed. No fields applied; reload and review again.',
+                    'ফরম পরিবর্তিত হয়েছে। কোনো তথ্য বসানো হয়নি; পুনরায় খুলে যাচাই করুন।');
+                invalidate();
+                return;
+            }
+            destinations.forEach(({result,target}) => {
                 target.value = result.value.slice(0, Number(target.maxLength) > 0 ? target.maxLength : 1000);
                 target.dispatchEvent(new Event('input',{bubbles:true}));
                 target.dispatchEvent(new Event('change',{bubbles:true}));
