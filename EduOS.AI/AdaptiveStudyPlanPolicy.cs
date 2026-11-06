@@ -66,6 +66,26 @@ public static class AdaptiveStudyPlanPolicy
             row.EarnedMarks > row.PossibleMarks))
             return StudyPlanResult.Reject(PlanStatus.Invalid);
 
+        // Bound the evidence batch and aggregate arithmetic before any grouping.
+        // A malformed or extreme canonical feed must not crash the learner page or
+        // produce a partially trusted plan. Source adapters should page/filter first.
+        if (authorizedPublishedAttempts.Count > 5000)
+            return StudyPlanResult.Reject(PlanStatus.Invalid);
+
+        try
+        {
+            return BuildValidated(request, authorizedPublishedAttempts);
+        }
+        catch (OverflowException)
+        {
+            return StudyPlanResult.Reject(PlanStatus.Invalid);
+        }
+    }
+
+    private static StudyPlanResult BuildValidated(
+        StudyPlanRequest request,
+        IReadOnlyCollection<PublishedAttemptEvidence> authorizedPublishedAttempts)
+    {
         // Multiple official attempts remain separate evidence; no grade mutation.
         // Aggregate only already-published marks and preserve missing-data semantics.
         var skills = authorizedPublishedAttempts
