@@ -32,25 +32,24 @@ public sealed class CentralMisTwoTenantIsolationTests
         var options = Options();
         await using (var seed = Open(options, 41))
         {
-            using (seed.BeginSystemTenantScope(41))
-            {
-                SeedAdmin(seed, 41, 9, 1, 2);
-                seed.Students.Add(new Student { Id = 1, TenantId = 41, StudentCode = "A",
-                    FullName = "Tenant A", StatusCode = "Active" });
-                seed.StudentInvoices.Add(Invoice(1, 41, 10m));
-                await seed.SaveChangesAsync();
-            }
-            seed.ChangeTracker.Clear();
-            using (seed.BeginSystemTenantScope(42))
-            {
-                SeedAdmin(seed, 42, 10, 3, 4);
-                seed.Students.Add(new Student { Id = 2, TenantId = 42, StudentCode = "B",
-                    FullName = "Tenant B", StatusCode = "Active" });
-                seed.Students.Add(new Student { Id = 3, TenantId = 42, StudentCode = "C",
-                    FullName = "Tenant B second", StatusCode = "Active" });
-                seed.StudentInvoices.Add(Invoice(2, 42, 900m));
-                await seed.SaveChangesAsync();
-            }
+            SeedAdmin(seed, 41, 9, 1, 2);
+            seed.Students.Add(new Student { Id = 1, TenantId = 41, StudentCode = "A",
+                FullName = "Tenant A", StatusCode = "Active" });
+            seed.StudentInvoices.Add(Invoice(1, 41, 10m));
+            await seed.SaveChangesAsync();
+        }
+        // The two tenants share one InMemory store but never one request-bound
+        // DbContext. Production tenant scope explicitly prohibits switching a
+        // context after binding it to an institution.
+        await using (var seed = Open(options, 42))
+        {
+            SeedAdmin(seed, 42, 10, 3, 4);
+            seed.Students.Add(new Student { Id = 2, TenantId = 42, StudentCode = "B",
+                FullName = "Tenant B", StatusCode = "Active" });
+            seed.Students.Add(new Student { Id = 3, TenantId = 42, StudentCode = "C",
+                FullName = "Tenant B second", StatusCode = "Active" });
+            seed.StudentInvoices.Add(Invoice(2, 42, 900m));
+            await seed.SaveChangesAsync();
         }
 
         await using var tenantA = Open(options, 41);
