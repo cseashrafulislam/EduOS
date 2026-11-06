@@ -79,7 +79,7 @@ internal static class V3EnterpriseStockReversalEvidenceValidator
             for (var i = 0; i < actual.Length; i++)
                 if (actual[i].Number != expected[i].Number || actual[i].ItemId != expected[i].ItemId ||
                     actual[i].Quantity != expected[i].Quantity || actual[i].UnitCost != expected[i].UnitCost ||
-                    !string.Equals(actual[i].Lot, expected[i].Lot, StringComparison.Ordinal))
+                    !string.Equals(actual[i].Lot ?? "", expected[i].Lot ?? "", StringComparison.Ordinal))
                 {
                     invalid.Add(reversal.Id);
                     break;

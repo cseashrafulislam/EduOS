@@ -233,11 +233,22 @@ public sealed class CentralFinancePostingAuditTests
             CreditAmount=90m, StockValue=90m, UnpaidCreditAmount=90m,
             JournalId=52, StockAccountId=1,
             PayableAccountId=3, Reason="Accounting audit fixture" });
+        db.ProcurementSupplierReturnCredits.Add(new ProcurementSupplierReturnCredit {
+            Id=3, TenantId=41, SupplierInvoiceId=5, SupplierInvoiceLineId=6,
+            CampusId=10, AccountingPeriodId=1, ReturnDate=From,
+            SupplierReturnReference="RET-3", StateCode="Posted",
+            CreditAmount=90m, StockValue=80m, UnpaidCreditAmount=90m,
+            JournalId=53, StockAccountId=1,
+            PayableAccountId=3, Reason="Corrupted return-stock valuation fixture" });
         Journal(db, 51, "PayrollPayment", 1, 90m);
         Journal(db, 52, "ProcurementSupplierReturnCredit", 2, 90m);
+        Journal(db, 53, "ProcurementSupplierReturnCredit", 3, 90m);
         db.Journals.Local.Single(x => x.Id == 52).CampusId = 10;
+        db.Journals.Local.Single(x => x.Id == 53).CampusId = 10;
         db.JournalLines.Local.Single(x => x.JournalId == 52 && x.DebitAmount > 0m).AccountId = 3;
         db.JournalLines.Local.Single(x => x.JournalId == 52 && x.CreditAmount > 0m).AccountId = 1;
+        db.JournalLines.Local.Single(x => x.JournalId == 53 && x.DebitAmount > 0m).AccountId = 3;
+        db.JournalLines.Local.Single(x => x.JournalId == 53 && x.CreditAmount > 0m).AccountId = 1;
         await db.SaveChangesAsync();
 
         var service = Service(db);
@@ -249,6 +260,8 @@ public sealed class CentralFinancePostingAuditTests
         returns.StatusCode.Should().Be(200);
         returns.Data!.Sources.Items.Should().ContainSingle(x => x.SourceId == 2 &&
             x.PostingStatus == "Posted" && x.SourceState == "Reversed");
+        returns.Data.Sources.Items.Should().ContainSingle(x => x.SourceId == 3 &&
+            x.PostingStatus == "InvalidJournal");
     }
 
     [Fact]
