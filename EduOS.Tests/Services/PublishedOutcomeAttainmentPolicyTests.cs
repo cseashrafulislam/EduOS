@@ -97,4 +97,53 @@ public sealed class PublishedOutcomeAttainmentPolicyTests
         result.Select(x => x.OutcomeId).Should().Equal(10, 20);
         result.Select(x => x.AttainmentPercent).Should().Equal(80m, 60m);
     }
+
+    [Fact]
+    public void Publication_identity_and_course_evidence_must_be_positive()
+    {
+        var baseline = Row(1, 10, 80);
+        foreach (var invalid in new[]
+        {
+            baseline with { PublicationId = 0 },
+            baseline with { PublicationVersion = 0 },
+            baseline with { EnrollmentId = 0 },
+            baseline with { CurriculumSubjectId = 0 },
+            baseline with { FullMarks = 0 },
+            baseline with { ObtainedMarks = -1 }
+        })
+        {
+            Action act = () => Policy.Calculate([invalid], [Map(1, 10, 100)]);
+            act.Should().Throw<ArgumentException>();
+        }
+    }
+
+    [Fact]
+    public void Same_version_from_different_publications_cannot_be_combined()
+    {
+        Action act = () => Policy.Calculate(
+            [Row(1, 10, 70), Row(2, 10, 80) with { PublicationId = 92 }],
+            [Map(1, 10, 100)]);
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Fractional_weights_are_supported_without_premature_rounding()
+    {
+        var result = Policy.Calculate(
+            [Row(1, 10, 100), Row(1, 20, 0)],
+            [Map(1, 10, 33.333m), Map(1, 20, 66.667m)], 3);
+        result.Single().AttainmentPercent.Should().Be(33.333m);
+    }
+
+    [Fact]
+    public void Input_collections_are_not_modified_by_calculation()
+    {
+        var rows = new List<Policy.Evidence> { Row(1, 20, 60), Row(1, 10, 80) };
+        var maps = new List<Policy.Mapping> { Map(2, 20, 100), Map(1, 10, 100) };
+        var originalRows = rows.ToArray();
+        var originalMaps = maps.ToArray();
+        Policy.Calculate(rows, maps);
+        rows.Should().Equal(originalRows);
+        maps.Should().Equal(originalMaps);
+    }
 }
