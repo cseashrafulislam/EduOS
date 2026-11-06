@@ -21,16 +21,28 @@ internal static class CentralPrivilegedAccess
         var activeUser = await db.Users.AsNoTracking().AnyAsync(x =>
             x.Id == user.UserId && x.IsActive && !x.IsDeleted, ct);
         if (!activeUser) return false;
-        var activeMember = await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
+        var member = await db.TenantMemberships.AsNoTracking().Where(x =>
             x.TenantId == user.TenantId && x.UserId == user.UserId &&
-            x.Status == MembershipStatus.Active && !x.IsDeleted, ct);
-        if (!activeMember) return false;
+            x.Status == MembershipStatus.Active && !x.IsDeleted)
+            .Select(x => new { x.IsOwner }).FirstOrDefaultAsync(ct);
+        if (member == null) return false;
 
         var roles = allowedNormalizedRoles.ToArray();
+        // The canonical TenantRoleResolver grants TenantAdmin to an active owner
+        // independently of Identity role rows; do not lock owners out on revoke.
+        if (member.IsOwner && roles.Contains("TENANTADMIN")) return true;
+
+        // Legacy unscoped non-system roles may authorize only a user associated
+        // with one institution overall, including suspended memberships.
+        var membershipCount = await db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.UserId == user.UserId && !x.IsDeleted && x.Status != MembershipStatus.Left)
+            .Select(x => x.TenantId).Distinct().Take(2).CountAsync(ct);
+        var allowLegacyRole = membershipCount == 1;
         return await db.UserRoles.AsNoTracking().AnyAsync(ur => ur.UserId == user.UserId &&
             db.Roles.IgnoreQueryFilters().AsNoTracking().Any(role =>
                 role.Id == ur.RoleId && role.IsActive && !role.IsDeleted &&
-                (role.TenantId == user.TenantId || (role.TenantId == null && role.IsSystemRole)) &&
+                (role.TenantId == user.TenantId ||
+                 (allowLegacyRole && role.TenantId == null && !role.IsSystemRole)) &&
                 roles.Contains(role.NormalizedName!)), ct);
     }
 }

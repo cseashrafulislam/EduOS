@@ -152,10 +152,14 @@ public sealed class ImportHistoryServiceTests
         return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = context });
     }
 
-    private static ImportHistoryService Service(EduOSDbContext db, ICurrentUserService user) => new(
-        new GenericRepository<ImportLog>(db),
-        new GenericRepository<ImportLogItem>(db),
-        user, NullLogger<ImportHistoryService>.Instance);
+    private static ImportHistoryService Service(EduOSDbContext db, ICurrentUserService user)
+    {
+        if (!db.Users.Any(x => x.Id == user.UserId))
+            CentralPrivilegedTestIdentity.Seed(db, user.TenantId, user.UserId);
+        return new ImportHistoryService(new GenericRepository<ImportLog>(db),
+            new GenericRepository<ImportLogItem>(db), user, db,
+            NullLogger<ImportHistoryService>.Instance);
+    }
 
     private sealed class TestUser(long tenant, bool admin) : ICurrentUserService
     {

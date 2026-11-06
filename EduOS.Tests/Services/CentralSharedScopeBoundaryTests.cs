@@ -1,6 +1,7 @@
 using EduOS.Core.DTOs.System;
 using EduOS.Core.DTOs.Communication;
 using EduOS.Core.Enums.Domain;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Communication;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
@@ -11,6 +12,7 @@ using EduOS.Service.Services.Communication;
 using EduOS.Service.Services.Platform;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -20,6 +22,61 @@ namespace EduOS.Tests.Services;
 
 public sealed class CentralSharedScopeBoundaryTests
 {
+    [Fact]
+    public async Task Privileged_read_preserves_canonical_owner_and_legacy_single_membership_roles()
+    {
+        var context = new DefaultHttpContext();
+        context.Items["TenantId"] = 11L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("central-role-compatibility-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = context });
+        CentralPrivilegedTestIdentity.Seed(db, 11, 10);
+        var user = new Mock<ICurrentUserService>();
+        user.SetupGet(x => x.IsAuthenticated).Returns(true);
+        user.SetupGet(x => x.UserId).Returns(10);
+        user.SetupGet(x => x.TenantId).Returns(11);
+        user.SetupGet(x => x.IsTenantAdmin).Returns(true);
+        var repository = new Mock<IAuditLogRepository>();
+        repository.Setup(x => x.GetQueryable()).Returns(db.AuditLogs);
+        var audit = new AuditLogService(repository.Object, user.Object, db,
+            NullLogger<AuditLogService>.Instance);
+        var role = await db.Roles.IgnoreQueryFilters().SingleAsync(x => x.Id == 9001);
+        var member = db.TenantMemberships.Single(x => x.UserId == 10);
+
+        member.IsOwner = true;
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(200, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+        member.IsOwner = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(403, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+
+        db.Roles.Add(new ApplicationRole
+        {
+            Id = 9003, Name = "TenantAdmin", NormalizedName = "TENANTADMIN",
+            TenantId = null, IsSystemRole = false, IsActive = true
+        });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 10, RoleId = 9003 });
+        await db.SaveChangesAsync();
+        Assert.Equal(200, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+        var second = new TenantMembership
+        {
+            Id = 9002, UserId = 10, TenantId = 22, Status = MembershipStatus.Suspended
+        };
+        using (db.BeginSystemTenantScope(22))
+        {
+            db.TenantMemberships.Add(second);
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(403, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+        using (db.BeginSystemTenantScope(22))
+        {
+            second.Status = MembershipStatus.Left;
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(200, (await audit.SearchAsync(new AuditLogFilterDto())).StatusCode);
+    }
+
     [Fact]
     public async Task Shared_audit_integration_communication_messages_and_files_fail_closed_on_tenant_switch()
     {
