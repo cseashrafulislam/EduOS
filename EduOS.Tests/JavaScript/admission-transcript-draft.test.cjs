@@ -70,7 +70,15 @@ test('draft refuses partial application when destination fields disappear or bec
     assert.match(source, /const unavailable = destinations\.find/);
     assert.match(source, /target\.disabled \|\| target\.readOnly \|\| !target\.isConnected/);
     assert.match(source, /if \(unavailable\) \{/);
-    assert.match(source, /No fields applied; reload and review again/);
+    assert.match(source, /No fields applied; review the form/);
     assert.ok(source.indexOf('if (unavailable) {') < source.indexOf('destinations.forEach'));
     assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(/);
+});
+
+
+test('reviewed admission fields are never silently truncated to destination maxlength', () => {
+    assert.match(source, /result\\.value\\.length > Number\\(target\\.maxLength\\)/);
+    assert.match(source, /target\\.value = result\\.value;/);
+    assert.doesNotMatch(source, /target\\.value = result\\.value\\.slice\\(/);
+    assert.ok(source.indexOf('const unavailable = destinations.find') < source.indexOf('destinations.forEach'));
 });
