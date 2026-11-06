@@ -1,5 +1,6 @@
 using EduOS.App.Authorization;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Authorization;
@@ -31,6 +32,9 @@ public sealed class TenantPermissionAccessTests
                 .UseInMemoryDatabase("perm-test-" + Guid.NewGuid().ToString("N")).Options, accessor);
         var right = new Permission { Id = 3, Code = "student_read", Name = "Read students", ModuleCode = "STUDENT" };
         db.Permissions.Add(right);
+        db.Users.Add(new ApplicationUser { Id = 51, UserName = "teacher-51", IsActive = true });
+        db.TenantMemberships.Add(new TenantMembership { Id = 1, TenantId = 101,
+            UserId = 51, Status = MembershipStatus.Active });
         db.Roles.AddRange(
             new ApplicationRole { Id = 11, TenantId = 101, Name = "Teacher", NormalizedName = "TEACHER" },
             new ApplicationRole { Id = 12, TenantId = 102, Name = "Teacher", NormalizedName = "TEACHER" });
@@ -110,6 +114,63 @@ public sealed class TenantPermissionAccessTests
         var context = new AuthorizationHandlerContext(new[] { requirement }, http.User, null);
         await new PermissionAccessHandler(db, current.Object).HandleAsync(context);
         Assert.False(context.HasSucceeded);
+    }
+
+    [Fact]
+    public async Task Live_permission_checks_reject_revocation_and_system_roles_but_preserve_owner_membership()
+    {
+        var http = new DefaultHttpContext();
+        http.Items["TenantId"] = 101L;
+        http.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "51"), new Claim(ClaimTypes.Role, "TenantAdmin")
+        }, "Test"));
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("perm-live-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+        db.Users.Add(new ApplicationUser { Id = 51, UserName = "tenant-admin", IsActive = true });
+        var membership = new TenantMembership { Id = 1, TenantId = 101, UserId = 51,
+            Status = MembershipStatus.Active };
+        db.TenantMemberships.Add(membership);
+        var role = new ApplicationRole { Id = 11, TenantId = 101, Name = "TenantAdmin",
+            NormalizedName = "TENANTADMIN", IsActive = true };
+        db.Roles.Add(role);
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 51, RoleId = 11 });
+        db.Permissions.Add(new Permission { Id = 3, Code = "student_read",
+            Name = "Student read", ModuleCode = "STUDENT" });
+        await db.SaveChangesAsync();
+        var actor = new Mock<ICurrentUserService>();
+        actor.SetupGet(x => x.IsAuthenticated).Returns(true);
+        actor.SetupGet(x => x.TenantId).Returns(101);
+        actor.SetupGet(x => x.UserId).Returns(51);
+        actor.SetupGet(x => x.IsTenantAdmin).Returns(true);
+        var handler = new PermissionAccessHandler(db, actor.Object);
+        var requirement = new PermissionAccessRequirement("STUDENT_READ");
+        async Task<bool> Allowed()
+        {
+            var context = new AuthorizationHandlerContext(new[] { requirement }, http.User, null);
+            await handler.HandleAsync(context);
+            return context.HasSucceeded;
+        }
+
+        Assert.True(await Allowed());
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.False(await Allowed());
+        membership.IsOwner = true;
+        await db.SaveChangesAsync();
+        Assert.True(await Allowed());
+        membership.IsOwner = false;
+        db.Roles.Add(new ApplicationRole { Id = 12, TenantId = null,
+            Name = "TenantAdmin", NormalizedName = "TENANTADMIN",
+            IsActive = true, IsSystemRole = true });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 51, RoleId = 12 });
+        await db.SaveChangesAsync();
+        Assert.False(await Allowed());
+        role.IsActive = true;
+        membership.Status = MembershipStatus.Suspended;
+        await db.SaveChangesAsync();
+        Assert.False(await Allowed());
     }
 
     [Fact]

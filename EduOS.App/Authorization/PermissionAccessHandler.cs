@@ -1,5 +1,7 @@
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
+using EduOS.App.Security;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +26,19 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
             actor != current.UserId) return;
         var tenant = current.TenantId;
         var user = current.UserId;
+        if (!await db.Users.AsNoTracking().AnyAsync(x => x.Id == user && x.IsActive && !x.IsDeleted)) return;
+        var membership = await db.TenantMemberships.AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.UserId == user && x.Status == MembershipStatus.Active && !x.IsDeleted)
+            .Select(x => new { x.IsOwner }).FirstOrDefaultAsync();
+        if (membership == null) return;
+        var institutionCount = await db.TenantMemberships.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.UserId == user && !x.IsDeleted && x.Status != MembershipStatus.Left)
+            .Select(x => x.TenantId).Distinct().Take(2).CountAsync();
+        var canonicalRoles = await TenantRoleResolver.GetTenantRolesAsync(
+            db, user, tenant, membership.IsOwner, institutionCount);
+        var claimedRoles = context.User.FindAll(ClaimTypes.Role)
+            .Select(x => x.Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!claimedRoles.SetEquals(canonicalRoles)) return;
         var code = requirement.PermissionCode;
         // Platform-exclusive audit deletion must never be granted through
         // tenant-owned roles or tenant-scoped user overrides.
@@ -49,13 +64,13 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
             context.Succeed(requirement);
             return;
         }
-        if (current.IsTenantAdmin)
+        if (current.IsTenantAdmin && canonicalRoles.Contains("TenantAdmin", StringComparer.OrdinalIgnoreCase))
         {
             context.Succeed(requirement);
             return;
         }
-        var activeRoles = context.User.FindAll(ClaimTypes.Role).Select(x => x.Value)
-            .Where(x => x != "SuperAdmin").Distinct().ToArray();
+        var activeRoles = canonicalRoles.Where(x =>
+            !x.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase)).ToArray();
         if (activeRoles.Length == 0) return;
 
         // TenantContextMiddleware already validated that these are exactly the
@@ -65,8 +80,10 @@ public sealed class PermissionAccessHandler(EduOSDbContext db, ICurrentUserServi
                                  on ur.RoleId equals role.Id
                              join rp in db.RolePermissions.AsNoTracking()
                                  on role.Id equals rp.RoleId
-                             where ur.UserId == user && role.TenantId == tenant &&
-                                 !role.IsDeleted && role.IsActive && !role.IsSystemRole &&
+                             where ur.UserId == user &&
+                                 (role.TenantId == tenant ||
+                                  (institutionCount == 1 && role.TenantId == null && !role.IsSystemRole)) &&
+                                 !role.IsDeleted && role.IsActive &&
                                  activeRoles.Contains(role.Name!) &&
                                  !rp.IsDeleted && rp.IsAllowed && rp.PermissionId == permissionId
                              select rp.Id).AnyAsync();
