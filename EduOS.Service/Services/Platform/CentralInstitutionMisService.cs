@@ -81,6 +81,11 @@ public sealed class CentralInstitutionMisService(
             "Current submitted procurement requisitions, not purchase orders.", "Current",
             async () => await db.ProcurementRequisitions.AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && !x.IsDeleted && x.StateCode == "Submitted", ct));
+        await Add("INVENTORY", "purchase_orders_awaiting_review", "ProcurementPurchaseOrders",
+            "Current supplier purchase orders submitted for approval or cancellation, not goods receipts or GL liabilities.", "Current",
+            async () => await db.ProcurementPurchaseOrders.AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && !x.IsDeleted &&
+                (x.StateCode == "Submitted" || x.StateCode == "CancelRequested"), ct));
         await Add("INVENTORY", "active_assets", "Assets",
             "Current non-deleted, active asset master records, not asset book value.", "Current",
             async () => await db.Assets.AsNoTracking().CountAsync(x =>
@@ -99,6 +104,10 @@ public sealed class CentralInstitutionMisService(
                 x.TenantId == tenant && !x.IsDeleted &&
                 (x.StateCode == "Approved" || x.StateCode == "Scheduled" ||
                  x.StateCode == "InProgress" || x.StateCode == "Paused"), ct));
+        await Add("FACILITIES", "visitor_policy_changes_awaiting_review", "FacilityVisitorPolicyChanges",
+            "Current submitted visitor privacy policy amendments awaiting source-owned approval.", "Current",
+            async () => await db.FacilityVisitorPolicyChanges.AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && !x.IsDeleted && x.StateCode == "Submitted", ct));
         await Add("TRANSPORT", "planned_trips", "TransportTrips",
             "Transport trips with State=Planned and operating date inside the selected period.", "Period",
             async () => await db.TransportTrips.AsNoTracking().CountAsync(x =>

@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.Facilities;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.Library;
@@ -43,6 +44,11 @@ public sealed class CentralInstitutionMisServiceTests
             EmployeeCode = "E-3", State = EmployeeState.Active });
         db.ProcurementRequisitions.Add(new ProcurementRequisition { Id = 5, TenantId = 41,
             CampusId = 10, RequestNumber = "R-5", Purpose = "Office", StateCode = "Submitted" });
+        db.ProcurementPurchaseOrders.Add(new ProcurementPurchaseOrder { Id = 15, TenantId = 41,
+            CampusId = 10, RequisitionId = 5, OrderNumber = "PO-15", StateCode = "CancelRequested" });
+        db.FacilityVisitorPolicyChanges.Add(new FacilityVisitorPolicyChange { Id = 16, TenantId = 41,
+            CampusId = 10, PolicyCode = "VISITOR-POLICY", ProposedValue = "Enabled",
+            RequestReason = "Change visitor rules", RequestedByUserId = 9, StateCode = "Submitted" });
         db.Assets.Add(new Asset { Id = 6, TenantId = 41, AssetTag = "AST-6",
             Name = "Projector", IsActive = true });
         db.BookIssues.Add(new BookIssue { Id = 7, TenantId = 41, BookCopyId = 1,
@@ -72,6 +78,8 @@ public sealed class CentralInstitutionMisServiceTests
         metrics["active_students"].Value.Should().Be(1m);
         metrics["active_employees"].Value.Should().Be(1m);
         metrics["submitted_requisitions"].Value.Should().Be(1m);
+        metrics["purchase_orders_awaiting_review"].Value.Should().Be(1m);
+        metrics["visitor_policy_changes_awaiting_review"].Value.Should().Be(1m);
         metrics["active_assets"].Value.Should().Be(1m);
         metrics["issued_loans"].Value.Should().Be(1m);
         metrics["finalized_attendance_sessions"].Value.Should().Be(1m);

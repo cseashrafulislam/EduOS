@@ -24,6 +24,14 @@ public sealed class NumberSeriesService(
             ? CentralPrivilegedAccess.HasRoleAsync(db, user, new[] { "TENANTADMIN" }, ct)
             : Task.FromResult(false);
     private bool CanIssue => user.IsAuthenticated && user.TenantId > 0;
+    private async Task<bool> ActiveIssuerAsync(CancellationToken ct) =>
+        user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
+        db.CurrentTenantId == user.TenantId &&
+        await db.Users.AsNoTracking().AnyAsync(x =>
+            x.Id == user.UserId && x.IsActive && !x.IsDeleted, ct) &&
+        await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
+            x.TenantId == user.TenantId && x.UserId == user.UserId &&
+            x.Status == EduOS.Core.Enums.Domain.MembershipStatus.Active && !x.IsDeleted, ct);
     private static string Version(byte[] rowVersion) => Convert.ToBase64String(rowVersion);
     private static bool VersionMatches(byte[] current, string? supplied)
     {
@@ -78,6 +86,8 @@ public sealed class NumberSeriesService(
         {
             return await unit.ExecuteInTransactionAsync(async token =>
             {
+                if (!await CanConfigureAsync(token))
+                    return ApiResponse<NumberSeriesDto>.ErrorResponse("Tenant administrator permission changed; reload.", 403);
                 NumberSeries row;
                 if (seriesId.HasValue)
                 {
@@ -138,12 +148,7 @@ public sealed class NumberSeriesService(
             return ApiResponse<string>.ErrorResponse("Valid key and request ID required.");
         if (db.CurrentTenantId != user.TenantId)
             return ApiResponse<string>.ErrorResponse("Institution context does not match the active session.", 403);
-        var active = await db.Users.AsNoTracking().AnyAsync(x =>
-            x.Id == user.UserId && x.IsActive && !x.IsDeleted, cancellationToken) &&
-            await db.TenantMemberships.AsNoTracking().AnyAsync(x =>
-                x.TenantId == user.TenantId && x.UserId == user.UserId &&
-                x.Status == EduOS.Core.Enums.Domain.MembershipStatus.Active && !x.IsDeleted, cancellationToken);
-        if (!active)
+        if (!await ActiveIssuerAsync(cancellationToken))
             return ApiResponse<string>.ErrorResponse("Institution membership is no longer active.", 403);
         var scope = "number-series.issue." + key;
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
@@ -151,6 +156,11 @@ public sealed class NumberSeriesService(
         {
             return await unit.ExecuteInTransactionAsync(async token =>
             {
+                // Revalidate after acquiring the serialized transaction. A
+                // membership revoked during the preflight must not consume a
+                // number or persist an idempotency receipt.
+                if (!await ActiveIssuerAsync(token))
+                    return ApiResponse<string>.ErrorResponse("Institution membership changed; reload.", 403);
                 var previous = await db.IdempotencyRecords.AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == user.TenantId && x.Scope == scope &&
                     x.RequestId == clientRequestId && !x.IsDeleted, token);
