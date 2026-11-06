@@ -186,9 +186,5 @@ public sealed class CentralWorkCenterService(
     }
 
     private Task<bool> LiveRoleAsync(string[] names, CancellationToken ct) =>
-        db.UserRoles.AsNoTracking().AnyAsync(ur => ur.UserId == user.UserId &&
-            db.Roles.IgnoreQueryFilters().AsNoTracking().Any(r => r.Id == ur.RoleId &&
-                r.IsActive && !r.IsDeleted &&
-                (r.TenantId == user.TenantId || (r.TenantId == null && r.IsSystemRole)) &&
-                names.Contains(r.NormalizedName!)), ct);
+        CentralPrivilegedAccess.HasRoleAsync(db, user, names, ct);
 }

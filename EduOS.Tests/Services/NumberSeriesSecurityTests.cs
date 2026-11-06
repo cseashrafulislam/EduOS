@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.System;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Platform;
@@ -62,5 +63,40 @@ public sealed class NumberSeriesSecurityTests
             new SaveNumberSeriesRequestDto { Key = "STUDENT" })).StatusCode);
         Assert.Equal(403, (await service.IssueNumberAsync("STUDENT", Guid.NewGuid())).StatusCode);
         Assert.False(db.ChangeTracker.HasChanges());
+    }
+
+    [Fact]
+    public async Task Number_series_configuration_requires_current_role_and_membership_but_respects_owner()
+    {
+        var context = new DefaultHttpContext();
+        context.Items["TenantId"] = 11L;
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("number-series-live-role-" + Guid.NewGuid().ToString("N"))
+            .Options, new HttpContextAccessor { HttpContext = context });
+        CentralPrivilegedTestIdentity.Seed(db, 11, 10);
+        var user = new Mock<ICurrentUserService>();
+        user.SetupGet(x => x.IsAuthenticated).Returns(true);
+        user.SetupGet(x => x.UserId).Returns(10);
+        user.SetupGet(x => x.TenantId).Returns(11);
+        user.SetupGet(x => x.IsTenantAdmin).Returns(true);
+        var service = new NumberSeriesService(db, user.Object, null!,
+            NullLogger<NumberSeriesService>.Instance);
+
+        Assert.Equal(200, (await service.GetSeriesAsync(1, 20, null)).StatusCode);
+        var role = db.Roles.Single(x => x.Id == 9001);
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.Equal(403, (await service.GetSeriesAsync(1, 20, null)).StatusCode);
+        Assert.Equal(403, (await service.SaveSeriesAsync(null,
+            new SaveNumberSeriesRequestDto { Key = "STUDENT" })).StatusCode);
+
+        var membership = db.TenantMemberships.Single(x => x.UserId == 10);
+        membership.IsOwner = true;
+        await db.SaveChangesAsync();
+        Assert.Equal(200, (await service.GetSeriesAsync(1, 20, null)).StatusCode);
+        membership.Status = MembershipStatus.Suspended;
+        await db.SaveChangesAsync();
+        Assert.Equal(403, (await service.GetSeriesAsync(1, 20, null)).StatusCode);
+        Assert.Equal(403, (await service.IssueNumberAsync("STUDENT", Guid.NewGuid())).StatusCode);
     }
 }

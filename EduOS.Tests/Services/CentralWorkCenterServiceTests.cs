@@ -194,6 +194,31 @@ public sealed class CentralWorkCenterServiceTests
         (await Service(db, "TenantAdmin").GetPendingAsync()).StatusCode.Should().Be(403);
     }
 
+    [Fact]
+    public async Task Work_center_uses_canonical_owner_access_and_rejects_global_system_role()
+    {
+        await using var db = Database();
+        SeedIdentity(db, "TenantAdmin");
+        await db.SaveChangesAsync();
+        var role = db.Roles.Single(x => x.Id == 2);
+        role.IsActive = false;
+        await db.SaveChangesAsync();
+        (await Service(db, "TenantAdmin").GetPendingAsync()).StatusCode.Should().Be(403);
+
+        var member = db.TenantMemberships.Single(x => x.UserId == 9);
+        member.IsOwner = true;
+        await db.SaveChangesAsync();
+        (await Service(db, "TenantAdmin").GetPendingAsync()).StatusCode.Should().Be(200);
+
+        member.IsOwner = false;
+        db.Roles.Add(new ApplicationRole { Id = 3, TenantId = null,
+            Name = "TenantAdmin", NormalizedName = "TENANTADMIN", IsSystemRole = true,
+            IsActive = true });
+        db.UserRoles.Add(new IdentityUserRole<long> { RoleId = 3, UserId = 9 });
+        await db.SaveChangesAsync();
+        (await Service(db, "TenantAdmin").GetPendingAsync()).StatusCode.Should().Be(403);
+    }
+
     private static CentralWorkCenterService Service(EduOSDbContext db, string role,
         bool inventory = true, bool facilities = true, bool pilot = false, bool finance = false)
     {
