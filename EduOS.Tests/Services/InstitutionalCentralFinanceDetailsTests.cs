@@ -65,6 +65,68 @@ public sealed class InstitutionalCentralFinanceDetailsTests
         balanceSheet.Data.Accounts.Items.Should().ContainSingle(x => x.AccountCode == "CASH" && x.Amount == 5001m);
         // The existing full-detail statement keeps its legacy bounded contract.
         (await service.GetIncomeStatementAsync(From, To)).StatusCode.Should().Be(422);
+        var incomeFirst = await service.GetIncomeStatementPageAsync(From, To, page: 1, pageSize: 25);
+        var incomeLast = await service.GetIncomeStatementPageAsync(From, To, page: 201, pageSize: 25);
+        incomeFirst.StatusCode.Should().Be(200);
+        incomeFirst.Data!.Accounts.TotalCount.Should().Be(5001);
+        incomeFirst.Data.Accounts.Items.Should().HaveCount(25);
+        incomeFirst.Data.TotalIncome.Should().Be(5001m);
+        incomeFirst.Data.TotalExpenses.Should().Be(0m);
+        incomeLast.StatusCode.Should().Be(200);
+        incomeLast.Data!.Accounts.Items.Should().ContainSingle();
+        incomeLast.Data.TotalIncome.Should().Be(incomeFirst.Data.TotalIncome);
+    }
+
+    [Fact]
+    public async Task Income_statement_page_preserves_signed_balances_and_category_filters()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        Add(db, 1, From, JournalState.Posted, 1, 2, 100m, "StudentInvoice", 10);
+        Add(db, 2, From.AddDays(1), JournalState.Posted, 3, 1, 40m, "PayrollRun", 20);
+        Add(db, 3, From.AddDays(2), JournalState.Posted, 2, 1, 20m, "StudentInvoiceReversal", 10);
+        Add(db, 4, From.AddDays(3), JournalState.Draft, 1, 2, 999m, "StudentInvoice", 99);
+        await db.SaveChangesAsync();
+
+        var service = Service(db);
+        var first = await service.GetIncomeStatementPageAsync(From, To, pageSize: 1);
+        var second = await service.GetIncomeStatementPageAsync(From, To, page: 2, pageSize: 1);
+        var onlyIncome = await service.GetIncomeStatementPageAsync(From, To, "income");
+        var onlyExpense = await service.GetIncomeStatementPageAsync(From, To, "expense");
+        first.StatusCode.Should().Be(200);
+        second.StatusCode.Should().Be(200);
+        first.Data!.Accounts.TotalCount.Should().Be(2);
+        second.Data!.Accounts.TotalCount.Should().Be(2);
+        first.Data.TotalIncome.Should().Be(80m);
+        first.Data.TotalExpenses.Should().Be(40m);
+        first.Data.NetSurplus.Should().Be(40m);
+        first.Data.Accounts.Items.Concat(second.Data.Accounts.Items)
+            .Should().ContainSingle(x => x.Category == "Income" && x.Amount == 80m);
+        first.Data.Accounts.Items.Concat(second.Data.Accounts.Items)
+            .Should().ContainSingle(x => x.Category == "Expense" && x.Amount == 40m);
+        onlyIncome.Data!.Accounts.TotalCount.Should().Be(1);
+        onlyIncome.Data.Accounts.Items.Should().ContainSingle(x => x.Amount == 80m);
+        onlyIncome.Data.TotalExpenses.Should().Be(40m);
+        onlyExpense.Data!.Accounts.TotalCount.Should().Be(1);
+        onlyExpense.Data.Accounts.Items.Should().ContainSingle(x => x.Amount == 40m);
+        onlyExpense.Data.TotalIncome.Should().Be(80m);
+
+        (await Service(db, false).GetIncomeStatementPageAsync(From, To)).StatusCode.Should().Be(403);
+        (await service.GetIncomeStatementPageAsync(To, From)).StatusCode.Should().Be(400);
+        (await service.GetIncomeStatementPageAsync(From, To, "cash")).StatusCode.Should().Be(400);
+        (await service.GetIncomeStatementPageAsync(From, To, page: 0)).StatusCode.Should().Be(400);
+        (await service.GetIncomeStatementPageAsync(From, To, pageSize: 101)).StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task Income_statement_page_blocks_corrupted_history_before_aggregate_and_page()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        Add(db, 1, From, JournalState.Posted, 1, 2, 100m, "StudentInvoice", 7);
+        db.JournalLines.Local.Single(x => x.AccountId == 2).CreditAmount = 99m;
+        await db.SaveChangesAsync();
+        (await Service(db).GetIncomeStatementPageAsync(From, To)).StatusCode.Should().Be(409);
     }
 
     [Fact]

@@ -64,6 +64,12 @@ public sealed class AccountingReportsController : ControllerBase
     public async Task<IActionResult> IncomeStatement([FromQuery] DateOnly fromDate,
         [FromQuery] DateOnly toDate, CancellationToken ct)
         => Reply(await service.GetIncomeStatementAsync(fromDate, toDate, ct));
+    [HttpGet("income-statement-page"), Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> IncomeStatementPage([FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate, [FromQuery] string category = "all",
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        CancellationToken ct = default)
+        => Reply(await service.GetIncomeStatementPageAsync(fromDate, toDate, category, page, pageSize, ct));
     [HttpGet("balance-sheet"), Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> BalanceSheet([FromQuery] DateOnly asOfDate, CancellationToken ct)
         => Reply(await service.GetBalanceSheetAsync(asOfDate, ct));

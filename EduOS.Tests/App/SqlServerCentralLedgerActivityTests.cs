@@ -85,6 +85,7 @@ public sealed class SqlServerCentralLedgerActivityTests
             var service = new AccountingReportingService(db, new User(tenantId));
             var first = await service.GetLedgerActivityAsync(cash.Id, From, To, 1, 2);
             var incomeExpense = await service.GetInstitutionalIncomeExpenseTotalsAsync(From, To);
+            var incomeStatement = await service.GetIncomeStatementPageAsync(From, To, "income", 1, 1);
             var trialPageOne = await service.GetTrialBalancePageAsync(To, 1, 1);
             var trialPageTwo = await service.GetTrialBalancePageAsync(To, 2, 1);
             var balanceSheet = await service.GetBalanceSheetPageAsync(To, "asset", 1, 1);
@@ -92,6 +93,11 @@ public sealed class SqlServerCentralLedgerActivityTests
             var beyond = await service.GetLedgerActivityAsync(cash.Id, From, To, 4, 2);
             Assert.Equal(200, first.StatusCode);
             Assert.Equal(200, incomeExpense.StatusCode);
+            Assert.Equal(200, incomeStatement.StatusCode);
+            Assert.Equal(1, incomeStatement.Data!.Accounts.TotalCount);
+            Assert.Equal(10m, Assert.Single(incomeStatement.Data.Accounts.Items).Amount);
+            Assert.Equal(10m, incomeStatement.Data.TotalIncome);
+            Assert.Equal(0m, incomeStatement.Data.TotalExpenses);
             Assert.Equal(10m, incomeExpense.Data!.TotalIncome);
             Assert.Equal(10m, incomeExpense.Data.NetSurplus);
             Assert.Equal(200, trialPageOne.StatusCode);
