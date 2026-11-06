@@ -133,6 +133,16 @@ public sealed partial class AccountingReportingService
                 return ApiResponse<FinanceSourcePostingAuditPageDto>.ErrorResponse("Unknown finance source type.", 400);
         }
 
+        // Reverse direction matters: a posted GL entry with a deleted/missing
+        // operational source must still be visible even when the source page is
+        // empty. Compare against the full lifetime of the source, not merely the
+        // selected source-date window (journal/source dates may legitimately differ).
+        var allSourceIds = query.Select(x => x.Id);
+        var orphanPostedJournalCount = await db.Journals.IgnoreQueryFilters().AsNoTracking()
+            .CountAsync(x => x.TenantId == tenant && !x.IsDeleted &&
+                x.SourceType == expectedType && x.JournalDate >= fromDate && x.JournalDate <= toDate &&
+                (x.State == JournalState.Posted || x.State == JournalState.Reversed) &&
+                (!x.SourceId.HasValue || !allSourceIds.Contains(x.SourceId.Value)), ct);
         query = query.Where(x => x.Date >= fromDate && x.Date <= toDate);
         var total = await query.CountAsync(ct);
         var pending = await query.CountAsync(x => x.JournalId == null && x.NeedsPosting, ct);
@@ -274,6 +284,7 @@ public sealed partial class AccountingReportingService
             FromDate = fromDate, ToDate = toDate, SourceKind = kind,
             LinkedCount = total - pending - unposted,
             PendingPostingCount = pending, UnpostedCount = unposted,
+            OrphanPostedJournalCount = orphanPostedJournalCount,
             Sources = new PagedResult<FinanceSourcePostingAuditRowDto> {
                 Page = page, PageSize = pageSize, TotalCount = total, Items = rows
             }

@@ -73,6 +73,29 @@ public sealed class CentralFinancePostingAuditTests
     }
 
     [Fact]
+    public async Task Source_audit_finds_posted_orphan_GL_even_with_no_source_rows_in_period()
+    {
+        await using var db = Database();
+        SeedAccounts(db);
+        db.StudentInvoices.Add(Invoice(1, InvoiceState.Issued, 11));
+        Journal(db, 11, "StudentInvoice", 1, 90m);
+        Journal(db, 12, "StudentInvoice", 999, 90m);
+        Journal(db, 13, "OtherDomain", 999, 90m);
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var page = await service.GetFinanceSourcePostingAuditAsync(From, To, "fee-invoices");
+        page.StatusCode.Should().Be(200);
+        page.Data!.OrphanPostedJournalCount.Should().Be(1);
+        page.Data.Sources.TotalCount.Should().Be(1);
+        page.Data.LinkedCount.Should().Be(1);
+        var later = await service.GetFinanceSourcePostingAuditAsync(
+            From.AddDays(1), To, "fee-invoices");
+        later.Data!.OrphanPostedJournalCount.Should().Be(0);
+        later.Data.Sources.TotalCount.Should().Be(0);
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Balanced_wrong_fee_and_payroll_payment_amounts_are_invalid()
     {
         await using var db = Database();

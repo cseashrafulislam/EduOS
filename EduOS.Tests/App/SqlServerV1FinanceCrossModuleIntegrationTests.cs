@@ -200,6 +200,8 @@ public sealed class SqlServerV1FinanceCrossModuleIntegrationTests
             var paymentAudit = await sourceAudit.GetFinanceSourcePostingAuditAsync(date, date, "fee-payments");
             Assert.Equal(200, invoiceAudit.StatusCode);
             Assert.Equal(200, paymentAudit.StatusCode);
+            Assert.Equal(0, invoiceAudit.Data!.OrphanPostedJournalCount);
+            Assert.Equal(0, paymentAudit.Data!.OrphanPostedJournalCount);
             Assert.Contains(invoiceAudit.Data!.Sources.Items, x => x.SourceId == invoiceId &&
                 x.PostingStatus == "Posted");
             Assert.Contains(paymentAudit.Data!.Sources.Items, x => x.SourceId == paymentId &&

@@ -136,6 +136,9 @@ public sealed class FinanceSourcePostingAuditPageDto
     public int LinkedCount { get; set; }
     public int PendingPostingCount { get; set; }
     public int UnpostedCount { get; set; }
+    // GL-dated posted journals whose source row no longer exists in this tenant.
+    // Null means the specialized source audit does not compute this metric.
+    public int? OrphanPostedJournalCount { get; set; }
     public PagedResult<FinanceSourcePostingAuditRowDto> Sources { get; set; } = new();
 }
 
