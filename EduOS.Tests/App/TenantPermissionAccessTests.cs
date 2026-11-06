@@ -161,11 +161,27 @@ public sealed class TenantPermissionAccessTests
         await db.SaveChangesAsync();
         Assert.True(await Allowed());
         membership.IsOwner = false;
-        db.Roles.Add(new ApplicationRole { Id = 12, TenantId = null,
-            Name = "TenantAdmin", NormalizedName = "TENANTADMIN",
-            IsActive = true, IsSystemRole = true });
-        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 51, RoleId = 12 });
         await db.SaveChangesAsync();
+        // Global roles may only be provisioned by platform administration.
+        // Seed one through that authority, then restore the tenant actor before authorization.
+        var tenantPrincipal = http.User;
+        http.User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "1"),
+            new Claim(ClaimTypes.Role, "SuperAdmin")
+        }, "Test"));
+        try
+        {
+            db.Roles.Add(new ApplicationRole { Id = 12, TenantId = null,
+                Name = "TenantAdmin", NormalizedName = "TENANTADMIN",
+                IsActive = true, IsSystemRole = true });
+            db.UserRoles.Add(new IdentityUserRole<long> { UserId = 51, RoleId = 12 });
+            await db.SaveChangesAsync();
+        }
+        finally
+        {
+            http.User = tenantPrincipal;
+        }
         Assert.False(await Allowed());
         role.IsActive = true;
         membership.Status = MembershipStatus.Suspended;
