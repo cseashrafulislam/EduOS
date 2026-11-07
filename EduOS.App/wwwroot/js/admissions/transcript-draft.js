@@ -222,7 +222,49 @@
             input.value = '';
             status.textContent = t('Fields applied. Check the form and submit manually when ready.','তথ্য ফরমে বসানো হয়েছে। যাচাই করে নিজে জমা দিন।');
         });
-        host.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,reviewSummary,confirm,undo,status);
+        // Applicant-side readiness check is advisory: the canonical admission submit
+        // handler remains the only writer and retains server-side validation.
+        const readiness = el('section', {class:'border rounded p-3 mt-3','aria-labelledby':'admissionReadinessTitle'});
+        const readinessTitle = el('h5',{id:'admissionReadinessTitle',class:'h6'},
+            t('Application readiness','আবেদন প্রস্তুতি'));
+        const readinessSummary = el('p',{class:'small',role:'status','aria-live':'polite'},'');
+        const readinessList = el('ul',{class:'list-unstyled mb-2'});
+        const checkButton = el('button',{type:'button',class:'btn btn-outline-primary btn-sm'},
+            t('Check required information','প্রয়োজনীয় তথ্য যাচাই'));
+        const requiredFields = Array.from(form.querySelectorAll('[required]')).filter(field =>
+            field.id && field.type !== 'hidden');
+        const fieldLabel = field => {
+            const label = Array.from(form.querySelectorAll('label')).find(item =>
+                item.getAttribute('for') === field.id);
+            return label ? label.textContent.replace(/\\s*\\*\\s*$/, '').trim() : field.id;
+        };
+        function checkReadiness() {
+            readinessList.replaceChildren();
+            const missing = requiredFields.filter(field =>
+                field.disabled || !String(field.value || '').trim() || !field.checkValidity());
+            missing.forEach(field => {
+                const item = el('li',{class:'mb-1'});
+                const jump = el('button',{type:'button',class:'btn btn-link btn-sm text-start p-0'},
+                    fieldLabel(field));
+                jump.addEventListener('click',() => {
+                    field.scrollIntoView({behavior:'smooth',block:'center'});
+                    field.focus();
+                });
+                item.append(jump);
+                readinessList.append(item);
+            });
+            readinessSummary.textContent = missing.length
+                ? t(`Complete or correct ${missing.length} required field(s) before submitting.`,
+                    `জমা দেওয়ার আগে ${missing.length}টি প্রয়োজনীয় তথ্য পূরণ বা সংশোধন করুন।`)
+                : t('Required fields look complete. Review all details, then use the normal Submit button.',
+                    'প্রয়োজনীয় তথ্য পূরণ হয়েছে। সব তথ্য যাচাই করে স্বাভাবিক জমা বাটন ব্যবহার করুন।');
+            return missing.length === 0;
+        }
+        checkButton.addEventListener('click',checkReadiness);
+        form.addEventListener('input',() => { readinessSummary.textContent = ''; readinessList.replaceChildren(); });
+        form.addEventListener('change',() => { readinessSummary.textContent = ''; readinessList.replaceChildren(); });
+        readiness.append(readinessTitle,readinessSummary,readinessList,checkButton);
+        host.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,reviewSummary,confirm,undo,status,readiness);
     }
     return {parse,parseDetailed,mount,normalizePhone,validateDraftField};
 });
