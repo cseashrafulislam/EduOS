@@ -193,8 +193,16 @@ public sealed class LibraryDigitalResourceService(
             return Fail<PagedResult<LibraryDigitalResourceDto>>("Invalid digital library filters.");
         var query = ResourceQuery();
         if (!CanPublish || !includeInactive)
+        {
+            // Active discovery must never advertise a campus licence whose campus
+            // has been deactivated. Admins retain historical inspection through
+            // includeInactive, but downloads remain denied by live campus checks.
+            var activeCampuses = ActiveCampusIds();
             query = query.Where(x => x.Document.IsActive && x.Book.IsActive &&
-                (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now));
+                (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now) &&
+                (!x.Document.LibraryCampusId.HasValue ||
+                    activeCampuses.Contains(x.Document.LibraryCampusId.Value)));
+        }
         if (bookReference.HasValue)
             query = query.Where(x => x.Book.PublicId == bookReference.Value);
         if (!string.IsNullOrWhiteSpace(search))
