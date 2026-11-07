@@ -740,6 +740,14 @@
                 document.getElementById('submitApplicationButton')?.focus();
                 return;
             }
+            // Display a privacy-minimal receipt before clearing the form. A network
+            // retry retains the original idempotency key until success is confirmed.
+            showApplicationReceipt({
+                number: payload.data?.applicationNumber,
+                name: request.applicantName,
+                intake: selectedForm.title,
+                submittedAt: new Date()
+            });
             form.reset();
             state.pendingRequestId = createRequestId();
             state.pendingFingerprint = null;
@@ -761,6 +769,41 @@
             state.submitting = false;
             setLoading(button, false);
         }
+    }
+
+    function showApplicationReceipt(receipt) {
+        const host = document.getElementById('admissionSubmissionReceipt');
+        if (!host) return;
+        const number = String(receipt.number || '').trim();
+        host.replaceChildren();
+        const title = document.createElement('h4');
+        title.className = 'h5';
+        title.textContent = bangla ? 'আবেদন গ্রহণ করা হয়েছে' : 'Application submitted';
+        const details = document.createElement('dl');
+        details.className = 'row mb-2';
+        const entries = [
+            [bangla ? 'আবেদন নম্বর' : 'Application number', number || (bangla ? 'নম্বর পাওয়া যায়নি' : 'Number unavailable')],
+            [bangla ? 'আবেদনকারী' : 'Applicant', receipt.name || ''],
+            [bangla ? 'ভর্তি ফরম' : 'Intake', receipt.intake || ''],
+            [bangla ? 'সময়' : 'Submitted', formatDate(receipt.submittedAt)]
+        ];
+        for (const [label, value] of entries) {
+            const term = document.createElement('dt');
+            term.className = 'col-sm-4';
+            term.textContent = label;
+            const description = document.createElement('dd');
+            description.className = 'col-sm-8';
+            description.textContent = value;
+            details.append(term, description);
+        }
+        const print = document.createElement('button');
+        print.type = 'button';
+        print.className = 'btn btn-sm btn-outline-primary';
+        print.textContent = bangla ? 'রসিদ প্রিন্ট করুন' : 'Print receipt';
+        print.addEventListener('click', () => window.print());
+        host.append(title, details, print);
+        host.hidden = false;
+        host.focus();
     }
 
     async function loadApplications() {
