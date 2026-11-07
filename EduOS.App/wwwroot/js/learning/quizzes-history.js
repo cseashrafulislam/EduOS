@@ -2,7 +2,21 @@
 const {$,el,msg,api}=app;let page=1,rows=[],total=0,epoch=0;
 const course=$('quizHistoryCourse'),body=$('quizHistoryRows');
 function cell(tr,value){const td=el('td',String(value??''));tr.append(td);}
-function render(){body.replaceChildren();rows.forEach(row=>{const tr=el('tr');
+function renderStudy(){
+ const message=$('quizStudyMessage'),note=$('quizStudyNote'),list=$('quizStudyItems');
+ if(!message||!note||!list)return;
+ list.replaceChildren();note.textContent='';
+ const locale=document.documentElement.lang==='bn-BD'?'bn-BD':'en-BD';
+ const result=window.EduQuizStudyGuidance?.build(rows,locale);
+ if(!result||result.status==='invalid'){message.textContent=locale==='bn-BD'?'পরামর্শ দেখানো যাচ্ছে না।':'Study guidance unavailable.';return;}
+ message.textContent=result.message;note.textContent=result.note;
+ result.items.forEach(item=>{
+   const li=el('li');li.className='list-group-item';
+   const title=el('strong',item.title),detail=el('span',' — '+item.advice);
+   li.append(title,detail);list.append(li);
+ });
+}
+function render(){renderStudy();body.replaceChildren();rows.forEach(row=>{const tr=el('tr');
 cell(tr,row.quizTitle);cell(tr,row.attemptNo);
 cell(tr,row.submittedAt?new Date(row.submittedAt).toLocaleString():'');
 cell(tr,row.obtainedMarks??'Pending');cell(tr,row.passed===null?'Pending':row.passed?'Pass':'Fail');
