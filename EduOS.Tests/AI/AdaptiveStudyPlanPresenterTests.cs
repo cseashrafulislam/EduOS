@@ -1,6 +1,7 @@
 using EduOS.AI;
 using Xunit;
 using static EduOS.AI.AdaptiveStudyPlanPolicy;
+using PlanStatus = EduOS.AI.AdaptiveStudyPlanPolicy.PlanStatus;
 
 namespace EduOS.Tests.AI;
 
