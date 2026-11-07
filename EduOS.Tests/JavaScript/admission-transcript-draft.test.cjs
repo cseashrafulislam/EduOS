@@ -114,3 +114,14 @@ test('recognized blank transcript values fail closed without silently dropping f
     assert.match(source, /first\.empty/);
     assert.match(source, /empty admission field/);
 });
+
+
+test('oversized pasted transcripts are rejected without browser-side silent truncation', () => {
+    const oversized = 'Name: Amina\n' + 'x'.repeat(3000);
+    assert.deepEqual(parseDetailed(oversized), {fields:{},errors:[{tooLong:true,limit:3000}]});
+    assert.deepEqual(parse(oversized), {});
+    assert.deepEqual(parseDetailed('Name: Amina').fields, {applicantName:'Amina'});
+    assert.doesNotMatch(source, /rows:'3',maxlength:'3000'/);
+    assert.match(source, /first\.tooLong/);
+    assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(/);
+});
