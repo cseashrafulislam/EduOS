@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0 };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -670,6 +670,7 @@
         const button = event.target.closest('button[data-reference]');
         if (!button) return;
         const requestNumber = ++state.reviewRequest;
+        ++state.documentRequest; // Invalidate documents from the previously selected applicant.
         const reference = button.dataset.reference;
         // A later review selection always wins, even if an earlier response arrives last.
         document.querySelectorAll('#applicationList button[data-reference]').forEach(control => {
@@ -737,13 +738,16 @@
     async function loadApplicantDocuments(reference) {
         const list = document.getElementById('applicantDocumentList');
         if (!list) return;
+        const requestNumber = ++state.documentRequest;
+        list.setAttribute('aria-busy', 'true');
         list.replaceChildren(statusMessage(i18n.loading));
         try {
             const response = await fetch(`/api/admission-intake/applications/${encodeURIComponent(reference)}/documents`, apiOptions());
             const payload = await response.json().catch(() => null);
+            if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data)) throw new Error(payload?.message || 'Documents could not be loaded.');
             if (!payload.data.length) {
-                list.replaceChildren(statusMessage('No applicant documents have been uploaded.'));
+                list.replaceChildren(statusMessage(bangla ? 'আবেদনকারীর কোনো নথি আপলোড করা হয়নি।' : 'No applicant documents have been uploaded.'));
                 return;
             }
             const latestVersions = new Map();
@@ -760,7 +764,7 @@
                 title.textContent = documentItem.documentTypeCode || '';
                 const detail = document.createElement('span');
                 const decision = Number(documentItem.verificationStatus);
-                const label = decision === 3 ? 'Rejected' : decision === 2 ? 'Verified' : 'Pending';
+                const label = decision === 3 ? (bangla ? 'বাতিল' : 'Rejected') : decision === 2 ? (bangla ? 'যাচাইকৃত' : 'Verified') : (bangla ? 'অপেক্ষমাণ' : 'Pending');
                 detail.textContent = `${documentItem.originalFileName || 'Private document'} · v${documentItem.versionNo} · ${formatFileSize(documentItem.fileSizeBytes)} · ${label}`;
                 summary.append(title, detail);
                 if (documentItem.verificationNote) {
@@ -773,7 +777,7 @@
                 const download = document.createElement('a');
                 download.className = 'btn btn-sm btn-outline-secondary';
                 download.href = `/api/admission-intake/applications/${encodeURIComponent(reference)}/documents/${encodeURIComponent(documentItem.id)}/content`;
-                download.textContent = 'View / Download';
+                download.textContent = bangla ? 'দেখুন / ডাউনলোড' : 'View / Download';
                 controls.append(download);
                 if (decision === 1 && !documentItem.isVerified &&
                     latestVersions.get(documentItem.documentTypeCode)?.id === documentItem.id) {
@@ -781,16 +785,26 @@
                     reason.className = 'form-control form-control-sm';
                     reason.maxLength = 1000;
                     reason.rows = 2;
-                    reason.placeholder = 'Reason required to reject this document';
-                    reason.setAttribute('aria-label', 'Document rejection reason');
-                    controls.append(documentActionButton('Verify', 2, documentItem), reason,
-                        documentActionButton('Reject', 3, documentItem));
+                    reason.placeholder = bangla ? 'বাতিলের কারণ লিখুন' : 'Reason required to reject this document';
+                    reason.setAttribute('aria-label', bangla ? 'নথি বাতিলের কারণ' : 'Document rejection reason');
+                    controls.append(documentActionButton(bangla ? 'যাচাই করুন' : 'Verify', 2, documentItem), reason,
+                        documentActionButton(bangla ? 'বাতিল করুন' : 'Reject', 3, documentItem));
                 }
                 card.append(summary, controls);
                 return card;
             }));
         } catch (error) {
-            list.replaceChildren(statusMessage(error.message || 'Documents could not be loaded.'));
+            if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference) return;
+            const message = statusMessage(bangla ? 'নথি লোড করা যায়নি।' : (error.message || 'Documents could not be loaded.'));
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'btn btn-sm btn-outline-primary';
+            retry.textContent = i18n.retry || (bangla ? 'আবার চেষ্টা করুন' : 'Retry');
+            retry.addEventListener('click', () => loadApplicantDocuments(reference), { once: true });
+            message.append(retry);
+            list.replaceChildren(message);
+        } finally {
+            if (requestNumber === state.documentRequest) list.removeAttribute('aria-busy');
         }
     }
 
@@ -807,30 +821,46 @@
 
     async function reviewApplicantDocument(event) {
         const button = event.target.closest('button[data-document-id]');
-        if (!button || !state.currentApplication?.reference) return;
+        if (!button || !state.currentApplication?.reference || state.reviewingDocument) return;
         const status = Number(button.dataset.documentStatus);
         if (status !== 2 && status !== 3) return;
-        const note = status === 3
-            ? button.parentElement?.querySelector('textarea')?.value.trim()
-            : null;
+        const reference = state.currentApplication.reference;
+        const noteField = button.parentElement?.querySelector('textarea');
+        const note = status === 3 ? noteField?.value.trim() : null;
         if (status === 3 && !note) {
-            showAlert('danger', 'Enter a rejection reason before rejecting this document.');
-            button.parentElement?.querySelector('textarea')?.focus();
+            showAlert('danger', bangla ? 'নথি বাতিলের কারণ লিখুন।' : 'Enter a rejection reason before rejecting this document.');
+            noteField?.focus();
             return;
         }
-        button.disabled = true;
+        state.reviewingDocument = true;
+        const controls = [...button.parentElement.querySelectorAll('button[data-document-id]')];
+        controls.forEach(control => { control.disabled = true; control.setAttribute('aria-busy', 'true'); });
         try {
-            const response = await fetch(`/api/admission-intake/applications/${encodeURIComponent(state.currentApplication.reference)}/documents/${encodeURIComponent(button.dataset.documentId)}/review`, apiOptions('POST', {
-                status, note: note?.trim() || null, rowVersion: button.dataset.documentRowVersion
+            const response = await fetch(`/api/admission-intake/applications/${encodeURIComponent(reference)}/documents/${encodeURIComponent(button.dataset.documentId)}/review`, apiOptions('POST', {
+                status, note: note || null, rowVersion: button.dataset.documentRowVersion
             }));
             const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Document decision could not be saved.');
-            showAlert('success', payload.message || 'Document decision saved.');
-            await loadApplicantDocuments(state.currentApplication.reference);
+            if (state.currentApplication?.reference !== reference) return;
+            if (!response.ok || !payload?.success) {
+                if (response.status === 409 || response.status === 412) {
+                    showAlert('danger', bangla
+                        ? 'অন্য ব্যবহারকারী নথিটি পরিবর্তন করেছেন। সর্বশেষ তথ্য আবার দেখুন।'
+                        : 'Another reviewer changed this document. Review its latest version.');
+                    await loadApplicantDocuments(reference);
+                    return;
+                }
+                throw new Error(payload?.message || (bangla ? 'নথির সিদ্ধান্ত সংরক্ষণ করা যায়নি।' : 'Document decision could not be saved.'));
+            }
+            showAlert('success', payload.message || (bangla ? 'নথির সিদ্ধান্ত সংরক্ষিত হয়েছে।' : 'Document decision saved.'));
+            await loadApplicantDocuments(reference);
         } catch (error) {
-            showAlert('danger', error.message || 'Document decision could not be saved.');
+            if (state.currentApplication?.reference === reference) {
+                showAlert('danger', error.message || i18n.networkError);
+                button.focus();
+            }
         } finally {
-            button.disabled = false;
+            state.reviewingDocument = false;
+            controls.forEach(control => { control.disabled = false; control.removeAttribute('aria-busy'); });
         }
     }
 
