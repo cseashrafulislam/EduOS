@@ -237,6 +237,38 @@ public sealed class CentralMisTwoTenantIsolationTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task Foreign_tenant_negative_receivable_cannot_poison_valid_tenant_mis()
+    {
+        var options = Options();
+        await using (var own = Open(options, 41))
+        {
+            SeedAdmin(own, 41, 9, 1, 2);
+            own.StudentInvoices.Add(Invoice(1, 41, 12.50m));
+            await own.SaveChangesAsync();
+        }
+
+        // A historical invalid row in another tenant must never cause an
+        // authorized read to fail or affect the canonical receivable total.
+        await using (var foreign = Open(options, 42))
+        {
+            SeedAdmin(foreign, 42, 10, 3, 4);
+            foreign.StudentInvoices.Add(Invoice(2, 42, -999m));
+            await foreign.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var result = await Service(request, 41, 9, finance.Object).GetAsync(From, To);
+        Assert.Equal(200, result.StatusCode);
+        Assert.NotNull(result.Data);
+        var metrics = result.Data!.Metrics.ToDictionary(m => m.Key);
+        Assert.Equal(12.50m, metrics["outstanding_fee_amount"].Value);
+        Assert.Equal(1m, metrics["outstanding_fee_invoices"].Value);
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            From, To, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("mis-two-tenant-" + Guid.NewGuid().ToString("N"),
