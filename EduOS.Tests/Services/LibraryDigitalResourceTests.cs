@@ -526,6 +526,56 @@ public sealed class LibraryDigitalResourceTests
         (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
     }
 
+    [Theory]
+    [InlineData(0, 20)]
+    [InlineData(1, 0)]
+    [InlineData(1, 51)]
+    [InlineData(int.MaxValue, 50)]
+    public async Task Discovery_rejects_invalid_pagination_before_exposing_licensed_metadata(int page, int pageSize)
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Private learning resource", IsActive = true,
+            LibraryCampusId = seed.Enrollment.CampusId
+        });
+        await db.SaveChangesAsync();
+        var reader = Service(db, "Student");
+        var response = await reader.ListAsync(null, null, page, pageSize, false);
+        response.Success.Should().BeFalse();
+        response.StatusCode.Should().Be(400);
+        (await db.Documents.CountAsync()).Should().Be(1);
+        (await db.AuditLogs.AnyAsync(x => x.Action == "LibraryDigitalResource.Download"))
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Discovery_rejects_empty_book_reference_without_falling_back_to_all_books()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Licensed learning resource", IsActive = true,
+            LibraryCampusId = seed.Enrollment.CampusId
+        });
+        await db.SaveChangesAsync();
+        var reader = Service(db, "Student");
+        var invalid = await reader.ListAsync(Guid.Empty, null, 1, 20, false);
+        invalid.Success.Should().BeFalse();
+        invalid.StatusCode.Should().Be(400);
+        var valid = await reader.ListAsync(seed.Book.PublicId, null, 1, 20, false);
+        valid.Success.Should().BeTrue();
+        valid.Data!.Items.Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Ambiguous_private_file_owner_is_never_listed_or_downloaded()
     {
