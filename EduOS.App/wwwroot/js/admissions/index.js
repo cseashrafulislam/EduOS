@@ -22,6 +22,8 @@
         if (!form) return;
         const feature = document.querySelector('section[data-admission-feature]')?.dataset.admissionFeature || 'all';
         form.addEventListener('submit', submitApplication);
+        form.addEventListener('input', () => clearAdmissionErrors(form));
+        form.addEventListener('change', () => clearAdmissionErrors(form));
         document.getElementById('admissionFilters')?.addEventListener('submit', applyFilters);
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
         document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
@@ -459,25 +461,73 @@
         }
     }
 
+    // Accessible, in-form error summary. Keep existing API and browser validation authoritative.
+    function admissionErrors(form, extra = []) {
+        const invalid = [...form.querySelectorAll('input, select, textarea')]
+            .filter(field => field.willValidate && !field.checkValidity());
+        const entries = invalid.map(field => ({
+            field,
+            label: form.querySelector('label[for="' + field.id + '"]')?.textContent?.trim()
+                || field.getAttribute('aria-label') || field.name || field.id
+                || (bangla ? 'তথ্য' : 'Field')
+        }));
+        extra.forEach(field => {
+            if (field && !entries.some(item => item.field === field))
+                entries.push({ field, label: form.querySelector('label[for="' + field.id + '"]')?.textContent?.trim() || field.id });
+        });
+        let summary = document.getElementById('admissionValidationSummary');
+        if (!summary) {
+            summary = document.createElement('div');
+            summary.id = 'admissionValidationSummary';
+            summary.className = 'alert alert-danger col-12';
+            summary.tabIndex = -1;
+            summary.setAttribute('role', 'alert');
+            form.prepend(summary);
+        }
+        const heading = document.createElement('p');
+        heading.className = 'fw-semibold mb-2';
+        heading.textContent = bangla ? 'নিচের তথ্যগুলো সংশোধন করুন:' : 'Please correct these fields:';
+        const list = document.createElement('ul');
+        list.className = 'mb-0';
+        entries.forEach(({ field, label }) => {
+            const item = document.createElement('li');
+            const link = document.createElement('button');
+            link.type = 'button';
+            link.className = 'btn btn-link p-0 text-start';
+            link.textContent = label;
+            link.addEventListener('click', () => field.focus());
+            item.append(link);
+            list.append(item);
+            field.setAttribute('aria-invalid', 'true');
+        });
+        summary.replaceChildren(heading, list);
+        summary.focus();
+    }
+
+    function clearAdmissionErrors(form) {
+        document.getElementById('admissionValidationSummary')?.remove();
+        form.querySelectorAll('[aria-invalid="true"]').forEach(field => field.removeAttribute('aria-invalid'));
+    }
+
     async function submitApplication(event) {
         event.preventDefault();
         const form = event.currentTarget;
         if (state.submitting) return;
-        if (!form.reportValidity()) {
-            showAlert('danger', bangla ? 'প্রয়োজনীয় তথ্য পূরণ বা সংশোধন করুন।' : 'Complete or correct the required fields.');
-            form.querySelector(':invalid')?.focus();
+        if (!form.checkValidity()) {
+            admissionErrors(form);
             return;
         }
+        clearAdmissionErrors(form);
         const selectedForm = state.options?.openForms?.find(x => x.reference === valueOf('admissionFormReference'));
         if (!selectedForm) {
             showAlert('danger', bangla ? 'আবেদন জমা দেওয়ার আগে চালু ভর্তি ফরম নির্বাচন করুন।' : 'Select an open admission intake before submitting.');
-            document.getElementById('admissionFormReference')?.focus();
+            admissionErrors(form, [document.getElementById('admissionFormReference')]);
             return;
         }
         const dateOfBirth = valueOf('dateOfBirth');
         if (isMinor(dateOfBirth) && (!valueOf('guardianName') || !valueOf('guardianRelation') || !valueOf('guardianMobile'))) {
             showAlert('danger', i18n.minorGuardianRequired);
-            document.getElementById('guardianName')?.focus();
+            admissionErrors(form, ['guardianName', 'guardianRelation', 'guardianMobile'].map(id => document.getElementById(id)).filter(field => field && !field.value.trim()));
             return;
         }
 
