@@ -437,11 +437,39 @@
             maxFileSizeMb: positiveInteger(row.querySelector('.intake-document-size')?.value),
             allowedExtensions: row.querySelector('.intake-document-extensions')?.value.split(/[\s,]+/).map(x => x.trim()).filter(Boolean) || []
         }));
+        // Validate the complete intake definition before any write; keep the editor open
+        // so staff can correct the form without losing configured fields/documents.
+        const invalid = [];
+        const fieldKeys = new Set();
+        for (const [index, field] of fields.entries()) {
+            const key = String(field.fieldKey || '').toLowerCase();
+            if (fieldKeys.has(key)) invalid.push({ row: document.querySelectorAll('.intake-field-row')[index], message: bangla ? 'একই ফিল্ড কী একাধিকবার ব্যবহার করা যাবে না।' : 'Field keys must be unique.' });
+            fieldKeys.add(key);
+            if ([7, 8].includes(field.dataType) && !JSON.parse(field.optionsJson || '[]').length)
+                invalid.push({ row: document.querySelectorAll('.intake-field-row')[index], message: bangla ? 'চয়েস ফিল্ডে অন্তত একটি অপশন দিন।' : 'Add at least one choice.' });
+        }
+        const documentTypes = new Set();
+        for (const [index, requirement] of documentRequirements.entries()) {
+            const key = String(requirement.documentType || '').toLowerCase();
+            if (documentTypes.has(key)) invalid.push({ row: document.querySelectorAll('.intake-document-row')[index], message: bangla ? 'একই নথির ধরন একাধিকবার দেওয়া যাবে না।' : 'Document types must be unique.' });
+            documentTypes.add(key);
+            if (!requirement.allowedExtensions.length)
+                invalid.push({ row: document.querySelectorAll('.intake-document-row')[index], message: bangla ? 'অনুমোদিত ফাইল এক্সটেনশন দিন।' : 'Specify allowed file extensions.' });
+        }
+        const opens = new Date(valueOf('intakeOpensAt'));
+        const closes = new Date(valueOf('intakeClosesAt'));
+        if (!Number.isFinite(opens.valueOf()) || !Number.isFinite(closes.valueOf()) || closes <= opens)
+            invalid.unshift({ row: document.getElementById('intakeClosesAt'), message: bangla ? 'শেষের সময় শুরুর সময়ের পরে হতে হবে।' : 'Closing time must be after opening time.' });
+        if (invalid.length) {
+            const first = invalid[0];
+            showIntakeValidation(first.message, first.row);
+            return;
+        }
         const request = {
             code: valueOf('intakeCode'), title: valueOf('intakeTitle'), description: null,
             academicYearId: positiveInteger(valueOf('intakeYearId')), academicTermId: positiveInteger(valueOf('intakeTermId')),
             campusId: positiveInteger(valueOf('intakeCampusId')), academicLevelId: positiveInteger(valueOf('intakeUnitId')),
-            opensAtUtc: new Date(valueOf('intakeOpensAt')).toISOString(), closesAtUtc: new Date(valueOf('intakeClosesAt')).toISOString(),
+            opensAtUtc: opens.toISOString(), closesAtUtc: closes.toISOString(),
             applicationFee: Number(valueOf('intakeFee') || 0), currency: valueOf('intakeCurrency'), fields, documentRequirements
         };
         if (id) request.rowVersion = valueOf('intakeFormRowVersion');
@@ -460,6 +488,27 @@
         } finally {
             setLoading(button, false);
         }
+    }
+
+    function showIntakeValidation(message, target) {
+        const editor = document.getElementById('intakeFormEditor');
+        if (!editor) return;
+        let summary = document.getElementById('intakeValidationSummary');
+        if (!summary) {
+            summary = document.createElement('div');
+            summary.id = 'intakeValidationSummary';
+            summary.className = 'alert alert-danger';
+            summary.setAttribute('role', 'alert');
+            summary.tabIndex = -1;
+            editor.prepend(summary);
+            editor.addEventListener('input', () => summary.remove(), { once: true });
+        }
+        summary.textContent = message;
+        summary.focus();
+        const field = target?.matches?.('input, select, textarea') ? target
+            : target?.querySelector?.('input, select, textarea');
+        field?.setAttribute('aria-invalid', 'true');
+        field?.focus();
     }
 
     // Accessible, in-form error summary. Keep existing API and browser validation authoritative.
