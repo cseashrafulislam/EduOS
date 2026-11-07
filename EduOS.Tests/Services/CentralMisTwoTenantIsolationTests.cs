@@ -370,6 +370,58 @@ public sealed class CentralMisTwoTenantIsolationTests
             From, To, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task Partially_paid_invoice_counts_only_remaining_due_not_original_total()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            var partial = Invoice(1, 41, 30m);
+            partial.State = InvoiceState.PartiallyPaid;
+            partial.TotalAmount = 100m;
+            seed.StudentInvoices.Add(partial);
+            seed.StudentInvoices.Add(Invoice(2, 41, 0m));
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var result = await Service(request, 41, 9, finance.Object).GetAsync(From, To);
+        Assert.Equal(200, result.StatusCode);
+        var metrics = result.Data!.Metrics.ToDictionary(m => m.Key);
+        Assert.Equal(30m, metrics["outstanding_fee_amount"].Value);
+        Assert.Equal(1m, metrics["outstanding_fee_invoices"].Value);
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            From, To, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Deleted_and_paid_invoices_with_stale_due_are_excluded_from_receivable()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            var deleted = Invoice(1, 41, -50m);
+            deleted.IsDeleted = true;
+            var paid = Invoice(2, 41, -60m);
+            paid.State = InvoiceState.Paid;
+            seed.StudentInvoices.AddRange(deleted, paid, Invoice(3, 41, 7m));
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var result = await Service(request, 41, 9, finance.Object).GetAsync(From, To);
+        Assert.Equal(200, result.StatusCode);
+        var metrics = result.Data!.Metrics.ToDictionary(m => m.Key);
+        Assert.Equal(7m, metrics["outstanding_fee_amount"].Value);
+        Assert.Equal(1m, metrics["outstanding_fee_invoices"].Value);
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            From, To, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("mis-two-tenant-" + Guid.NewGuid().ToString("N"),
