@@ -187,6 +187,34 @@ public static class PublishedOutcomeAttainmentPolicy
         return CalculateCompleteCohort(evidence, mappings, decimalPlaces);
     }
 
+    /// <summary>
+    /// Returns individual learner attainment only for the server-authorized roster.
+    /// Rejects missing or foreign enrollments rather than exposing partial reports.
+    /// The roster must come from canonical tenant/campus enrollment authorization.
+    /// This method does not grant authorization or persist assessment results.
+    /// </summary>
+    public static IReadOnlyList<LearnerOutcome> CalculatePerLearnerForRoster(
+        IReadOnlyCollection<Evidence> evidence,
+        IReadOnlyCollection<Mapping> mappings,
+        IReadOnlyCollection<long> authorizedEnrollmentIds,
+        int decimalPlaces = 2)
+    {
+        ArgumentNullException.ThrowIfNull(authorizedEnrollmentIds);
+        ArgumentNullException.ThrowIfNull(evidence);
+        var roster = authorizedEnrollmentIds.ToArray();
+        if (roster.Length == 0 || roster.Any(id => id <= 0) ||
+            roster.Distinct().Count() != roster.Length)
+            throw new ArgumentException("Authorized enrollment roster must contain unique positive IDs.",
+                nameof(authorizedEnrollmentIds));
+
+        var actual = evidence.Select(x => x.EnrollmentId).Distinct().ToHashSet();
+        if (actual.Count != roster.Length || roster.Any(id => !actual.Contains(id)))
+            throw new ArgumentException("Published evidence does not match the authorized enrollment roster.",
+                nameof(evidence));
+
+        return CalculatePerLearner(evidence, mappings, decimalPlaces);
+    }
+
     public sealed record LearnerOutcome(long EnrollmentId, long OutcomeId,
         decimal AttainmentPercent, int EvidenceCount,
         long PublicationId, int PublicationVersion);
