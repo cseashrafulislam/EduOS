@@ -39,7 +39,11 @@
             'guardian mobile': 'guardianMobile', 'অভিভাবকের মোবাইল': 'guardianMobile',
             address: 'presentAddress', 'ঠিকানা': 'presentAddress'
         };
-        // Reject oversized drafts without silently truncating pasted content.\n        if (String(text || '').length > 3000) {\n            return { fields: {}, errors: [{ tooLong: true, limit: 3000 }] };\n        }\n        String(text || '').split(/\r?\n/).forEach((line, index) => {
+        // Reject oversized drafts without silently truncating pasted content.
+        if (String(text || '').length > 3000) {
+            return { fields: {}, errors: [{ tooLong: true, limit: 3000 }] };
+        }
+        String(text || '').split(/\r?\n/).forEach((line, index) => {
             const at = line.indexOf(':');
             if (at < 0) return;
             const key = keys[line.slice(0, at).trim().toLowerCase()];
@@ -121,7 +125,9 @@
             const detailed = parseDetailed(input.value);
             if (detailed.errors.length) {
                 const first = detailed.errors[0];
-                status.textContent = first.tooLong\n                    ? t('Draft exceeds 3000 characters. Shorten it and preview again; no fields changed.',\n                        'খসড়া ৩০০০ অক্ষরের বেশি। লেখা ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।')\n                    : first.empty
+                status.textContent = first.tooLong
+                    ? t('Draft exceeds 3000 characters. Shorten it and preview again; no fields changed.',
+                        'খসড়া ৩০০০ অক্ষরের বেশি। লেখা ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।')\n                    : first.empty
                     ? t(`Line ${first.line} has an empty admission field. Enter a value; no fields changed.`,
                         `লাইন ${first.line}-এ তথ্যের ঘর খালি। তথ্য লিখুন; কোনো তথ্য বদলায়নি।`)
                     : first.duplicate
