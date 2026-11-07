@@ -117,6 +117,48 @@ public static class PublishedOutcomeAttainmentPolicy
         return result;
     }
 
+    /// <summary>
+    /// Computes a complete-cohort attainment from equally weighted, fully evidenced
+    /// learners. Unlike the legacy per-course mean, incomplete learner/course grids
+    /// are rejected rather than silently changing the cohort denominator.
+    /// Use only after server-side tenant, campus, enrolment and publication authorization.
+    /// </summary>
+    public static IReadOnlyList<Outcome> CalculateCompleteCohort(
+        IReadOnlyCollection<Evidence> evidence,
+        IReadOnlyCollection<Mapping> mappings,
+        int decimalPlaces = 2)
+    {
+        // Keep full decimal precision until the final cohort rounding. The public
+        // learner API rounds for display and must not become an aggregation source.
+        _ = CalculatePerLearner(evidence, mappings, decimalPlaces);
+        var rows = evidence.ToArray();
+        var mapRows = mappings.ToArray();
+        var learners = rows.GroupBy(x => x.EnrollmentId).ToArray();
+        var results = new List<Outcome>();
+        foreach (var outcome in mapRows.GroupBy(x => x.OutcomeId).OrderBy(x => x.Key))
+        {
+            decimal cohortTotal = 0m;
+            foreach (var learner in learners)
+            {
+                var courses = learner.ToDictionary(x => x.CurriculumSubjectId);
+                decimal learnerTotal = 0m;
+                foreach (var mapping in outcome)
+                {
+                    var grade = courses[mapping.CurriculumSubjectId];
+                    learnerTotal += grade.ObtainedMarks / grade.FullMarks
+                        * mapping.WeightPercent;
+                }
+                cohortTotal += learnerTotal;
+            }
+            results.Add(new Outcome(outcome.Key,
+                decimal.Round(cohortTotal / learners.Length, decimalPlaces,
+                    MidpointRounding.AwayFromZero),
+                learners.Length * outcome.Count(),
+                rows[0].PublicationId, rows[0].PublicationVersion));
+        }
+        return results;
+    }
+
     public sealed record LearnerOutcome(long EnrollmentId, long OutcomeId,
         decimal AttainmentPercent, int EvidenceCount,
         long PublicationId, int PublicationVersion);
