@@ -146,4 +146,37 @@ public sealed class PublishedOutcomeAttainmentPolicyTests
         rows.Should().Equal(originalRows);
         maps.Should().Equal(originalMaps);
     }
+
+    [Fact]
+    public void Per_learner_attainment_uses_only_the_learner_published_course_evidence()
+    {
+        var result = Policy.CalculatePerLearner(
+            [Row(2, 20, 40), Row(1, 10, 90), Row(2, 10, 50), Row(1, 20, 70)],
+            [Map(8, 10, 60), Map(8, 20, 40)]);
+        result.Should().Equal(
+            new Policy.LearnerOutcome(1, 8, 82m, 2, 91, 3),
+            new Policy.LearnerOutcome(2, 8, 46m, 2, 91, 3));
+    }
+
+    [Fact]
+    public void Per_learner_missing_mapped_course_is_rejected_not_imputed_from_classmates()
+    {
+        Action act = () => Policy.CalculatePerLearner(
+            [Row(1, 10, 80), Row(1, 20, 60), Row(2, 10, 90)],
+            [Map(7, 10, 50), Map(7, 20, 50)]);
+        act.Should().Throw<ArgumentException>().WithMessage("*missing published evidence*");
+    }
+
+    [Fact]
+    public void Per_learner_calculation_preserves_publication_and_validation_guards()
+    {
+        Action withheld = () => Policy.CalculatePerLearner(
+            [Row(1, 10, 80) with { IsWithheld = true }], [Map(1, 10, 100)]);
+        Action mixed = () => Policy.CalculatePerLearner(
+            [Row(1, 10, 80), Row(2, 10, 70) with { PublicationVersion = 4 }],
+            [Map(1, 10, 100)]);
+        withheld.Should().Throw<ArgumentException>();
+        mixed.Should().Throw<ArgumentException>();
+    }
+
 }

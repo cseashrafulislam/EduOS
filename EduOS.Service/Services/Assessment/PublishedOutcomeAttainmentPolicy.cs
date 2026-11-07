@@ -78,4 +78,47 @@ public static class PublishedOutcomeAttainmentPolicy
         }
         return results;
     }
+
+    /// <summary>
+    /// Calculates a learner's outcomes only when that learner has exactly one
+    /// eligible published course record for every course mapped to each outcome.
+    /// Never substitutes another learner's grade for missing evidence.
+    /// </summary>
+    public static IReadOnlyList<LearnerOutcome> CalculatePerLearner(
+        IReadOnlyCollection<Evidence> evidence,
+        IReadOnlyCollection<Mapping> mappings,
+        int decimalPlaces = 2)
+    {
+        // Reuse all publication, grade, duplicate and mapping validation from
+        // the existing cohort calculator before evaluating individual learners.
+        _ = Calculate(evidence, mappings, decimalPlaces);
+        var rows = evidence.ToArray();
+        var mapRows = mappings.ToArray();
+        var result = new List<LearnerOutcome>();
+        foreach (var learner in rows.GroupBy(x => x.EnrollmentId).OrderBy(x => x.Key))
+        {
+            var courses = learner.ToDictionary(x => x.CurriculumSubjectId);
+            foreach (var outcome in mapRows.GroupBy(x => x.OutcomeId).OrderBy(x => x.Key))
+            {
+                if (outcome.Any(x => !courses.ContainsKey(x.CurriculumSubjectId)))
+                    throw new ArgumentException("Learner is missing published evidence for a mapped outcome course.");
+                decimal total = 0m;
+                foreach (var mapping in outcome)
+                {
+                    var grade = courses[mapping.CurriculumSubjectId];
+                    total += (grade.ObtainedMarks / grade.FullMarks * 100m)
+                        * mapping.WeightPercent / 100m;
+                }
+                result.Add(new LearnerOutcome(learner.Key, outcome.Key,
+                    decimal.Round(total, decimalPlaces, MidpointRounding.AwayFromZero),
+                    outcome.Count(), rows[0].PublicationId, rows[0].PublicationVersion));
+            }
+        }
+        return result;
+    }
+
+    public sealed record LearnerOutcome(long EnrollmentId, long OutcomeId,
+        decimal AttainmentPercent, int EvidenceCount,
+        long PublicationId, int PublicationVersion);
+
 }
