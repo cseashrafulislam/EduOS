@@ -159,6 +159,34 @@ public static class PublishedOutcomeAttainmentPolicy
         return results;
     }
 
+    /// <summary>
+    /// Calculates attainment only for the explicitly authorized enrollment roster.
+    /// A missing learner is an error even if all supplied evidence is otherwise valid.
+    /// The roster must be obtained from the canonical tenant/campus-scoped enrollment
+    /// service, not from the submitted evidence or an untrusted client parameter.
+    /// </summary>
+    public static IReadOnlyList<Outcome> CalculateCompleteCohortForRoster(
+        IReadOnlyCollection<Evidence> evidence,
+        IReadOnlyCollection<Mapping> mappings,
+        IReadOnlyCollection<long> authorizedEnrollmentIds,
+        int decimalPlaces = 2)
+    {
+        ArgumentNullException.ThrowIfNull(authorizedEnrollmentIds);
+        ArgumentNullException.ThrowIfNull(evidence);
+        var roster = authorizedEnrollmentIds.ToArray();
+        if (roster.Length == 0 || roster.Any(id => id <= 0) ||
+            roster.Distinct().Count() != roster.Length)
+            throw new ArgumentException("Authorized enrollment roster must contain unique positive IDs.",
+                nameof(authorizedEnrollmentIds));
+
+        var actual = evidence.Select(x => x.EnrollmentId).Distinct().ToHashSet();
+        if (actual.Count != roster.Length || roster.Any(id => !actual.Contains(id)))
+            throw new ArgumentException("Published evidence does not match the authorized enrollment roster.",
+                nameof(evidence));
+
+        return CalculateCompleteCohort(evidence, mappings, decimalPlaces);
+    }
+
     public sealed record LearnerOutcome(long EnrollmentId, long OutcomeId,
         decimal AttainmentPercent, int EvidenceCount,
         long PublicationId, int PublicationVersion);
