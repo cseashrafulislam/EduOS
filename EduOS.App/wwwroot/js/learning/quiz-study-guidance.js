@@ -36,5 +36,41 @@
           : (bn ? 'এই পাতায় প্রকাশিত মূল্যায়নের তথ্য নেই।' : 'No graded evidence on this page.')
     };
   }
-  return Object.freeze({ build });
+  // A bounded, explicitly scoped course-history view; never silently claim all history.
+  function summarize(pages, totalCount, locale) {
+    if (!Array.isArray(pages) || pages.length === 0 || pages.length > 10 ||
+        !Number.isSafeInteger(totalCount) || totalCount < 0 ||
+        pages.some(p => !Array.isArray(p) || p.length > 20)) return { status: 'invalid', items: [] };
+    const all = pages.flat();
+    if (all.length > totalCount || new Set(all.map(x => x?.attemptId)).size !== all.length)
+      return { status: 'invalid', items: [] };
+    // build validates all records, including unpublished/pending evidence handling.
+    const chunks = [];
+    for (let i = 0; i < all.length; i += 20) {
+      const result = build(all.slice(i, i + 20), locale);
+      if (result.status === 'invalid') return result;
+      chunks.push(result);
+    }
+    if (!chunks.length) chunks.push(build([], locale));
+    if (chunks.some(c => c.status === 'invalid')) return { status: 'invalid', items: [] };
+    const failed = all.filter(x => x.passed === false);
+    const bn = locale === 'bn-BD';
+    return {
+      status: all.some(x => x.passed !== null) ? 'ready' : 'no-evidence',
+      complete: all.length === totalCount,
+      scanned: all.length,
+      totalCount,
+      message: failed.length ? (bn ? 'পুনরায় অনুশীলনের পরামর্শ' : 'Suggested review')
+        : all.some(x => x.passed !== null) ? (bn ? 'দেখা ফলাফলে ব্যর্থ প্রচেষ্টা নেই।' : 'No failed graded attempts in scanned results.')
+        : (bn ? 'প্রকাশিত মূল্যায়নের তথ্য নেই।' : 'No graded evidence in scanned results.'),
+      note: bn ? 'শুধু অনুমোদিত কুইজের ফল; অধ্যায়ভিত্তিক দক্ষতা বা চূড়ান্ত গ্রেড নয়।'
+        : 'Authorized quiz results only; not chapter-level proficiency or an official grade.',
+      items: failed.slice(0, 10).map(r => ({
+        title: r.quizTitle, attemptId: r.attemptId,
+        advice: bn ? 'নিজের উত্তর পর্যালোচনা করে শিক্ষক নির্ধারিত পাঠ অনুশীলন করুন।'
+          : 'Review your answers and practise teacher-assigned material.'
+      }))
+    };
+  }
+  return Object.freeze({ build, summarize });
 });

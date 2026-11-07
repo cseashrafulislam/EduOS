@@ -1,7 +1,35 @@
 (()=>{'use strict';const app=window.EduQuiz;if(!app?.state.learner)return;
 const {$,el,msg,api}=app;let page=1,rows=[],total=0,epoch=0;
-const course=$('quizHistoryCourse'),body=$('quizHistoryRows');
+const course=$('quizHistoryCourse'),body=$('quizHistoryRows');let analysisEpoch=0;
 function cell(tr,value){const td=el('td',String(value??''));tr.append(td);}
+function studyScope(value){const node=$('quizStudyScope');if(node)node.textContent=value;}
+async function analyzeCourse(){
+ const selected=course.value,k=++analysisEpoch,button=$('quizStudyAnalyze');
+ if(!selected)return;
+ button.disabled=true;studyScope('Loading authorized course history / কোর্সের ফল লোড হচ্ছে…');
+ const pages=[];let count=null;
+ try{
+  for(let p=1;p<=10;p++){
+   const data=await api('/api/lms/quizzes/course/'+encodeURIComponent(selected)+'/history?page='+p+'&pageSize=20');
+   if(k!==analysisEpoch||selected!==course.value)return;
+   if(!data||!Array.isArray(data.items)||!Number.isSafeInteger(data.totalCount)||data.totalCount<0||
+      data.items.length>20||(count!==null&&count!==data.totalCount))throw Error('Invalid history response');
+   count=data.totalCount;pages.push(data.items);
+   if(p*20>=count||data.items.length===0)break;
+  }
+  const locale=document.documentElement.lang==='bn-BD'?'bn-BD':'en-BD';
+  const result=window.EduQuizStudyGuidance?.summarize(pages,count,locale);
+  if(!result||result.status==='invalid')throw Error('Invalid study evidence');
+  const list=$('quizStudyItems');list.replaceChildren();
+  $('quizStudyMessage').textContent=result.message;$('quizStudyNote').textContent=result.note;
+  result.items.forEach(item=>{const li=el('li');li.className='list-group-item';
+    li.append(el('strong',item.title),el('span',' — '+item.advice));list.append(li);});
+  studyScope((locale==='bn-BD'?'যাচাই করা প্রচেষ্টা: ':'Scanned attempts: ')+result.scanned+'/'+result.totalCount+
+   (result.complete?'':(locale==='bn-BD'?' (আংশিক, সর্বোচ্চ ২০০)':' (partial, capped at 200)')));
+ }catch(e){if(k===analysisEpoch){studyScope('History analysis unavailable / বিশ্লেষণ সম্ভব হয়নি');msg('danger',e.message);}}
+ finally{if(k===analysisEpoch)button.disabled=!course.value;}
+}
+$('quizStudyAnalyze').onclick=analyzeCourse;
 function renderStudy(){
  const message=$('quizStudyMessage'),note=$('quizStudyNote'),list=$('quizStudyItems');
  if(!message||!note||!list)return;
@@ -38,7 +66,7 @@ function csv(){const cells=[['Quiz','Attempt','Submitted','Marks','Pass']];
 rows.forEach(x=>cells.push([x.quizTitle,x.attemptNo,x.submittedAt||'',x.obtainedMarks??'',x.passed===null?'Pending':x.passed?'Pass':'Fail']));
 const content=cells.map(row=>row.map(v=>{const s=String(v);const safe=/^[=+\-@\t\r]/.test(s)?"'"+s:s;return '"'+safe.replace(/"/g,'""')+'"';}).join(',')).join('\r\n');
 const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=el('a');a.href=url;a.download='quiz-history-page-'+page+'.csv';a.click();URL.revokeObjectURL(url);}
-course.onchange=()=>{page=1;search();};$('quizHistoryRefresh').onclick=()=>{page=1;search();};
+course.onchange=()=>{analysisEpoch++;$('quizStudyAnalyze').disabled=!course.value;studyScope('');page=1;search();};$('quizHistoryRefresh').onclick=()=>{page=1;search();};
 $('quizHistoryPrev').onclick=()=>{if(page>1){page--;search();}};
 $('quizHistoryNext').onclick=()=>{if(page*20<total){page++;search();}};
 $('quizHistoryCsv').onclick=csv;$('quizHistoryPrint').onclick=()=>window.print();
