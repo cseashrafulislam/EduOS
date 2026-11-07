@@ -127,7 +127,8 @@
                 const first = detailed.errors[0];
                 status.textContent = first.tooLong
                     ? t('Draft exceeds 3000 characters. Shorten it and preview again; no fields changed.',
-                        'খসড়া ৩০০০ অক্ষরের বেশি। লেখা ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।')\n                    : first.empty
+                        'খসড়া ৩০০০ অক্ষরের বেশি। লেখা ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।')
+                    : first.empty
                     ? t(`Line ${first.line} has an empty admission field. Enter a value; no fields changed.`,
                         `লাইন ${first.line}-এ তথ্যের ঘর খালি। তথ্য লিখুন; কোনো তথ্য বদলায়নি।`)
                     : first.duplicate
