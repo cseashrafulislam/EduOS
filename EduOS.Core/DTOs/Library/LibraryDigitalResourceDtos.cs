@@ -8,6 +8,10 @@ public sealed class LibraryDigitalResourceDto
     public Guid BookReference { get; set; }
     public long? CampusId { get; set; }
     public string BookTitle { get; set; } = string.Empty;
+    public string? BookAuthor { get; set; }
+    public string? BookPublisher { get; set; }
+    public string? BookEdition { get; set; }
+    public string? BookIsbn { get; set; }
     public string Title { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;

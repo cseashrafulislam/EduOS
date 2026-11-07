@@ -254,6 +254,15 @@
             if (currentSession() && error.name !== 'AbortError') notify(error.message);
         } finally { button.disabled = false; }
     }
+    function bookDetails(resource) {
+        const values = [
+            [words('Author', 'লেখক'), resource.bookAuthor],
+            [words('Publisher', 'প্রকাশক'), resource.bookPublisher],
+            [words('Edition', 'সংস্করণ'), resource.bookEdition],
+            ['ISBN', resource.bookIsbn]
+        ].filter(([, value]) => typeof value === 'string' && value.trim());
+        return values.map(([label, value]) => label + ': ' + value.trim()).join(' · ');
+    }
     function render(resources) {
         rows.replaceChildren();
         if (!resources.length) return empty(words('No resources found.', 'কোনো রিসোর্স পাওয়া যায়নি।'));
@@ -267,6 +276,14 @@
                         words('All campuses', 'সব ক্যাম্পাস') :
                         words('Campus ', 'ক্যাম্পাস ') + resource.campusId) : ''),
                 resource.expiresOn || '—'].forEach(value => tr.append(td(value)));
+            const details = bookDetails(resource);
+            if (details) {
+                const small = document.createElement('small');
+                small.className = 'd-block text-muted';
+                small.textContent = details;
+                // Metadata is rendered as text, never interpreted as HTML.
+                tr.firstElementChild.append(small);
+            }
             const actions = document.createElement('td');
             if (resource.isActive && !expired) {
                 const button = document.createElement('button');

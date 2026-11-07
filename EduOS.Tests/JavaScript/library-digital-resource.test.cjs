@@ -130,3 +130,20 @@ test('digital publication history resolves one bounded tenant-owned lineage and 
     assert.match(writer, /WriteVersions/);
     assert.doesNotMatch(writer, /StorageKey|Sha256|PersonId/);
 });
+
+
+test('licensed catalogue searches canonical Book bibliographic fields and renders authorized metadata safely', () => {
+    const dto = read('EduOS.Core/DTOs/Library/LibraryDigitalResourceDtos.cs');
+    for (const field of ['BookAuthor', 'BookPublisher', 'BookEdition', 'BookIsbn']) {
+        assert.match(dto, new RegExp(field));
+        assert.match(service, new RegExp(field));
+    }
+    for (const field of ['Author', 'Publisher', 'Edition', 'ISBN'])
+        assert.match(service, new RegExp('x\\.Book\\.' + field + '\\s*!= null'));
+    assert.match(service, /ResourceQuery\(\)/);
+    assert.match(service, /MemberCampusIds\(\)/);
+    assert.match(ui, /function bookDetails\(resource\)/);
+    assert.match(ui, /small\.textContent = details/);
+    assert.match(view, /ISBN or resource/);
+    assert.doesNotMatch(ui, /innerHTML\s*=/);
+});
