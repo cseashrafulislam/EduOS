@@ -127,4 +127,30 @@ public sealed class GroundedChapterStudyTests
             [Excerpt(text: "Photosynthesis " + new string('x', 1200))]);
         Assert.Equal(Outcome.Invalid, result.Status);
     }
+    [Theory]
+    [InlineData("Explain photo\\u200Bsynthesis")]
+    [InlineData("Explain photosynthesis\\u202E")]
+    [InlineData("Explain photosynthesis\\uD800")]
+    public void Invisible_or_unpaired_unicode_in_question_is_rejected(string question)
+    {
+        // Convert escaped test sequences into actual Unicode code units.
+        question = question.Replace("\\u200B", "\u200B")
+            .Replace("\\u202E", "\u202E")
+            .Replace("\\uD800", "\uD800");
+        Assert.Equal(Outcome.Invalid,
+            GroundedChapterStudy.Answer(Request with { Question = question },
+                [Excerpt()]).Status);
+    }
+
+    [Theory]
+    [InlineData("<script>Photosynthesis</script>")]
+    [InlineData("Photosynthesis \\u200B converts light energy.")]
+    [InlineData("Photosynthesis \\uD800 converts light energy.")]
+    public void Unsafe_markup_and_unicode_in_evidence_are_rejected(string text)
+    {
+        text = text.Replace("\\u200B", "\u200B").Replace("\\uD800", "\uD800");
+        Assert.Equal(Outcome.Invalid,
+            GroundedChapterStudy.Answer(Request, [Excerpt(text: text)]).Status);
+    }
+
 }
