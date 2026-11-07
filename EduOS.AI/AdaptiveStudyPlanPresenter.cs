@@ -47,9 +47,13 @@ public static class AdaptiveStudyPlanPresenter
             result.Skills.Any(x => x is null ||
                 string.IsNullOrWhiteSpace(x.SkillId) || x.SkillId.Length > 128 ||
                 x.SkillId.Any(c => char.IsControl(c) || char.IsSurrogate(c) ||
+                    char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format ||
                     c is '<' or '>') ||
                 x.ObservedPercent is null or < 0 or > 100 ||
                 x.PublishedAttemptCount < 1 ||
+                x.Priority != (x.ObservedPercent < 50m ? AdaptiveStudyPlanPolicy.StudyPriority.Review :
+                    x.ObservedPercent < 80m ? AdaptiveStudyPlanPolicy.StudyPriority.Practice :
+                    AdaptiveStudyPlanPolicy.StudyPriority.Extend) ||
                 x.FeedbackCode != (x.Priority switch
                 {
                     AdaptiveStudyPlanPolicy.StudyPriority.Review => "review_chapter",
@@ -57,6 +61,12 @@ public static class AdaptiveStudyPlanPresenter
                     AdaptiveStudyPlanPolicy.StudyPriority.Extend => "extend_learning",
                     _ => ""
                 })))
+            return new(AdaptiveStudyPlanPolicy.PlanStatus.Invalid,
+                bangla ? "পরিকল্পনার তথ্য সঠিক নয়।" : "Invalid study plan evidence.",
+                Array.Empty<LocalizedSkill>());
+
+        // One canonical skill must appear only once; conflicting duplicates are not safe to render.
+        if (result.Skills.Select(x => x.SkillId).Distinct(StringComparer.Ordinal).Count() != result.Skills.Count)
             return new(AdaptiveStudyPlanPolicy.PlanStatus.Invalid,
                 bangla ? "পরিকল্পনার তথ্য সঠিক নয়।" : "Invalid study plan evidence.",
                 Array.Empty<LocalizedSkill>());
