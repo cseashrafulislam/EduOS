@@ -26,6 +26,12 @@ public static class GroundedChapterStudy
         string Question, string TenantId, string CampusId, string BookId,
         string EditionId, string ChapterId, string UserId);
 
+    // These IDs originate from trusted server context, never from a prompt. Reject
+    // malformed identifiers even when a caller accidentally forwards raw request data.
+    private static bool ValidScopeId(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && value.Length <= 128 &&
+        value.All(c => char.IsLetterOrDigit(c) || c is '-' or '_' or '.' or ':');
+
     public enum Outcome { Answered, NoEvidence, Denied, Invalid }
     public sealed record StudyAnswer(Outcome Status, string Message, string? Citation)
     {
@@ -43,17 +49,16 @@ public static class GroundedChapterStudy
     public static StudyAnswer Answer(StudyRequest? request,
         IReadOnlyCollection<AuthorizedChapterExcerpt>? authorizedExcerpts)
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.UserId) ||
-            string.IsNullOrWhiteSpace(request.TenantId) ||
-            string.IsNullOrWhiteSpace(request.CampusId))
+        if (request is null || !ValidScopeId(request.UserId) ||
+            !ValidScopeId(request.TenantId) || !ValidScopeId(request.CampusId))
             return StudyAnswer.Reject(Outcome.Denied);
         if (string.IsNullOrWhiteSpace(request.Question) ||
             request.Question.Length > MaxQuestionLength ||
             request.Question.Any(c => char.IsControl(c) || char.IsSurrogate(c) ||
                 char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format) ||
-            string.IsNullOrWhiteSpace(request.BookId) ||
-            string.IsNullOrWhiteSpace(request.EditionId) ||
-            string.IsNullOrWhiteSpace(request.ChapterId))
+            !ValidScopeId(request.BookId) ||
+            !ValidScopeId(request.EditionId) ||
+            !ValidScopeId(request.ChapterId))
             return StudyAnswer.Reject(Outcome.Invalid);
         if (authorizedExcerpts is null || authorizedExcerpts.Count == 0)
             return StudyAnswer.Reject(Outcome.NoEvidence);
