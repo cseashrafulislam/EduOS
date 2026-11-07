@@ -90,6 +90,24 @@
             </div>
             <button id="newIntakeFormButton" class="btn btn-outline-primary" type="button">@(bn ? "নতুন ফরম" : "New Form")</button>
         </div>
+        <div class="row g-2 mb-3">
+            <div class="col-md-8">
+                <label for="intakeFormSearch" class="form-label">@(bn ? "ফরম খুঁজুন" : "Find admission form")</label>
+                <input id="intakeFormSearch" type="search" class="form-control" maxlength="120"
+                       placeholder="@(bn ? "নাম বা কোড লিখুন" : "Search by title or code")" autocomplete="off" />
+            </div>
+            <div class="col-md-4">
+                <label for="intakeFormState" class="form-label">@(bn ? "ফরমের অবস্থা" : "Form status")</label>
+                <select id="intakeFormState" class="form-select">
+                    <option value="">@(bn ? "সব অবস্থা" : "All statuses")</option>
+                    <option value="1">@(bn ? "খসড়া" : "Draft")</option>
+                    <option value="2">@(bn ? "প্রকাশিত" : "Published")</option>
+                    <option value="3">@(bn ? "বন্ধ" : "Closed")</option>
+                    <option value="4">@(bn ? "সংরক্ষিত" : "Archived")</option>
+                </select>
+            </div>
+        </div>
+        <p id="intakeFormCount" class="small text-muted" role="status" aria-live="polite"></p>
         <div id="intakeFormList" class="intake-form-list" aria-live="polite" aria-busy="true"></div>
     </section>
 

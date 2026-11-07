@@ -26,3 +26,20 @@ test('validation covers field and document definitions before writes', () => {
  assert.match(js, /closes <= opens/);
  assert.match(js, /if \(invalid\.length\) \{/);
 });
+
+test('intake catalogue supports bilingual searchable statuses and an accessible result count', () => {
+ assert.match(view, /id="intakeFormSearch"/);
+ assert.match(view, /id="intakeFormState"/);
+ assert.match(view, /id="intakeFormCount"[^>]*role="status" aria-live="polite"/);
+ assert.match(js, /intakeFormSearch'\)\?\.addEventListener\('input', renderIntakeForms\)/);
+ assert.match(js, /const visible = state\.intakeForms\.filter/);
+ assert.match(js, /No forms match these filters/);
+ assert.match(js, /intakeText\('Published', 'প্রকাশিত'\)/);
+});
+test('publish and close operations reload canonical options and recover on stale row versions', () => {
+ assert.match(js, /controls\.dataset\.mutatingIntake/);
+ assert.match(js, /response\.status === 409 \|\| response\.status === 412/);
+ assert.match(js, /await loadIntakeForms\(\)/);
+ assert.match(js, /await loadOptions\(\)/);
+ assert.match(js, /delete controls\.dataset\.mutatingIntake/);
+});

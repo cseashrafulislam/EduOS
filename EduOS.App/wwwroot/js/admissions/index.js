@@ -30,6 +30,8 @@
         document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
         document.getElementById('intakeFormList')?.addEventListener('click', handleIntakeFormAction);
+        document.getElementById('intakeFormSearch')?.addEventListener('input', renderIntakeForms);
+        document.getElementById('intakeFormState')?.addEventListener('change', renderIntakeForms);
         document.getElementById('newIntakeFormButton')?.addEventListener('click', openNewIntakeForm);
         document.getElementById('intakeFormEditor')?.addEventListener('submit', saveIntakeForm);
         document.getElementById('intakeFormEditor')?.addEventListener('input', clearIntakeValidation);
@@ -202,14 +204,29 @@
         }
     }
 
+    function intakeText(english, bengali) { return bangla ? bengali : english; }
+
     function renderIntakeForms() {
         const list = document.getElementById('intakeFormList');
         if (!list) return;
-        if (!state.intakeForms.length) {
-            list.replaceChildren(statusMessage('No configured admission forms. Create a draft to open public applications.'));
+        const query = (document.getElementById('intakeFormSearch')?.value || '').trim().toLocaleLowerCase();
+        const stateFilter = document.getElementById('intakeFormState')?.value || '';
+        const visible = state.intakeForms.filter(item => {
+            const matchesText = !query || [item.code, item.title].some(value => String(value || '').toLocaleLowerCase().includes(query));
+            return matchesText && (!stateFilter || String(item.state) === stateFilter);
+        });
+        const count = document.getElementById('intakeFormCount');
+        if (count) count.textContent = intakeText(
+            `${visible.length} of ${state.intakeForms.length} admission forms`,
+            `মোট ${state.intakeForms.length}টি ফরমের মধ্যে ${visible.length}টি দেখানো হচ্ছে`
+        );
+        if (!visible.length) {
+            list.replaceChildren(statusMessage(state.intakeForms.length
+                ? intakeText('No forms match these filters.', 'এই অনুসন্ধানে কোনো ফরম পাওয়া যায়নি।')
+                : intakeText('No admission forms yet. Create a draft to begin.', 'এখনো কোনো ভর্তি ফরম নেই। শুরু করতে নতুন খসড়া তৈরি করুন।')));
             return;
         }
-        list.replaceChildren(...state.intakeForms.map(item => {
+        list.replaceChildren(...visible.map(item => {
             const card = document.createElement('article');
             card.className = 'intake-form-card';
             const summary = document.createElement('div');
@@ -218,18 +235,27 @@
             const detail = document.createElement('p');
             detail.textContent = `${item.code || ''} · ${formatDate(item.opensAt)} — ${formatDate(item.closesAt)} · ${item.currencyCode || ''} ${Number(item.applicationFee || 0).toFixed(2)}`;
             const counts = document.createElement('p');
-            counts.textContent = `${item.fields?.length || 0} custom fields · document policies managed separately`;
+            counts.textContent = intakeText(
+                `${item.fields?.length || 0} custom fields · document policies managed separately`,
+                `${item.fields?.length || 0}টি অতিরিক্ত তথ্যের ঘর · নথির নিয়ম আলাদাভাবে পরিচালিত`
+            );
             summary.append(title, detail, counts);
             const controls = document.createElement('div');
             controls.className = 'intake-form-actions';
             const badge = document.createElement('span');
             badge.className = `admission-status status-${Number(item.state) === 2 ? 4 : Number(item.state) === 3 ? 6 : 1}`;
-            badge.textContent = ({ 1: 'Draft', 2: 'Published', 3: 'Closed', 4: 'Archived' })[Number(item.state)] || 'Unknown';
+            badge.textContent = ({
+                1: intakeText('Draft', 'খসড়া'),
+                2: intakeText('Published', 'প্রকাশিত'),
+                3: intakeText('Closed', 'বন্ধ'),
+                4: intakeText('Archived', 'সংরক্ষিত')
+            })[Number(item.state)] || intakeText('Unknown', 'অজানা');
             controls.append(badge);
             if (Number(item.state) === 1) {
-                controls.append(actionButton('Edit', 'edit', item.id, 'btn-outline-secondary'), actionButton('Publish', 'publish', item.id, 'btn-success'));
+                controls.append(actionButton(intakeText('Edit', 'সম্পাদনা'), 'edit', item.id, 'btn-outline-secondary'),
+                    actionButton(intakeText('Publish', 'প্রকাশ করুন'), 'publish', item.id, 'btn-success'));
             } else if (Number(item.state) === 2) {
-                controls.append(actionButton('Close', 'close', item.id, 'btn-outline-danger'));
+                controls.append(actionButton(intakeText('Close', 'বন্ধ করুন'), 'close', item.id, 'btn-outline-danger'));
             }
             card.append(summary, controls);
             return card;
@@ -257,17 +283,36 @@
         }
         const action = button.dataset.intakeAction;
         if (action !== 'publish' && action !== 'close') return;
-        button.disabled = true;
+        const controls = document.getElementById('intakeFormList');
+        if (controls?.dataset.mutatingIntake) return;
+        if (controls) {
+            controls.dataset.mutatingIntake = String(item.id);
+            controls.querySelectorAll('button[data-intake-action]').forEach(control => { control.disabled = true; });
+            controls.setAttribute('aria-busy', 'true');
+        }
         try {
             const response = await fetch(`/api/admission-intake/forms/${encodeURIComponent(item.id)}/${action}`, apiOptions('POST', { rowVersion: item.rowVersion }));
             const payload = await response.json().catch(() => null);
-            if (!response.ok || !payload?.success) throw new Error(payload?.message || `Admission form could not be ${action}ed.`);
-            showAlert('success', payload.message || `Admission form ${action}ed.`);
+            if (!response.ok || !payload?.success) {
+                if (response.status === 409 || response.status === 412) {
+                    await loadIntakeForms();
+                    throw new Error(intakeText('This form was changed elsewhere. The latest version has been loaded; review it before retrying.',
+                        'ফরমটি অন্য জায়গায় পরিবর্তিত হয়েছে। সর্বশেষ সংস্করণ আনা হয়েছে; আবার চেষ্টা করার আগে যাচাই করুন।'));
+                }
+                throw new Error(payload?.message || intakeText('Unable to change the form status.', 'ফরমের অবস্থা পরিবর্তন করা যায়নি।'));
+            }
+            showAlert('success', payload.message || intakeText('Admission form updated.', 'ভর্তি ফরম হালনাগাদ হয়েছে।'));
             await loadIntakeForms();
+            // Refresh the published-form selector only after the authoritative mutation succeeds.
+            await loadOptions();
         } catch (error) {
-            showAlert('danger', error.message || `Admission form could not be ${action}ed.`);
+            showAlert('danger', error.message || intakeText('Unable to change the form status.', 'ফরমের অবস্থা পরিবর্তন করা যায়নি।'));
         } finally {
-            button.disabled = false;
+            if (controls) {
+                delete controls.dataset.mutatingIntake;
+                controls.querySelectorAll('button[data-intake-action]').forEach(control => { control.disabled = false; });
+                controls.removeAttribute('aria-busy');
+            }
         }
     }
 
