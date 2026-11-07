@@ -266,8 +266,9 @@
                 <h2 class="modal-title h5" id="intakeFormModalTitle">Admission Form / ভর্তি ফরম</h2>
                 <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
             </div>
-            <form id="intakeFormEditor">
+            <form id="intakeFormEditor" novalidate aria-describedby="intakeEditorHelp">
                 <div class="modal-body">
+                    <p id="intakeEditorHelp" class="small text-muted">@(bn ? "ফরমের তথ্য যাচাই করে খসড়া সংরক্ষণ করুন। ভুল থাকলে উপরের তালিকা থেকে সংশোধন করুন।" : "Review the intake before saving a draft. Use the error summary to navigate invalid fields.")</p>
                     <input id="intakeFormId" type="hidden" />
                     <input id="intakeFormRowVersion" type="hidden" />
                     <input id="intakeFormRequestId" type="hidden" />

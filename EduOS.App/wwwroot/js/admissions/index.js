@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, savingIntake: false, intakeFingerprint: null };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -32,6 +32,8 @@
         document.getElementById('intakeFormList')?.addEventListener('click', handleIntakeFormAction);
         document.getElementById('newIntakeFormButton')?.addEventListener('click', openNewIntakeForm);
         document.getElementById('intakeFormEditor')?.addEventListener('submit', saveIntakeForm);
+        document.getElementById('intakeFormEditor')?.addEventListener('input', clearIntakeValidation);
+        document.getElementById('intakeFormEditor')?.addEventListener('change', clearIntakeValidation);
         document.getElementById('intakeYearId')?.addEventListener('change', refreshIntakeTerms);
         document.getElementById('addIntakeFieldButton')?.addEventListener('click', () => addIntakeFieldRow());
         document.getElementById('addDocumentRequirementButton')?.addEventListener('click', () => addDocumentRequirementRow());
@@ -277,6 +279,8 @@
         const editor = document.getElementById('intakeFormEditor');
         if (!editor || !state.options) return;
         editor.reset();
+        state.intakeFingerprint = null;
+        clearIntakeValidation();
         setValue('intakeFormId', item?.id);
         setValue('intakeFormRowVersion', item?.rowVersion);
         setValue('intakeFormRequestId', item ? '' : createRequestId());
@@ -410,7 +414,13 @@
 
     async function saveIntakeForm(event) {
         event.preventDefault();
-        if (!event.currentTarget.reportValidity()) return;
+        if (state.savingIntake) return;
+        const editor = event.currentTarget;
+        if (!editor.checkValidity()) {
+            const invalid = [...editor.querySelectorAll('input,select,textarea')].filter(x => x.willValidate && !x.checkValidity());
+            showIntakeValidation(invalid.map(x => ({ row: x, message: x.closest('label')?.textContent?.trim() || x.id || 'Invalid field' })));
+            return;
+        }
         const id = positiveInteger(valueOf('intakeFormId'));
         const fields = [...document.querySelectorAll('.intake-field-row')].map((row, index) => {
             const type = positiveInteger(row.querySelector('.intake-field-type')?.value) || 1;
@@ -461,8 +471,7 @@
         if (!Number.isFinite(opens.valueOf()) || !Number.isFinite(closes.valueOf()) || closes <= opens)
             invalid.unshift({ row: document.getElementById('intakeClosesAt'), message: bangla ? 'শেষের সময় শুরুর সময়ের পরে হতে হবে।' : 'Closing time must be after opening time.' });
         if (invalid.length) {
-            const first = invalid[0];
-            showIntakeValidation(first.message, first.row);
+            showIntakeValidation(invalid);
             return;
         }
         const request = {
@@ -473,42 +482,72 @@
             applicationFee: Number(valueOf('intakeFee') || 0), currency: valueOf('intakeCurrency'), fields, documentRequirements
         };
         if (id) request.rowVersion = valueOf('intakeFormRowVersion');
-        else request.clientRequestId = valueOf('intakeFormRequestId');
+        else {
+            const fingerprint = JSON.stringify(request);
+            if (state.intakeFingerprint !== null && state.intakeFingerprint !== fingerprint)
+                setValue('intakeFormRequestId', createRequestId());
+            state.intakeFingerprint = fingerprint;
+            request.clientRequestId = valueOf('intakeFormRequestId');
+        }
         const button = document.getElementById('saveIntakeFormButton');
+        state.savingIntake = true;
         setLoading(button, true);
         try {
             const response = await fetch(id ? `/api/admission-intake/forms/${encodeURIComponent(id)}` : '/api/admission-intake/forms', apiOptions(id ? 'PUT' : 'POST', request));
             const payload = await response.json().catch(() => null);
+            if (response.status === 409 || response.status === 412) {
+                showIntakeValidation([{ row: document.getElementById('intakeCode'), message: bangla ? 'ফরমটি অন্য কেউ পরিবর্তন করেছেন। তথ্য না হারিয়ে সর্বশেষ সংস্করণ যাচাই করুন।' : 'This intake changed elsewhere. Review the latest version before saving; your edits remain here.' }]);
+                return;
+            }
             if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Admission form could not be saved.');
+            state.intakeFingerprint = null;
             bootstrap.Modal.getInstance(document.getElementById('intakeFormModal'))?.hide();
             showAlert('success', payload.message || 'Admission form saved.');
             await loadIntakeForms();
         } catch (error) {
             showAlert('danger', error.message || 'Admission form could not be saved.');
         } finally {
+            state.savingIntake = false;
             setLoading(button, false);
         }
     }
 
-    function showIntakeValidation(message, target) {
+    function clearIntakeValidation() {
+        document.getElementById('intakeValidationSummary')?.remove();
+        document.getElementById('intakeFormEditor')?.querySelectorAll('[aria-invalid="true"]')
+            .forEach(field => field.removeAttribute('aria-invalid'));
+    }
+
+    function showIntakeValidation(entries) {
         const editor = document.getElementById('intakeFormEditor');
-        if (!editor) return;
-        let summary = document.getElementById('intakeValidationSummary');
-        if (!summary) {
-            summary = document.createElement('div');
-            summary.id = 'intakeValidationSummary';
-            summary.className = 'alert alert-danger';
-            summary.setAttribute('role', 'alert');
-            summary.tabIndex = -1;
-            editor.prepend(summary);
-            editor.addEventListener('input', () => summary.remove(), { once: true });
+        if (!editor || !entries.length) return;
+        clearIntakeValidation();
+        const summary = document.createElement('div');
+        summary.id = 'intakeValidationSummary';
+        summary.className = 'alert alert-danger';
+        summary.setAttribute('role', 'alert');
+        summary.tabIndex = -1;
+        const title = document.createElement('p');
+        title.className = 'fw-semibold';
+        title.textContent = bangla ? 'ফরম সংরক্ষণের আগে সংশোধন করুন:' : 'Correct these items before saving:';
+        const list = document.createElement('ul');
+        list.className = 'mb-0';
+        for (const { row, message } of entries) {
+            const field = row?.matches?.('input,select,textarea') ? row
+                : row?.querySelector?.('input,select,textarea');
+            const item = document.createElement('li');
+            const link = document.createElement('button');
+            link.type = 'button';
+            link.className = 'btn btn-link p-0 text-start';
+            link.textContent = message;
+            link.addEventListener('click', () => field?.focus());
+            if (field) field.setAttribute('aria-invalid', 'true');
+            item.append(link);
+            list.append(item);
         }
-        summary.textContent = message;
+        summary.append(title, list);
+        editor.querySelector('.modal-body')?.prepend(summary);
         summary.focus();
-        const field = target?.matches?.('input, select, textarea') ? target
-            : target?.querySelector?.('input, select, textarea');
-        field?.setAttribute('aria-invalid', 'true');
-        field?.focus();
     }
 
     // Accessible, in-form error summary. Keep existing API and browser validation authoritative.
