@@ -115,6 +115,54 @@ public sealed class LibraryDigitalResourceTests
         (await student.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().ContainSingle();
     }
 
+    [Theory]
+    [InlineData("unverified")]
+    [InlineData("malware")]
+    [InlineData("deleted")]
+    [InlineData("public")]
+    [InlineData("provider")]
+    public async Task Discovery_and_download_fail_closed_when_private_file_trust_is_revoked(string change)
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Licensed lesson", IsActive = true,
+            LibraryCampusId = seed.Enrollment.CampusId
+        });
+        await db.SaveChangesAsync();
+
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(seed.Asset.StorageKey))
+            .ReturnsAsync(new FileDownloadResult
+            { Content = seed.Bytes, ContentType = "application/pdf" });
+        var reader = Service(db, "Student", storage: storage);
+        (await reader.ListAsync(null, null, 1, 20, false))
+            .Data!.Items.Should().ContainSingle();
+
+        switch (change)
+        {
+            case "unverified": seed.Asset.IsVerifiedSafe = false; break;
+            case "malware": seed.Asset.MalwareScanStateCode = "Pending"; break;
+            case "deleted": seed.Asset.IsDeleted = true; break;
+            case "public": seed.Asset.Visibility = FileVisibility.Public; break;
+            case "provider": seed.Asset.StorageProvider = "External"; break;
+        }
+        await db.SaveChangesAsync();
+
+        var listing = await reader.ListAsync(null, null, 1, 20, false);
+        listing.Success.Should().BeTrue(listing.Message);
+        listing.Data!.Items.Should().BeEmpty();
+        listing.Data.TotalCount.Should().Be(0);
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        storage.Verify(x => x.GetPrivateFileAsync(It.IsAny<string>()), Times.Never);
+    }
+
     [Fact]
     public async Task Digital_audit_filters_tenant_action_date_and_actor_without_exposing_raw_values()
     {
