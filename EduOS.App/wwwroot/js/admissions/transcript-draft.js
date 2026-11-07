@@ -97,6 +97,29 @@
             'Speech recognition is not enabled. Browser microphone services may send audio to their provider. No audio is captured or transcript stored by this draft.',
             'স্পিচ রিকগনিশন চালু নেই। ব্রাউজারের মাইক্রোফোন সেবা অডিও সরবরাহকারীর কাছে পাঠাতে পারে। এই খসড়ায় অডিও নেওয়া বা লেখা সংরক্ষণ করা হয় না।'));
         const clear = el('button',{type:'button',class:'btn btn-outline-secondary mt-2 ms-2'},t('Clear draft','খসড়া মুছুন'));
+        const undo = el('button',{type:'button',class:'btn btn-outline-secondary mt-2 ms-2',disabled:'disabled'},t('Undo applied fields','বসানো তথ্য আগের অবস্থায় নিন'));
+        const reviewSummary = el('p',{class:'small mt-2','aria-live':'polite'},'');
+        let lastApply = null;
+        function resetUndo() { lastApply = null; undo.disabled = true; }
+        undo.addEventListener('click', () => {
+            if (!lastApply) return;
+            // Never overwrite user edits made after the draft was applied.
+            const changed = lastApply.some(({target,after}) => !target.isConnected || target.value !== after);
+            if (changed) {
+                status.textContent = t('The form changed after applying the draft. Undo cancelled to protect newer edits.',
+                    'খসড়া বসানোর পরে ফরম বদলেছে। নতুন পরিবর্তন রক্ষায় আগের অবস্থায় নেওয়া হয়নি।');
+                resetUndo();
+                return;
+            }
+            lastApply.forEach(({target,before}) => {
+                target.value = before;
+                target.dispatchEvent(new Event('input',{bubbles:true}));
+                target.dispatchEvent(new Event('change',{bubbles:true}));
+            });
+            resetUndo();
+            status.textContent = t('Applied draft fields restored. No application was submitted.',
+                'খসড়া থেকে বসানো তথ্য আগের অবস্থায় ফিরেছে। আবেদন জমা হয়নি।');
+        });
         const connectivity = el('p',{class:'small',role:'status'},'');
         function updateConnectivity() {
             connectivity.textContent = rootOnline()
@@ -118,7 +141,7 @@
             input.focus();
         });
         let snapshot = null;
-        function invalidate() { snapshot = null; confirm.disabled = true; preview.replaceChildren(); }
+        function invalidate() { snapshot = null; confirm.disabled = true; preview.replaceChildren(); reviewSummary.textContent = ''; }
         input.addEventListener('input',invalidate);
         previewButton.addEventListener('click',() => {
             invalidate();
@@ -157,6 +180,8 @@
             preview.append(table);
             snapshot = editable;
             confirm.disabled = false;
+            reviewSummary.textContent = t(`Ready to review ${entries.length} field(s). No form data changed yet.`,
+                `যাচাইয়ের জন্য ${entries.length}টি তথ্য প্রস্তুত। ফরমের তথ্য এখনো বদলায়নি।`);
             status.textContent = t('Review and correct every field before applying. Submitting still requires the normal form action.','ফরমে বসানোর আগে সব তথ্য সংশোধন করুন। জমা দিতে স্বাভাবিক ফরম বাটন চাপতে হবে।');
         });
         confirm.addEventListener('click',() => {
@@ -184,16 +209,20 @@
                 invalidate();
                 return;
             }
+            // Preserve a reversible, in-memory snapshot; never persist applicant PII.
+            const previous = destinations.map(({result,target}) => ({target,before:target.value,after:result.value}));
             destinations.forEach(({result,target}) => {
                 target.value = result.value;
                 target.dispatchEvent(new Event('input',{bubbles:true}));
                 target.dispatchEvent(new Event('change',{bubbles:true}));
             });
+            lastApply = previous;
+            undo.disabled = false;
             invalidate();
             input.value = '';
             status.textContent = t('Fields applied. Check the form and submit manually when ready.','তথ্য ফরমে বসানো হয়েছে। যাচাই করে নিজে জমা দিন।');
         });
-        host.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,confirm,status);
+        host.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,reviewSummary,confirm,undo,status);
     }
     return {parse,parseDetailed,mount,normalizePhone,validateDraftField};
 });
