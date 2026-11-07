@@ -117,11 +117,30 @@ public static class GroundedChapterStudy
                 .ToLowerInvariant()).Select(x => x.Value).ToHashSet(StringComparer.Ordinal);
             if (!terms.All(sourceWords.Contains))
                 continue;
-            // Bounded quotation; never output a whole licensed chapter.
-            var sentence = excerpt.Text.Trim();
-            if (sentence.Length > 240)
-                sentence = sentence[..240].TrimEnd() + "…";
-            return new StudyAnswer(Outcome.Answered, sentence, excerpt.Citation);
+            // The displayed quotation must itself contain every matched question
+            // term. A match hidden beyond the first 240 characters is not evidence
+            // for the visible answer. Never expose an unrelated prefix as a citation.
+            const int maxQuoteLength = 240;
+            var passage = excerpt.Text.Trim();
+            if (passage.Length <= maxQuoteLength)
+                return new StudyAnswer(Outcome.Answered, passage, excerpt.Citation);
+
+            // Normalization may change offsets. For bounded quotations, scan the
+            // original text instead of applying normalized offsets to it.
+            for (var start = 0; start < passage.Length; start += 120)
+            {
+                var length = Math.Min(maxQuoteLength, passage.Length - start);
+                var window = passage.Substring(start, length);
+                var visibleWords = Words.Matches(window.Normalize(NormalizationForm.FormKC)
+                    .ToLowerInvariant()).Select(x => x.Value).ToHashSet(StringComparer.Ordinal);
+                if (!terms.All(visibleWords.Contains))
+                    continue;
+                var quote = (start > 0 ? "…" : "") + window.Trim() +
+                    (start + length < passage.Length ? "…" : "");
+                return new StudyAnswer(Outcome.Answered, quote, excerpt.Citation);
+            }
+            // Terms scattered across the chapter do not support one bounded quote.
+            continue;
         }
         return StudyAnswer.Reject(Outcome.NoEvidence);
     }
