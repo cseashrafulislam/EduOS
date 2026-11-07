@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0 };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -462,9 +462,18 @@
     async function submitApplication(event) {
         event.preventDefault();
         const form = event.currentTarget;
-        if (state.submitting || !form.reportValidity()) return;
+        if (state.submitting) return;
+        if (!form.reportValidity()) {
+            showAlert('danger', bangla ? 'প্রয়োজনীয় তথ্য পূরণ বা সংশোধন করুন।' : 'Complete or correct the required fields.');
+            form.querySelector(':invalid')?.focus();
+            return;
+        }
         const selectedForm = state.options?.openForms?.find(x => x.reference === valueOf('admissionFormReference'));
-        if (!selectedForm) { showAlert('danger', 'Select an open admission intake before submitting.'); return; }
+        if (!selectedForm) {
+            showAlert('danger', bangla ? 'আবেদন জমা দেওয়ার আগে চালু ভর্তি ফরম নির্বাচন করুন।' : 'Select an open admission intake before submitting.');
+            document.getElementById('admissionFormReference')?.focus();
+            return;
+        }
         const dateOfBirth = valueOf('dateOfBirth');
         if (isMinor(dateOfBirth) && (!valueOf('guardianName') || !valueOf('guardianRelation') || !valueOf('guardianMobile'))) {
             showAlert('danger', i18n.minorGuardianRequired);
@@ -507,6 +516,8 @@
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
                 showAlert('danger', i18n.createFailed);
+                // Preserve every entered field and the idempotency key for a safe retry.
+                document.getElementById('submitApplicationButton')?.focus();
                 return;
             }
             form.reset();
@@ -525,6 +536,7 @@
             await loadApplications();
         } catch {
             showAlert('danger', i18n.networkError);
+            document.getElementById('submitApplicationButton')?.focus();
         } finally {
             state.submitting = false;
             setLoading(button, false);
@@ -534,6 +546,7 @@
     async function loadApplications() {
         const list = document.getElementById('applicationList');
         if (!list) return;
+        const requestNumber = ++state.listRequest;
         list.setAttribute('aria-busy', 'true');
         list.replaceChildren(statusMessage(i18n.loading));
         const params = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
@@ -544,11 +557,13 @@
         try {
             const response = await fetch(`/api/admission-applications?${params}`, apiOptions());
             const payload = await response.json().catch(() => null);
+            if (requestNumber !== state.listRequest) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data?.items)) throw new Error('Invalid list');
             state.totalPages = Math.max(1, Number(payload.data.totalPages) || 1);
             renderApplications(payload.data.items);
             updatePagination();
         } catch {
+            if (requestNumber !== state.listRequest) return;
             const error = statusMessage(i18n.loadFailed);
             const retry = document.createElement('button');
             retry.type = 'button';
@@ -558,7 +573,7 @@
             error.append(retry);
             list.replaceChildren(error);
         } finally {
-            list.removeAttribute('aria-busy');
+            if (requestNumber === state.listRequest) list.removeAttribute('aria-busy');
         }
     }
 
@@ -593,7 +608,7 @@
             if (Number(item.state) === 6 && list.dataset.canOffer === 'true') {
                 const link = document.createElement('a');
                 link.className = 'btn btn-sm btn-outline-success';
-                link.textContent = 'Offer & enroll';
+                link.textContent = bangla ? 'অফার ও ভর্তি সম্পন্ন' : 'Offer & enroll';
                 link.href = '/Admissions/Offers?reference=' + encodeURIComponent(item.reference);
                 card.append(link);
             }
