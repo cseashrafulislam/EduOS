@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0 };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0 };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -669,13 +669,22 @@
     async function openReview(event) {
         const button = event.target.closest('button[data-reference]');
         if (!button) return;
+        const requestNumber = ++state.reviewRequest;
+        const reference = button.dataset.reference;
+        // A later review selection always wins, even if an earlier response arrives last.
+        document.querySelectorAll('#applicationList button[data-reference]').forEach(control => {
+            control.disabled = true;
+            control.setAttribute('aria-busy', 'true');
+        });
         try {
-            const response = await fetch(`/api/admission-applications/${encodeURIComponent(button.dataset.reference)}`, apiOptions());
+            const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}`, apiOptions());
             const payload = await response.json().catch(() => null);
+            if (requestNumber !== state.reviewRequest) return;
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid details');
             renderDetails(payload.data);
             state.currentApplication = payload.data;
             await loadApplicantDocuments(payload.data.reference);
+            if (requestNumber !== state.reviewRequest) return;
             setValue('reviewReference', payload.data.reference);
             setValue('reviewRowVersion', payload.data.rowVersion);
             setValue('decisionNote', payload.data.decisionNote);
@@ -683,7 +692,14 @@
             document.getElementById('admitApplicantButton')?.classList.toggle('d-none', Number(payload.data.state) !== 6);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal')).show();
         } catch {
-            showAlert('danger', i18n.detailsFailed);
+            if (requestNumber === state.reviewRequest) showAlert('danger', i18n.detailsFailed);
+        } finally {
+            if (requestNumber === state.reviewRequest) {
+                document.querySelectorAll('#applicationList button[data-reference]').forEach(control => {
+                    control.disabled = false;
+                    control.removeAttribute('aria-busy');
+                });
+            }
         }
     }
 
