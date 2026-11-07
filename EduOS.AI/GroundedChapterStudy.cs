@@ -125,18 +125,28 @@ public static class GroundedChapterStudy
             if (passage.Length <= maxQuoteLength)
                 return new StudyAnswer(Outcome.Answered, passage, excerpt.Citation);
 
-            // Normalization may change offsets. For bounded quotations, scan the
-            // original text instead of applying normalized offsets to it.
-            for (var start = 0; start < passage.Length; start += 120)
+            // A sliding substring can split a source token at either edge and
+            // incorrectly treat that fragment as a complete evidence word.
+            // Match complete source tokens first, then select a bounded window
+            // containing the full tokens. Offsets stay in the original string.
+            var matches = Words.Matches(passage).Cast<Match>().ToArray();
+            for (var first = 0; first < matches.Length; first++)
             {
-                var length = Math.Min(maxQuoteLength, passage.Length - start);
-                var window = passage.Substring(start, length);
-                var visibleWords = Words.Matches(window.Normalize(NormalizationForm.FormKC)
-                    .ToLowerInvariant()).Select(x => x.Value).ToHashSet(StringComparer.Ordinal);
+                var start = matches[first].Index;
+                var endLimit = Math.Min(passage.Length, start + maxQuoteLength);
+                var visible = matches.Where(m => m.Index >= start &&
+                    m.Index + m.Length <= endLimit).ToArray();
+                var visibleWords = visible.Select(m => m.Value.Normalize(NormalizationForm.FormKC)
+                    .ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
                 if (!terms.All(visibleWords.Contains))
                     continue;
+                // Do not truncate the final word; the quote must be composed of
+                // whole source tokens and cannot claim a partial word as evidence.
+                var last = visible[^1];
+                var end = last.Index + last.Length;
+                var window = passage.Substring(start, end - start);
                 var quote = (start > 0 ? "…" : "") + window.Trim() +
-                    (start + length < passage.Length ? "…" : "");
+                    (end < passage.Length ? "…" : "");
                 return new StudyAnswer(Outcome.Answered, quote, excerpt.Citation);
             }
             // Terms scattered across the chapter do not support one bounded quote.

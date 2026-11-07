@@ -165,6 +165,30 @@ public sealed class GroundedChapterStudyTests
     }
 
     [Fact]
+    public void A_truncated_token_at_quote_edge_cannot_be_used_as_evidence()
+    {
+        var question = Request with { Question = "Explain photosynthesis energy" };
+        // The only full 'energy' is too far from photosynthesis for a 240-char
+        // quote; the beginning of 'energycarrier' must not count as 'energy'.
+        var source = "Photosynthesis " + new string('x', 195) +
+            " energycarrier " + new string('y', 260) + " energy.";
+        var result = GroundedChapterStudy.Answer(question, [Excerpt(text: source)]);
+        Assert.Equal(Outcome.NoEvidence, result.Status);
+        Assert.Null(result.Citation);
+    }
+
+    [Fact]
+    public void Matching_quote_never_cuts_a_word_in_half()
+    {
+        var source = new string('x', 250) +
+            " Photosynthesis converts light energy into chemical energy.";
+        var result = GroundedChapterStudy.Answer(Request, [Excerpt(text: source)]);
+        Assert.Equal(Outcome.Answered, result.Status);
+        Assert.StartsWith("…Photosynthesis", result.Message);
+        Assert.Contains("Photosynthesis", result.Message);
+    }
+
+    [Fact]
     public void Scattered_terms_without_one_supported_quote_abstain()
     {
         var question = Request with { Question = "Explain photosynthesis mitochondria" };
