@@ -221,4 +221,50 @@ public sealed class PublishedOutcomeAttainmentPolicyTests
         mixed.Should().Throw<ArgumentException>();
     }
 
+    [Fact]
+    public void Roster_bound_cohort_requires_every_authorized_learner()
+    {
+        var evidence = new[] { Row(1, 10, 80), Row(2, 10, 60) };
+        var mapping = new[] { Map(5, 10, 100) };
+        Policy.CalculateCompleteCohortForRoster(evidence, mapping, [1L, 2L])
+            .Single().AttainmentPercent.Should().Be(70m);
+
+        Action omitted = () => Policy.CalculateCompleteCohortForRoster(
+            evidence, mapping, [1L, 2L, 3L]);
+        omitted.Should().Throw<ArgumentException>().WithMessage("*roster*");
+    }
+
+    [Fact]
+    public void Roster_bound_cohort_rejects_foreign_extra_or_duplicate_enrollments()
+    {
+        var evidence = new[] { Row(1, 10, 80), Row(2, 10, 60) };
+        var mapping = new[] { Map(5, 10, 100) };
+        Action foreign = () => Policy.CalculateCompleteCohortForRoster(
+            evidence, mapping, [1L, 3L]);
+        Action duplicate = () => Policy.CalculateCompleteCohortForRoster(
+            evidence, mapping, [1L, 1L]);
+        Action empty = () => Policy.CalculateCompleteCohortForRoster(
+            evidence, mapping, Array.Empty<long>());
+        Action invalid = () => Policy.CalculateCompleteCohortForRoster(
+            evidence, mapping, [1L, 0L]);
+        foreign.Should().Throw<ArgumentException>();
+        duplicate.Should().Throw<ArgumentException>();
+        empty.Should().Throw<ArgumentException>();
+        invalid.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Roster_bound_cohort_preserves_published_evidence_guards()
+    {
+        var mapping = new[] { Map(5, 10, 100) };
+        Action withheld = () => Policy.CalculateCompleteCohortForRoster(
+            [Row(1, 10, 80) with { IsWithheld = true }],
+            mapping, [1L]);
+        Action unpublished = () => Policy.CalculateCompleteCohortForRoster(
+            [Row(1, 10, 80) with { IsPublished = false }],
+            mapping, [1L]);
+        withheld.Should().Throw<ArgumentException>();
+        unpublished.Should().Throw<ArgumentException>();
+    }
+
 }
