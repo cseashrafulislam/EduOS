@@ -85,10 +85,46 @@ public sealed class GroundedChapterStudyTests
     }
 
     [Fact]
+    public void Oversized_evidence_set_fails_closed()
+    {
+        var rows = Enumerable.Range(0, MaxEvidenceRows + 1)
+            .Select(_ => Excerpt()).ToArray();
+        Assert.Equal(Outcome.Invalid, GroundedChapterStudy.Answer(Request, rows).Status);
+    }
+
+    [Theory]
+    [InlineData("<script>alert(1)</script>")]
+    [InlineData("Chapter 2\\u202Epage 14")]
+    [InlineData("Chapter 2 & page 14")]
+    public void Unsafe_citation_is_rejected(string citation)
+    {
+        var row = Excerpt() with { Citation = citation };
+        var result = GroundedChapterStudy.Answer(Request, [row]);
+        Assert.Equal(Outcome.Invalid, result.Status);
+        Assert.Null(result.Citation);
+    }
+
+    [Fact]
+    public void Mixed_valid_and_invalid_citations_fail_closed()
+    {
+        var result = GroundedChapterStudy.Answer(Request,
+            [Excerpt(), Excerpt() with { Citation = "<img>" }]);
+        Assert.Equal(Outcome.Invalid, result.Status);
+    }
+
+    [Fact]
+    public void Invisible_formatting_in_source_is_rejected()
+    {
+        var result = GroundedChapterStudy.Answer(Request,
+            [Excerpt(text: "Photosynthesis\\u200B converts light energy.")]);
+        Assert.Equal(Outcome.Invalid, result.Status);
+    }
+
+    [Fact]
     public void Long_source_is_not_reproduced()
     {
         var result = GroundedChapterStudy.Answer(Request,
             [Excerpt(text: "Photosynthesis " + new string('x', 1200))]);
-        Assert.Equal(Outcome.NoEvidence, result.Status);
+        Assert.Equal(Outcome.Invalid, result.Status);
     }
 }

@@ -12,6 +12,8 @@ public static class GroundedChapterStudy
 {
     public const int MaxQuestionLength = 300;
     public const int MaxExcerptLength = 1200;
+    public const int MaxEvidenceRows = 40;
+    public const int MaxCitationLength = 160;
     private static readonly Regex Words = new(@"[\p{L}\p{M}\p{N}]+",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
@@ -54,6 +56,8 @@ public static class GroundedChapterStudy
             return StudyAnswer.Reject(Outcome.Invalid);
         if (authorizedExcerpts is null || authorizedExcerpts.Count == 0)
             return StudyAnswer.Reject(Outcome.NoEvidence);
+        if (authorizedExcerpts.Count > MaxEvidenceRows)
+            return StudyAnswer.Reject(Outcome.Invalid);
 
         var question = request.Question.Normalize(NormalizationForm.FormKC).ToLowerInvariant();
         if (question.Contains("ignore previous", StringComparison.Ordinal) ||
@@ -85,6 +89,20 @@ public static class GroundedChapterStudy
             e.BookId != request.BookId || e.EditionId != request.EditionId ||
             e.ChapterId != request.ChapterId))
             return StudyAnswer.Reject(Outcome.Denied);
+
+        // Reject malformed citations and invisible formatting characters in the entire
+        // evidence set, rather than returning a valid earlier row and ignoring a later one.
+        // The UI treats the citation as plain text; markup is never an allowed citation.
+        if (authorizedExcerpts.Any(e => string.IsNullOrWhiteSpace(e.Citation) ||
+            e.Citation.Length > MaxCitationLength ||
+            e.Citation.Any(c => char.IsControl(c) || char.IsSurrogate(c) ||
+                char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format ||
+                c is '<' or '>' or '&') ||
+            string.IsNullOrWhiteSpace(e.Text) ||
+            e.Text.Length > MaxExcerptLength ||
+            e.Text.Any(c => char.IsControl(c) ||
+                char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format)))
+            return StudyAnswer.Reject(Outcome.Invalid);
 
         foreach (var excerpt in authorizedExcerpts)
         {
