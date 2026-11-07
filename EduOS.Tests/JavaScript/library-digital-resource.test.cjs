@@ -147,3 +147,20 @@ test('licensed catalogue searches canonical Book bibliographic fields and render
     assert.match(view, /ISBN or resource/);
     assert.doesNotMatch(ui, /innerHTML\s*=/);
 });
+
+
+test('licensed catalogue category discovery uses canonical tenant-scoped BookCategory and safe bilingual export', () => {
+    const dto = read('EduOS.Core/DTOs/Library/LibraryDigitalResourceDtos.cs');
+    const writer = read('EduOS.App/Controllers/Api/LibraryDigitalCsvWriter.cs');
+    assert.match(dto, /BookCategory/);
+    assert.match(service, /db\.BookCategories\.AsNoTracking\(\)\.Any\(category =>/);
+    assert.match(service, /category\.TenantId == Tenant && !category\.IsDeleted && category\.IsActive/);
+    assert.match(service, /category\.Id == x\.Book\.BookCategoryId && category\.Name\.Contains\(term\)/);
+    assert.match(service, /BookCategory = db\.BookCategories\.AsNoTracking\(\)/);
+    assert.match(service, /BookCategory = x\.BookCategory/);
+    assert.match(ui, /resource\.bookCategory/);
+    assert.match(view, /বিভাগ/);
+    assert.match(writer, /Cell\(row\.BookCategory\)/);
+    assert.match(writer, /Book,Category,Resource/);
+    assert.doesNotMatch(writer, /StorageKey|StudentId|PersonId|Sha256/);
+});

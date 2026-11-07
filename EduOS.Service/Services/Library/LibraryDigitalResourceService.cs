@@ -213,6 +213,9 @@ public sealed class LibraryDigitalResourceService(
                 (x.Book.Publisher != null && x.Book.Publisher.Contains(term)) ||
                 (x.Book.Edition != null && x.Book.Edition.Contains(term)) ||
                 (x.Book.ISBN != null && x.Book.ISBN.Contains(term)) ||
+                db.BookCategories.AsNoTracking().Any(category =>
+                    category.TenantId == Tenant && !category.IsDeleted && category.IsActive &&
+                    category.Id == x.Book.BookCategoryId && category.Name.Contains(term)) ||
                 (x.Document.Title != null && x.Document.Title.Contains(term)));
         }
         var total = await query.CountAsync(ct);
@@ -226,7 +229,12 @@ public sealed class LibraryDigitalResourceService(
                 x.Document.LibraryCampusId, BookReference = x.Book.PublicId,
                 BookTitle = x.Book.Title, BookAuthor = x.Book.Author,
                 BookPublisher = x.Book.Publisher, BookEdition = x.Book.Edition,
-                BookIsbn = x.Book.ISBN, x.File.OriginalFileName, x.File.ContentType, x.File.SizeBytes
+                BookIsbn = x.Book.ISBN,
+                BookCategory = db.BookCategories.AsNoTracking()
+                    .Where(category => category.TenantId == Tenant && !category.IsDeleted &&
+                        category.IsActive && category.Id == x.Book.BookCategoryId)
+                    .Select(category => category.Name).FirstOrDefault(),
+                x.File.OriginalFileName, x.File.ContentType, x.File.SizeBytes
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<LibraryDigitalResourceDto>>.SuccessResponse(
             new PagedResult<LibraryDigitalResourceDto>
@@ -237,7 +245,8 @@ public sealed class LibraryDigitalResourceService(
                     CampusId = x.LibraryCampusId,
                     BookTitle = x.BookTitle, BookAuthor = x.BookAuthor,
                     BookPublisher = x.BookPublisher, BookEdition = x.BookEdition,
-                    BookIsbn = x.BookIsbn, Title = x.Title ?? string.Empty,
+                    BookIsbn = x.BookIsbn, BookCategory = x.BookCategory,
+                    Title = x.Title ?? string.Empty,
                     FileName = x.OriginalFileName, ContentType = x.ContentType,
                     SizeBytes = x.SizeBytes, IsActive = x.IsActive,
                     ExpiresOn = x.ExpiresAt.HasValue ? DateOnly.FromDateTime(x.ExpiresAt.Value) : null,

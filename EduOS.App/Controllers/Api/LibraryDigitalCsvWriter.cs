@@ -10,12 +10,12 @@ public static class LibraryDigitalCsvWriter
     {
         var csv = new StringBuilder();
         csv.AppendLine(bangla
-            ? "বই,রিসোর্স,ফাইল,ধরন,বাইট,অবস্থা,শেষের তারিখ (UTC),প্রকাশের সময়,ক্যাম্পাস"
-            : "Book,Resource,File,Content type,Bytes,Status,Expires UTC,Published UTC,Campus");
+            ? "বই,বিভাগ,রিসোর্স,ফাইল,ধরন,বাইট,অবস্থা,শেষের তারিখ (UTC),প্রকাশের সময়,ক্যাম্পাস"
+            : "Book,Category,Resource,File,Content type,Bytes,Status,Expires UTC,Published UTC,Campus");
         foreach (var row in rows)
             csv.AppendLine(string.Join(",", new[]
             {
-                Cell(row.BookTitle), Cell(row.Title), Cell(row.FileName),
+                Cell(row.BookTitle), Cell(row.BookCategory), Cell(row.Title), Cell(row.FileName),
                 Cell(row.ContentType), Cell(row.SizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 Cell(row.IsActive ? "Active" : "Revoked"),
                 Cell(row.ExpiresOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)),

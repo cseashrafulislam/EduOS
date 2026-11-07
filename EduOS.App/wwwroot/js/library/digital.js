@@ -257,6 +257,7 @@
     function bookDetails(resource) {
         const values = [
             [words('Author', 'লেখক'), resource.bookAuthor],
+            [words('Category', 'বিভাগ'), resource.bookCategory],
             [words('Publisher', 'প্রকাশক'), resource.bookPublisher],
             [words('Edition', 'সংস্করণ'), resource.bookEdition],
             ['ISBN', resource.bookIsbn]

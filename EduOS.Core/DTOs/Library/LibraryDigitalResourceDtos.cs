@@ -12,6 +12,7 @@ public sealed class LibraryDigitalResourceDto
     public string? BookPublisher { get; set; }
     public string? BookEdition { get; set; }
     public string? BookIsbn { get; set; }
+    public string? BookCategory { get; set; }
     public string Title { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
