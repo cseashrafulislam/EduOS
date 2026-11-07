@@ -496,6 +496,69 @@ public sealed class CentralMisTwoTenantIsolationTests
             Times.Never);
     }
 
+
+    [Fact]
+    public async Task Removing_user_role_grant_revokes_mis_access_without_disabling_role()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var service = Service(request, 41, 9, finance.Object);
+        Assert.Equal(200, (await service.GetAsync(From, To)).StatusCode);
+
+        // A revoked user-role join is distinct from a disabled role or membership.
+        // The next request must re-evaluate the live grant, not cached claims.
+        await using (var administrator = Open(options, 41))
+        {
+            var grant = await administrator.UserRoles.SingleAsync(
+                x => x.UserId == 9 && x.RoleId == 2);
+            administrator.UserRoles.Remove(grant);
+            await administrator.SaveChangesAsync();
+        }
+
+        var denied = await service.GetAsync(From, To);
+        Assert.Equal(403, denied.StatusCode);
+        Assert.Null(denied.Data);
+        finance.Verify(x => x.GetInstitutionalIncomeExpenseTotalsAsync(
+            From, To, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Foreign_tenant_invalid_currency_cannot_block_authorized_receivable()
+    {
+        var options = Options();
+        await using (var own = Open(options, 41))
+        {
+            SeedAdmin(own, 41, 9, 1, 2);
+            own.StudentInvoices.Add(Invoice(1, 41, 8.75m));
+            await own.SaveChangesAsync();
+        }
+        await using (var foreign = Open(options, 42))
+        {
+            SeedAdmin(foreign, 42, 10, 3, 4);
+            var invoice = Invoice(2, 42, 100m);
+            invoice.CurrencyCode = "USD";
+            foreign.StudentInvoices.Add(invoice);
+            await foreign.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var result = await Service(request, 41, 9, finance.Object).GetAsync(From, To);
+        Assert.Equal(200, result.StatusCode);
+        var metrics = result.Data!.Metrics.ToDictionary(x => x.Key);
+        Assert.Equal(8.75m, metrics["outstanding_fee_amount"].Value);
+        Assert.Equal(1m, metrics["outstanding_fee_invoices"].Value);
+        finance.Verify(x => x.GetInstitutionalIncomeExpenseTotalsAsync(
+            From, To, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("mis-two-tenant-" + Guid.NewGuid().ToString("N"),
