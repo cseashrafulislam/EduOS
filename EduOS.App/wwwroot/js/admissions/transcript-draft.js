@@ -50,6 +50,12 @@
                 errors.push({ key, line: index + 1, limit });
                 return;
             }
+            // A repeated label is ambiguous; never let a later line silently overwrite
+            // information the applicant already reviewed in the transcript.
+            if (Object.prototype.hasOwnProperty.call(result, key)) {
+                errors.push({ key, line: index + 1, duplicate: true });
+                return;
+            }
             result[key] = value;
         });
         return { fields: errors.length ? {} : result, errors };
@@ -109,8 +115,11 @@
             const detailed = parseDetailed(input.value);
             if (detailed.errors.length) {
                 const first = detailed.errors[0];
-                status.textContent = t(`Line ${first.line} exceeds ${first.limit} characters. Shorten it and preview again; no fields changed.`,
-                    `লাইন ${first.line}-এ ${first.limit} অক্ষরের সীমা ছাড়িয়েছে। ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।`);
+                status.textContent = first.duplicate
+                    ? t(`Line ${first.line} repeats an admission field. Keep one value per label; no fields changed.`,
+                        `লাইন ${first.line}-এ একই তথ্য আবার দেওয়া হয়েছে। প্রতি তথ্য একবার লিখুন; কোনো তথ্য বদলায়নি।`)
+                    : t(`Line ${first.line} exceeds ${first.limit} characters. Shorten it and preview again; no fields changed.`,
+                        `লাইন ${first.line}-এ ${first.limit} অক্ষরের সীমা ছাড়িয়েছে। ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।`);
                 input.setAttribute('aria-invalid', 'true');
                 input.focus();
                 return;

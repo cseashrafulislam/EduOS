@@ -93,3 +93,13 @@ test('oversized recognized fields fail closed without losing data silently or ap
     assert.match(source, /input\.setAttribute\('aria-invalid', 'true'\)/);
     assert.match(source, /input\.focus\(\)/);
 });
+
+test('repeated bilingual labels fail closed instead of silently overwriting an applicant field', () => {
+    const repeated = parseDetailed('Name: Amina\\nApplicant name: Other\\nMobile: 01712345678');
+    assert.deepEqual(repeated.fields, {});
+    assert.deepEqual(repeated.errors, [{key:'applicantName',line:2,duplicate:true}]);
+    assert.deepEqual(parse('মোবাইল: 01712345678\\nPhone: 01812345678'), {});
+    assert.deepEqual(parseDetailed('Name: Amina\\nMobile: 01712345678').errors, []);
+    assert.match(source, /first\\.duplicate/);
+    assert.match(source, /repeats an admission field/);
+});
