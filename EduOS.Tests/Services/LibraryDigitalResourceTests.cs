@@ -283,6 +283,9 @@ public sealed class LibraryDigitalResourceTests
         (await reader.DownloadAsync(reference)).Success.Should().BeTrue();
         otherCampus.IsActive = false;
         await db.SaveChangesAsync();
+        // A tenant administrator may inspect catalogue history, but a deactivated
+        // campus must not grant a fresh private-file download to any role.
+        (await admin.DownloadAsync(reference)).StatusCode.Should().Be(404);
         (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
         (await reader.ListAsync(null, null, 1, 20, false)).StatusCode.Should().Be(403);
         (await Service(db, "Student").GetCampusOptionsAsync()).StatusCode.Should().Be(403);
