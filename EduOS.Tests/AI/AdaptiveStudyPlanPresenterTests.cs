@@ -76,4 +76,53 @@ public sealed class AdaptiveStudyPlanPresenterTests
         Assert.Equal(PlanStatus.Invalid,
             AdaptiveStudyPlanPresenter.Present(invalid, "en-BD").Status);
     }
+    [Theory]
+    [InlineData("bn-BD")]
+    [InlineData("en-BD")]
+    public void Contradictory_priority_and_duplicate_skill_are_denied_without_partial_output(string locale)
+    {
+        var contradictory = new StudyPlanResult(PlanStatus.Ready,
+            [Ready().Skills[0], new SkillRecommendation("science", StudyPriority.Extend,
+                20m, 1, "extend_learning")]);
+        var duplicate = new StudyPlanResult(PlanStatus.Ready,
+            [Ready().Skills[0], Ready().Skills[0]]);
+        foreach (var payload in new[] { contradictory, duplicate })
+        {
+            var output = AdaptiveStudyPlanPresenter.Present(payload, locale);
+            Assert.Equal(PlanStatus.Invalid, output.Status);
+            Assert.Empty(output.Skills);
+        }
+    }
+
+    [Theory]
+    [InlineData("math\\u200B")]
+    [InlineData("math\\u2060")]
+    public void Invisible_format_characters_in_skill_identifiers_are_denied(string skill)
+    {
+        // Decode escaped literals so this test remains readable in source review.
+        skill = skill.Replace("\\u200B", "\u200B").Replace("\\u2060", "\u2060");
+        var payload = new StudyPlanResult(PlanStatus.Ready,
+            [new SkillRecommendation(skill, StudyPriority.Review, 30m, 1, "review_chapter")]);
+        var output = AdaptiveStudyPlanPresenter.Present(payload, "bn-BD");
+        Assert.Equal(PlanStatus.Invalid, output.Status);
+        Assert.Empty(output.Skills);
+    }
+
+    [Fact]
+    public void Canonical_policy_output_remains_presentable_in_both_locales()
+    {
+        var request = new StudyPlanRequest("tenant-1", "campus-1", "learner-1", "chapter-1");
+        var evidence = new PublishedAttemptEvidence("tenant-1", "campus-1", "learner-1",
+            "assessment-1", "chapter-1", "fractions", 7m, 10m,
+            new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero), true, true);
+        var plan = AdaptiveStudyPlanPolicy.Build(request, [evidence]);
+        foreach (var locale in new[] { "bn-BD", "en-BD" })
+        {
+            var result = AdaptiveStudyPlanPresenter.Present(plan, locale);
+            Assert.Equal(PlanStatus.Ready, result.Status);
+            Assert.Single(result.Skills);
+            Assert.Equal(70m, result.Skills[0].ObservedPercent);
+        }
+    }
+
 }
