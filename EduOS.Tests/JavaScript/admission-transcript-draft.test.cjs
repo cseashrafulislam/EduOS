@@ -125,3 +125,16 @@ test('oversized pasted transcripts are rejected without browser-side silent trun
     assert.match(source, /first\.tooLong/);
     assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(/);
 });
+
+
+test('reviewed transcript has reversible application without persistent applicant storage', () => {
+    assert.match(source, /const previous = destinations\.map/);
+    assert.match(source, /lastApply = previous/);
+    assert.match(source, /undo\.addEventListener\('click'/);
+    assert.match(source, /lastApply\.some/);
+    assert.match(source, /target\.value !== after/);
+    assert.match(source, /target\.value = before/);
+    assert.match(source, /resetUndo\(\)/);
+    assert.match(source, /reviewSummary\.textContent/);
+    assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|requestSubmit\s*\(|\.submit\s*\(/);
+});
