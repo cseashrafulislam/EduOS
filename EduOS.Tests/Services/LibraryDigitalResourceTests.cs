@@ -283,6 +283,10 @@ public sealed class LibraryDigitalResourceTests
         (await reader.DownloadAsync(reference)).Success.Should().BeTrue();
         otherCampus.IsActive = false;
         await db.SaveChangesAsync();
+        // Active discovery must not advertise an unusable campus licence, even
+        // to a tenant administrator. Historical inspection remains available.
+        (await admin.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().BeEmpty();
+        (await admin.ListAsync(null, null, 1, 20, true)).Data!.Items.Should().ContainSingle();
         // A tenant administrator may inspect catalogue history, but a deactivated
         // campus must not grant a fresh private-file download to any role.
         (await admin.DownloadAsync(reference)).StatusCode.Should().Be(404);
