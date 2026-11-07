@@ -138,3 +138,15 @@ test('reviewed transcript has reversible application without persistent applican
     assert.match(source, /reviewSummary\.textContent/);
     assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|requestSubmit\s*\(|\.submit\s*\(/);
 });
+
+test('admission readiness offers accessible bilingual required-field review without bypassing submit', () => {
+    assert.match(source, /Application readiness/);
+    assert.match(source, /আবেদন প্রস্তুতি/);
+    assert.match(source, /form\.querySelectorAll\('\[required\]'\)/);
+    assert.match(source, /field\.checkValidity\(\)/);
+    assert.match(source, /field\.scrollIntoView/);
+    assert.match(source, /field\.focus\(\)/);
+    assert.match(source, /readinessList\.replaceChildren\(\)/);
+    assert.match(source, /aria-live:'polite'/);
+    assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(/);
+});
