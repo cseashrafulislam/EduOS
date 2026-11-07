@@ -1,13 +1,13 @@
 (()=>{'use strict';const app=window.EduQuiz;if(!app?.state.learner)return;
 const {$,el,msg,api}=app;let page=1,rows=[],total=0,epoch=0;
-const course=$('quizHistoryCourse'),body=$('quizHistoryRows');let analysisEpoch=0;
+const course=$('quizHistoryCourse'),body=$('quizHistoryRows');let analysisEpoch=0;let currentPlan=null,currentPlanLocale=null;
 function cell(tr,value){const td=el('td',String(value??''));tr.append(td);}
 function clearProgress(){const b=$('quizProgressRows');if(b)b.replaceChildren();const s=$('quizProgressStatus');if(s)s.textContent='';}
-function clearPlan(){const list=$('quizPlanItems');if(list)list.replaceChildren();const status=$('quizPlanStatus');if(status)status.textContent='';const note=$('quizPlanNote');if(note)note.textContent='';}
+function clearPlan(){currentPlan=null;currentPlanLocale=null;const csv=$('quizPlanCsv'),print=$('quizPlanPrint');if(csv)csv.disabled=true;if(print)print.disabled=true;const list=$('quizPlanItems');if(list)list.replaceChildren();const status=$('quizPlanStatus');if(status)status.textContent='';const note=$('quizPlanNote');if(note)note.textContent='';}
 function renderPlan(progress,locale){
  const plan=window.EduQuizStudyPlan?.build(progress,locale);
  if(!plan||plan.status==='invalid')throw Error('Invalid study plan evidence');
- clearPlan();$('quizPlanStatus').textContent=plan.message+' ('+plan.items.length+')';
+ clearPlan();currentPlan={...plan,scanned:progress.scanned,totalCount:progress.totalCount};currentPlanLocale=locale;$('quizPlanCsv').disabled=plan.status!=='ready';$('quizPlanPrint').disabled=plan.status!=='ready';$('quizPlanStatus').textContent=plan.message+' ('+plan.items.length+')';
  $('quizPlanNote').textContent=plan.note;
  for(const item of plan.items){const li=el('li');li.className='list-group-item';
  li.append(el('strong',item.title),el('span',' — '+item.guidance));$('quizPlanItems').append(li);}
@@ -56,6 +56,16 @@ async function analyzeCourse(){
  finally{if(k===analysisEpoch)button.disabled=!course.value;}
 }
 $('quizStudyAnalyze').onclick=analyzeCourse;
+$('quizPlanCsv').onclick=()=>{
+ const csv=window.EduQuizStudyPlan?.exportCsv(currentPlan,currentPlanLocale);
+ if(!csv){msg('warning','Study priorities unavailable / পড়ার অগ্রাধিকার পাওয়া যায়নি');return;}
+ const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+ const a=el('a');a.href=url;a.download='study-priorities.csv';a.click();URL.revokeObjectURL(url);
+};
+$('quizPlanPrint').onclick=()=>{
+ if(!currentPlan||currentPlan.status!=='ready')return;
+ window.print();
+};
 function renderStudy(){
  const message=$('quizStudyMessage'),note=$('quizStudyNote'),list=$('quizStudyItems');
  if(!message||!note||!list)return;

@@ -29,5 +29,25 @@ function build(progress,locale){
   note:bn?'এটি শুধু নিজের অনুমোদিত ইতিহাস থেকে তৈরি; শিক্ষক নির্ধারিত লক্ষ্য, অধ্যায় দক্ষতা বা অফিসিয়াল ফল নয়।'+(progress.complete?'':' ইতিহাস আংশিক।'):
   'Derived only from your authorized history; not teacher goals, chapter mastery or official results.'+(progress.complete?'':' History is partial.')};
 }
-return Object.freeze({build});
+function exportCsv(result,locale){
+ if(!['bn-BD','en-BD'].includes(locale)||!result||result.status!=='ready'||!Array.isArray(result.items)||
+ !Number.isSafeInteger(result.totalCount)||!Number.isSafeInteger(result.scanned)||result.scanned<1||result.scanned>result.totalCount||result.complete!==(result.scanned===result.totalCount)||
+ result.items.length<1||result.items.length>200||typeof result.complete!=='boolean')return null;
+ const allowed=new Set(['review','awaiting-evidence','pending','extend']),seen=new Set();
+ const rows=[[locale==='bn-BD'?'কুইজ':'Quiz',locale==='bn-BD'?'অগ্রাধিকার':'Priority',locale==='bn-BD'?'পরামর্শ':'Guidance',locale==='bn-BD'?'তথ্য':'Evidence']];
+ for(const item of result.items){
+  if(!item||typeof item.quizReference!=='string'||!item.quizReference.trim()||seen.has(item.quizReference)||
+   typeof item.title!=='string'||!item.title.trim()||item.title.length>200||
+   typeof item.guidance!=='string'||!item.guidance.trim()||item.guidance.length>500||!allowed.has(item.priority))return null;
+  seen.add(item.quizReference);
+  rows.push([item.title,item.priority,item.guidance,result.complete?'complete':'partial']);
+ }
+ const csvCell=value=>{
+  let s=String(value).replace(/[\u0000-\u001f\u007f]/g,' ');
+  if(/^[\s]*[=+@-]/.test(s))s="'"+s;
+  return '"'+s.replace(/"/g,'""')+'"';
+ };
+ return '\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
+}
+return Object.freeze({build,exportCsv});
 });
