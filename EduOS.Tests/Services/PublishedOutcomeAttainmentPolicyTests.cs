@@ -179,4 +179,46 @@ public sealed class PublishedOutcomeAttainmentPolicyTests
         mixed.Should().Throw<ArgumentException>();
     }
 
+    [Fact]
+    public void Complete_cohort_matches_equally_weighted_learner_outcomes()
+    {
+        var result = Policy.CalculateCompleteCohort(
+            [Row(2, 20, 40), Row(1, 10, 90), Row(2, 10, 50), Row(1, 20, 70)],
+            [Map(8, 10, 60), Map(8, 20, 40)]);
+        result.Should().ContainSingle().Which.Should().Be(
+            new Policy.Outcome(8, 64m, 4, 91, 3));
+    }
+
+    [Fact]
+    public void Complete_cohort_rejects_missing_learner_course_instead_of_biasing_denominator()
+    {
+        Action act = () => Policy.CalculateCompleteCohort(
+            [Row(1, 10, 80), Row(1, 20, 60), Row(2, 10, 90)],
+            [Map(7, 10, 50), Map(7, 20, 50)]);
+        act.Should().Throw<ArgumentException>().WithMessage("*missing published evidence*");
+    }
+
+    [Fact]
+    public void Complete_cohort_aggregates_unrounded_learner_values()
+    {
+        var result = Policy.CalculateCompleteCohort(
+            [Row(1, 10, 1, 16), Row(2, 10, 1, 3)],
+            [Map(1, 10, 100)], 2);
+        result.Single().AttainmentPercent.Should().Be(19.79m);
+    }
+
+    [Fact]
+    public void Complete_cohort_preserves_publication_guards_and_does_not_mutate_input()
+    {
+        var evidence = new List<Policy.Evidence> { Row(1, 10, 75) };
+        var mappings = new List<Policy.Mapping> { Map(1, 10, 100) };
+        Policy.CalculateCompleteCohort(evidence, mappings);
+        evidence.Should().ContainSingle().Which.Should().Be(Row(1, 10, 75));
+        mappings.Should().ContainSingle().Which.Should().Be(Map(1, 10, 100));
+        Action mixed = () => Policy.CalculateCompleteCohort(
+            [Row(1, 10, 80), Row(2, 10, 90) with { PublicationId = 92 }],
+            mappings);
+        mixed.Should().Throw<ArgumentException>();
+    }
+
 }
