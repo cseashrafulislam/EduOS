@@ -43,3 +43,17 @@ test('publish and close operations reload canonical options and recover on stale
  assert.match(js, /await loadOptions\(\)/);
  assert.match(js, /delete controls\.dataset\.mutatingIntake/);
 });
+
+test('published-intake refresh preserves current valid selection and entered custom responses', () => {
+ assert.match(js, /const previousReference = valueOf\('admissionFormReference'\)/);
+ assert.match(js, /state\.options\.openForms\?\.some\(x => x\.reference === previousReference\)/);
+ assert.match(js, /selectAdmissionForm\(previousReference === valueOf\('admissionFormReference'\) \? previousCustom : null\)/);
+ assert.match(js, /function snapshotAdmissionFields\(\)/);
+ assert.match(js, /function restoreAdmissionFields\(values\)/);
+ assert.match(js, /selected\.has\(option\.value\)/);
+});
+test('required multi-select validation and invalid datetime values are safe before submission', () => {
+ assert.match(js, /select\[multiple\]\[required\]/);
+ assert.match(js, /missingChoices\.length/);
+ assert.match(js, /Number\.isFinite\(parsed\.valueOf\(\)\) \? parsed\.toISOString\(\) : ''/);
+});

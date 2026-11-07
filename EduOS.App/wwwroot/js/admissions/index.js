@@ -65,10 +65,16 @@
             fillSelect('intakeYearId', state.options.academicYears, true);
             fillSelect('intakeCampusId', state.options.campuses, true);
             fillSelect('intakeUnitId', state.options.academicLevels, true);
+            // Refreshing published intakes must not silently discard a partially
+            // completed application. Only retain a reference still authorized/open.
+            const previousReference = valueOf('admissionFormReference');
+            const previousCustom = snapshotAdmissionFields();
             fillSelect('admissionFormReference', (state.options.openForms || []).map(x => ({
                 id: x.reference, name: x.title + ' (' + x.code + ')'
             })), true);
-            selectAdmissionForm();
+            if (previousReference && state.options.openForms?.some(x => x.reference === previousReference))
+                setValue('admissionFormReference', previousReference);
+            selectAdmissionForm(previousReference === valueOf('admissionFormReference') ? previousCustom : null);
             refreshTerms();
             refreshIntakeTerms();
         } catch {
@@ -106,7 +112,7 @@
     }
 
 
-    function selectAdmissionForm() {
+    function selectAdmissionForm(previousCustom = null) {
         const form = state.options?.openForms?.find(x => x.reference === valueOf('admissionFormReference'));
         ['academicYearId', 'academicTermId', 'campusId', 'academicUnitId'].forEach(id => {
             const select = document.getElementById(id);
@@ -120,6 +126,29 @@
             setValue('academicTermId', form.academicTermId);
         }
         renderAdmissionFields(form?.fields || []);
+        if (previousCustom) restoreAdmissionFields(previousCustom);
+    }
+
+    function snapshotAdmissionFields() {
+        const values = new Map();
+        document.querySelectorAll('[data-admission-field]').forEach(control => {
+            values.set(control.dataset.admissionField, control.multiple
+                ? [...control.selectedOptions].map(option => option.value) : control.value);
+        });
+        return values;
+    }
+
+    function restoreAdmissionFields(values) {
+        document.querySelectorAll('[data-admission-field]').forEach(control => {
+            if (!values.has(control.dataset.admissionField)) return;
+            const previous = values.get(control.dataset.admissionField);
+            if (control.multiple) {
+                const selected = new Set(Array.isArray(previous) ? previous : []);
+                [...control.options].forEach(option => { option.selected = selected.has(option.value); });
+            } else if (control.tagName !== 'SELECT' || [...control.options].some(option => option.value === previous)) {
+                control.value = previous;
+            }
+        });
     }
 
     function renderAdmissionFields(fields) {
@@ -180,7 +209,10 @@
             let value = input.multiple
                 ? (input.selectedOptions.length ? JSON.stringify([...input.selectedOptions].map(x => x.value)) : '')
                 : input.value.trim();
-            if (value && input.dataset.dataType === '5') value = new Date(value).toISOString();
+            if (value && input.dataset.dataType === '5') {
+                const parsed = new Date(value);
+                value = Number.isFinite(parsed.valueOf()) ? parsed.toISOString() : '';
+            }
             if (value || input.required) values[input.dataset.admissionField] = value || null;
         }
         return values;
@@ -647,8 +679,12 @@
         event.preventDefault();
         const form = event.currentTarget;
         if (state.submitting) return;
-        if (!form.checkValidity()) {
-            admissionErrors(form);
+        // Required multi-selects need an explicit check: native constraint
+        // validation does not consistently enforce required on multiple selects.
+        const missingChoices = [...form.querySelectorAll('select[multiple][required]')]
+            .filter(control => control.selectedOptions.length === 0);
+        if (!form.checkValidity() || missingChoices.length) {
+            admissionErrors(form, missingChoices);
             return;
         }
         clearAdmissionErrors(form);
