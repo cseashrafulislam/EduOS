@@ -852,12 +852,17 @@
         if (button) button.disabled = choices.length === 0;
     }
 
+    // Keep a rejected review editable. A stale row version must be reloaded rather
+    // than silently overwriting another reviewer, and double-clicks must not post twice.
     async function saveDecision(event) {
         event.preventDefault();
+        const form = event.currentTarget;
+        if (state.savingDecision || !form.reportValidity()) return;
         const reference = valueOf('reviewReference');
         const status = positiveInteger(valueOf('reviewStatus'));
         if (!reference || !status) return;
         const button = document.getElementById('saveDecisionButton');
+        state.savingDecision = true;
         setLoading(button, true);
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/status`, apiOptions('PUT', {
@@ -867,7 +872,15 @@
             }));
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
-                showAlert('danger', payload?.message || i18n.decisionFailed);
+                const conflict = response.status === 409 || response.status === 412;
+                showAlert('danger', conflict
+                    ? (bangla ? 'অন্য ব্যবহারকারী আবেদনটি পরিবর্তন করেছেন। আবার তালিকা থেকে খুলে সর্বশেষ তথ্য যাচাই করুন।'
+                        : 'Another reviewer changed this application. Reopen it from the list to review the latest details.')
+                    : (payload?.message || i18n.decisionFailed));
+                if (conflict) {
+                    bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
+                    await loadApplications();
+                } else button?.focus();
                 return;
             }
             bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
@@ -875,7 +888,9 @@
             await loadApplications();
         } catch {
             showAlert('danger', i18n.networkError);
+            button?.focus();
         } finally {
+            state.savingDecision = false;
             setLoading(button, false);
         }
     }
@@ -1036,11 +1051,15 @@
         });
     }
 
+    // Enrollment is a server-authorized state transition. Preserve the entered roll
+    // and selection on failure; never infer success after an ambiguous network error.
     async function completeEnrollment(event) {
         event.preventDefault();
-        if (!event.currentTarget.reportValidity()) return;
+        if (state.enrolling || !event.currentTarget.reportValidity()) return;
         const reference = valueOf('enrollmentReference');
+        if (!reference) return;
         const button = document.getElementById('completeEnrollmentButton');
+        state.enrolling = true;
         setLoading(button, true);
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/admit`, apiOptions('POST', {
@@ -1051,7 +1070,16 @@
             }));
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success) {
-                showAlert('danger', payload?.message || i18n.enrollmentFailed);
+                const conflict = response.status === 409 || response.status === 412;
+                showAlert('danger', conflict
+                    ? (bangla ? 'ভর্তির তথ্য পরিবর্তিত হয়েছে। তালিকা থেকে আবেদনটি আবার খুলে যাচাই করুন।'
+                        : 'Enrollment data changed. Reopen the application from the list before trying again.')
+                    : (payload?.message || i18n.enrollmentFailed));
+                if (conflict) {
+                    bootstrap.Modal.getInstance(document.getElementById('enrollmentModal'))?.hide();
+                    state.currentApplication = null;
+                    await loadApplications();
+                } else button?.focus();
                 return;
             }
             bootstrap.Modal.getInstance(document.getElementById('enrollmentModal'))?.hide();
@@ -1059,8 +1087,12 @@
             state.currentApplication = null;
             await loadApplications();
         } catch {
-            showAlert('danger', i18n.networkError);
+            showAlert('danger', bangla
+                ? 'সংযোগ বিচ্ছিন্ন হয়েছে। আবার চেষ্টা করার আগে আবেদনটির বর্তমান অবস্থা যাচাই করুন।'
+                : 'Connection lost. Check the current application status before retrying enrollment.');
+            button?.focus();
         } finally {
+            state.enrolling = false;
             setLoading(button, false);
         }
     }
