@@ -422,6 +422,80 @@ public sealed class CentralMisTwoTenantIsolationTests
             From, To, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task Membership_reactivation_requires_live_active_role_before_mis_can_resume()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var service = Service(request, 41, 9, finance.Object);
+        Assert.Equal(200, (await service.GetAsync(From, To)).StatusCode);
+
+        await using (var admin = Open(options, 41))
+        {
+            var membership = await admin.TenantMemberships.SingleAsync(
+                x => x.TenantId == 41 && x.UserId == 9);
+            membership.Status = MembershipStatus.Suspended;
+            var role = await admin.Roles.SingleAsync(x => x.TenantId == 41 && x.Id == 2);
+            role.IsActive = false;
+            await admin.SaveChangesAsync();
+        }
+
+        Assert.Equal(403, (await service.GetAsync(From, To)).StatusCode);
+        await using (var admin = Open(options, 41))
+        {
+            var membership = await admin.TenantMemberships.SingleAsync(
+                x => x.TenantId == 41 && x.UserId == 9);
+            membership.Status = MembershipStatus.Active;
+            await admin.SaveChangesAsync();
+        }
+
+        // Restoring membership must not resurrect an independently revoked role.
+        Assert.Equal(403, (await service.GetAsync(From, To)).StatusCode);
+        finance.Verify(x => x.GetInstitutionalIncomeExpenseTotalsAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task Role_reactivation_cannot_bypass_still_suspended_membership()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            var membership = await seed.TenantMemberships.SingleAsync(
+                x => x.TenantId == 41 && x.UserId == 9);
+            membership.Status = MembershipStatus.Suspended;
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var service = Service(request, 41, 9, finance.Object);
+        Assert.Equal(403, (await service.GetAsync(From, To)).StatusCode);
+
+        await using (var admin = Open(options, 41))
+        {
+            var role = await admin.Roles.SingleAsync(x => x.TenantId == 41 && x.Id == 2);
+            role.IsActive = false;
+            await admin.SaveChangesAsync();
+            role.IsActive = true;
+            await admin.SaveChangesAsync();
+        }
+
+        Assert.Equal(403, (await service.GetAsync(From, To)).StatusCode);
+        finance.Verify(x => x.GetInstitutionalIncomeExpenseTotalsAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("mis-two-tenant-" + Guid.NewGuid().ToString("N"),
