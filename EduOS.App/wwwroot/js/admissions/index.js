@@ -682,16 +682,19 @@
             const payload = await response.json().catch(() => null);
             if (requestNumber !== state.reviewRequest) return;
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid details');
+            // Show the application promptly; private documents load independently.
+            // A slow document endpoint must not block review of the canonical record.
             renderDetails(payload.data);
             state.currentApplication = payload.data;
-            await loadApplicantDocuments(payload.data.reference);
-            if (requestNumber !== state.reviewRequest) return;
             setValue('reviewReference', payload.data.reference);
             setValue('reviewRowVersion', payload.data.rowVersion);
             setValue('decisionNote', payload.data.decisionNote);
             fillReviewStatuses(Number(payload.data.state));
             document.getElementById('admitApplicantButton')?.classList.toggle('d-none', Number(payload.data.state) !== 6);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal')).show();
+            // Do not await here: loadApplicantDocuments already protects the active
+            // application and rejects stale responses when selection changes.
+            void loadApplicantDocuments(payload.data.reference);
         } catch {
             if (requestNumber === state.reviewRequest) showAlert('danger', i18n.detailsFailed);
         } finally {
@@ -927,10 +930,15 @@
 
     async function prepareEnrollment() {
         const item = state.currentApplication;
-        if (!item?.reference || Number(item.state) !== 6) return;
+        if (!item?.reference || Number(item.state) !== 6 || state.preparingEnrollment) return;
+        const selectedReview = state.reviewRequest;
+        state.preparingEnrollment = true;
+        const trigger = document.getElementById('admitApplicantButton');
+        setLoading(trigger, true);
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(item.reference)}/enrollment-options`, apiOptions());
             const payload = await response.json().catch(() => null);
+            if (selectedReview !== state.reviewRequest || state.currentApplication?.reference !== item.reference) return;
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid enrollment options');
             fillSelect('enrollmentSectionId', payload.data.academicBatches, true);
             fillSelect('enrollmentGroupId', payload.data.academicTracks, false);
@@ -940,7 +948,11 @@
             bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('enrollmentModal')).show();
         } catch (error) {
-            showAlert('danger', error.message || i18n.enrollmentFailed);
+            if (selectedReview === state.reviewRequest && state.currentApplication?.reference === item.reference)
+                showAlert('danger', error.message || i18n.enrollmentFailed);
+        } finally {
+            state.preparingEnrollment = false;
+            setLoading(trigger, false);
         }
     }
 
