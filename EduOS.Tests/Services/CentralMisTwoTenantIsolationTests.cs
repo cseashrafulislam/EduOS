@@ -322,6 +322,54 @@ public sealed class CentralMisTwoTenantIsolationTests
             Times.Never);
     }
 
+    [Fact]
+    public async Task Foreign_currency_open_invoice_fails_closed_before_gl_reporting()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            var invoice = Invoice(1, 41, 150m);
+            invoice.CurrencyCode = "USD";
+            seed.StudentInvoices.Add(invoice);
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var result = await Service(request, 41, 9, finance.Object).GetAsync(From, To);
+        Assert.Equal(409, result.StatusCode);
+        Assert.Null(result.Data);
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Closed_invoice_stale_negative_due_does_not_pollute_open_receivables()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            var closed = Invoice(1, 41, -100m);
+            closed.State = InvoiceState.Cancelled;
+            seed.StudentInvoices.Add(closed);
+            seed.StudentInvoices.Add(Invoice(2, 41, 25m));
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var result = await Service(request, 41, 9, finance.Object).GetAsync(From, To);
+        Assert.Equal(200, result.StatusCode);
+        var metrics = result.Data!.Metrics.ToDictionary(m => m.Key);
+        Assert.Equal(25m, metrics["outstanding_fee_amount"].Value);
+        Assert.Equal(1m, metrics["outstanding_fee_invoices"].Value);
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            From, To, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("mis-two-tenant-" + Guid.NewGuid().ToString("N"),
