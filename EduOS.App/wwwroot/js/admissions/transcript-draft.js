@@ -39,7 +39,7 @@
             'guardian mobile': 'guardianMobile', 'অভিভাবকের মোবাইল': 'guardianMobile',
             address: 'presentAddress', 'ঠিকানা': 'presentAddress'
         };
-        String(text || '').split(/\r?\n/).forEach((line, index) => {
+        // Reject oversized drafts without silently truncating pasted content.\n        if (String(text || '').length > 3000) {\n            return { fields: {}, errors: [{ tooLong: true, limit: 3000 }] };\n        }\n        String(text || '').split(/\r?\n/).forEach((line, index) => {
             const at = line.indexOf(':');
             if (at < 0) return;
             const key = keys[line.slice(0, at).trim().toLowerCase()];
@@ -84,7 +84,7 @@
         };
         const heading = el('h4', {class:'h6'}, t('Draft from text (no automatic submission)', 'লিখে খসড়া তৈরি (স্বয়ংক্রিয় জমা নয়)'));
         const note = el('p', {class:'small text-muted'}, t('Microphone unavailable until an approved speech provider is configured. Type instead. Draft stays in this page only.', 'অনুমোদিত স্পিচ সেবা চালু না হওয়া পর্যন্ত মাইক্রোফোন বন্ধ। লিখে দিন। খসড়া শুধু এই পৃষ্ঠায় থাকবে।'));
-        const input = el('textarea', {id:'admissionDraftText',class:'form-control',rows:'3',maxlength:'3000','aria-label':t('Admission transcript draft','ভর্তি আবেদনের লিখিত খসড়া'),placeholder:t('Name: ...\nMobile: ...\nGuardian: ...','নাম: ...\nমোবাইল: ...\nঅভিভাবক: ...')});
+        const input = el('textarea', {id:'admissionDraftText',class:'form-control',rows:'3','aria-label':t('Admission transcript draft','ভর্তি আবেদনের লিখিত খসড়া'),placeholder:t('Name: ...\nMobile: ...\nGuardian: ...','নাম: ...\nমোবাইল: ...\nঅভিভাবক: ...')});
         const previewButton = el('button',{type:'button',class:'btn btn-outline-primary mt-2'},t('Preview fields','তথ্য যাচাই'));
         const preview = el('div',{class:'mt-2','aria-live':'polite',role:'group','aria-label':t('Editable admission field preview','ভর্তির তথ্য সংশোধনের তালিকা')});
         const confirm = el('button',{type:'button',class:'btn btn-outline-success mt-2',disabled:'disabled'},t('Apply reviewed fields to form','যাচাইকৃত তথ্য ফরমে বসান'));
@@ -121,7 +121,7 @@
             const detailed = parseDetailed(input.value);
             if (detailed.errors.length) {
                 const first = detailed.errors[0];
-                status.textContent = first.empty
+                status.textContent = first.tooLong\n                    ? t('Draft exceeds 3000 characters. Shorten it and preview again; no fields changed.',\n                        'খসড়া ৩০০০ অক্ষরের বেশি। লেখা ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।')\n                    : first.empty
                     ? t(`Line ${first.line} has an empty admission field. Enter a value; no fields changed.`,
                         `লাইন ${first.line}-এ তথ্যের ঘর খালি। তথ্য লিখুন; কোনো তথ্য বদলায়নি।`)
                     : first.duplicate
