@@ -7,6 +7,44 @@ namespace EduOS.Tests.Services;
 
 public sealed class PublishedOutcomeAttainmentPolicyTests
 {
+    [Fact]
+    public void Learner_roster_returns_only_complete_authorized_learners_in_stable_order()
+    {
+        var result = Policy.CalculatePerLearnerForRoster(
+            [Row(2, 10, 60), Row(1, 10, 80)],
+            [Map(7, 10, 100)], [2, 1]);
+        result.Select(x => x.EnrollmentId).Should().Equal(1, 2);
+        result.Select(x => x.AttainmentPercent).Should().Equal(80m, 60m);
+    }
+
+    [Fact]
+    public void Learner_roster_rejects_missing_and_foreign_enrollments()
+    {
+        Action missing = () => Policy.CalculatePerLearnerForRoster(
+            [Row(1, 10, 80)], [Map(7, 10, 100)], [1, 2]);
+        Action foreign = () => Policy.CalculatePerLearnerForRoster(
+            [Row(1, 10, 80), Row(3, 10, 90)],
+            [Map(7, 10, 100)], [1, 2]);
+        missing.Should().Throw<ArgumentException>();
+        foreign.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Learner_roster_rejects_invalid_roster_and_incomplete_course_evidence()
+    {
+        var rows = new[] { Row(1, 10, 80), Row(2, 10, 70) };
+        var maps = new[] { Map(7, 10, 50), Map(7, 20, 50) };
+        Action duplicate = () => Policy.CalculatePerLearnerForRoster(
+            rows, [Map(7, 10, 100)], [1, 1]);
+        Action invalid = () => Policy.CalculatePerLearnerForRoster(
+            rows, [Map(7, 10, 100)], [1, 0]);
+        Action incomplete = () => Policy.CalculatePerLearnerForRoster(
+            [.. rows, Row(1, 20, 90)], maps, [1, 2]);
+        duplicate.Should().Throw<ArgumentException>();
+        invalid.Should().Throw<ArgumentException>();
+        incomplete.Should().Throw<ArgumentException>();
+    }
+
     private static Policy.Evidence Row(long enrollment, long course, decimal obtained,
         decimal full = 100m) => new(91, 3, enrollment, course, full, obtained,
             false, false, true, true);
