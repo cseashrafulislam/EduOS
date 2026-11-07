@@ -198,4 +198,36 @@ public sealed class GroundedChapterStudyTests
         Assert.Null(result.Citation);
     }
 
+    [Theory]
+    [InlineData("tenant-a\\nforeign")]
+    [InlineData("tenant-a<script>")]
+    [InlineData("tenant-a\\u200B")]
+    public void Malformed_tenant_identity_fails_closed(string tenant)
+    {
+        tenant = tenant.Replace("\\n", "\n").Replace("\\u200B", "\u200B");
+        var result = GroundedChapterStudy.Answer(Request with { TenantId = tenant }, [Excerpt()]);
+        Assert.Equal(Outcome.Denied, result.Status);
+        Assert.Null(result.Citation);
+    }
+
+    [Theory]
+    [InlineData("chapter-2/../chapter-3")]
+    [InlineData("chapter-2\\u202E")]
+    [InlineData("chapter-2<script>")]
+    public void Malformed_chapter_identity_is_invalid(string chapter)
+    {
+        chapter = chapter.Replace("\\u202E", "\u202E");
+        var result = GroundedChapterStudy.Answer(Request with { ChapterId = chapter }, [Excerpt()]);
+        Assert.Equal(Outcome.Invalid, result.Status);
+        Assert.Null(result.Citation);
+    }
+
+    [Fact]
+    public void Valid_canonical_scope_identifiers_remain_compatible()
+    {
+        var result = GroundedChapterStudy.Answer(Request, [Excerpt()]);
+        Assert.Equal(Outcome.Answered, result.Status);
+    }
+
+
 }
