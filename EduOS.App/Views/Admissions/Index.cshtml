@@ -206,11 +206,15 @@
                     <option value="9">@(bn ? "প্রত্যাহার" : "Withdrawn")</option>
                 </select>
                 <button class="btn btn-outline-primary" type="submit">@T["Search"]</button>
+                <label class="form-label mb-0" for="admissionPageSize">@(bn ? "প্রতি পাতায়" : "Per page")</label>
+                <select id="admissionPageSize" class="form-select" aria-label="@(bn ? "প্রতি পাতায় আবেদনের সংখ্যা" : "Applications per page")">
+                    <option value="10">10</option><option value="20" selected>20</option><option value="50">50</option>
+                </select>
             </form>
             <div id="applicationList" class="admission-list" aria-live="polite" aria-busy="true" data-can-offer="@(User.IsInRole("TenantAdmin") ? "true" : "false")"></div>
             <nav class="admission-pagination" aria-label="@T["ApplicationPagination"]">
                 <button id="previousPage" class="btn btn-sm btn-outline-secondary" type="button">@T["Previous"]</button>
-                <span id="pageStatus"></span>
+                <span id="pageStatus" role="status" aria-live="polite" aria-atomic="true"></span>
                 <button id="nextPage" class="btn btn-sm btn-outline-secondary" type="button">@T["Next"]</button>
             </nav>
         </section>

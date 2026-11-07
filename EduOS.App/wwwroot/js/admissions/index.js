@@ -25,6 +25,7 @@
         form.addEventListener('input', () => clearAdmissionErrors(form));
         form.addEventListener('change', () => clearAdmissionErrors(form));
         document.getElementById('admissionFilters')?.addEventListener('submit', applyFilters);
+        document.getElementById('admissionPageSize')?.addEventListener('change', changePageSize);
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
         document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
@@ -597,6 +598,7 @@
         const list = document.getElementById('applicationList');
         if (!list) return;
         const requestNumber = ++state.listRequest;
+        updatePagination(true);
         list.setAttribute('aria-busy', 'true');
         list.replaceChildren(statusMessage(i18n.loading));
         const params = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
@@ -610,6 +612,12 @@
             if (requestNumber !== state.listRequest) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data?.items)) throw new Error('Invalid list');
             state.totalPages = Math.max(1, Number(payload.data.totalPages) || 1);
+            state.totalItems = Math.max(0, Number(payload.data.totalCount ?? payload.data.totalItems ?? payload.data.total) || 0);
+            if (state.page > state.totalPages) {
+                state.page = state.totalPages;
+                void loadApplications();
+                return;
+            }
             renderApplications(payload.data.items);
             updatePagination();
         } catch {
@@ -622,6 +630,7 @@
             retry.addEventListener('click', loadApplications, { once: true });
             error.append(retry);
             list.replaceChildren(error);
+            updatePagination();
         } finally {
             if (requestNumber === state.listRequest) list.removeAttribute('aria-busy');
         }
@@ -1145,6 +1154,14 @@
         loadApplications();
     }
 
+    function changePageSize() {
+        const selected = Number(valueOf('admissionPageSize'));
+        if (![10, 20, 50].includes(selected) || selected === state.pageSize) return;
+        state.pageSize = selected;
+        state.page = 1;
+        loadApplications();
+    }
+
     function changePage(change) {
         const next = state.page + change;
         if (next < 1 || next > state.totalPages) return;
@@ -1152,13 +1169,15 @@
         loadApplications();
     }
 
-    function updatePagination() {
+    function updatePagination(loading = false) {
         const previous = document.getElementById('previousPage');
         const next = document.getElementById('nextPage');
-        if (previous) previous.disabled = state.page <= 1;
-        if (next) next.disabled = state.page >= state.totalPages;
+        if (previous) previous.disabled = loading || state.page <= 1;
+        if (next) next.disabled = loading || state.page >= state.totalPages;
         const label = document.getElementById('pageStatus');
-        if (label) label.textContent = `${i18n.pageLabel || ''} ${state.page} / ${state.totalPages}`;
+        if (label) label.textContent = loading
+            ? (i18n.loading || (bangla ? 'লোড হচ্ছে' : 'Loading'))
+            : `${i18n.pageLabel || (bangla ? 'পৃষ্ঠা' : 'Page')} ${new Intl.NumberFormat(bangla ? 'bn-BD' : 'en-BD').format(state.page)} / ${new Intl.NumberFormat(bangla ? 'bn-BD' : 'en-BD').format(state.totalPages)}`;
     }
 
     function apiOptions(method = 'GET', body = null) {
