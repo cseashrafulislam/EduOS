@@ -269,6 +269,59 @@ public sealed class CentralMisTwoTenantIsolationTests
             From, To, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task Invalid_mis_period_rejects_before_finance_and_module_access()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var service = Service(request, 41, 9, finance.Object);
+        Assert.Equal(400, (await service.GetAsync(To, From)).StatusCode);
+        Assert.Equal(400, (await service.GetAsync(default, To)).StatusCode);
+        Assert.Equal(400, (await service.GetAsync(
+            new DateOnly(2025, 1, 1), new DateOnly(2026, 1, 2))).StatusCode);
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task Finance_entitlement_disabled_hides_receivables_and_gl_even_with_invalid_invoice()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            seed.Students.Add(new Student { Id = 1, TenantId = 41,
+                StudentCode = "A", FullName = "Allowed student", StatusCode = "Active" });
+            seed.StudentInvoices.Add(Invoice(1, 41, -25m));
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var response = await Service(request, 41, 9, finance.Object, financeAvailable: false)
+            .GetAsync(From, To);
+        Assert.Equal(200, response.StatusCode);
+        var metrics = response.Data!.Metrics.ToDictionary(m => m.Key);
+        Assert.Equal(1m, metrics["active_students"].Value);
+        foreach (var key in new[] { "outstanding_fee_amount", "outstanding_fee_invoices",
+                     "posted_income", "posted_expenses", "net_surplus" })
+        {
+            Assert.False(metrics[key].Available);
+            Assert.Null(metrics[key].Value);
+        }
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("mis-two-tenant-" + Guid.NewGuid().ToString("N"),
@@ -310,11 +363,11 @@ public sealed class CentralMisTwoTenantIsolationTests
     }
 
     private static CentralInstitutionMisService Service(EduOSDbContext db, long tenant,
-        long userId, IAccountingReportingService finance)
+        long userId, IAccountingReportingService finance, bool financeAvailable = true)
     {
         var modules = new Mock<ITenantModuleService>();
         modules.Setup(m => m.IsCurrentTenantModuleAvailableAsync(It.IsAny<string>()))
-            .ReturnsAsync(true);
+            .ReturnsAsync((string module) => module != "FINANCE" || financeAvailable);
         return new CentralInstitutionMisService(db, new Actor(tenant, userId),
             modules.Object, finance, TimeProvider.System);
     }
