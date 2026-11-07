@@ -236,7 +236,7 @@
         const fieldLabel = field => {
             const label = Array.from(form.querySelectorAll('label')).find(item =>
                 item.getAttribute('for') === field.id);
-            return label ? label.textContent.replace(/\\s*\\*\\s*$/, '').trim() : field.id;
+            return label ? label.textContent.replace(/\s*\*\s*$/, '').trim() : field.id;
         };
         function checkReadiness() {
             readinessList.replaceChildren();
