@@ -49,7 +49,8 @@ public static class GroundedChapterStudy
             return StudyAnswer.Reject(Outcome.Denied);
         if (string.IsNullOrWhiteSpace(request.Question) ||
             request.Question.Length > MaxQuestionLength ||
-            request.Question.Any(char.IsControl) ||
+            request.Question.Any(c => char.IsControl(c) || char.IsSurrogate(c) ||
+                char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format) ||
             string.IsNullOrWhiteSpace(request.BookId) ||
             string.IsNullOrWhiteSpace(request.EditionId) ||
             string.IsNullOrWhiteSpace(request.ChapterId))
@@ -100,8 +101,9 @@ public static class GroundedChapterStudy
                 c is '<' or '>' or '&') ||
             string.IsNullOrWhiteSpace(e.Text) ||
             e.Text.Length > MaxExcerptLength ||
-            e.Text.Any(c => char.IsControl(c) ||
-                char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format)))
+            e.Text.Any(c => char.IsControl(c) || char.IsSurrogate(c) ||
+                char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format ||
+                c is '<' or '>')))
             return StudyAnswer.Reject(Outcome.Invalid);
 
         foreach (var excerpt in authorizedExcerpts)
