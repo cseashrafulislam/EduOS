@@ -751,6 +751,12 @@ public sealed class LibraryDigitalResourceService(
         // A successful pre-read authorization is not a durable download grant.
         if (!await CanReadAsync(ct) || !await ResourceQuery().AnyAsync(x =>
                 x.Document.Id == row.DocumentId && x.Document.PublicId == reference &&
+                // The FileAsset may be replaced while private storage is being read.
+                // Never return bytes validated against an obsolete storage fingerprint.
+                x.File.StorageKey == row.StorageKey &&
+                x.File.SizeBytes == row.SizeBytes &&
+                x.File.Sha256 == row.Sha256 &&
+                x.File.ContentType == row.ContentType &&
                 x.Document.IsActive && x.Book.IsActive &&
                 (!x.Document.LibraryCampusId.HasValue || db.Campuses.Any(c =>
                     c.TenantId == Tenant && c.Id == x.Document.LibraryCampusId.Value &&
