@@ -103,3 +103,14 @@ test('repeated bilingual labels fail closed instead of silently overwriting an a
     assert.match(source, /first\.duplicate/);
     assert.match(source, /repeats an admission field/);
 });
+
+
+test('recognized blank transcript values fail closed without silently dropping fields', () => {
+    const blank = parseDetailed('Name: Amina\\nMobile:   \\nGuardian: Rahim');
+    assert.deepEqual(blank.fields, {});
+    assert.deepEqual(blank.errors, [{key:'primaryMobile',line:2,empty:true}]);
+    assert.deepEqual(parse('নাম:  \\nঠিকানা: ঢাকা'), {});
+    assert.deepEqual(parseDetailed('Name: Amina\\nUnrecognized:   ').fields, {applicantName:'Amina'});
+    assert.match(source, /first\\.empty/);
+    assert.match(source, /empty admission field/);
+});

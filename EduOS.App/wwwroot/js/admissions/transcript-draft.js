@@ -44,7 +44,13 @@
             if (at < 0) return;
             const key = keys[line.slice(0, at).trim().toLowerCase()];
             const value = line.slice(at + 1).trim();
-            if (!key || !value) return;
+            if (!key) return;
+            // A recognized but blank label must fail closed. Silently skipping it
+            // can make an applicant believe an intentionally supplied field was applied.
+            if (!value) {
+                errors.push({ key, line: index + 1, empty: true });
+                return;
+            }
             const limit = key === 'presentAddress' ? 1000 : 200;
             if (value.length > limit) {
                 errors.push({ key, line: index + 1, limit });
@@ -115,7 +121,10 @@
             const detailed = parseDetailed(input.value);
             if (detailed.errors.length) {
                 const first = detailed.errors[0];
-                status.textContent = first.duplicate
+                status.textContent = first.empty
+                    ? t(`Line ${first.line} has an empty admission field. Enter a value; no fields changed.`,
+                        `লাইন ${first.line}-এ তথ্যের ঘর খালি। তথ্য লিখুন; কোনো তথ্য বদলায়নি।`)
+                    : first.duplicate
                     ? t(`Line ${first.line} repeats an admission field. Keep one value per label; no fields changed.`,
                         `লাইন ${first.line}-এ একই তথ্য আবার দেওয়া হয়েছে। প্রতি তথ্য একবার লিখুন; কোনো তথ্য বদলায়নি।`)
                     : t(`Line ${first.line} exceeds ${first.limit} characters. Shorten it and preview again; no fields changed.`,
