@@ -153,4 +153,25 @@ public sealed class GroundedChapterStudyTests
             GroundedChapterStudy.Answer(Request, [Excerpt(text: text)]).Status);
     }
 
+    [Fact]
+    public void Long_passage_quotes_the_matching_window_not_an_unrelated_prefix()
+    {
+        var text = new string('x', 350) + " Photosynthesis converts light energy.";
+        var result = GroundedChapterStudy.Answer(Request, [Excerpt(text: text)]);
+        Assert.Equal(Outcome.Answered, result.Status);
+        Assert.Contains("Photosynthesis", result.Message);
+        Assert.DoesNotContain(new string('x', 300), result.Message);
+        Assert.True(result.Message.Length <= 242);
+    }
+
+    [Fact]
+    public void Scattered_terms_without_one_supported_quote_abstain()
+    {
+        var question = Request with { Question = "Explain photosynthesis mitochondria" };
+        var text = "Photosynthesis " + new string('x', 450) + " mitochondria.";
+        var result = GroundedChapterStudy.Answer(question, [Excerpt(text: text)]);
+        Assert.Equal(Outcome.NoEvidence, result.Status);
+        Assert.Null(result.Citation);
+    }
+
 }
