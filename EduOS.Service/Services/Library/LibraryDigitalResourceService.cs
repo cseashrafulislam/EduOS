@@ -706,6 +706,10 @@ public sealed class LibraryDigitalResourceService(
             return Fail<DocumentFileDownloadDto>("Resource not found.", 404);
         var row = await ResourceQuery().Where(x => x.Document.PublicId == reference &&
             x.Document.IsActive && x.Book.IsActive &&
+            // A campus licence stops granting downloads when its campus is deactivated.
+            (!x.Document.LibraryCampusId.HasValue || db.Campuses.Any(c =>
+                c.TenantId == Tenant && c.Id == x.Document.LibraryCampusId.Value &&
+                c.IsActive && !c.IsDeleted)) &&
             (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now))
             .Select(x => new { DocumentId = x.Document.Id, x.File.StorageKey, x.File.SizeBytes,
                 x.File.Sha256, x.File.ContentType, x.File.OriginalFileName })
@@ -740,6 +744,9 @@ public sealed class LibraryDigitalResourceService(
         if (!await CanReadAsync(ct) || !await ResourceQuery().AnyAsync(x =>
                 x.Document.Id == row.DocumentId && x.Document.PublicId == reference &&
                 x.Document.IsActive && x.Book.IsActive &&
+                (!x.Document.LibraryCampusId.HasValue || db.Campuses.Any(c =>
+                    c.TenantId == Tenant && c.Id == x.Document.LibraryCampusId.Value &&
+                    c.IsActive && !c.IsDeleted)) &&
                 (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now), ct))
             return Fail<DocumentFileDownloadDto>("Resource not found.", 404);
 
