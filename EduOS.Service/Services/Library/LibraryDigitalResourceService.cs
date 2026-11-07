@@ -180,13 +180,21 @@ public sealed class LibraryDigitalResourceService(
         public FileAsset File { get; set; } = null!;
     }
 
+    private static bool ValidCatalogueFilter(string? value) =>
+        value == null || (value.Length is > 0 and <= 100 &&
+            !string.IsNullOrWhiteSpace(value) &&
+            !value.Any(c => char.IsControl(c) ||
+                char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format));
+
     public async Task<ApiResponse<PagedResult<LibraryDigitalResourceDto>>> ListAsync(
         Guid? bookReference, string? search, int page, int pageSize, bool includeInactive,
-        CancellationToken ct = default)
+        CancellationToken ct = default, string? category = null, string? author = null, string? publisher = null, string? edition = null)
     {
         if (!await CanReadAsync(ct)) return Fail<PagedResult<LibraryDigitalResourceDto>>("Library access denied.", 403);
         if (page < 1 || pageSize is < 1 or > 50 || ((long)page - 1) * pageSize > int.MaxValue ||
             search?.Length > 100 || bookReference == Guid.Empty ||
+            !ValidCatalogueFilter(category) || !ValidCatalogueFilter(author) ||
+            !ValidCatalogueFilter(publisher) || !ValidCatalogueFilter(edition) ||
             (search != null && (string.IsNullOrWhiteSpace(search) ||
                 search.Any(c => char.IsControl(c) ||
                     char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format))))
@@ -217,6 +225,30 @@ public sealed class LibraryDigitalResourceService(
                     category.TenantId == Tenant && !category.IsDeleted && category.IsActive &&
                     category.Id == x.Book.BookCategoryId && category.Name.Contains(term)) ||
                 (x.Document.Title != null && x.Document.Title.Contains(term)));
+        }
+        // All facets compose on the same authorized query before counting and paging.
+        // Category is resolved from the existing tenant-owned BookCategory, not a shadow index.
+        if (category != null)
+        {
+            var term = category.Trim();
+            query = query.Where(x => db.BookCategories.AsNoTracking().Any(c =>
+                c.TenantId == Tenant && !c.IsDeleted && c.IsActive &&
+                c.Id == x.Book.BookCategoryId && c.Name.Contains(term)));
+        }
+        if (author != null)
+        {
+            var term = author.Trim();
+            query = query.Where(x => x.Book.Author != null && x.Book.Author.Contains(term));
+        }
+        if (publisher != null)
+        {
+            var term = publisher.Trim();
+            query = query.Where(x => x.Book.Publisher != null && x.Book.Publisher.Contains(term));
+        }
+        if (edition != null)
+        {
+            var term = edition.Trim();
+            query = query.Where(x => x.Book.Edition != null && x.Book.Edition.Contains(term));
         }
         var total = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(x => x.Document.CreatedAt)

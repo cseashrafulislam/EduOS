@@ -164,3 +164,21 @@ test('licensed catalogue category discovery uses canonical tenant-scoped BookCat
     assert.match(writer, /Book,Category,Resource/);
     assert.doesNotMatch(writer, /StorageKey|StudentId|PersonId|Sha256/);
 });
+
+
+test('catalogue advanced facets compose with authorized paging, bilingual responsive search and matching CSV export', () => {
+    const iface = read('EduOS.Core/Interfaces/IServices/ILibraryDigitalResourceService.cs');
+    for (const name of ['category', 'author', 'publisher', 'edition']) {
+        assert.match(iface, new RegExp('string\\? ' + name));
+        assert.match(api, new RegExp('\\[FromQuery\\] string\\? ' + name));
+        assert.match(service, new RegExp('if \\(' + name + ' != null\\)'));
+        assert.match(ui, new RegExp("\\['" + name + "', 'digital"));
+    }
+    assert.match(service, /ValidCatalogueFilter/);
+    assert.match(service, /c\.TenantId == Tenant && !c\.IsDeleted && c\.IsActive/);
+    assert.match(service, /var total = await query\.CountAsync\(ct\)/);
+    assert.match(ui, /const query = params\(\); query\.set\('language'/);
+    assert.match(view, /id="digitalClearFilters"/);
+    assert.match(ui, /page = 1; clearAlert\(\); load\(\)/);
+    assert.doesNotMatch(ui, /innerHTML\s*=/);
+});

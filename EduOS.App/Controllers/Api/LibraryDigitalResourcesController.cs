@@ -22,9 +22,12 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
     public async Task<IActionResult> List([FromQuery] Guid? bookReference = null,
         [FromQuery] string? search = null, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20, [FromQuery] bool includeInactive = false,
+        [FromQuery] string? category = null, [FromQuery] string? author = null,
+        [FromQuery] string? publisher = null, [FromQuery] string? edition = null,
         CancellationToken ct = default)
     {
-        var result = await service.ListAsync(bookReference, search, page, pageSize, includeInactive, ct);
+        var result = await service.ListAsync(bookReference, search, page, pageSize, includeInactive, ct,
+            category, author, publisher, edition);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -41,6 +44,8 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
     public async Task<IActionResult> Export([FromQuery] Guid? bookReference = null,
         [FromQuery] string? search = null, [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20, [FromQuery] bool includeInactive = false,
+        [FromQuery] string? category = null, [FromQuery] string? author = null,
+        [FromQuery] string? publisher = null, [FromQuery] string? edition = null,
         [FromQuery] string language = "en-BD", CancellationToken ct = default)
     {
         if (language is not ("en-BD" or "bn-BD"))

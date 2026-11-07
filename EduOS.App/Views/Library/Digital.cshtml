@@ -156,6 +156,25 @@
                 </div>
             }
             <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">@(bn ? "খুঁজুন" : "Search")</button></div>
+            <div class="col-sm-6 col-lg-3">
+                <label for="digitalCategoryFilter" class="form-label">@(bn ? "বিভাগ" : "Category")</label>
+                <input id="digitalCategoryFilter" class="form-control" maxlength="100" autocomplete="off" />
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label for="digitalAuthorFilter" class="form-label">@(bn ? "লেখক" : "Author")</label>
+                <input id="digitalAuthorFilter" class="form-control" maxlength="100" autocomplete="off" />
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label for="digitalPublisherFilter" class="form-label">@(bn ? "প্রকাশক" : "Publisher")</label>
+                <input id="digitalPublisherFilter" class="form-control" maxlength="100" autocomplete="off" />
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <label for="digitalEditionFilter" class="form-label">@(bn ? "সংস্করণ" : "Edition")</label>
+                <input id="digitalEditionFilter" class="form-control" maxlength="100" autocomplete="off" />
+            </div>
+            <div class="col-12">
+                <button id="digitalClearFilters" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "ফিল্টার মুছুন" : "Clear filters")</button>
+            </div>
         </form>
         <div class="table-responsive mt-3">
             <table class="table table-hover align-middle">

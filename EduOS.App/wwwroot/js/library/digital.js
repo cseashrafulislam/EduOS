@@ -73,6 +73,12 @@
     function params() {
         const q = new URLSearchParams({ page: String(page), pageSize: String(pageSize),
             search: el('digitalQuery').value.trim() });
+        for (const [key, id] of [['category', 'digitalCategoryFilter'],
+            ['author', 'digitalAuthorFilter'], ['publisher', 'digitalPublisherFilter'],
+            ['edition', 'digitalEditionFilter']]) {
+            const value = el(id).value.trim();
+            if (value) q.set(key, value);
+        }
         if (admin && el('digitalStatus').value === 'all') q.set('includeInactive', 'true');
         return q;
     }
@@ -508,6 +514,12 @@
             el('digitalHistoryRows').replaceChildren();
         });
     }
+    el('digitalClearFilters').addEventListener('click', () => {
+        for (const id of ['digitalQuery', 'digitalCategoryFilter', 'digitalAuthorFilter',
+            'digitalPublisherFilter', 'digitalEditionFilter']) el(id).value = '';
+        if (admin) el('digitalStatus').value = 'active';
+        page = 1; clearAlert(); load();
+    });
     el('digitalSearchForm').addEventListener('submit', event => {
         event.preventDefault(); page = 1; clearAlert(); load();
     });
@@ -550,7 +562,8 @@
         el('digitalPage').textContent = '';
         el('digitalPrevious').disabled = true;
         el('digitalNext').disabled = true;
-        el('digitalQuery').value = '';
+        for (const id of ['digitalQuery', 'digitalCategoryFilter', 'digitalAuthorFilter',
+            'digitalPublisherFilter', 'digitalEditionFilter']) el(id).value = '';
         clearAlert();
         if (admin) {
             el('digitalUploadForm').reset();
