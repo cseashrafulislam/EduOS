@@ -207,6 +207,36 @@ public sealed class CentralMisTwoTenantIsolationTests
             From, To, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task Revoked_tenant_admin_role_denies_next_request_without_finance_access()
+    {
+        var options = Options();
+        await using (var seed = Open(options, 41))
+        {
+            SeedAdmin(seed, 41, 9, 1, 2);
+            await seed.SaveChangesAsync();
+        }
+
+        var finance = Finance();
+        await using var request = Open(options, 41);
+        var service = Service(request, 41, 9, finance.Object);
+        Assert.Equal(200, (await service.GetAsync(From, To)).StatusCode);
+
+        // An administrator revokes the role in another context while the
+        // caller still presents the original TenantAdmin claims.
+        await using (var administrator = Open(options, 41))
+        {
+            var role = await administrator.Roles.SingleAsync(r => r.Id == 2 && r.TenantId == 41);
+            role.IsActive = false;
+            await administrator.SaveChangesAsync();
+        }
+
+        Assert.Equal(403, (await service.GetAsync(From, To)).StatusCode);
+        finance.Verify(f => f.GetInstitutionalIncomeExpenseTotalsAsync(
+            It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
     private static DbContextOptions<EduOSDbContext> Options() =>
         new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("mis-two-tenant-" + Guid.NewGuid().ToString("N"),
