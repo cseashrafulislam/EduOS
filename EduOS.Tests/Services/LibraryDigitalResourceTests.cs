@@ -93,6 +93,10 @@ public sealed class LibraryDigitalResourceTests
     [InlineData("\\t")]
     [InlineData("Science\\nprivate")]
     [InlineData("History\\u0000")]
+    [InlineData("History\u200Bhidden")]
+    [InlineData("\u200EScience")]
+    [InlineData("Biology\u2066")]
+    [InlineData("Physics\uFEFF")]
     public async Task Discovery_rejects_blank_or_control_character_search_without_querying_content(string search)
     {
         await using var db = Context();
