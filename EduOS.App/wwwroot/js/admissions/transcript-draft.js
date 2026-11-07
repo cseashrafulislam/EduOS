@@ -28,8 +28,9 @@
         }
         return { valid: Boolean(String(value || '').trim()), value: String(value || '').trim() };
     }
-    function parse(text) {
+    function parseDetailed(text) {
         const result = {};
+        const errors = [];
         const keys = {
             name: 'applicantName', 'applicant name': 'applicantName',
             'নাম': 'applicantNameBangla', 'বাংলা নাম': 'applicantNameBangla',
@@ -38,14 +39,23 @@
             'guardian mobile': 'guardianMobile', 'অভিভাবকের মোবাইল': 'guardianMobile',
             address: 'presentAddress', 'ঠিকানা': 'presentAddress'
         };
-        String(text || '').split(/\r?\n/).forEach(line => {
+        String(text || '').split(/\r?\n/).forEach((line, index) => {
             const at = line.indexOf(':');
             if (at < 0) return;
             const key = keys[line.slice(0, at).trim().toLowerCase()];
             const value = line.slice(at + 1).trim();
-            if (key && value) result[key] = value.slice(0, key === 'presentAddress' ? 1000 : 200);
+            if (!key || !value) return;
+            const limit = key === 'presentAddress' ? 1000 : 200;
+            if (value.length > limit) {
+                errors.push({ key, line: index + 1, limit });
+                return;
+            }
+            result[key] = value;
         });
-        return result;
+        return { fields: errors.length ? {} : result, errors };
+    }
+    function parse(text) {
+        return parseDetailed(text).fields;
     }
     function mount(doc) {
         const form = doc.getElementById('admissionForm');
@@ -96,7 +106,17 @@
         input.addEventListener('input',invalidate);
         previewButton.addEventListener('click',() => {
             invalidate();
-            const parsed = parse(input.value);
+            const detailed = parseDetailed(input.value);
+            if (detailed.errors.length) {
+                const first = detailed.errors[0];
+                status.textContent = t(`Line ${first.line} exceeds ${first.limit} characters. Shorten it and preview again; no fields changed.`,
+                    `লাইন ${first.line}-এ ${first.limit} অক্ষরের সীমা ছাড়িয়েছে। ছোট করে আবার যাচাই করুন; কোনো তথ্য বদলায়নি।`);
+                input.setAttribute('aria-invalid', 'true');
+                input.focus();
+                return;
+            }
+            input.removeAttribute('aria-invalid');
+            const parsed = detailed.fields;
             const entries = Object.entries(parsed).filter(([key]) => fields.includes(key));
             if (!entries.length) { status.textContent = t('Use Label: value on separate lines. No fields changed.','প্রতি লাইনে নাম: তথ্য লিখুন। কোনো তথ্য পরিবর্তিত হয়নি।'); return; }
             const table = el('div',{class:'row g-2'});
@@ -150,5 +170,5 @@
         });
         host.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,confirm,status);
     }
-    return {parse,mount,normalizePhone,validateDraftField};
+    return {parse,parseDetailed,mount,normalizePhone,validateDraftField};
 });

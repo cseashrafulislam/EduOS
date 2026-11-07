@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const source = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/admissions/transcript-draft.js'), 'utf8');
 const view = fs.readFileSync(path.join(root, 'EduOS.App/Views/Admissions/Index.cshtml'), 'utf8');
-const {parse, mount} = require('../../EduOS.App/wwwroot/js/admissions/transcript-draft.js');
+const {parse, parseDetailed, mount} = require('../../EduOS.App/wwwroot/js/admissions/transcript-draft.js');
 
 test('bilingual transcript labels map only to allowlisted non-financial admission fields', () => {
     assert.deepEqual(parse('Name: Amina\nMobile: 01712345678\nGuardian: Rahim\nঠিকানা: ঢাকা\nAmount: 100000\nStatus: Approved'), {
@@ -17,8 +17,8 @@ test('bilingual transcript labels map only to allowlisted non-financial admissio
     assert.deepEqual(parse('ignore me\nPassword: secret\n: value'), {});
 });
 test('draft is bounded, ignores duplicate unknown keys and never parses JSON commands', () => {
-    assert.equal(parse('Name: ' + 'a'.repeat(500)).applicantName.length, 200);
-    assert.equal(parse('ঠিকানা: ' + 'a'.repeat(1200)).presentAddress.length, 1000);
+    assert.deepEqual(parse('Name: ' + 'a'.repeat(500)), {});
+    assert.deepEqual(parse('ঠিকানা: ' + 'a'.repeat(1200)), {});
     assert.deepEqual(parse('{"submit":true,"amount":100}'), {});
 });
 test('admission draft is mounted only on authorized new-application view and never submits itself', () => {
@@ -81,4 +81,15 @@ test('reviewed admission fields are never silently truncated to destination maxl
     assert.ok(source.includes('target.value = result.value;'));
     assert.ok(!source.includes('target.value = result.value.slice('));
     assert.ok(source.indexOf('const unavailable = destinations.find') < source.indexOf('destinations.forEach'));
+});
+
+test('oversized recognized fields fail closed without losing data silently or applying other fields', () => {
+    const tooLong = parseDetailed('Mobile: 01712345678\nName: ' + 'a'.repeat(201));
+    assert.deepEqual(tooLong.fields, {});
+    assert.deepEqual(tooLong.errors, [{key:'applicantName',line:2,limit:200}]);
+    assert.deepEqual(parseDetailed('ঠিকানা: ' + 'ক'.repeat(1001)).fields, {});
+    assert.equal(parseDetailed('Name: ' + 'a'.repeat(200)).fields.applicantName.length, 200);
+    assert.equal(parseDetailed('Address: ' + 'a'.repeat(1000)).fields.presentAddress.length, 1000);
+    assert.match(source, /input\.setAttribute\('aria-invalid', 'true'\)/);
+    assert.match(source, /input\.focus\(\)/);
 });
