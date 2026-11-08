@@ -571,15 +571,15 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             !row.StorageKey.StartsWith($"tenant-{user.TenantId}/omr/", StringComparison.Ordinal) ||
             row.StorageKey.Contains("..") || row.StorageKey.Contains('\\') || row.StorageKey.Contains("//"))
             return Fail<DocumentFileDownloadDto>("OMR image not found.", 404);
-        FileDownloadResult? file;
-        try { file = await files.GetPrivateFileAsync(row.StorageKey); }
+        FileDownloadResult? downloadedFile;
+        try { downloadedFile = await files.GetPrivateFileAsync(row.StorageKey); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             logger.LogWarning(ex, "Private OMR image unavailable tenant {Tenant}", user.TenantId);
             return Fail<DocumentFileDownloadDto>("Private OMR image unavailable.", 503);
         }
-        if (file == null || file.Content.Length != row.SizeBytes ||
-            Convert.ToHexString(SHA256.HashData(file.Content)) != row.Sha256)
+        if (downloadedFile == null || downloadedFile.Content.Length != row.SizeBytes ||
+            Convert.ToHexString(SHA256.HashData(downloadedFile.Content)) != row.Sha256)
             return Fail<DocumentFileDownloadDto>("OMR image integrity failed.", 409);
         if (!await db.OmrSheets.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
             x.PublicId == reference && !x.IsDeleted && db.FileAssets.Any(f =>
@@ -590,7 +590,7 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             return Fail<DocumentFileDownloadDto>("OMR evidence changed; reload before downloading.", 409);
         return ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
         {
-            Content = file.Content, ContentType = row.ContentType, FileName = row.OriginalFileName
+            Content = downloadedFile.Content, ContentType = row.ContentType, FileName = row.OriginalFileName
         });
     }
 }
