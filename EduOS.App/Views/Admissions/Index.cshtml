@@ -274,6 +274,25 @@
                 <dl id="applicationDetails" class="admission-details"></dl>
                 <section class="applicant-documents" aria-labelledby="applicantDocumentsTitle">
                     <h3 id="applicantDocumentsTitle" class="h6">Applicant Documents / আবেদনকারীর কাগজপত্র</h3>
+                    <div class="row g-2 align-items-end mb-2">
+                        <div class="col-sm-6">
+                            <label class="form-label" for="applicantDocumentStatus">@(bn ? "নথির অবস্থা" : "Document status")</label>
+                            <select id="applicantDocumentStatus" class="form-select form-select-sm">
+                                <option value="all">@(bn ? "সব অবস্থা" : "All statuses")</option>
+                                <option value="pending">@(bn ? "যাচাই বাকি" : "Pending verification")</option>
+                                <option value="verified">@(bn ? "যাচাইকৃত" : "Verified")</option>
+                                <option value="rejected">@(bn ? "বাতিল" : "Rejected")</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" for="applicantDocumentVersions">@(bn ? "নথির সংস্করণ" : "Document versions")</label>
+                            <select id="applicantDocumentVersions" class="form-select form-select-sm">
+                                <option value="latest">@(bn ? "শুধু সর্বশেষ" : "Latest only")</option>
+                                <option value="history">@(bn ? "সম্পূর্ণ ইতিহাস" : "All versions")</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p id="applicantDocumentSummary" class="small text-muted" role="status" aria-live="polite" aria-atomic="true"></p>
                     <div id="applicantDocumentList" class="applicant-document-list" aria-live="polite"></div>
                 </section>
                 <form id="reviewForm" class="row g-3">

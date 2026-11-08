@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, savingIntake: false, intakeFingerprint: null };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, savingIntake: false, intakeFingerprint: null };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -46,6 +46,8 @@
         document.getElementById('intakeFieldRows')?.addEventListener('click', removeBuilderRow);
         document.getElementById('documentRequirementRows')?.addEventListener('click', removeBuilderRow);
         document.getElementById('applicantDocumentList')?.addEventListener('click', reviewApplicantDocument);
+        document.getElementById('applicantDocumentStatus')?.addEventListener('change', renderApplicantDocuments);
+        document.getElementById('applicantDocumentVersions')?.addEventListener('change', renderApplicantDocuments);
         document.getElementById('reviewForm')?.addEventListener('submit', saveDecision);
         document.getElementById('admitApplicantButton')?.addEventListener('click', prepareEnrollment);
         document.getElementById('enrollmentForm')?.addEventListener('submit', completeEnrollment);
@@ -955,6 +957,12 @@
         if (!button) return;
         const requestNumber = ++state.reviewRequest;
         ++state.documentRequest; // Invalidate documents from the previously selected applicant.
+        state.documents = [];
+        state.documentReference = null;
+        const documentSummary = document.getElementById('applicantDocumentSummary');
+        if (documentSummary) documentSummary.textContent = '';
+        const documentList = document.getElementById('applicantDocumentList');
+        documentList?.replaceChildren(statusMessage(i18n.loading));
         const reference = button.dataset.reference;
         // A later review selection always wins, even if an earlier response arrives last.
         document.querySelectorAll('#applicationList button[data-reference]').forEach(control => {
@@ -1028,58 +1036,16 @@
         const requestNumber = ++state.documentRequest;
         list.setAttribute('aria-busy', 'true');
         list.replaceChildren(statusMessage(i18n.loading));
+        const summary = document.getElementById('applicantDocumentSummary');
+        if (summary) summary.textContent = '';
         try {
             const response = await fetch(`/api/admission-intake/applications/${encodeURIComponent(reference)}/documents`, apiOptions());
             const payload = await response.json().catch(() => null);
             if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data)) throw new Error(payload?.message || 'Documents could not be loaded.');
-            if (!payload.data.length) {
-                list.replaceChildren(statusMessage(bangla ? 'আবেদনকারীর কোনো নথি আপলোড করা হয়নি।' : 'No applicant documents have been uploaded.'));
-                return;
-            }
-            const latestVersions = new Map();
-            for (const item of payload.data) {
-                const previous = latestVersions.get(item.documentTypeCode);
-                if (!previous || Number(item.versionNo) > Number(previous.versionNo))
-                    latestVersions.set(item.documentTypeCode, item);
-            }
-            list.replaceChildren(...payload.data.map(documentItem => {
-                const card = document.createElement('article');
-                card.className = 'applicant-document-card';
-                const summary = document.createElement('div');
-                const title = document.createElement('strong');
-                title.textContent = documentItem.documentTypeCode || '';
-                const detail = document.createElement('span');
-                const decision = Number(documentItem.verificationStatus);
-                const label = decision === 3 ? (bangla ? 'বাতিল' : 'Rejected') : decision === 2 ? (bangla ? 'যাচাইকৃত' : 'Verified') : (bangla ? 'অপেক্ষমাণ' : 'Pending');
-                detail.textContent = `${documentItem.originalFileName || 'Private document'} · v${documentItem.versionNo} · ${formatFileSize(documentItem.fileSizeBytes)} · ${label}`;
-                summary.append(title, detail);
-                if (documentItem.verificationNote) {
-                    const note = document.createElement('span');
-                    note.textContent = documentItem.verificationNote;
-                    summary.append(note);
-                }
-                const controls = document.createElement('div');
-                controls.className = 'intake-form-actions';
-                const download = document.createElement('a');
-                download.className = 'btn btn-sm btn-outline-secondary';
-                download.href = `/api/admission-intake/applications/${encodeURIComponent(reference)}/documents/${encodeURIComponent(documentItem.id)}/content`;
-                download.textContent = bangla ? 'দেখুন / ডাউনলোড' : 'View / Download';
-                controls.append(download);
-                if (decision === 1 && !documentItem.isVerified &&
-                    latestVersions.get(documentItem.documentTypeCode)?.id === documentItem.id) {
-                    const reason = document.createElement('textarea');
-                    reason.className = 'form-control form-control-sm';
-                    reason.maxLength = 1000;
-                    reason.rows = 2;
-                    reason.placeholder = bangla ? 'বাতিলের কারণ লিখুন' : 'Reason required to reject this document';
-                    reason.setAttribute('aria-label', bangla ? 'নথি বাতিলের কারণ' : 'Document rejection reason');
-                    controls.append(documentActionButton(bangla ? 'যাচাই করুন' : 'Verify', 2, documentItem), reason,
-                        documentActionButton(bangla ? 'বাতিল করুন' : 'Reject', 3, documentItem));
-                }
-                card.append(summary, controls);
-                return card;
-            }));
+            state.documents = payload.data;
+            state.documentReference = reference;
+            renderApplicantDocuments();
         } catch (error) {
             if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference) return;
             const message = statusMessage(bangla ? 'নথি লোড করা যায়নি।' : (error.message || 'Documents could not be loaded.'));
@@ -1090,9 +1056,92 @@
             retry.addEventListener('click', () => loadApplicantDocuments(reference), { once: true });
             message.append(retry);
             list.replaceChildren(message);
+            state.documents = [];
+            state.documentReference = null;
         } finally {
             if (requestNumber === state.documentRequest) list.removeAttribute('aria-busy');
         }
+    }
+
+    // Document triage is read-only until a reviewer explicitly selects a latest,
+    // pending version. The server remains authoritative for every decision.
+    function renderApplicantDocuments() {
+        const list = document.getElementById('applicantDocumentList');
+        const summary = document.getElementById('applicantDocumentSummary');
+        if (!list || state.documentReference !== state.currentApplication?.reference) return;
+        const documents = state.documents;
+        const latestVersions = new Map();
+        for (const item of documents) {
+            const key = String(item.documentTypeCode || '');
+            const previous = latestVersions.get(key);
+            if (!previous || Number(item.versionNo) > Number(previous.versionNo))
+                latestVersions.set(key, item);
+        }
+        const latest = [...latestVersions.values()];
+        const counts = { pending: 0, verified: 0, rejected: 0 };
+        for (const item of latest) {
+            const status = Number(item.verificationStatus);
+            if (status === 2) counts.verified++;
+            else if (status === 3) counts.rejected++;
+            else counts.pending++;
+        }
+        const filter = valueOf('applicantDocumentStatus') || 'all';
+        const showHistory = valueOf('applicantDocumentVersions') === 'history';
+        const candidates = showHistory ? documents : latest;
+        const visible = candidates.filter(item => {
+            const status = Number(item.verificationStatus);
+            return filter === 'all' || (filter === 'verified' && status === 2)
+                || (filter === 'rejected' && status === 3)
+                || (filter === 'pending' && status !== 2 && status !== 3);
+        }).sort((a, b) => String(a.documentTypeCode || '').localeCompare(String(b.documentTypeCode || ''))
+            || Number(b.versionNo) - Number(a.versionNo));
+        const number = value => new Intl.NumberFormat(bangla ? 'bn-BD' : 'en-BD').format(value);
+        if (summary) summary.textContent = bangla
+            ? `সর্বশেষ নথি ${number(latest.length)} · যাচাই বাকি ${number(counts.pending)} · যাচাইকৃত ${number(counts.verified)} · বাতিল ${number(counts.rejected)} · দেখানো হচ্ছে ${number(visible.length)}`
+            : `Latest documents ${number(latest.length)} · Pending ${number(counts.pending)} · Verified ${number(counts.verified)} · Rejected ${number(counts.rejected)} · Showing ${number(visible.length)}`;
+        if (!visible.length) {
+            list.replaceChildren(statusMessage(documents.length
+                ? (bangla ? 'এই ফিল্টারে কোনো নথি নেই।' : 'No documents match these filters.')
+                : (bangla ? 'আবেদনকারীর কোনো নথি আপলোড করা হয়নি।' : 'No applicant documents have been uploaded.')));
+            return;
+        }
+        list.replaceChildren(...visible.map(documentItem => {
+            const card = document.createElement('article');
+            card.className = 'applicant-document-card';
+            const documentSummary = document.createElement('div');
+            const title = document.createElement('strong');
+            title.textContent = documentItem.documentTypeCode || '';
+            const detail = document.createElement('span');
+            const decision = Number(documentItem.verificationStatus);
+            const label = decision === 3 ? (bangla ? 'বাতিল' : 'Rejected') : decision === 2 ? (bangla ? 'যাচাইকৃত' : 'Verified') : (bangla ? 'অপেক্ষমাণ' : 'Pending');
+            detail.textContent = `${documentItem.originalFileName || 'Private document'} · v${documentItem.versionNo} · ${formatFileSize(documentItem.fileSizeBytes)} · ${label}`;
+            documentSummary.append(title, detail);
+            if (documentItem.verificationNote) {
+                const note = document.createElement('span');
+                note.textContent = documentItem.verificationNote;
+                documentSummary.append(note);
+            }
+            const controls = document.createElement('div');
+            controls.className = 'intake-form-actions';
+            const download = document.createElement('a');
+            download.className = 'btn btn-sm btn-outline-secondary';
+            download.href = `/api/admission-intake/applications/${encodeURIComponent(state.documentReference)}/documents/${encodeURIComponent(documentItem.id)}/content`;
+            download.textContent = bangla ? 'দেখুন / ডাউনলোড' : 'View / Download';
+            controls.append(download);
+            if (decision === 1 && !documentItem.isVerified &&
+                latestVersions.get(String(documentItem.documentTypeCode || ''))?.id === documentItem.id) {
+                const reason = document.createElement('textarea');
+                reason.className = 'form-control form-control-sm';
+                reason.maxLength = 1000;
+                reason.rows = 2;
+                reason.placeholder = bangla ? 'বাতিলের কারণ লিখুন' : 'Reason required to reject this document';
+                reason.setAttribute('aria-label', bangla ? 'নথি বাতিলের কারণ' : 'Document rejection reason');
+                controls.append(documentActionButton(bangla ? 'যাচাই করুন' : 'Verify', 2, documentItem), reason,
+                    documentActionButton(bangla ? 'বাতিল করুন' : 'Reject', 3, documentItem));
+            }
+            card.append(documentSummary, controls);
+            return card;
+        }));
     }
 
     function documentActionButton(label, status, item) {
