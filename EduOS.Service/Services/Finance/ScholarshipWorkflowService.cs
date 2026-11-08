@@ -313,32 +313,42 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
             return Fail<ScholarshipRow>("A documented cancellation reason is required.");
         var row = await Applications.AsNoTracking().FirstOrDefaultAsync(x => x.PublicId == reference, ct);
         if (row == null) return Fail<ScholarshipRow>("Application not found.", 404);
+        if (row.State is not ("Submitted" or "Approved" or "Awarded" or "Cancelled") ||
+            (row.State != "Cancelled" && !Version(row.RowVersion, request.RowVersion)))
+            return Fail<ScholarshipRow>("Only a submitted, approved or linked award may be cancelled.", 409);
+        // AwardAsync commits the canonical financial assignment before it links the
+        // scholarship row. Reconcile by the stable award key, not just the nullable FK.
+        var candidates = await db.StudentDiscounts.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && x.ClientRequestId == row.PublicId)
+            .Take(2).ToListAsync(ct);
+        if (candidates.Count > 1)
+            return Fail<ScholarshipRow>("Multiple financial awards found; reconcile before cancellation.", 409);
+        var assigned = candidates.SingleOrDefault();
+        if (assigned != null && (assigned.StudentEnrollmentId != row.StudentEnrollmentId ||
+            assigned.DiscountRuleId != row.DiscountRuleId ||
+            assigned.EffectiveFrom != row.EffectiveFrom || assigned.EffectiveTo != row.EffectiveTo ||
+            (row.StudentDiscountId.HasValue && row.StudentDiscountId != assigned.Id)))
+            return Fail<ScholarshipRow>("Financial assignment mismatch; reconcile before cancellation.", 409);
+        if ((row.StudentDiscountId.HasValue && (assigned == null || row.StudentDiscountId != assigned.Id)) ||
+            (row.State == "Awarded" && assigned == null) ||
+            (row.State == "Submitted" && assigned != null))
+            return Fail<ScholarshipRow>("Financial lineage needs reconciliation before cancellation.", 409);
+        // Stop future invoice reductions first. A retry after a successful finance
+        // commit can safely finish the status change without reactivating an award.
+        if (assigned?.IsActive == true)
+        {
+            var stop = await finance.DeactivateStudentDiscountAsync(assigned.Id,
+                new DeactivateStudentDiscountRequestDto
+                {
+                    RowVersion = Convert.ToBase64String(assigned.RowVersion)
+                }, ct);
+            if (!stop.Success) return Fail<ScholarshipRow>(stop.Message, stop.StatusCode);
+        }
         if (row.State == "Cancelled")
         {
             var replay = await FindAsync(row, ct);
-            return ApiResponse<ScholarshipRow>.SuccessResponse(replay!);
-        }
-        if (row.State is not ("Submitted" or "Awarded") ||
-            !Version(row.RowVersion, request.RowVersion))
-            return Fail<ScholarshipRow>("Only a pending or linked award may be cancelled.", 409);
-        if (row.State == "Awarded")
-        {
-            if (!row.StudentDiscountId.HasValue)
-                return Fail<ScholarshipRow>("Financial lineage missing; reconcile before cancellation.", 409);
-            var assigned = await db.StudentDiscounts.AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == user.TenantId && x.Id == row.StudentDiscountId &&
-                x.ClientRequestId == row.PublicId, ct);
-            if (assigned == null) return Fail<ScholarshipRow>("Financial assignment mismatch.", 409);
-            // A timeout after the canonical deactivation committed must be retryable.
-            if (assigned.IsActive)
-            {
-                var stop = await finance.DeactivateStudentDiscountAsync(assigned.Id,
-                    new DeactivateStudentDiscountRequestDto
-                    {
-                        RowVersion = Convert.ToBase64String(assigned.RowVersion)
-                    }, ct);
-                if (!stop.Success) return Fail<ScholarshipRow>(stop.Message, stop.StatusCode);
-            }
+            return replay == null ? Fail<ScholarshipRow>("Application unavailable.", 404) :
+                ApiResponse<ScholarshipRow>.SuccessResponse(replay);
         }
         try
         {
@@ -348,6 +358,14 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
                 if (current == null || current.State != row.State ||
                     !Version(current.RowVersion, request.RowVersion))
                     return Fail<ScholarshipRow>("Application changed; finance reconciliation required.", 409);
+                if (assigned != null)
+                {
+                    var canonical = await db.StudentDiscounts.AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == user.TenantId && x.Id == assigned.Id && !x.IsDeleted, token);
+                    if (canonical == null || canonical.IsActive || canonical.ClientRequestId != current.PublicId)
+                        return Fail<ScholarshipRow>("Financial deactivation not confirmed; retry cancellation.", 409);
+                    current.StudentDiscountId = canonical.Id;
+                }
                 var key = await db.ScholarshipApplicationEvents.AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == user.TenantId && x.ClientRequestId == request.RequestId, token);
                 if (key != null) return Fail<ScholarshipRow>("Cancellation key already used.", 409);
@@ -363,6 +381,7 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
                 return ApiResponse<ScholarshipRow>.SuccessResponse((await FindAsync(current, token))!);
             }, IsolationLevel.Serializable, ct);
         }
+        catch (DbUpdateConcurrencyException) { return Fail<ScholarshipRow>("Concurrent cancellation; reload.", 409); }
         catch (DbUpdateException) { return Fail<ScholarshipRow>("Concurrent cancellation; reload.", 409); }
     }
 

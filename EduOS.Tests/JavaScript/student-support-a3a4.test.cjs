@@ -22,6 +22,7 @@ test('A3 aid form keeps antiforgery, server-enrollment selection and tenant-boun
     assert.match(js, /evidence-upload/);
     assert.match(js, /new FormData\(\)/);
     assert.match(js, /student-scholarships\/reconciliation/);
+    assert.match(js, /\['Submitted', 'Approved', 'Awarded'\]\.includes\(state\.selected\?\.state\)/);
     assert.match(view, /Review private evidence \(audited\)/);
     assert.match(view, /Financial award reconciliation/);
     assert.doesNotMatch(js, /\.innerHTML\s*=/);
@@ -55,4 +56,15 @@ test('A4 keeps confidential narratives outside GET and never builds HTML from no
     assert.match(directory, /TenantMemberships\.Any/);
     assert.match(directory, /UserCampusAccesses\.Any/);
     assert.match(directory, /IsActive && !x\.IsDeleted/);
+});
+
+test('A3 cancellation must reconcile finance assignment even before linkage and on retry', () => {
+    const svc = file('EduOS.Service/Services/Finance/ScholarshipWorkflowService.cs');
+    assert.match(svc, /"Submitted" or "Approved" or "Awarded" or "Cancelled"/);
+    assert.match(svc, /x\.ClientRequestId == row\.PublicId/);
+    assert.match(svc, /candidates\.Count > 1/);
+    assert.match(svc, /assigned\.StudentEnrollmentId != row\.StudentEnrollmentId/);
+    assert.match(svc, /finance\.DeactivateStudentDiscountAsync/);
+    assert.match(svc, /canonical == null \|\| canonical\.IsActive/);
+    assert.match(svc, /current\.StudentDiscountId = canonical\.Id/);
 });

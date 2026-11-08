@@ -54,7 +54,7 @@
         $('aidReject').disabled = $('aidApprove').disabled;
         $('aidAward').disabled = state.busy || state.selected?.state !== 'Approved';
         $('aidCancel').disabled = state.busy ||
-            !['Submitted', 'Awarded'].includes(state.selected?.state);
+            !['Submitted', 'Approved', 'Awarded'].includes(state.selected?.state);
         $('aidEvidenceDownload').disabled = state.busy || !state.selected?.hasEvidence;
         $('aidReconcile').disabled = state.busy;
         $('aidReconcilePrev').disabled = state.busy || state.reconcilePage <= 1;
