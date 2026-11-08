@@ -39,7 +39,14 @@ public sealed class CanonicalAssessmentLayerTests
         File.ReadAllText(Path.Combine(root, "EduOS.App", "Controllers", "AssessmentAdministrationController.cs"))
             .Should().Contain("IActionResult Index() => View()");
         foreach (var script in Directory.GetFiles(scripts, "*.js", SearchOption.TopDirectoryOnly))
-            File.ReadAllText(script).Should().Contain("/" + route + "/");
+        {
+            // OMR has a dedicated, permission-checked evidence API. It reuses
+            // canonical assessment marks for posting, but is not a duplicate
+            // implementation of the assessment-administration API.
+            var expected = Path.GetFileName(script) == "omr-workspace.js"
+                ? "/api/assessment-omr/" : "/" + route + "/";
+            File.ReadAllText(script).Should().Contain(expected, because: script);
+        }
     }
 
     [Fact]
