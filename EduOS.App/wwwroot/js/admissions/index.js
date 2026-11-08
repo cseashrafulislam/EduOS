@@ -58,10 +58,21 @@
             const response = await fetch('/api/admission-applications/options', apiOptions());
             const payload = await response.json().catch(() => null);
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid options');
+            // A publish/close refresh can occur while an applicant is typing.
+            // Snapshot dependent selections before rebuilding the option controls.
+            const previousSelections = {
+                year: valueOf('academicYearId'),
+                term: valueOf('academicTermId'),
+                campus: valueOf('campusId'),
+                level: valueOf('academicUnitId')
+            };
             state.options = payload.data;
             fillSelect('academicYearId', state.options.academicYears, true);
             fillSelect('campusId', state.options.campuses, true);
             fillSelect('academicUnitId', state.options.academicLevels, true);
+            restoreAvailableOption('academicYearId', previousSelections.year);
+            restoreAvailableOption('campusId', previousSelections.campus);
+            restoreAvailableOption('academicUnitId', previousSelections.level);
             fillSelect('intakeYearId', state.options.academicYears, true);
             fillSelect('intakeCampusId', state.options.campuses, true);
             fillSelect('intakeUnitId', state.options.academicLevels, true);
@@ -76,10 +87,19 @@
                 setValue('admissionFormReference', previousReference);
             selectAdmissionForm(previousReference === valueOf('admissionFormReference') ? previousCustom : null);
             refreshTerms();
+            restoreAvailableOption('academicTermId', previousSelections.term);
             refreshIntakeTerms();
         } catch {
             showAlert('danger', i18n.optionsFailed);
         }
+    }
+
+    function restoreAvailableOption(id, previousValue) {
+        const select = document.getElementById(id);
+        if (!select || !previousValue) return;
+        // Never restore an option removed by current tenant/campus authorization.
+        if ([...select.options].some(option => option.value === previousValue))
+            select.value = previousValue;
     }
 
     function fillSelect(id, items, selectFirst) {

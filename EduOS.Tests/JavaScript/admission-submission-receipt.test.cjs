@@ -29,3 +29,15 @@ test('failed application requests preserve form and request key for retry', () =
   assert.match(js, /state\.submitting = true/);
   assert.match(js, /state\.submitting = false/);
 });
+
+test('options refresh preserves still-authorized academic and campus selections', () => {
+  const start = js.indexOf('async function loadOptions()');
+  const end = js.indexOf('function fillSelect(', start);
+  const refresh = js.slice(start, end);
+  assert.match(refresh, /previousSelections = \{[\s\S]*year: valueOf\('academicYearId'\)[\s\S]*term: valueOf\('academicTermId'\)[\s\S]*campus: valueOf\('campusId'\)[\s\S]*level: valueOf\('academicUnitId'\)/);
+  assert.match(refresh, /restoreAvailableOption\('academicYearId', previousSelections\.year\)/);
+  assert.match(refresh, /restoreAvailableOption\('campusId', previousSelections\.campus\)/);
+  assert.match(refresh, /restoreAvailableOption\('academicUnitId', previousSelections\.level\)/);
+  assert.match(refresh, /refreshTerms\(\);\s*restoreAvailableOption\('academicTermId', previousSelections\.term\)/);
+  assert.match(refresh, /select\.options\]\.some\(option => option\.value === previousValue\)/);
+});
