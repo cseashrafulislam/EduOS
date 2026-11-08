@@ -283,6 +283,9 @@ public class EduOSDbContext :
     public DbSet<Assessment> Assessments => Set<Assessment>();
     public DbSet<AssessmentAttemptRegistration> AssessmentAttemptRegistrations => Set<AssessmentAttemptRegistration>();
     public DbSet<AssessmentComponent> AssessmentComponents => Set<AssessmentComponent>();
+    public DbSet<OmrTemplate> OmrTemplates => Set<OmrTemplate>();
+    public DbSet<OmrSheet> OmrSheets => Set<OmrSheet>();
+    public DbSet<OmrSheetEvent> OmrSheetEvents => Set<OmrSheetEvent>();
     public DbSet<AssessmentMarkReviewEvent> AssessmentMarkReviewEvents => Set<AssessmentMarkReviewEvent>();
     public DbSet<ResultRescrutinyEvent> ResultRescrutinyEvents => Set<ResultRescrutinyEvent>();
     public DbSet<ResultCorrectionEvent> ResultCorrectionEvents => Set<ResultCorrectionEvent>();
@@ -929,6 +932,16 @@ public class EduOSDbContext :
         Reference<CertificateIssue, ApplicationUser>(modelBuilder, nameof(CertificateIssue.IssuedByUserId));
         TenantReference<CertificateIssue, FileAsset>(modelBuilder, nameof(CertificateIssue.FileAssetId));
         TenantReference<AssessmentComponent, AssessmentSubject>(modelBuilder, nameof(AssessmentComponent.AssessmentSubjectId));
+        TenantReference<OmrTemplate, AssessmentComponent>(modelBuilder, nameof(OmrTemplate.AssessmentComponentId));
+        Reference<OmrTemplate, ApplicationUser>(modelBuilder, nameof(OmrTemplate.SealedByUserId));
+        TenantReference<OmrSheet, OmrTemplate>(modelBuilder, nameof(OmrSheet.OmrTemplateId));
+        TenantReference<OmrSheet, StudentSubjectRegistration>(modelBuilder, nameof(OmrSheet.StudentSubjectRegistrationId));
+        TenantReference<OmrSheet, FileAsset>(modelBuilder, nameof(OmrSheet.FileAssetId));
+        Reference<OmrSheet, ApplicationUser>(modelBuilder, nameof(OmrSheet.CapturedByUserId));
+        Reference<OmrSheet, ApplicationUser>(modelBuilder, nameof(OmrSheet.ReviewedByUserId));
+        Reference<OmrSheet, ApplicationUser>(modelBuilder, nameof(OmrSheet.PostedByUserId));
+        TenantReference<OmrSheetEvent, OmrSheet>(modelBuilder, nameof(OmrSheetEvent.OmrSheetId));
+        Reference<OmrSheetEvent, ApplicationUser>(modelBuilder, nameof(OmrSheetEvent.ActorUserId));
         TenantReference<StudentAssessmentComponentMark, AssessmentComponent>(modelBuilder, nameof(StudentAssessmentComponentMark.AssessmentComponentId));
         TenantReference<StudentAssessmentComponentMark, StudentAssessmentMark>(modelBuilder, nameof(StudentAssessmentComponentMark.StudentAssessmentMarkId));
         Reference<StudentAssessmentComponentMark, ApplicationUser>(modelBuilder, nameof(StudentAssessmentComponentMark.EnteredByUserId));
@@ -1626,6 +1639,18 @@ public class EduOSDbContext :
             "([IsTerminal] = 0 AND [Action] = 1) OR ([IsTerminal] = 1 AND [Action] IN (2,3))"));
         modelBuilder.Entity<AssessmentMarkReviewEvent>().HasIndex(x => new { x.TenantId, x.AssessmentSubjectId, x.Id });
         UniqueTenant<AssessmentComponent>(modelBuilder, nameof(AssessmentComponent.AssessmentSubjectId), nameof(AssessmentComponent.Code));
+        modelBuilder.Entity<OmrTemplate>().HasIndex(x => x.PublicId).IsUnique();
+        UniqueTenant<OmrSheet>(modelBuilder, nameof(OmrSheet.ClientRequestId));
+        UniqueTenant<OmrSheet>(modelBuilder, nameof(OmrSheet.OmrTemplateId), nameof(OmrSheet.StudentSubjectRegistrationId));
+        UniqueTenant<OmrSheet>(modelBuilder, nameof(OmrSheet.FileAssetId));
+        modelBuilder.Entity<OmrSheet>().HasIndex(x => x.PublicId).IsUnique();
+        modelBuilder.Entity<OmrSheet>().HasIndex(x => new { x.TenantId, x.State, x.CreatedAt });
+        UniqueTenant<OmrSheetEvent>(modelBuilder, nameof(OmrSheetEvent.ClientRequestId));
+        modelBuilder.Entity<OmrSheetEvent>().HasIndex(x => new { x.TenantId, x.OmrSheetId, x.Id });
+        modelBuilder.Entity<OmrTemplate>().ToTable(x => x.HasCheckConstraint("CK_OmrTemplates_Marks",
+            "[OptionsPerQuestion] IN (4,5) AND LEN([AnswerKey]) BETWEEN 1 AND 200 AND [CorrectAnswerMarks] > 0 AND [IncorrectAnswerMarks] >= 0"));
+        modelBuilder.Entity<OmrSheet>().ToTable(x => x.HasCheckConstraint("CK_OmrSheets_State",
+            "[State] IN ('Captured','Reviewed','Posted') AND [UncertainCount] BETWEEN 0 AND 200"));
         UniqueTenant<StudentAssessmentMark>(modelBuilder, nameof(StudentAssessmentMark.AssessmentSubjectId), nameof(StudentAssessmentMark.StudentSubjectRegistrationId));
         UniqueTenant<StudentAssessmentComponentMark>(modelBuilder, nameof(StudentAssessmentComponentMark.AssessmentComponentId), nameof(StudentAssessmentComponentMark.StudentAssessmentMarkId));
         UniqueTenant<ResultPublication>(modelBuilder, nameof(ResultPublication.AssessmentId), nameof(ResultPublication.AcademicBatchId), nameof(ResultPublication.VersionNo));
@@ -2942,6 +2967,8 @@ public class EduOSDbContext :
                 or LearnerIdentityAccessLog
                 or StudentPromotionRecord
                 or AssessmentMarkReviewEvent
+                or OmrTemplate
+                or OmrSheetEvent
                 or ResultRescrutinyEvent
                 or ResultCorrectionEvent
                 or StudentResultCourseSnapshot
@@ -2962,6 +2989,22 @@ public class EduOSDbContext :
                 or LoanAdvanceRecovery)
             {
                 throw new InvalidOperationException($"{entry.Entity.GetType().Name} is append-only and cannot be updated or deleted.");
+            }
+
+            if (entry.Entity is OmrSheet omr)
+            {
+                if (entry.State == EntityState.Deleted)
+                    throw new InvalidOperationException("OMR evidence cannot be deleted through generic changes.");
+                var prior = (string)entry.OriginalValues[nameof(OmrSheet.State)]!;
+                if (prior is not "Captured" and not "Reviewed" ||
+                    !(prior == "Captured" && omr.State == "Reviewed" ||
+                      prior == "Reviewed" && omr.State == "Posted") ||
+                    entry.Properties.Where(x => x.IsModified).Any(x => x.Metadata.Name is not
+                        (nameof(OmrSheet.State) or nameof(OmrSheet.ConfirmedAnswers) or
+                         nameof(OmrSheet.ReviewedAtUtc) or nameof(OmrSheet.ReviewedByUserId) or
+                         nameof(OmrSheet.PostedAtUtc) or nameof(OmrSheet.PostedByUserId) or
+                         nameof(OmrSheet.UpdatedAt) or nameof(OmrSheet.UpdatedBy))))
+                    throw new InvalidOperationException("OMR evidence only permits reviewed and posted transitions.");
             }
 
             if (entry.Entity is Journal && OriginalStateEquals(entry, nameof(Journal.State), "Posted"))

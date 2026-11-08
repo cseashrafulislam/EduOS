@@ -26,6 +26,9 @@ public sealed class AssessmentAdministrationController : Controller
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Marks() => Workflow("marks");
 
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Omr() => View();
+
     [HttpGet, Authorize(Roles = "TenantAdmin,Principal,VicePrincipal,ExamController")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Results() => Workflow("results");

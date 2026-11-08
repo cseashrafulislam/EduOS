@@ -1,0 +1,95 @@
+@{
+    ViewData["Title"] = "Smart OMR";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+    var canPostOmr = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ||
+        User.IsInRole("VicePrincipal") || User.IsInRole("ExamController");
+}
+<section class="container-fluid py-4" id="omrWorkspace" data-can-post="@(canPostOmr ? "true" : "false")">
+    @Html.AntiForgeryToken()
+    <header class="d-flex align-items-center justify-content-between mb-3">
+        <h1 class="h4 mb-0" data-omr-i18n="title">Smart OMR</h1>
+        <button type="button" id="omrHelpOpen" class="btn btn-sm btn-outline-secondary" aria-label="Page manual" aria-controls="omrHelp" aria-expanded="false">ⓘ</button>
+    </header>
+    <div id="omrNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    <div class="card mb-3"><div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-lg-8"><label for="omrScope" class="form-label" data-omr-i18n="scope">Assessment / batch / subject</label>
+                <select id="omrScope" class="form-select" required><option value="">Loading...</option></select></div>
+            <div class="col-lg-4"><label for="omrComponent" class="form-label" data-omr-i18n="component">Assessment component</label>
+                <select id="omrComponent" class="form-select" required></select></div>
+        </div>
+    </div></div>
+    @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal") || User.IsInRole("ExamController"))
+    {
+        <div class="card mb-3"><div class="card-body">
+            <h2 class="h6" data-omr-i18n="newTemplate">New immutable answer template</h2>
+            <form id="omrTemplateForm"><div class="row g-3 align-items-end">
+                <div class="col-md-4"><label for="omrName" class="form-label" data-omr-i18n="name">Form name</label>
+                    <input id="omrName" class="form-control" maxlength="160" required /></div>
+                <div class="col-md-4"><label for="omrKey" class="form-label" data-omr-i18n="key">Answer key (A–E)</label>
+                    <input id="omrKey" class="form-control" maxlength="50" pattern="[A-Ea-e]+" required /></div>
+                <div class="col-md-2"><label for="omrOptions" class="form-label" data-omr-i18n="options">Options</label>
+                    <select id="omrOptions" class="form-select"><option value="4">A–D</option><option value="5">A–E</option></select></div>
+                <div class="col-md-1"><label for="omrCorrect" class="form-label" data-omr-i18n="correct">Correct</label>
+                    <input id="omrCorrect" type="number" class="form-control" value="1" min="0.01" max="1000" step="0.01" required /></div>
+                <div class="col-md-1"><label for="omrPenalty" class="form-label" data-omr-i18n="penalty">Penalty</label>
+                    <input id="omrPenalty" type="number" class="form-control" value="0" min="0" max="1000" step="0.01" required /></div>
+            </div><button class="btn btn-primary mt-3" type="submit" data-omr-i18n="seal">Seal template</button></form>
+        </div></div>
+    }
+    <div class="card mb-3"><div class="card-body">
+        <h2 class="h6" data-omr-i18n="capture">Upload and recognize</h2>
+        <form id="omrCaptureForm"><div class="row g-3 align-items-end">
+            <div class="col-lg-4"><label for="omrTemplate" class="form-label" data-omr-i18n="template">OMR template</label>
+                <select id="omrTemplate" class="form-select" required></select></div>
+            <div class="col-lg-4"><label for="omrStudent" class="form-label" data-omr-i18n="student">Registered student</label>
+                <select id="omrStudent" class="form-select" required></select></div>
+            <div class="col-lg-4"><label for="omrImage" class="form-label" data-omr-i18n="image">Straight PNG/JPEG scan (up to 5 MB)</label>
+                <input id="omrImage" class="form-control" type="file" accept="image/png,image/jpeg" required /></div>
+        </div><div class="d-flex flex-wrap gap-2 mt-3">
+            <button id="omrUpload" class="btn btn-primary" type="submit" data-omr-i18n="recognize">Upload and recognize</button>
+            <button id="omrPrint" class="btn btn-outline-secondary" type="button" data-omr-i18n="print">Download blank sheet</button>
+        </div></form>
+    </div></div>
+    <div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3"><h2 class="h6 mb-0" data-omr-i18n="queue">Review queue</h2>
+            <button id="omrRefresh" class="btn btn-sm btn-outline-primary" type="button" data-omr-i18n="refresh">Refresh</button></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle">
+            <thead><tr><th data-omr-i18n="student">Student</th><th data-omr-i18n="state">Status</th><th data-omr-i18n="uncertain">Uncertain</th><th data-omr-i18n="marks">Proposed marks</th><th data-omr-i18n="action">Action</th></tr></thead>
+            <tbody id="omrRows"></tbody></table></div>
+        <div class="d-flex justify-content-end gap-2"><button id="omrPrev" type="button" class="btn btn-sm btn-outline-secondary" data-omr-i18n="prev">Previous</button>
+            <button id="omrNext" type="button" class="btn btn-sm btn-outline-secondary" data-omr-i18n="next">Next</button></div>
+        @if (canPostOmr)
+        {
+            <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                <label for="omrExportFormat" class="form-label mb-0" data-omr-i18n="exportFormat">Internal preparation export</label>
+                <select id="omrExportFormat" class="form-select form-select-sm w-auto"><option value="xlsx">Excel</option><option value="pdf">PDF</option></select>
+                <button id="omrExport" type="button" class="btn btn-sm btn-outline-secondary" data-omr-i18n="export">Export posted marks</button>
+            </div>
+        }
+        <form id="omrReviewForm" class="border rounded p-3 mt-3 d-none">
+            <h3 class="h6" data-omr-i18n="review">Verify all choices against the original image</h3>
+            <p id="omrIdentity" class="small mb-2"></p>
+            <a id="omrOriginal" class="btn btn-sm btn-outline-secondary mb-2" target="_blank" rel="noopener" data-omr-i18n="original">Open original scan</a>
+            <div class="row g-3"><div class="col-lg-6"><label for="omrSuggested" class="form-label" data-omr-i18n="suggested">Machine suggestions (? = uncertain)</label>
+                <input id="omrSuggested" class="form-control" readonly /></div>
+                <div class="col-lg-6"><label for="omrConfirmed" class="form-label" data-omr-i18n="confirmed">Confirmed choices (- = blank)</label>
+                    <input id="omrConfirmed" class="form-control" required maxlength="50" /></div>
+                <div class="col-12"><label for="omrReason" class="form-label" data-omr-i18n="reason">Correction reason</label>
+                    <input id="omrReason" class="form-control" maxlength="500" /></div></div>
+            <div class="form-check mt-3"><input id="omrIdentityConfirmed" class="form-check-input" type="checkbox" required />
+                <label for="omrIdentityConfirmed" class="form-check-label" data-omr-i18n="identity">I checked the printed form and student roll/identity against the selected enrollment</label></div>
+            <div class="d-flex gap-2 mt-3"><button class="btn btn-success" type="submit" data-omr-i18n="approve">Confirm independent review</button>
+                @if (canPostOmr)
+                {
+                    <button id="omrPost" type="button" class="btn btn-primary" data-omr-i18n="post">Post verified marks</button>
+                }
+                <button id="omrCancel" type="button" class="btn btn-outline-secondary" data-omr-i18n="cancel">Cancel</button></div>
+        </form>
+    </div></div>
+    <aside id="omrHelp" class="card position-fixed end-0 top-0 h-100 shadow-lg d-none" style="width:min(430px,100vw);z-index:1060;overflow:auto" tabindex="-1" role="dialog" aria-modal="true" aria-label="OMR page manual">
+        <div class="card-body"><div class="d-flex justify-content-between"><h2 class="h5" data-omr-i18n="manual">Smart OMR page manual</h2><button id="omrHelpClose" type="button" class="btn-close" aria-label="Close"></button></div>
+            <div id="omrHelpText"></div></div>
+    </aside>
+</section>
+@section Scripts { <script src="~/js/assessment/omr-workspace.js" asp-append-version="true"></script> }

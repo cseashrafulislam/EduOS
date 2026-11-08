@@ -31,7 +31,7 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         !key.Contains('\\') && !key.Split('/').Any(x => x is "." or ".." or "");
 
     private static bool IsTenantUploadKey(string? key, long tenantId, string folder) =>
-        (folder == "documents" || folder == "lms") && tenantId > 0 &&
+        (folder == "documents" || folder == "lms" || folder == "omr") && tenantId > 0 &&
         !string.IsNullOrWhiteSpace(key) &&
         key.StartsWith($"tenant-{tenantId}/{folder}/", StringComparison.Ordinal) &&
         key.Length > $"tenant-{tenantId}/{folder}/".Length &&
@@ -129,6 +129,21 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
         return UploadCoreAsync(clientRequestId, upload, ct, "lms");
     }
 
+    public Task<ApiResponse<FileAssetDto>> UploadForOmrAsync(Guid clientRequestId,
+        PrivateFileUploadDto upload, CancellationToken ct = default)
+    {
+        if (!InTenantContext ||
+            !(user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("VicePrincipal") ||
+              user.IsInRole("ExamController") || user.IsInRole("Teacher")))
+            return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("Assessment permission required.", 403));
+        if (upload == null ||
+            !((upload.ContentType == "image/png" && upload.FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) ||
+              (upload.ContentType == "image/jpeg" && (upload.FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                upload.FileName.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase)))))
+            return Task.FromResult(ApiResponse<FileAssetDto>.ErrorResponse("Only PNG or JPEG answer sheets are allowed.", 400));
+        return UploadCoreAsync(clientRequestId, upload, ct, "omr");
+    }
+
     // Student leave administrators may stage a scanned supporting file only after the
     // leave service has checked the selected enrollment. No document is attached here.
     public Task<ApiResponse<FileAssetDto>> UploadForLeaveAsync(Guid clientRequestId,
@@ -167,7 +182,7 @@ public sealed class DocumentFileService(EduOSDbContext db, ICurrentUserService u
     private async Task<ApiResponse<FileAssetDto>> UploadCoreAsync(Guid clientRequestId,
         PrivateFileUploadDto upload, CancellationToken ct, string folder = "documents")
     {
-        if (folder != "documents" && folder != "lms")
+        if (folder != "documents" && folder != "lms" && folder != "omr")
             return ApiResponse<FileAssetDto>.ErrorResponse("Unsupported private upload scope.", 400);
         if (clientRequestId == Guid.Empty || upload == null || upload.Content == null ||
             upload.Length is < 1 or > 5242880 || string.IsNullOrWhiteSpace(upload.FileName) ||

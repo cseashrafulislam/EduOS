@@ -4981,6 +4981,112 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheet", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<long>("CapturedByUserId").HasColumnType("bigint");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<string>("ConfirmedAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<long>("FileAssetId").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<long>("OmrTemplateId").HasColumnType("bigint");
+                    b.Property<DateTime?>("PostedAtUtc").HasColumnType("datetime2");
+                    b.Property<long?>("PostedByUserId").HasColumnType("bigint");
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
+                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<string>("State").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<long>("StudentSubjectRegistrationId").HasColumnType("bigint");
+                    b.Property<string>("SuggestedAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<string>("SuggestionStates").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<int>("UncertainCount").HasColumnType("int");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("CapturedByUserId");
+                    b.HasIndex("PostedByUserId");
+                    b.HasIndex("ReviewedByUserId");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "FileAssetId").IsUnique();
+                    b.HasIndex("TenantId", "OmrTemplateId", "StudentSubjectRegistrationId").IsUnique();
+                    b.HasIndex("TenantId", "State", "CreatedAt");
+                    b.HasIndex("TenantId", "StudentSubjectRegistrationId");
+                    b.ToTable("OmrSheets", t => t.HasCheckConstraint("CK_OmrSheets_State",
+                        "[State] IN ('Captured','Reviewed','Posted') AND [UncertainCount] BETWEEN 0 AND 200"));
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheetEvent", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<string>("Action").IsRequired().HasMaxLength(24).HasColumnType("nvarchar(24)");
+                    b.Property<long>("ActorUserId").HasColumnType("bigint");
+                    b.Property<string>("AfterAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<string>("BeforeAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<long>("OmrSheetId").HasColumnType("bigint");
+                    b.Property<DateTime>("OccurredAtUtc").HasColumnType("datetime2");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("ActorUserId");
+                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+                    b.HasIndex("TenantId", "OmrSheetId", "Id");
+                    b.ToTable("OmrSheetEvents");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrTemplate", b =>
+                {
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+                    b.Property<string>("AnswerKey").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+                    b.Property<long>("AssessmentComponentId").HasColumnType("bigint");
+                    b.Property<decimal>("CorrectAnswerMarks").HasColumnType("decimal(18,2)");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
+                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
+                    b.Property<decimal>("IncorrectAnswerMarks").HasColumnType("decimal(18,2)");
+                    b.Property<bool>("IsDeleted").HasColumnType("bit");
+                    b.Property<string>("Name").IsRequired().HasMaxLength(160).HasColumnType("nvarchar(160)");
+                    b.Property<int>("OptionsPerQuestion").HasColumnType("int");
+                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+                    b.Property<DateTime>("SealedAtUtc").HasColumnType("datetime2");
+                    b.Property<long>("SealedByUserId").HasColumnType("bigint");
+                    b.Property<long>("TenantId").HasColumnType("bigint");
+                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.HasKey("Id");
+                    b.HasAlternateKey("TenantId", "Id");
+                    b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("SealedByUserId");
+                    b.HasIndex("TenantId", "AssessmentComponentId");
+                    b.ToTable("OmrTemplates", t => t.HasCheckConstraint("CK_OmrTemplates_Marks",
+                        "[OptionsPerQuestion] IN (4,5) AND LEN([AnswerKey]) BETWEEN 1 AND 200 AND [CorrectAnswerMarks] > 0 AND [IncorrectAnswerMarks] >= 0"));
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.ResultCorrectionEvent", b =>
                 {
                     b.Property<long>("Id")
@@ -25815,6 +25921,60 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheet", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("CapturedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("PostedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Assessment.OmrTemplate", null)
+                        .WithMany().HasForeignKey("TenantId", "OmrTemplateId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentSubjectRegistration", null)
+                        .WithMany().HasForeignKey("TenantId", "StudentSubjectRegistrationId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
+                        .WithMany().HasForeignKey("TenantId", "FileAssetId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheetEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Assessment.OmrSheet", null)
+                        .WithMany().HasForeignKey("TenantId", "OmrSheetId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrTemplate", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany().HasForeignKey("SealedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany().HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                    b.HasOne("EduOS.Core.Entities.Assessment.AssessmentComponent", null)
+                        .WithMany().HasForeignKey("TenantId", "AssessmentComponentId")
+                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
                     b.Navigation("Tenant");
                 });
 
