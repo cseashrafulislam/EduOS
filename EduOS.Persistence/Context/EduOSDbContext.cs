@@ -336,6 +336,10 @@ public class EduOSDbContext :
     public DbSet<Refund> Refunds => Set<Refund>();
     public DbSet<RefundAllocation> RefundAllocations => Set<RefundAllocation>();
     public DbSet<StudentDiscount> StudentDiscounts => Set<StudentDiscount>();
+    public DbSet<ScholarshipApplication> ScholarshipApplications => Set<ScholarshipApplication>();
+    public DbSet<ScholarshipApplicationEvent> ScholarshipApplicationEvents => Set<ScholarshipApplicationEvent>();
+    public DbSet<CounselingCase> CounselingCases => Set<CounselingCase>();
+    public DbSet<CounselingCaseEvent> CounselingCaseEvents => Set<CounselingCaseEvent>();
     public DbSet<StudentFine> StudentFines => Set<StudentFine>();
     public DbSet<StudentFeeInstallmentPlan> StudentFeeInstallmentPlans => Set<StudentFeeInstallmentPlan>();
     public DbSet<StudentFeeInstallmentPlanLine> StudentFeeInstallmentPlanLines => Set<StudentFeeInstallmentPlanLine>();
@@ -3251,6 +3255,8 @@ public class EduOSDbContext :
     {
         return entity is AuditLog
             or LearnerIdentityAccessLog
+            or ScholarshipApplicationEvent
+            or CounselingCaseEvent
             or StudentPromotionRecord
             or StudentExitRecord
             or StudentStatusHistory
@@ -3386,6 +3392,10 @@ public class EduOSDbContext :
     private static bool SuppressAuditPayload(object entity)
     {
         return entity is FacilityVisitorVisit
+            or ScholarshipApplication
+            or ScholarshipApplicationEvent
+            or CounselingCase
+            or CounselingCaseEvent
             or FacilityVisitorEvent
             or FacilityVisitorPolicyChange
             or ApplicationUser

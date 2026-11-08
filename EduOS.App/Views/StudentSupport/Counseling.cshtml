@@ -1,0 +1,64 @@
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    string L(string en, string bd) => bn ? bd : en;
+    var officer = User.IsInRole("SafeguardingOfficer");
+    var counselor = User.IsInRole("Counselor");
+    ViewData["Title"] = L("Student Counseling & Safeguarding", "শিক্ষার্থী কাউন্সেলিং ও সুরক্ষা");
+}
+<section id="counselingApp" class="container-fluid py-4" data-officer="@officer.ToString().ToLowerInvariant()" data-counselor="@counselor.ToString().ToLowerInvariant()">
+    @Html.AntiForgeryToken()
+    <header class="mb-3"><h1 class="h4">@L("Student Counseling & Safeguarding", "শিক্ষার্থী কাউন্সেলিং ও সুরক্ষা")</h1>
+        <p class="text-muted">@L("Private educational support. Only the assigned counselor can open notes, with a narrowly scoped urgent safeguarding escalation.", "ব্যক্তিগত শিক্ষাগত সহায়তা। কেবল নির্ধারিত কাউন্সেলর নোট খুলতে পারেন; জরুরি সুরক্ষা ঘটনায় সীমিত ব্যতিক্রম।")</p>
+        <p class="small text-danger">@L("For immediate danger, contact local emergency or child-protection services. This form is not an emergency response channel.", "তাৎক্ষণিক বিপদে স্থানীয় জরুরি বা শিশু সুরক্ষা সেবায় যোগাযোগ করুন। এই ফর্ম জরুরি সাড়া দেওয়ার মাধ্যম নয়।")</p>
+    </header>
+    <div id="caseNotice" class="alert alert-info" role="status" aria-live="polite">@L("Only authorized staff can view case worklists.", "কেবল অনুমোদিত কর্মীরা কেস তালিকা দেখতে পারবেন।")</div>
+    <div class="row g-3">
+        <div class="col-xl-5">
+            <section class="card"><div class="card-body">
+                <h2 class="h6">@L("Request private support", "ব্যক্তিগত সহায়তা চান")</h2>
+                <form id="caseStudentSearchForm" class="input-group mb-2"><input id="caseStudentSearch" type="search" class="form-control" maxlength="80" placeholder="@L("Code or name; blank for my students", "কোড বা নাম; নিজের জন্য ফাঁকা")" aria-label="@L("Student search", "শিক্ষার্থী অনুসন্ধান")"/><button class="btn btn-outline-primary" type="submit">@L("Find", "খুঁজুন")</button></form>
+                <div id="caseStudents" class="list-group mb-3" aria-live="polite"></div>
+                <form id="caseSubmitForm" class="row g-3">
+                    <div class="col-12"><label for="caseStudent" class="form-label">@L("Student", "শিক্ষার্থী")</label><input id="caseStudent" readonly required class="form-control" placeholder="@L("Choose from search", "অনুসন্ধান থেকে নির্বাচন করুন")" /></div>
+                    <div class="col-12"><label for="caseSummary" class="form-label">@L("Private support summary", "ব্যক্তিগত সহায়তার বিবরণ")</label><textarea id="caseSummary" class="form-control" rows="4" minlength="10" maxlength="1500" required></textarea></div>
+                    <div class="col-12"><div class="form-check"><input id="caseUrgent" class="form-check-input" type="checkbox" /><label for="caseUrgent" class="form-check-label">@L("Urgent safeguarding concern", "জরুরি সুরক্ষা উদ্বেগ")</label></div></div>
+                    <div class="col-12"><div class="form-check"><input id="caseConsent" class="form-check-input" type="checkbox" /><label for="caseConsent" class="form-check-label">@L("I am the linked guardian and consent to guardian contact", "আমি সংযুক্ত অভিভাবক এবং অভিভাবকের সঙ্গে যোগাযোগে সম্মত")</label></div></div>
+                    <div class="col-12"><button id="caseSubmit" type="submit" class="btn btn-primary" disabled>@L("Request confidential support", "গোপনীয় সহায়তার আবেদন")</button></div>
+                </form>
+            </div></section>
+        </div>
+        <div class="col-xl-7">
+            <section class="card mb-3"><div class="card-body">
+                <h2 class="h6">@L("My requests", "আমার আবেদন")</h2>
+                <div id="myCases" class="list-group mb-2" aria-live="polite"></div>
+                <button type="button" id="caseMineRefresh" class="btn btn-outline-secondary btn-sm">@L("Refresh my requests", "আমার আবেদন রিফ্রেশ")</button>
+            </div></section>
+            @if (officer || counselor)
+            {
+                <section class="card mb-3"><div class="card-body">
+                    <div class="d-flex justify-content-between gap-2 mb-2"><h2 class="h6 mb-0">@L("Restricted case worklist", "সংরক্ষিত কেস তালিকা")</h2><button id="caseRefresh" type="button" class="btn btn-outline-primary btn-sm">@L("Refresh", "রিফ্রেশ")</button></div>
+                    <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead><tr><th>@L("Reference", "রেফারেন্স")</th><th>@L("State", "অবস্থা")</th><th>@L("Priority", "অগ্রাধিকার")</th><th>@L("Action", "কার্যক্রম")</th></tr></thead><tbody id="caseRows"><tr><td colspan="4">@L("Loading…", "লোড হচ্ছে…")</td></tr></tbody></table></div>
+                    <div class="d-flex gap-2 align-items-center"><button id="casePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Previous", "আগে")</button><span id="casePage" class="small text-muted"></span><button id="caseNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Next", "পরে")</button></div>
+                </div></section>
+                <section class="card"><div class="card-body">
+                    <h2 class="h6">@L("Authorized case actions", "অনুমোদিত কেস কার্যক্রম")</h2>
+                    <p id="caseSelected" class="small text-muted">@L("Select a case above.", "উপর থেকে কেস বাছুন।")</p>
+                    @if (officer)
+                    {
+                        <label class="form-label" for="caseCounselorId">@L("Assigned counselor user ID", "কাউন্সেলরের ইউজার আইডি")</label><div class="input-group mb-3"><input id="caseCounselorId" type="number" min="1" step="1" class="form-control" /><button id="caseAssign" type="button" class="btn btn-outline-primary" disabled>@L("Assign", "বরাদ্দ")</button></div>
+                    }
+                    <div class="d-flex gap-2 flex-wrap mb-3"><button id="casePrivate" type="button" class="btn btn-outline-secondary" disabled>@L("Open private notes (audited)", "গোপন নোট খুলুন (অডিট হয়)")</button></div>
+                    <div id="casePrivatePanel" class="alert alert-light border d-none" aria-live="polite"><h3 class="h6">@L("Private case narrative", "গোপনীয় কেস বিবরণ")</h3><p id="casePrivateSummary" class="text-break"></p><div id="casePrivateEvents" class="list-group"></div></div>
+                    <form id="caseActionForm" class="row g-2">
+                        <div class="col-sm-6"><label class="form-label" for="caseAction">@L("Action", "কার্যক্রম")</label><select id="caseAction" class="form-select"><option value="Note">@L("Note", "নোট")</option><option value="Appointment">@L("Appointment", "অ্যাপয়েন্টমেন্ট")</option><option value="Referral">@L("Referral", "রেফারেল")</option><option value="Escalate">@L("Escalate", "জরুরি এস্কেলেশন")</option><option value="Close">@L("Close", "বন্ধ")</option></select></div>
+                        <div class="col-sm-6"><label class="form-label" for="caseAppointment">@L("Appointment time (if relevant)", "অ্যাপয়েন্টমেন্টের সময়")</label><input id="caseAppointment" type="datetime-local" class="form-control" /></div>
+                        <div class="col-12"><label class="form-label" for="caseNote">@L("Restricted case note", "সংরক্ষিত কেস নোট")</label><textarea id="caseNote" class="form-control" maxlength="1500" rows="3" required></textarea></div>
+                        <div class="col-12"><button id="caseAct" class="btn btn-primary" type="submit" disabled>@L("Save confidential action", "গোপন কার্যক্রম সংরক্ষণ")</button></div>
+                    </form>
+                </div></section>
+            }
+        </div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/students/student-counseling.js" asp-append-version="true"></script> }

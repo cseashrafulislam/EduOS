@@ -268,6 +268,23 @@
                         <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী ও অভিভাবক পোর্টাল" : "Student / Guardian Portal")</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Student") == true ||
+                     User?.IsInRole("Guardian") == true || User?.IsInRole("Parent") == true)
+                {
+                    <a class="nav-link @ActiveFor("/StudentSupport/Scholarships")" href="/StudentSupport/Scholarships">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#graduation" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "বৃত্তি ও ফি সহায়তা" : "Scholarships & Fee Aid")</span>
+                    </a>
+                }
+                @if (User?.IsInRole("Student") == true || User?.IsInRole("Guardian") == true ||
+                     User?.IsInRole("Parent") == true || User?.IsInRole("SafeguardingOfficer") == true ||
+                     User?.IsInRole("Counselor") == true)
+                {
+                    <a class="nav-link @ActiveFor("/StudentSupport/Counseling")" href="/StudentSupport/Counseling">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "কাউন্সেলিং ও সুরক্ষা" : "Counseling & Safeguarding")</span>
+                    </a>
+                }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("VicePrincipal") == true || User?.IsInRole("Student") == true ||
                      User?.IsInRole("Guardian") == true || User?.IsInRole("Parent") == true)

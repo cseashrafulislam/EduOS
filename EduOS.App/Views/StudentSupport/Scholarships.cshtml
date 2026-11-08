@@ -1,0 +1,61 @@
+@using System.Globalization
+@{
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    string L(string en, string bd) => bn ? bd : en;
+    var reviewer = User.IsInRole("TenantAdmin");
+    ViewData["Title"] = L("Scholarships & Fee Assistance", "বৃত্তি ও ফি সহায়তা");
+}
+<section id="scholarshipsApp" class="container-fluid py-4" data-reviewer="@reviewer.ToString().ToLowerInvariant()">
+    @Html.AntiForgeryToken()
+    <header class="mb-3">
+        <h1 class="h4">@L("Scholarships & Fee Assistance", "বৃত্তি ও ফি সহায়তা")</h1>
+        <p class="text-muted">@L("Request aid, receive independent review and apply an approved concession to future invoices. Past invoices and payments are never edited by this workflow.", "সহায়তার আবেদন, স্বাধীন অনুমোদন ও ভবিষ্যৎ ইনভয়েসে অনুমোদিত ছাড়। পূর্বের বিল ও পেমেন্ট এই প্রক্রিয়ায় বদলানো হয় না।")</p>
+        <a href="/FeeDiscountRules/Index" class="small">@L("Manage existing fee policies (administrator)", "বিদ্যমান ফি-ছাড় নীতিমালা (প্রশাসক)")</a>
+    </header>
+    <div id="aidNotice" class="alert alert-info" role="status" aria-live="polite">@L("Select a student and current enrollment.", "শিক্ষার্থী ও বর্তমান ভর্তি নির্বাচন করুন।")</div>
+    <div class="row g-3">
+        <div class="col-xl-5">
+            <section class="card h-100"><div class="card-body">
+                <h2 class="h6">@L("Apply for aid", "সহায়তার আবেদন")</h2>
+                <form id="aidStudentSearchForm" class="input-group mb-2">
+                    <input id="aidStudentSearch" type="search" maxlength="80" class="form-control" aria-label="@L("Search student by code or name", "কোড বা নাম দিয়ে শিক্ষার্থী খুঁজুন")" placeholder="@L("Code or name; blank for my enrollments", "কোড বা নাম; নিজের তথ্যের জন্য ফাঁকা")" />
+                    <button type="submit" class="btn btn-outline-primary">@L("Find", "খুঁজুন")</button>
+                </form>
+                <div id="aidStudents" class="list-group mb-3" aria-live="polite"></div>
+                <form id="aidSubmitForm" class="row g-3">
+                    <div class="col-12"><label for="aidEnrollment" class="form-label">@L("Current enrollment", "বর্তমান ভর্তি")</label><input id="aidEnrollment" class="form-control" readonly required placeholder="@L("Choose from search", "অনুসন্ধান থেকে নির্বাচন করুন")" /></div>
+                    <div class="col-12"><label for="aidRule" class="form-label">@L("Fee assistance policy", "ফি সহায়তার নীতি")</label><select id="aidRule" class="form-select" required><option value="">@L("Loading policies…", "নীতি লোড হচ্ছে…")</option></select></div>
+                    <div class="col-sm-6"><label for="aidFrom" class="form-label">@L("From", "শুরু")</label><input id="aidFrom" class="form-control" type="date" required /></div>
+                    <div class="col-sm-6"><label for="aidTo" class="form-label">@L("To (optional)", "শেষ (ঐচ্ছিক)")</label><input id="aidTo" class="form-control" type="date" /></div>
+                    <div class="col-12"><label for="aidStatement" class="form-label">@L("Eligibility statement", "যোগ্যতার বিবরণ")</label><textarea id="aidStatement" class="form-control" rows="3" maxlength="700" required></textarea></div>
+                    <div class="col-12"><label for="aidEvidence" class="form-label">@L("Verified private file reference (optional)", "যাচাইকৃত ব্যক্তিগত ফাইল রেফারেন্স (ঐচ্ছিক)")</label><input id="aidEvidence" class="form-control" maxlength="36" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /><div class="form-text">@L("Upload supporting evidence through your existing secure file workflow first; never paste its contents here.", "প্রয়োজনে আগে নিরাপদ ফাইল ব্যবস্থায় প্রমাণ আপলোড করুন; ফাইলের বিষয়বস্তু এখানে লিখবেন না।")</div></div>
+                    <div class="col-12"><label for="aidRenewal" class="form-label">@L("Prior award reference for renewal (optional)", "নবায়নের পূর্বের অনুমোদনের রেফারেন্স (ঐচ্ছিক)")</label><input id="aidRenewal" class="form-control" maxlength="36" autocomplete="off" /></div>
+                    <div class="col-12"><button id="aidSubmit" type="submit" class="btn btn-primary" disabled>@L("Submit for independent review", "স্বাধীন পর্যালোচনার জন্য জমা")</button></div>
+                </form>
+            </div></section>
+        </div>
+        <div class="col-xl-7">
+            <section class="card mb-3"><div class="card-body">
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2"><h2 class="h6 mb-0">@L("Application register", "আবেদনের তালিকা")</h2><button id="aidRefresh" class="btn btn-outline-primary btn-sm" type="button">@L("Refresh", "রিফ্রেশ")</button></div>
+                <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead><tr><th>@L("Reference", "রেফারেন্স")</th><th>@L("State", "অবস্থা")</th><th>@L("Effective", "কার্যকর")</th><th>@L("Action", "কার্যক্রম")</th></tr></thead><tbody id="aidRows"><tr><td colspan="4">@L("Loading…", "লোড হচ্ছে…")</td></tr></tbody></table></div>
+                <div class="d-flex align-items-center gap-2"><button id="aidPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Previous", "আগে")</button><span id="aidPage" class="small text-muted" aria-live="polite"></span><button id="aidNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Next", "পরে")</button></div>
+            </div></section>
+            @if (reviewer)
+            {
+                <section class="card"><div class="card-body">
+                    <h2 class="h6">@L("Independent review and award", "স্বাধীন পর্যালোচনা ও বরাদ্দ")</h2>
+                    <p class="small text-muted" id="aidSelected">@L("Choose an application above.", "উপরের তালিকা থেকে আবেদন বাছুন।")</p>
+                    <label for="aidReason" class="form-label">@L("Documented decision or cancellation reason", "অনুমোদন বা বাতিলের কারণ")</label><textarea id="aidReason" maxlength="500" rows="2" class="form-control mb-2"></textarea>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" id="aidApprove" class="btn btn-outline-success" disabled>@L("Approve", "অনুমোদন")</button>
+                        <button type="button" id="aidReject" class="btn btn-outline-danger" disabled>@L("Reject", "প্রত্যাখ্যান")</button>
+                        <button type="button" id="aidAward" class="btn btn-primary" disabled>@L("Apply to future billing", "ভবিষ্যৎ বিলে ছাড় দিন")</button>
+                        <button type="button" id="aidCancel" class="btn btn-outline-warning" disabled>@L("Cancel / Stop future award", "বাতিল / ভবিষ্যৎ ছাড় বন্ধ")</button>
+                    </div>
+                    <p class="small text-muted mt-2 mb-0">@L("Approver must differ from the applicant. Rejected or issued invoices are never overwritten.", "অনুমোদনকারী আবেদনকারীর থেকে আলাদা হতে হবে। প্রত্যাখ্যাত বা ইস্যুকৃত বিল কখনো বদলানো হবে না।")</p>
+                </div></section>
+            }
+        </div>
+    </div>
+</section>
+@section Scripts { <script src="~/js/students/student-scholarships.js" asp-append-version="true"></script> }

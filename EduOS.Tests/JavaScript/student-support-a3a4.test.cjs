@@ -1,0 +1,36 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const base = path.join(__dirname, '..', '..');
+const file = name => fs.readFileSync(path.join(base, name), 'utf8');
+
+test('A3 aid form keeps antiforgery, server-enrollment selection and tenant-bound session checks', () => {
+    const view = file('EduOS.App/Views/StudentSupport/Scholarships.cshtml');
+    const js = file('EduOS.App/wwwroot/js/students/student-scholarships.js');
+    assert.match(view, /AntiForgeryToken/);
+    assert.match(view, /@L\("Scholarships & Fee Assistance"/);
+    assert.match(js, /student-support-directory\/enrollments/);
+    assert.match(js, /student-support-directory\/aid-rules/);
+    assert.match(js, /RequestVerificationToken/);
+    assert.match(js, /safeSession\(\)/);
+    assert.match(js, /credentials: 'same-origin', cache: 'no-store'/);
+    assert.doesNotMatch(js, /\.innerHTML\s*=/);
+});
+
+test('A4 keeps confidential narratives outside GET and never builds HTML from notes', () => {
+    const view = file('EduOS.App/Views/StudentSupport/Counseling.cshtml');
+    const js = file('EduOS.App/wwwroot/js/students/student-counseling.js');
+    const api = file('EduOS.App/Controllers/Api/CounselingCasesController.cs');
+    const svc = file('EduOS.Service/Services/Students/CounselingWorkflowService.cs');
+    assert.match(view, /AntiForgeryToken/);
+    assert.match(view, /@L\("Student Counseling & Safeguarding"/);
+    assert.match(js, /\/private-view', 'POST'/);
+    assert.match(js, /casePrivateSummary'\)\.textContent/);
+    assert.doesNotMatch(js, /\.innerHTML\s*=/);
+    assert.match(api, /\[HttpPost\("\{reference:guid\}\/private-view"\)\]/);
+    assert.match(svc, /data protection|IDataProtectionProvider/i);
+    assert.match(svc, /row\.OpenedByUserId != user\.UserId/);
+    assert.match(svc, /CampusAccess\(row\.CampusId/);
+});

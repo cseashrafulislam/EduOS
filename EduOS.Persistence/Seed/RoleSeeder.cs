@@ -9,7 +9,8 @@ public static class RoleSeeder
     {
         "SuperAdmin", "TenantAdmin", "Admin", "AdmissionOfficer",
         "Principal", "VicePrincipal", "Teacher", "Student", "Parent",
-        "Accountant", "HR", "Librarian", "ExamController", "Staff"
+        "Accountant", "HR", "Librarian", "ExamController", "Staff",
+        "Counselor", "SafeguardingOfficer"
     };
 
     public static async Task SeedAsync(RoleManager<ApplicationRole> roleManager)
