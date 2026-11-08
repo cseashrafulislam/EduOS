@@ -31,7 +31,8 @@ test('intake catalogue supports bilingual searchable statuses and an accessible 
  assert.match(view, /id="intakeFormSearch"/);
  assert.match(view, /id="intakeFormState"/);
  assert.match(view, /id="intakeFormCount"[^>]*role="status" aria-live="polite"/);
- assert.match(js, /intakeFormSearch'\)\?\.addEventListener\('input', renderIntakeForms\)/);
+ assert.match(js, /intakeFormSearch'\)\?\.addEventListener\('input', resetIntakeCataloguePage\)/);
+ assert.match(js, /function resetIntakeCataloguePage\(\) \{[\s\S]*?intakePaging\.page = 1;[\s\S]*?renderIntakeForms\(\)/);
  assert.match(js, /const visible = state\.intakeForms\.filter/);
  assert.match(js, /No forms match these filters/);
  assert.match(js, /intakeText\('Published', 'প্রকাশিত'\)/);

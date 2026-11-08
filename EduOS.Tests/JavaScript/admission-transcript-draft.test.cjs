@@ -147,6 +147,6 @@ test('admission readiness offers accessible bilingual required-field review with
     assert.match(source, /field\.scrollIntoView/);
     assert.match(source, /field\.focus\(\)/);
     assert.match(source, /readinessList\.replaceChildren\(\)/);
-    assert.match(source, /aria-live:'polite'/);
+    assert.match(source, /'aria-live':'polite'/);
     assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(/);
 });
