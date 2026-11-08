@@ -46,6 +46,7 @@ test('A4 keeps confidential narratives outside GET and never builds HTML from no
     assert.match(svc, /CampusAccess\(row\.CampusId/);
     assert.match(svc, /Safeguarding intake is not staffed for this campus/);
     assert.match(svc, /row\.State == "Requested" \|\| row\.State == "Escalated"/);
+    assert.match(svc, /row\.State = "Escalated"; row\.IsUrgent = true;/);
     assert.match(js, /student-support-directory\/counselors/);
     assert.match(js, /student-counseling\/aggregates/);
     assert.match(view, /Privacy-safe monthly safeguarding summary/);

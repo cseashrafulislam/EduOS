@@ -329,7 +329,12 @@ public sealed class CounselingWorkflowService(
                         : Fail<CounselingCaseRow>("Case action key already used.", 409);
                 if (row.State == "Closed" || !Version(row.RowVersion, request.RowVersion))
                     return Fail<CounselingCaseRow>("Case changed or closed.", 409);
-                if (request.Action == "Escalate") row.State = "Escalated";
+                if (request.Action == "Escalate")
+                {
+                    // Escalation must enter the urgent officer-access path, including
+                    // cases originally opened as routine educational support.
+                    row.State = "Escalated"; row.IsUrgent = true;
+                }
                 else if (request.Action == "Close")
                 {
                     row.State = "Closed"; row.ClosedAtUtc = DateTime.UtcNow;
