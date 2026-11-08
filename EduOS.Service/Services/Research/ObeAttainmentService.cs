@@ -351,7 +351,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             : new List<PublishedOutcomeAttainmentPolicy.Evidence>();
         // Mixed/component policies key evidence by immutable CLO ID: multiple
         // measured components from one course must never collapse into a grade.
-        foreach (var clo in legacyCourseOnly ? Array.Empty<ObeCourseOutcomeDto>() : policy.CourseOutcomes)
+        foreach (var clo in policy.CourseOutcomes.Where(_ => !legacyCourseOnly))
         {
             if (clo.ComponentCode == null)
                 evidence.AddRange(rows.Where(x => x.CurriculumSubjectId == clo.CurriculumSubjectId)
