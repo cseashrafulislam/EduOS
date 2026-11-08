@@ -56,13 +56,44 @@ test('catalogue CSV export uses identical authorized advanced filters as list', 
     const list = api.match(/public async Task<IActionResult> List\([\s\S]*?\n    }/);
     const exportAction = api.match(/public async Task<IActionResult> Export\([\s\S]*?\n    }/);
     assert.ok(list && exportAction, 'list and export endpoints must exist');
-    const call = /service\.ListAsync\(bookReference, search, page, pageSize, includeInactive, ct,\s*category, author, publisher, edition\)/;
+    const call = /service\.ListAsync\(bookReference, search, page, pageSize, includeInactive, ct,\s*category, author, publisher, edition, curriculumId, subjectId, chapter, (?:contentLanguage|language)\)/;
     assert.match(list[0], call);
     assert.match(exportAction[0], call);
     for (const name of ['category', 'author', 'publisher', 'edition']) {
         assert.match(list[0], new RegExp('\\[FromQuery\\] string\\? ' + name));
         assert.match(exportAction[0], new RegExp('\\[FromQuery\\] string\\? ' + name));
     }
+    assert.match(list[0], /curriculumId, subjectId, chapter, language/);
+    assert.match(exportAction[0], /curriculumId, subjectId, chapter, contentLanguage/);
+});
+
+test('education content requires rights provenance and human review before reading', () => {
+    const service = read('EduOS.Service/Services/Library/LibraryDigitalResourceService.cs');
+    const dto = read('EduOS.Core/DTOs/Library/LibraryDigitalResourceDtos.cs');
+    assert.match(service, /VerificationStatusCode = "Pending"/);
+    assert.match(service, /VerificationStatusCode == "Approved"/);
+    assert.match(service, /ReviewAsync\(/);
+    assert.match(service, /ValidCurriculumAsync\(/);
+    assert.match(service, /SetRights\(row, request\.Rights\)/);
+    assert.match(api, /\[HttpPost\("\{reference:guid\}\/review"\)\]/);
+    assert.match(api, /\[HttpGet\("\{reference:guid\}\/read"\)\]/);
+    assert.match(dto, /LibraryDigitalRightsRequestDto/);
+    for (const id of ['digitalSourceUrl', 'digitalRightsHolder', 'digitalLicenceCode',
+        'digitalLicenceEvidence', 'digitalCurriculum', 'digitalChapter', 'digitalTopic'])
+        assert.match(view, new RegExp('id="' + id + '"'));
+    assert.match(ui, /appendRights\(data, 'digital'\)/);
+    assert.match(ui, /review\(resource, approve, button\)/);
+});
+
+test('LMS reuses approved subject library instead of duplicating files or publication state', () => {
+    const lms = read('EduOS.App/wwwroot/js/learning/course-content.js');
+    const lmsView = read('EduOS.App/Views/Learning/CourseContent.cshtml');
+    assert.match(lms, /selected\?\.subjectId/);
+    assert.match(lms, /api\/library\/digital\?/);
+    assert.match(lms, /sessionValid\(\)/);
+    assert.match(lms, /clearPrivateLibrary\(\)/);
+    assert.match(lmsView, /id="contentLibraryRows"/);
+    assert.doesNotMatch(lms, /localStorage|sessionStorage|indexedDB/i);
 });
 test('digital resource export never exposes storage keys or student identity', () => {
     const writer = read('EduOS.App/Controllers/Api/LibraryDigitalCsvWriter.cs');

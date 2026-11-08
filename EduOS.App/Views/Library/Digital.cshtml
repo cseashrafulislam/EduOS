@@ -52,8 +52,26 @@
                         <option value="">@(bn ? "সব সক্রিয় ক্যাম্পাস" : "All active campuses")</option>
                     </select>
                 </div>
+                <div class="col-12"><h4 class="h6">@(bn ? "শিক্ষাক্রম ও বৈধ প্রকাশনার তথ্য" : "Curriculum and lawful publication details")</h4></div>
+                <div class="col-md-6">
+                    <label for="digitalCurriculumSearch" class="form-label">@(bn ? "শিক্ষাক্রম/বিষয় খুঁজুন (ঐচ্ছিক)" : "Find curriculum/subject (optional)")</label>
+                    <div class="input-group"><input id="digitalCurriculumSearch" class="form-control" maxlength="100" />
+                        <button id="digitalCurriculumFind" class="btn btn-outline-secondary" type="button">@(bn ? "খুঁজুন" : "Find")</button></div>
+                </div>
+                <div class="col-md-6">
+                    <label for="digitalCurriculum" class="form-label">@(bn ? "শিক্ষাক্রম → শ্রেণি → বিষয়" : "Curriculum → level → subject")</label>
+                    <select id="digitalCurriculum" class="form-select"><option value="">@(bn ? "সাধারণ লাইব্রেরি রিসোর্স" : "General library resource")</option></select>
+                </div>
+                <div class="col-md-6"><label for="digitalChapter" class="form-label">@(bn ? "অধ্যায়" : "Chapter")</label><input id="digitalChapter" class="form-control" maxlength="150" /></div>
+                <div class="col-md-6"><label for="digitalTopic" class="form-label">@(bn ? "বিষয়বস্তু" : "Topic")</label><input id="digitalTopic" class="form-control" maxlength="150" /></div>
+                <div class="col-md-4"><label for="digitalLanguage" class="form-label">@(bn ? "ভাষা" : "Language")</label><select id="digitalLanguage" class="form-select"><option value="bn-BD">বাংলা</option><option value="en-BD">English</option></select></div>
+                <div class="col-md-8"><label for="digitalSourceUrl" class="form-label">@(bn ? "মূল উৎসের HTTPS লিংক (প্রতিষ্ঠানের নিজস্ব হলে ঐচ্ছিক)" : "Original HTTPS source URL (optional for institution-owned)")</label><input id="digitalSourceUrl" class="form-control" type="url" maxlength="1000" pattern="https://.*" /></div>
+                <div class="col-md-5"><label for="digitalRightsHolder" class="form-label">@(bn ? "স্বত্বাধিকারী *" : "Rights holder *")</label><input id="digitalRightsHolder" class="form-control" maxlength="200" required /></div>
+                <div class="col-md-3"><label for="digitalLicenceCode" class="form-label">@(bn ? "ব্যবহারের অধিকার *" : "Licence basis *")</label><select id="digitalLicenceCode" class="form-select" required><option value="">@(bn ? "নির্বাচন করুন" : "Select")</option><option value="InstitutionOwned">Institution owned</option><option value="PublicDomain">Public domain</option><option value="PublisherLicensed">Publisher licensed</option><option value="OpenLicence">Open licence</option></select></div>
+                <div class="col-md-4"><label for="digitalLicenceEvidence" class="form-label">@(bn ? "লাইসেন্স/অনুমতির প্রমাণ *" : "Licence/permission evidence *")</label><input id="digitalLicenceEvidence" class="form-control" maxlength="500" required /></div>
+                <p class="small text-muted mb-0">@(bn ? "ফাইল প্রথমে রিভিউয়ের জন্য জমা হবে; অনুমোদনের আগে শিক্ষার্থীরা দেখতে পারবে না।" : "Submission starts in Pending Review; learners cannot access the file until approval.")</p>
                 <div class="col-12">
-                    <button id="digitalPublish" type="submit" class="btn btn-primary">@(bn ? "প্রকাশ করুন" : "Publish")</button>
+                    <button id="digitalPublish" type="submit" class="btn btn-primary">@(bn ? "রিভিউয়ের জন্য জমা দিন" : "Submit for review")</button>
                 </div>
             </form>
         </section>
@@ -103,9 +121,16 @@
                     <label for="digitalReplaceExpiry" class="form-label">@(bn ? "মেয়াদ শেষ (UTC)" : "Access expiry (UTC)")</label>
                     <input id="digitalReplaceExpiry" class="form-control" type="date" />
                 </div>
+                <div class="col-md-6"><label for="digitalReplaceChapter" class="form-label">@(bn ? "অধ্যায়" : "Chapter")</label><input id="digitalReplaceChapter" class="form-control" maxlength="150" /></div>
+                <div class="col-md-6"><label for="digitalReplaceTopic" class="form-label">@(bn ? "বিষয়বস্তু" : "Topic")</label><input id="digitalReplaceTopic" class="form-control" maxlength="150" /></div>
+                <div class="col-md-4"><label for="digitalReplaceLanguage" class="form-label">@(bn ? "ভাষা" : "Language")</label><select id="digitalReplaceLanguage" class="form-select"><option value="bn-BD">বাংলা</option><option value="en-BD">English</option></select></div>
+                <div class="col-md-8"><label for="digitalReplaceSourceUrl" class="form-label">@(bn ? "মূল উৎসের HTTPS লিংক (প্রতিষ্ঠানের নিজস্ব হলে ঐচ্ছিক)" : "Original HTTPS source URL (optional for institution-owned)")</label><input id="digitalReplaceSourceUrl" class="form-control" type="url" maxlength="1000" pattern="https://.*" /></div>
+                <div class="col-md-5"><label for="digitalReplaceRightsHolder" class="form-label">@(bn ? "স্বত্বাধিকারী *" : "Rights holder *")</label><input id="digitalReplaceRightsHolder" class="form-control" maxlength="200" required /></div>
+                <div class="col-md-3"><label for="digitalReplaceLicenceCode" class="form-label">@(bn ? "লাইসেন্স *" : "Licence *")</label><select id="digitalReplaceLicenceCode" class="form-select" required><option value="">@(bn ? "নির্বাচন করুন" : "Select")</option><option value="InstitutionOwned">Institution owned</option><option value="PublicDomain">Public domain</option><option value="PublisherLicensed">Publisher licensed</option><option value="OpenLicence">Open licence</option></select></div>
+                <div class="col-md-4"><label for="digitalReplaceLicenceEvidence" class="form-label">@(bn ? "অনুমতির প্রমাণ *" : "Permission evidence *")</label><input id="digitalReplaceLicenceEvidence" class="form-control" maxlength="500" required /></div>
                 <div class="col-12 d-flex justify-content-end gap-2">
                     <button id="digitalReplaceCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
-                    <button id="digitalReplaceSave" type="submit" class="btn btn-primary">@(bn ? "নতুন সংস্করণ প্রকাশ" : "Publish version")</button>
+                    <button id="digitalReplaceSave" type="submit" class="btn btn-primary">@(bn ? "রিভিউয়ের জন্য জমা দিন" : "Submit replacement for review")</button>
                 </div>
             </form>
         </dialog>
@@ -172,6 +197,8 @@
                 <label for="digitalEditionFilter" class="form-label">@(bn ? "সংস্করণ" : "Edition")</label>
                 <input id="digitalEditionFilter" class="form-control" maxlength="100" autocomplete="off" />
             </div>
+            <div class="col-sm-6 col-lg-3"><label for="digitalChapterFilter" class="form-label">@(bn ? "অধ্যায়" : "Chapter")</label><input id="digitalChapterFilter" class="form-control" maxlength="100" /></div>
+            <div class="col-sm-6 col-lg-3"><label for="digitalLanguageFilter" class="form-label">@(bn ? "ভাষা" : "Language")</label><select id="digitalLanguageFilter" class="form-select"><option value="">@(bn ? "সব ভাষা" : "All languages")</option><option value="bn-BD">বাংলা</option><option value="en-BD">English</option></select></div>
             <div class="col-12">
                 <button id="digitalClearFilters" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "ফিল্টার মুছুন" : "Clear filters")</button>
             </div>
@@ -202,6 +229,7 @@
                     <select id="digitalAuditAction" class="form-select">
                         <option value="all">@(bn ? "সব" : "All")</option>
                         <option value="publish">Publish</option><option value="replace">Replace</option>
+                        <option value="submit">Submit</option><option value="approve">Approve</option><option value="reject">Reject</option>
                         <option value="update">Update</option><option value="revoke">Revoke</option>
                         <option value="download">Download</option>
                     </select></div>

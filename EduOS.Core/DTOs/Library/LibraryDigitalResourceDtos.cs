@@ -13,6 +13,17 @@ public sealed class LibraryDigitalResourceDto
     public string? BookEdition { get; set; }
     public string? BookIsbn { get; set; }
     public string? BookCategory { get; set; }
+    public long? CurriculumId { get; set; }
+    public long? LevelId { get; set; }
+    public long? SubjectId { get; set; }
+    public string? Chapter { get; set; }
+    public string? Topic { get; set; }
+    public string? LanguageCode { get; set; }
+    public string? SourceUrl { get; set; }
+    public string? RightsHolder { get; set; }
+    public string? LicenceCode { get; set; }
+    public string? LicenceEvidence { get; set; }
+    public string ReviewStatus { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
@@ -31,6 +42,31 @@ public sealed class LibraryDigitalUploadRequestDto
     [Required, MaxLength(250)] public string Title { get; set; } = string.Empty;
     public DateOnly? ExpiresOn { get; set; }
     public long? CampusId { get; set; }
+    public LibraryDigitalRightsRequestDto Rights { get; set; } = new();
+}
+
+public sealed class LibraryDigitalRightsRequestDto
+{
+    public long? CurriculumId { get; set; }
+    public long? LevelId { get; set; }
+    public long? SubjectId { get; set; }
+    [MaxLength(150)] public string? Chapter { get; set; }
+    [MaxLength(150)] public string? Topic { get; set; }
+    [Required, MaxLength(10)] public string LanguageCode { get; set; } = "bn-BD";
+    [MaxLength(1000)] public string? SourceUrl { get; set; }
+    [Required, MaxLength(200)] public string RightsHolder { get; set; } = string.Empty;
+    [Required, MaxLength(32)] public string LicenceCode { get; set; } = string.Empty;
+    [Required, MaxLength(500)] public string LicenceEvidence { get; set; } = string.Empty;
+}
+
+public sealed class LibraryDigitalCurriculumOptionDto
+{
+    public long CurriculumId { get; set; }
+    public long LevelId { get; set; }
+    public long SubjectId { get; set; }
+    public string CurriculumName { get; set; } = string.Empty;
+    public string LevelName { get; set; } = string.Empty;
+    public string SubjectName { get; set; } = string.Empty;
 }
 
 public sealed class LibraryDigitalReplaceRequestDto
@@ -39,6 +75,7 @@ public sealed class LibraryDigitalReplaceRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
     [Required, MaxLength(250)] public string Title { get; set; } = string.Empty;
     public DateOnly? ExpiresOn { get; set; }
+    public LibraryDigitalRightsRequestDto Rights { get; set; } = new();
 }
 
 public sealed class LibraryDigitalMetadataRequestDto
@@ -53,6 +90,12 @@ public sealed class LibraryDigitalMetadataRequestDto
 public sealed class LibraryDigitalRevokeRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
+}
+
+public sealed class LibraryDigitalReviewRequestDto
+{
+    [Required] public string RowVersion { get; set; } = string.Empty;
+    [Required, MaxLength(500)] public string Note { get; set; } = string.Empty;
 }
 
 public sealed class LibraryDigitalVersionDto

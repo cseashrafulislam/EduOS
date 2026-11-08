@@ -70,7 +70,13 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             var request = new LibraryDigitalReplaceRequestDto
             {
                 RequestId = id, RowVersion = version,
-                Title = "Verified replacement", ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(20))
+                Title = "Verified replacement", ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(20)),
+                Rights = new LibraryDigitalRightsRequestDto
+                {
+                    LanguageCode = "bn-BD", SourceUrl = "https://example.org/licence",
+                    RightsHolder = "Institute", LicenceCode = "InstitutionOwned",
+                    LicenceEvidence = "Publisher-approved educational content"
+                }
             };
             var result = await service.ReplaceAsync(original.Reference, request,
                 new PrivateFileUploadDto
@@ -93,14 +99,15 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 (x.PublicId == original.Reference || ids.Contains(x.PublicId))).ToListAsync();
             Assert.Equal(2, rows.Count);
             var previous = Assert.Single(rows, x => x.PublicId == original.Reference);
-            Assert.False(previous.IsActive);
-            var current = Assert.Single(rows, x => x.IsActive);
-            Assert.Equal(winner.Id, current.PublicId);
-            Assert.Equal(previous.Id, current.SupersedesDocumentId);
-            Assert.Equal(2, current.VersionNo);
+            Assert.True(previous.IsActive, "the existing edition stays available during review");
+            var pending = Assert.Single(rows, x => x.PublicId == winner.Id);
+            Assert.False(pending.IsActive);
+            Assert.Equal("Pending", pending.VerificationStatusCode);
+            Assert.Equal(previous.Id, pending.SupersedesDocumentId);
+            Assert.Equal(2, pending.VersionNo);
             Assert.Equal(1, await verify.AuditLogs.CountAsync(x =>
                 x.TenantId == fixture.TenantId &&
-                x.Action == "LibraryDigitalResource.Replace" &&
+                x.Action == "LibraryDigitalResource.Submit" &&
                 x.CorrelationId == winner.Id.ToString("N")));
             var losing = ids.Single(x => x != winner.Id);
             Assert.False(await verify.Documents.AnyAsync(x =>
@@ -112,6 +119,6 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         await using var final = ScopedContext(fixture.Options, fixture.TenantId, fixture.UserId);
         Assert.Equal(1, await final.AuditLogs.CountAsync(x =>
             x.TenantId == fixture.TenantId &&
-            x.Action == "LibraryDigitalResource.Replace"));
+            x.Action == "LibraryDigitalResource.Submit"));
     }
 }

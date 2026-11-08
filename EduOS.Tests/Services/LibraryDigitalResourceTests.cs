@@ -61,6 +61,13 @@ public sealed class LibraryDigitalResourceTests
             (storage ?? new Mock<IFileUploadService>()).Object,
             TimeProvider.System, NullLogger<LibraryDigitalResourceService>.Instance);
 
+    private static LibraryDigitalRightsRequestDto Rights() => new()
+    {
+        LanguageCode = "bn-BD", SourceUrl = "https://example.org/education/licence",
+        RightsHolder = "Institute", LicenceCode = "InstitutionOwned",
+        LicenceEvidence = "Written institutional ownership record"
+    };
+
     private static async Task<(Book Book, StudentEnrollment Enrollment, FileAsset Asset, byte[] Bytes)> SeedAsync(
         EduOSDbContext db, Guid reference)
     {
@@ -86,6 +93,76 @@ public sealed class LibraryDigitalResourceTests
         db.AddRange(enrollment, asset);
         await db.SaveChangesAsync();
         return (book, enrollment, asset, bytes);
+    }
+
+    [Fact]
+    public async Task Pending_licensed_content_is_private_until_review_and_revocation_closes_access()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        var doc = new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Reviewed textbook", IsActive = false,
+            VerificationStatusCode = "Pending", ContentLanguageCode = "bn-BD",
+            ContentSourceUrl = "https://example.org/education/licence",
+            ContentRightsHolder = "Institute", ContentLicenceCode = "InstitutionOwned",
+            ContentLicenceEvidence = "Institutional authorship attestation",
+            RowVersion = [1, 2, 3]
+        };
+        db.Documents.Add(doc);
+        await db.SaveChangesAsync();
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(seed.Asset.StorageKey))
+            .ReturnsAsync(new FileDownloadResult { Content = seed.Bytes, ContentType = "application/pdf" });
+        var student = Service(db, "Student", storage: storage);
+        var admin = Service(db, "TenantAdmin", storage: storage);
+        (await student.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().BeEmpty();
+        (await student.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        (await admin.ListAsync(null, null, 1, 20, true)).Data!.Items.Should().ContainSingle();
+        var decision = new LibraryDigitalReviewRequestDto
+        { RowVersion = Convert.ToBase64String(doc.RowVersion), Note = "Rights confirmed" };
+        (await student.ReviewAsync(reference, decision, true)).StatusCode.Should().Be(403);
+        var approved = await admin.ReviewAsync(reference, decision, true);
+        approved.Success.Should().BeTrue(approved.Message);
+        doc.IsActive.Should().BeTrue();
+        doc.VerificationStatusCode.Should().Be("Approved");
+        (await student.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().ContainSingle();
+        (await student.DownloadAsync(reference)).Success.Should().BeTrue();
+        (await admin.ReviewAsync(reference, decision, true)).StatusCode.Should().Be(409);
+        (await db.AuditLogs.AnyAsync(x => x.Action == "LibraryDigitalResource.Approve")).Should().BeTrue();
+        var revoked = await admin.RevokeAsync(reference,
+            new LibraryDigitalRevokeRequestDto { RowVersion = Convert.ToBase64String(doc.RowVersion) });
+        revoked.Success.Should().BeTrue(revoked.Message);
+        (await student.DownloadAsync(reference)).StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task Upload_requires_provenance_before_private_file_is_registered()
+    {
+        await using var db = Context();
+        var seed = await SeedAsync(db, Guid.NewGuid());
+        var files = new Mock<IDocumentFileService>();
+        var admin = Service(db, "TenantAdmin", documents: files);
+        var request = new LibraryDigitalUploadRequestDto
+        { RequestId = Guid.NewGuid(), BookReference = seed.Book.PublicId, Title = "Unreviewed" };
+        var file = new PrivateFileUploadDto
+        {
+            FileName = "book.pdf", ContentType = "application/pdf",
+            Length = seed.Bytes.Length, Content = new MemoryStream(seed.Bytes)
+        };
+        (await admin.UploadAsync(request, file)).StatusCode.Should().Be(400);
+        request.Rights = Rights();
+        request.Rights.CurriculumId = 123;
+        request.Rights.LevelId = 456;
+        request.Rights.SubjectId = 789;
+        (await admin.UploadAsync(request, file)).StatusCode.Should().Be(400);
+        files.Verify(x => x.UploadAsync(It.IsAny<Guid>(), It.IsAny<PrivateFileUploadDto>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Theory]
@@ -357,7 +434,7 @@ public sealed class LibraryDigitalResourceTests
         var request = new LibraryDigitalUploadRequestDto
         { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
           CampusId = seed.Enrollment.CampusId,
-          ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)) };
+          ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)), Rights = Rights() };
         PrivateFileUploadDto Upload() => new()
         {
             FileName = "verified.pdf", ContentType = "application/pdf",
@@ -369,16 +446,16 @@ public sealed class LibraryDigitalResourceTests
         first.Data.CampusId.Should().Be(seed.Enrollment.CampusId);
         (await service.UploadAsync(new LibraryDigitalUploadRequestDto
         { RequestId = Guid.NewGuid(), BookReference = seed.Book.PublicId,
-          Title = "Wrong campus", CampusId = 999999 }, Upload())).StatusCode.Should().Be(400);
+          Title = "Wrong campus", CampusId = 999999, Rights = Rights() }, Upload())).StatusCode.Should().Be(400);
         var replay = await service.UploadAsync(request, Upload());
         replay.Success.Should().BeTrue(replay.Message);
         (await db.Documents.CountAsync(x => x.DocumentTypeCode == "LIBRARY_DIGITAL")).Should().Be(1);
         (await service.UploadAsync(new LibraryDigitalUploadRequestDto
         { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
-          CampusId = null, ExpiresOn = request.ExpiresOn }, Upload())).StatusCode.Should().Be(409);
+          CampusId = null, ExpiresOn = request.ExpiresOn, Rights = Rights() }, Upload())).StatusCode.Should().Be(409);
         (await service.UploadAsync(new LibraryDigitalUploadRequestDto
         { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Reference PDF",
-          ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(11)) }, Upload()))
+          ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(11)), Rights = Rights() }, Upload()))
             .StatusCode.Should().Be(409);
         var row = await db.Documents.SingleAsync(x => x.PublicId == requestId);
         row.ExpiresAt.Should().HaveValue();
@@ -392,7 +469,7 @@ public sealed class LibraryDigitalResourceTests
         (await db.AuditLogs.CountAsync(x => x.EntityName == "LibraryDigitalResource")).Should().Be(2);
         (await service.DownloadAsync(requestId)).StatusCode.Should().Be(404);
         (await service.UploadAsync(new LibraryDigitalUploadRequestDto
-        { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Different" }, Upload()))
+        { RequestId = requestId, BookReference = seed.Book.PublicId, Title = "Different", Rights = Rights() }, Upload()))
             .StatusCode.Should().Be(409);
     }
 
@@ -687,7 +764,7 @@ public sealed class LibraryDigitalResourceTests
         {
             RequestId = replacementId, Title = "Corrected edition",
             RowVersion = Convert.ToBase64String(previous.RowVersion),
-            ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15))
+            ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(15)), Rights = Rights()
         };
         PrivateFileUploadDto Upload() => new()
         {
@@ -701,13 +778,24 @@ public sealed class LibraryDigitalResourceTests
         result.Data!.VersionNo.Should().Be(2);
         (await admin.ReplaceAsync(originalId, request, Upload())).Success.Should().BeTrue();
         (await db.Documents.CountAsync(x => x.DocumentTypeCode == "LIBRARY_DIGITAL")).Should().Be(2);
-        previous.IsActive.Should().BeFalse();
+        previous.IsActive.Should().BeTrue("the original remains readable while replacement awaits review");
         var next = await db.Documents.SingleAsync(x => x.PublicId == replacementId);
+        next.IsActive.Should().BeFalse();
+        next.VerificationStatusCode.Should().Be("Pending");
         next.SupersedesDocumentId.Should().Be(previous.Id);
         next.VersionNo.Should().Be(2);
         next.LibraryCampusId.Should().Be(seed.Enrollment.CampusId);
-        (await db.AuditLogs.CountAsync(x => x.Action == "LibraryDigitalResource.Replace"))
+        (await db.AuditLogs.CountAsync(x => x.Action == "LibraryDigitalResource.Submit"))
             .Should().Be(1);
+        (await Service(db, "Student", storage: storage).DownloadAsync(replacementId))
+            .StatusCode.Should().Be(404);
+        next.RowVersion = [4, 5, 6];
+        await db.SaveChangesAsync();
+        var approval = await admin.ReviewAsync(replacementId, new LibraryDigitalReviewRequestDto
+        { RowVersion = Convert.ToBase64String(next.RowVersion), Note = "Verified educational rights" }, true);
+        approval.Success.Should().BeTrue(approval.Message);
+        previous.IsActive.Should().BeFalse();
+        next.IsActive.Should().BeTrue();
         (await Service(db, "Student", storage: storage).DownloadAsync(originalId))
             .StatusCode.Should().Be(404);
         (await Service(db, "Student", storage: storage).DownloadAsync(replacementId))

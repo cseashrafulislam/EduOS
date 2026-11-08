@@ -24,10 +24,12 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         [FromQuery] int pageSize = 20, [FromQuery] bool includeInactive = false,
         [FromQuery] string? category = null, [FromQuery] string? author = null,
         [FromQuery] string? publisher = null, [FromQuery] string? edition = null,
+        [FromQuery] long? curriculumId = null, [FromQuery] long? subjectId = null,
+        [FromQuery] string? chapter = null, [FromQuery] string? language = null,
         CancellationToken ct = default)
     {
         var result = await service.ListAsync(bookReference, search, page, pageSize, includeInactive, ct,
-            category, author, publisher, edition);
+            category, author, publisher, edition, curriculumId, subjectId, chapter, language);
         return StatusCode(result.StatusCode, result);
     }
 
@@ -39,6 +41,15 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("curriculum-options")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> CurriculumOptions([FromQuery] string? search = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
+    {
+        var result = await service.GetCurriculumOptionsAsync(search, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("export")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Export([FromQuery] Guid? bookReference = null,
@@ -46,12 +57,14 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         [FromQuery] int pageSize = 20, [FromQuery] bool includeInactive = false,
         [FromQuery] string? category = null, [FromQuery] string? author = null,
         [FromQuery] string? publisher = null, [FromQuery] string? edition = null,
+        [FromQuery] long? curriculumId = null, [FromQuery] long? subjectId = null,
+        [FromQuery] string? chapter = null, [FromQuery] string? contentLanguage = null,
         [FromQuery] string language = "en-BD", CancellationToken ct = default)
     {
         if (language is not ("en-BD" or "bn-BD"))
             return BadRequest("Unsupported report language.");
         var result = await service.ListAsync(bookReference, search, page, pageSize, includeInactive, ct,
-            category, author, publisher, edition);
+            category, author, publisher, edition, curriculumId, subjectId, chapter, contentLanguage);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
         Response.Headers.CacheControl = "no-store, private";
         Response.Headers.Pragma = "no-cache";
@@ -175,6 +188,17 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("{reference:guid}/review")]
+    [Authorize(Roles = "TenantAdmin")]
+    public async Task<IActionResult> Review(Guid reference,
+        [FromBody] LibraryDigitalReviewRequestDto request, [FromQuery] bool approve,
+        CancellationToken ct)
+    {
+        if (!ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.ReviewAsync(reference, request, approve, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("{reference:guid}/download")]
     public async Task<IActionResult> Download(Guid reference, CancellationToken ct)
     {
@@ -185,5 +209,23 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         Response.Headers["Referrer-Policy"] = "no-referrer";
         return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+    }
+
+    [HttpGet("{reference:guid}/read")]
+    public async Task<IActionResult> Read(Guid reference, CancellationToken ct)
+    {
+        // Reuse DownloadAsync's complete live tenant, campus, approval, expiry,
+        // file-integrity and post-storage-read reauthorization checks.
+        var result = await service.DownloadAsync(reference, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        if (result.Data.ContentType is not ("application/pdf" or "image/jpeg" or
+            "image/png" or "image/webp"))
+            return BadRequest("This file type can only be downloaded.");
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        Response.Headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
+        return File(result.Data.Content, result.Data.ContentType);
     }
 }

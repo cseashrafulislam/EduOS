@@ -60,7 +60,13 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         var request = new LibraryDigitalUploadRequestDto
         {
             RequestId = requestId, BookReference = bookReference,
-            Title = "Single publication", ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10))
+            Title = "Single publication", ExpiresOn = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)),
+            Rights = new LibraryDigitalRightsRequestDto
+            {
+                LanguageCode = "bn-BD", SourceUrl = "https://example.org/rights/source",
+                RightsHolder = "Institute", LicenceCode = "InstitutionOwned",
+                LicenceEvidence = "Owned by institution"
+            }
         };
         async Task<ApiResponse<LibraryDigitalResourceDto>> PublishAsync()
         {
@@ -87,7 +93,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
                 x.TenantId == fixture.TenantId && x.PublicId == requestId &&
                 x.DocumentTypeCode == "LIBRARY_DIGITAL"));
             Assert.Equal(1, await verify.AuditLogs.CountAsync(x =>
-                x.TenantId == fixture.TenantId && x.Action == "LibraryDigitalResource.Publish" &&
+                x.TenantId == fixture.TenantId && x.Action == "LibraryDigitalResource.Submit" &&
                 x.CorrelationId == requestId.ToString("N")));
         }
         // The losing caller may safely retry the same immutable request after the
@@ -98,7 +104,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
         Assert.Equal(1, await final.Documents.CountAsync(x =>
             x.TenantId == fixture.TenantId && x.PublicId == requestId));
         Assert.Equal(1, await final.AuditLogs.CountAsync(x =>
-            x.TenantId == fixture.TenantId && x.Action == "LibraryDigitalResource.Publish" &&
+            x.TenantId == fixture.TenantId && x.Action == "LibraryDigitalResource.Submit" &&
             x.CorrelationId == requestId.ToString("N")));
     }
 }

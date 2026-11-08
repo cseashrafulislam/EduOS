@@ -86,7 +86,7 @@ public sealed class LibraryDigitalScannerPipelineTests
         var request = new LibraryDigitalUploadRequestDto
         {
             RequestId = requestId, BookReference = book.PublicId,
-            Title = "Licensed PDF"
+            Title = "Licensed PDF", Rights = ValidRights()
         };
         var response = await digital.UploadAsync(request, new PrivateFileUploadDto
         {
@@ -98,7 +98,7 @@ public sealed class LibraryDigitalScannerPipelineTests
         Assert.Equal(scannerState == "clean" ? 1 : 0, await db.FileAssets.CountAsync());
         Assert.Equal(scannerState == "clean" ? 1 : 0, await db.Documents.CountAsync());
         Assert.Equal(scannerState == "clean" ? 1 : 0, await db.AuditLogs.CountAsync(x =>
-            x.Action == "LibraryDigitalResource.Publish"));
+            x.Action == "LibraryDigitalResource.Submit"));
         if (scannerState == "clean")
         {
             storage.Verify(x => x.DeletePrivateAsync(key), Times.Never);
@@ -147,7 +147,8 @@ public sealed class LibraryDigitalScannerPipelineTests
         var library = new LibraryDigitalResourceService(db, admin, documents,
             storage.Object, TimeProvider.System, NullLogger<LibraryDigitalResourceService>.Instance);
         var request = new LibraryDigitalUploadRequestDto
-        { RequestId = requestId, BookReference = book.PublicId, Title = "Recoverable PDF" };
+        { RequestId = requestId, BookReference = book.PublicId, Title = "Recoverable PDF",
+            Rights = ValidRights() };
         PrivateFileUploadDto Upload() => new()
         {
             FileName = "recovery.pdf", ContentType = "application/pdf",
@@ -164,9 +165,16 @@ public sealed class LibraryDigitalScannerPipelineTests
         Assert.Single(await db.FileAssets.ToListAsync());
         Assert.Single(await db.Documents.ToListAsync());
         Assert.Single(await db.AuditLogs.Where(x =>
-            x.Action == "LibraryDigitalResource.Publish").ToListAsync());
+            x.Action == "LibraryDigitalResource.Submit").ToListAsync());
         storage.Verify(x => x.DeletePrivateAsync(key), Times.Once);
         Assert.Equal(2, scanCount);
     }
+
+    private static LibraryDigitalRightsRequestDto ValidRights() => new()
+    {
+        LanguageCode = "bn-BD", SourceUrl = "https://example.org/education/source",
+        RightsHolder = "Institute", LicenceCode = "InstitutionOwned",
+        LicenceEvidence = "Institutional authorship attestation"
+    };
 
 }

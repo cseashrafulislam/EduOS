@@ -63,6 +63,16 @@
             <tbody id="contentRows"><tr><td colspan="5" class="text-center text-muted p-3">Select a course.</td></tr></tbody>
         </table></div>
     </section>
+    <section id="contentLibraryPanel" class="card mt-3 d-none" aria-labelledby="contentLibraryHeading">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <h3 id="contentLibraryHeading" class="h6 mb-0">Licensed subject library / বিষয়ভিত্তিক অনুমোদিত বই</h3>
+            <a class="btn btn-sm btn-outline-secondary" asp-controller="Library" asp-action="Digital">Browse library / লাইব্রেরি</a>
+        </div>
+        <div class="card-body">
+            <p class="small text-muted">Only currently approved content available to your campus is shown / শুধু আপনার ক্যাম্পাসে অনুমোদিত উপকরণ দেখানো হচ্ছে।</p>
+            <div id="contentLibraryRows" class="row g-2" aria-live="polite"></div>
+        </div>
+    </section>
     @if (author)
     {
         <section id="contentRevisionPanel" class="card mt-3 d-none" aria-labelledby="contentRevisionHeading">

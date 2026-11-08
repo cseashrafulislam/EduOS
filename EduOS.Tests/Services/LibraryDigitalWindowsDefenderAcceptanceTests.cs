@@ -126,7 +126,12 @@ public sealed class LibraryDigitalWindowsDefenderAcceptanceTests
             var response = await library.UploadAsync(new LibraryDigitalUploadRequestDto
             {
                 RequestId = requestId, BookReference = book.PublicId,
-                Title = "Scanned synthetic PDF"
+                Title = "Scanned synthetic PDF", Rights = new LibraryDigitalRightsRequestDto
+                {
+                    LanguageCode = "bn-BD", SourceUrl = "https://example.org/licence",
+                    RightsHolder = "Institution", LicenceCode = "InstitutionOwned",
+                    LicenceEvidence = "Approved local test resource"
+                }
             }, new PrivateFileUploadDto
             {
                 FileName = fileName, ContentType = contentType,
@@ -153,7 +158,7 @@ public sealed class LibraryDigitalWindowsDefenderAcceptanceTests
                     StringComparison.Ordinal);
                 Assert.Single(await db.Documents.ToListAsync());
                 Assert.Single(await db.AuditLogs.Where(x =>
-                    x.Action == "LibraryDigitalResource.Publish").ToListAsync());
+                    x.Action == "LibraryDigitalResource.Submit").ToListAsync());
                 var download = await library.DownloadAsync(requestId);
                 Assert.True(download.Success, download.Message);
                 Assert.Equal(bytes, download.Data!.Content);

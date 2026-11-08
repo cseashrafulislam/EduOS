@@ -10,18 +10,24 @@ public static class LibraryDigitalCsvWriter
     {
         var csv = new StringBuilder();
         csv.AppendLine(bangla
-            ? "বই,বিভাগ,রিসোর্স,ফাইল,ধরন,বাইট,অবস্থা,শেষের তারিখ (UTC),প্রকাশের সময়,ক্যাম্পাস"
-            : "Book,Category,Resource,File,Content type,Bytes,Status,Expires UTC,Published UTC,Campus");
+            ? "বই,বিভাগ,রিসোর্স,ফাইল,ধরন,বাইট,অবস্থা,শেষের তারিখ (UTC),প্রকাশের সময়,ক্যাম্পাস,শিক্ষাক্রম আইডি,শ্রেণি আইডি,বিষয় আইডি,অধ্যায়,বিষয়বস্তু,ভাষা,উৎস,স্বত্বাধিকারী,লাইসেন্স"
+            : "Book,Category,Resource,File,Content type,Bytes,Status,Expires UTC,Published UTC,Campus,Curriculum ID,Level ID,Subject ID,Chapter,Topic,Language,Source,Rights holder,Licence");
         foreach (var row in rows)
             csv.AppendLine(string.Join(",", new[]
             {
                 Cell(row.BookTitle), Cell(row.BookCategory), Cell(row.Title), Cell(row.FileName),
                 Cell(row.ContentType), Cell(row.SizeBytes.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                Cell(row.IsActive ? "Active" : "Revoked"),
+                Cell(row.ReviewStatus is "Pending" or "Rejected" ? row.ReviewStatus :
+                    row.IsActive ? "Active" : "Revoked"),
                 Cell(row.ExpiresOn?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)),
                 Cell(row.CreatedAt.ToString("O")),
                 Cell(row.CampusId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ??
-                    (bangla ? "সব ক্যাম্পাস" : "All campuses"))
+                    (bangla ? "সব ক্যাম্পাস" : "All campuses")),
+                Cell(row.CurriculumId?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Cell(row.LevelId?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Cell(row.SubjectId?.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                Cell(row.Chapter), Cell(row.Topic), Cell(row.LanguageCode), Cell(row.SourceUrl),
+                Cell(row.RightsHolder), Cell(row.LicenceCode)
             }));
         var payload = new UTF8Encoding(false).GetBytes(csv.ToString());
         var bom = new UTF8Encoding(true).GetPreamble();

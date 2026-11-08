@@ -1295,6 +1295,9 @@ public class EduOSDbContext :
         TenantReference<Document, FileAsset>(modelBuilder, nameof(Document.FileAssetId));
         TenantReference<Document, Document>(modelBuilder, nameof(Document.SupersedesDocumentId));
         TenantReference<Document, Campus>(modelBuilder, nameof(Document.LibraryCampusId));
+        TenantReference<Document, AcademicCurriculum>(modelBuilder, nameof(Document.ContentCurriculumId));
+        TenantReference<Document, AcademicLevel>(modelBuilder, nameof(Document.ContentLevelId));
+        TenantReference<Document, Subject>(modelBuilder, nameof(Document.ContentSubjectId));
         // System / Integration
         TenantReference<CustomFieldOption, CustomFieldDefinition>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId));
         TenantReference<CustomFieldValue, CustomFieldDefinition>(modelBuilder, nameof(CustomFieldValue.CustomFieldDefinitionId));
@@ -2137,6 +2140,8 @@ public class EduOSDbContext :
         UniqueTenant<FileAsset>(modelBuilder, nameof(FileAsset.StorageProvider), nameof(FileAsset.StorageKey));
         modelBuilder.Entity<Document>().HasIndex(x => new { x.TenantId, x.FileAssetId })
             .IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<Document>().HasIndex(x => new
+            { x.TenantId, x.ContentCurriculumId, x.ContentSubjectId, x.IsActive });
         UniqueTenant<DocumentTemplate>(modelBuilder, nameof(DocumentTemplate.Code));
         UniqueTenant<CustomFieldDefinition>(modelBuilder, nameof(CustomFieldDefinition.EntityType), nameof(CustomFieldDefinition.FieldKey));
         UniqueTenant<CustomFieldOption>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId), nameof(CustomFieldOption.Value));

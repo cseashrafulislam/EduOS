@@ -8,9 +8,13 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface ILibraryDigitalResourceService
 {
     Task<ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>> GetCampusOptionsAsync(CancellationToken ct = default);
+    Task<ApiResponse<PagedResult<LibraryDigitalCurriculumOptionDto>>> GetCurriculumOptionsAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<LibraryDigitalResourceDto>>> ListAsync(
         Guid? bookReference, string? search, int page, int pageSize, bool includeInactive,
-        CancellationToken ct = default, string? category = null, string? author = null, string? publisher = null, string? edition = null);
+        CancellationToken ct = default, string? category = null, string? author = null,
+        string? publisher = null, string? edition = null, long? curriculumId = null,
+        long? subjectId = null, string? chapter = null, string? language = null);
     Task<ApiResponse<PagedResult<LibraryDigitalVersionDto>>> GetVersionHistoryAsync(
         Guid reference, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<LibraryDigitalAuditDto>>> GetAuditTrailAsync(
@@ -25,5 +29,8 @@ public interface ILibraryDigitalResourceService
         Guid reference, LibraryDigitalMetadataRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<LibraryDigitalResourceDto>> RevokeAsync(
         Guid reference, LibraryDigitalRevokeRequestDto request, CancellationToken ct = default);
+    Task<ApiResponse<LibraryDigitalResourceDto>> ReviewAsync(
+        Guid reference, LibraryDigitalReviewRequestDto request, bool approve,
+        CancellationToken ct = default);
     Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(Guid reference, CancellationToken ct = default);
 }

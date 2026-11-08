@@ -29,6 +29,7 @@
     }
     let page = 1, requestSequence = 0, uploadRequestId = null, editing = null;
     let replacing = null, replaceRequestId = null, campusOptionsReady = false;
+    const curriculumOptions = new Map();
     const pageSize = 20;
     const token = () => document.querySelector('meta[name="request-verification-token"]')?.content ||
         el('digitalUploadForm')?.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -75,12 +76,47 @@
             search: el('digitalQuery').value.trim() });
         for (const [key, id] of [['category', 'digitalCategoryFilter'],
             ['author', 'digitalAuthorFilter'], ['publisher', 'digitalPublisherFilter'],
-            ['edition', 'digitalEditionFilter']]) {
+            ['edition', 'digitalEditionFilter'], ['chapter', 'digitalChapterFilter'],
+            ['language', 'digitalLanguageFilter']]) {
             const value = el(id).value.trim();
             if (value) q.set(key, value);
         }
         if (admin && el('digitalStatus').value === 'all') q.set('includeInactive', 'true');
         return q;
+    }
+    function appendRights(form, prefix, curriculum = null) {
+        const entry = curriculum || (prefix === 'digital' ?
+            curriculumOptions.get(el('digitalCurriculum')?.value) : null);
+        if (entry) {
+            form.append('Rights.CurriculumId', entry.curriculumId);
+            form.append('Rights.LevelId', entry.levelId);
+            form.append('Rights.SubjectId', entry.subjectId);
+        }
+        for (const field of ['Chapter', 'Topic', 'Language', 'SourceUrl', 'RightsHolder',
+            'LicenceCode', 'LicenceEvidence']) {
+            const value = el(prefix + field)?.value?.trim() || '';
+            if (value) form.append('Rights.' + (field === 'Language' ? 'LanguageCode' : field), value);
+        }
+    }
+    async function findCurricula() {
+        if (!admin || !currentSession()) return;
+        const select = el('digitalCurriculum'), query = el('digitalCurriculumSearch').value.trim();
+        const previous = select.value;
+        select.disabled = true;
+        try {
+            const result = await api('/api/library/digital/curriculum-options?' +
+                new URLSearchParams({ search: query, page: '1', pageSize: '50' }));
+            if (!currentSession()) return;
+            select.replaceChildren(new Option(words('General library resource', 'সাধারণ লাইব্রেরি রিসোর্স'), ''));
+            curriculumOptions.clear();
+            for (const item of result?.items || []) {
+                const key = [item.curriculumId, item.levelId, item.subjectId].join(':');
+                curriculumOptions.set(key, item);
+                select.add(new Option([item.curriculumName, item.levelName, item.subjectName].join(' / '), key));
+            }
+            select.value = curriculumOptions.has(previous) ? previous : '';
+        } catch (error) { if (currentSession()) notify(error.message); }
+        finally { select.disabled = false; }
     }
     async function download(resource, button) {
         if (!currentSession()) return;
@@ -119,6 +155,23 @@
             });
             await load();
             notify(words('Access revoked.', 'অনুমতি বাতিল হয়েছে।'), true);
+        } catch (error) { notify(error.message); button.disabled = false; }
+    }
+    async function review(resource, approve, button) {
+        const note = window.prompt(approve ? words('Review note / permission evidence:', 'অনুমোদনের মন্তব্য:') :
+            words('Reason for rejection:', 'বাতিলের কারণ:'));
+        if (!note?.trim()) return;
+        if (note.trim().length > 500) return notify(words('Note is too long.', 'মন্তব্য অতিরিক্ত দীর্ঘ।'));
+        button.disabled = true;
+        try {
+            await api('/api/library/digital/' + encodeURIComponent(resource.reference) +
+                '/review?approve=' + approve, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rowVersion: resource.rowVersion, note: note.trim() })
+            });
+            await load();
+            notify(approve ? words('Resource approved.', 'রিসোর্স অনুমোদিত।') :
+                words('Resource rejected.', 'রিসোর্স প্রত্যাখ্যাত।'), true);
         } catch (error) { notify(error.message); button.disabled = false; }
     }
     function edit(resource) {
@@ -169,6 +222,11 @@
         el('digitalReplaceForm').reset();
         el('digitalReplaceTitle').value = resource.title || '';
         el('digitalReplaceExpiry').value = resource.expiresOn || '';
+        for (const [field, key] of [['Chapter', 'chapter'], ['Topic', 'topic'],
+            ['Language', 'languageCode'], ['SourceUrl', 'sourceUrl'],
+            ['RightsHolder', 'rightsHolder'], ['LicenceCode', 'licenceCode'],
+            ['LicenceEvidence', 'licenceEvidence']])
+            el('digitalReplace' + field).value = resource[key] || (field === 'Language' ? 'bn-BD' : '');
         el('digitalReplaceDialog').showModal();
     }
     async function saveReplacement(event) {
@@ -184,6 +242,10 @@
         data.append('Title', el('digitalReplaceTitle').value.trim());
         if (el('digitalReplaceExpiry').value)
             data.append('ExpiresOn', el('digitalReplaceExpiry').value);
+        appendRights(data, 'digitalReplace', replacing.curriculumId ? {
+            curriculumId: replacing.curriculumId, levelId: replacing.levelId,
+            subjectId: replacing.subjectId
+        } : null);
         data.append('file', file, file.name);
         const button = el('digitalReplaceSave');
         button.disabled = true;
@@ -192,8 +254,9 @@
                 '/replace', { method: 'POST', body: data });
             el('digitalReplaceDialog').close();
             replacing = null; replaceRequestId = null;
+            el('digitalStatus').value = 'all'; page = 1;
             await load();
-            notify(words('New version published.', 'নতুন সংস্করণ প্রকাশিত হয়েছে।'), true);
+            notify(words('Replacement submitted for review.', 'নতুন সংস্করণ রিভিউয়ের জন্য জমা হয়েছে।'), true);
         } catch (error) { notify(error.message); }
         finally { button.disabled = false; }
     }
@@ -266,7 +329,11 @@
             [words('Category', 'বিভাগ'), resource.bookCategory],
             [words('Publisher', 'প্রকাশক'), resource.bookPublisher],
             [words('Edition', 'সংস্করণ'), resource.bookEdition],
-            ['ISBN', resource.bookIsbn]
+            ['ISBN', resource.bookIsbn],
+            [words('Chapter', 'অধ্যায়'), resource.chapter],
+            [words('Topic', 'বিষয়'), resource.topic],
+            [words('Language', 'ভাষা'), resource.languageCode],
+            [words('Rights holder', 'স্বত্বাধিকারী'), resource.rightsHolder]
         ].filter(([, value]) => typeof value === 'string' && value.trim());
         return values.map(([label, value]) => label + ': ' + value.trim()).join(' · ');
     }
@@ -277,7 +344,9 @@
             const tr = document.createElement('tr');
             const expired = !!resource.expiresOn && resource.expiresOn < new Date().toISOString().slice(0, 10);
             [resource.bookTitle, resource.title, resource.fileName,
-                (!resource.isActive ? words('Revoked', 'বাতিল') :
+                (resource.reviewStatus === 'Pending' ? words('Pending review', 'রিভিউ অপেক্ষমাণ') :
+                    resource.reviewStatus === 'Rejected' ? words('Rejected', 'প্রত্যাখ্যাত') :
+                    !resource.isActive ? words('Revoked', 'বাতিল') :
                     expired ? words('Expired', 'মেয়াদ শেষ') : words('Active', 'সক্রিয়')) +
                     (admin ? ' · ' + (resource.campusId == null ?
                         words('All campuses', 'সব ক্যাম্পাস') :
@@ -293,6 +362,14 @@
             }
             const actions = document.createElement('td');
             if (resource.isActive && !expired) {
+                if (['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(resource.contentType)) {
+                    const reader = document.createElement('a');
+                    reader.className = 'btn btn-sm btn-outline-success me-2';
+                    reader.href = '/api/library/digital/' + encodeURIComponent(resource.reference) + '/read';
+                    reader.target = '_blank'; reader.rel = 'noopener noreferrer';
+                    reader.textContent = words('Read', 'পড়ুন');
+                    actions.append(reader);
+                }
                 const button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
                 button.textContent = words('Download', 'ডাউনলোড');
@@ -300,6 +377,17 @@
                 actions.append(button);
             }
             if (admin) {
+                if (resource.reviewStatus === 'Pending') {
+                    for (const [approve, label, style] of [
+                        [true, words('Approve', 'অনুমোদন'), 'btn-outline-success'],
+                        [false, words('Reject', 'প্রত্যাখ্যান'), 'btn-outline-danger']]) {
+                        const button = document.createElement('button');
+                        button.type = 'button'; button.className = 'btn btn-sm ' + style + ' ms-2';
+                        button.textContent = label;
+                        button.addEventListener('click', () => review(resource, approve, button));
+                        actions.append(button);
+                    }
+                }
                 const historyButton = document.createElement('button');
                 historyButton.type = 'button';
                 historyButton.className = 'btn btn-sm btn-outline-secondary ms-2';
@@ -394,14 +482,16 @@
         data.append('Title', el('digitalTitle').value.trim());
         if (el('digitalExpiresOn').value) data.append('ExpiresOn', el('digitalExpiresOn').value);
         if (el('digitalCampus').value) data.append('CampusId', el('digitalCampus').value);
+        appendRights(data, 'digital');
         data.append('file', file, file.name);
         const button = el('digitalPublish');
         button.disabled = true;
         try {
             await api('/api/library/digital', { method: 'POST', body: data });
             form.reset(); uploadRequestId = null; clearAlert();
+            el('digitalStatus').value = 'all'; page = 1;
             await load();
-            notify(words('Resource published.', 'রিসোর্স প্রকাশিত হয়েছে।'), true);
+            notify(words('Resource submitted for human review.', 'রিসোর্স রিভিউয়ের জন্য জমা হয়েছে।'), true);
         } catch (error) { notify(error.message); }
         finally { button.disabled = false; }
     }
@@ -516,7 +606,8 @@
     }
     el('digitalClearFilters').addEventListener('click', () => {
         for (const id of ['digitalQuery', 'digitalCategoryFilter', 'digitalAuthorFilter',
-            'digitalPublisherFilter', 'digitalEditionFilter']) el(id).value = '';
+            'digitalPublisherFilter', 'digitalEditionFilter', 'digitalChapterFilter',
+            'digitalLanguageFilter']) el(id).value = '';
         if (admin) el('digitalStatus').value = 'active';
         page = 1; clearAlert(); load();
     });
@@ -527,8 +618,12 @@
     el('digitalNext').addEventListener('click', () => { page++; load(); });
     if (admin) {
         el('digitalBookFind').addEventListener('click', findBooks);
+        el('digitalCurriculumFind').addEventListener('click', findCurricula);
         el('digitalUploadForm').addEventListener('submit', publish);
-        ['digitalFile', 'digitalTitle', 'digitalBook', 'digitalExpiresOn', 'digitalCampus'].forEach(id =>
+        ['digitalFile', 'digitalTitle', 'digitalBook', 'digitalExpiresOn', 'digitalCampus',
+            'digitalCurriculum', 'digitalChapter', 'digitalTopic', 'digitalLanguage',
+            'digitalSourceUrl', 'digitalRightsHolder', 'digitalLicenceCode',
+            'digitalLicenceEvidence'].forEach(id =>
             el(id).addEventListener('change', () => { uploadRequestId = null; }));
         el('digitalExport').addEventListener('click', exportPage);
         el('digitalEditForm').addEventListener('submit', saveEdit);
@@ -543,6 +638,7 @@
         el('digitalEditCancel').addEventListener('click', () => el('digitalEditDialog').close());
         el('digitalEditDialog').addEventListener('close', () => { editing = null; });
         findBooks();
+        findCurricula();
         loadCampuses();
     }
     function clearSensitive() {
@@ -557,13 +653,15 @@
         activeRequests.clear();
         uploadRequestId = null; editing = null; replacing = null; replaceRequestId = null;
         campusOptionsReady = false;
+        curriculumOptions.clear();
         rows.replaceChildren();
         el('digitalCount').textContent = '';
         el('digitalPage').textContent = '';
         el('digitalPrevious').disabled = true;
         el('digitalNext').disabled = true;
         for (const id of ['digitalQuery', 'digitalCategoryFilter', 'digitalAuthorFilter',
-            'digitalPublisherFilter', 'digitalEditionFilter']) el(id).value = '';
+            'digitalPublisherFilter', 'digitalEditionFilter', 'digitalChapterFilter',
+            'digitalLanguageFilter']) el(id).value = '';
         clearAlert();
         if (admin) {
             el('digitalUploadForm').reset();
@@ -574,6 +672,8 @@
             el('digitalPublish').disabled = true;
             el('digitalBook').replaceChildren();
             el('digitalBookSearch').value = '';
+            el('digitalCurriculumSearch').value = '';
+            el('digitalCurriculum').replaceChildren();
             el('digitalEditForm').reset();
             el('digitalReplaceForm').reset();
             if (el('digitalReplaceDialog').open) el('digitalReplaceDialog').close();

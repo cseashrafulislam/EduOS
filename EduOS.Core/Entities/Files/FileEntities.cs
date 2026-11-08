@@ -28,6 +28,18 @@ public class Document : BaseTenantEntity
     public long? SupersedesDocumentId { get; set; }
     // Null keeps historical institute-wide digital licences; non-null limits access to one active campus.
     public long? LibraryCampusId { get; set; }
+    // Licensed education content metadata is version-specific; Book remains the
+    // authoritative bibliographic catalogue and Document owns each publication.
+    public long? ContentCurriculumId { get; set; }
+    public long? ContentLevelId { get; set; }
+    public long? ContentSubjectId { get; set; }
+    [MaxLength(150)] public string? ContentChapter { get; set; }
+    [MaxLength(150)] public string? ContentTopic { get; set; }
+    [MaxLength(10)] public string? ContentLanguageCode { get; set; }
+    [MaxLength(1000)] public string? ContentSourceUrl { get; set; }
+    [MaxLength(200)] public string? ContentRightsHolder { get; set; }
+    [MaxLength(32)] public string? ContentLicenceCode { get; set; }
+    [MaxLength(500)] public string? ContentLicenceEvidence { get; set; }
     [MaxLength(100)] public string? EntityType { get; set; }
     public long? EntityId { get; set; }
     [MaxLength(250)] public string? Title { get; set; }

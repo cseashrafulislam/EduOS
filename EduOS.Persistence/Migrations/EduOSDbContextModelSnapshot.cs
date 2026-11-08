@@ -3417,6 +3417,43 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("ContentChapter")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<long?>("ContentCurriculumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentLanguageCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<long?>("ContentLevelId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentLicenceCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ContentLicenceEvidence")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ContentRightsHolder")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContentSourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long?>("ContentSubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentTopic")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<string>("DocumentTypeCode")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -9386,6 +9423,14 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("PublicId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "ContentCurriculumId");
+
+                    b.HasIndex("TenantId", "ContentLevelId");
+
+                    b.HasIndex("TenantId", "ContentSubjectId");
+
+                    b.HasIndex("TenantId", "ContentCurriculumId", "ContentSubjectId", "IsActive");
 
                     b.HasIndex("TenantId", "DocumentTypeCode");
 
@@ -27170,6 +27215,24 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicCurriculum", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ContentCurriculumId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicLevel", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ContentLevelId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Subject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ContentSubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
                         .WithMany()
