@@ -75,3 +75,12 @@ test('A3 cancellation must reconcile finance assignment even before linkage and 
     assert.match(svc, /canonical == null \|\| canonical\.IsActive/);
     assert.match(svc, /current\.StudentDiscountId = canonical\.Id/);
 });
+
+test('A3 financial attribution gets a real disposable SQL Server acceptance gate', () => {
+    const workflow = file('.github/workflows/sqlserver-migration.yml');
+    assert.match(workflow, /FullyQualifiedName~SqlServerStudentFeeInstallmentPlanIntegrationTests/);
+    assert.match(workflow, /FullyQualifiedName~SqlServerFeeDiscountAttributionReviewIntegrationTests/);
+    const proof = file('EduOS.Tests/App/SqlServerFeeDiscountAttributionReviewIntegrationTests.cs');
+    assert.match(proof, /StudentInvoiceDiscountAttributions/);
+    assert.match(proof, /GetDiscountAttributionReviewAsync/);
+});
