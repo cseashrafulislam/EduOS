@@ -26,3 +26,13 @@ test('server-authorized document decisions retain concurrency and CSRF checks', 
   assert.match(js, /rowVersion: button\.dataset\.documentRowVersion/);
   assert.match(js, /options\.headers\.RequestVerificationToken = csrf/);
 });
+
+test('document triage supports searchable paged history with bounded navigation', () => {
+  for (const id of ['applicantDocumentSearch', 'applicantDocumentPageSize', 'applicantDocumentPrevious', 'applicantDocumentNext', 'applicantDocumentPageStatus']) {
+    assert.ok(view.includes('id="' + id + '"'));
+    assert.ok(js.includes(id));
+  }
+  assert.match(js, /matched\.slice\(\(state\.documentPage - 1\) \* pageSize, state\.documentPage \* pageSize\)/);
+  assert.match(js, /Math\.min\(totalPages, Math\.max\(1, state\.documentPage\)\)/);
+  assert.match(js, /state\.documentPage = 1;\s*setValue\('applicantDocumentSearch', ''\)/);
+});

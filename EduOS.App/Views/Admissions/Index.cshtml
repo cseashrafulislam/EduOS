@@ -292,8 +292,23 @@
                             </select>
                         </div>
                     </div>
+                    <div class="row g-2 align-items-end mb-2">
+                        <div class="col-sm-7">
+                            <label class="form-label" for="applicantDocumentSearch">@(bn ? "নথির ধরন বা ফাইলের নাম খুঁজুন" : "Find document type or filename")</label>
+                            <input id="applicantDocumentSearch" type="search" class="form-control form-control-sm" maxlength="120" autocomplete="off" />
+                        </div>
+                        <div class="col-sm-5">
+                            <label class="form-label" for="applicantDocumentPageSize">@(bn ? "প্রতি পাতায় নথি" : "Documents per page")</label>
+                            <select id="applicantDocumentPageSize" class="form-select form-select-sm"><option value="10">10</option><option value="20">20</option><option value="50">50</option></select>
+                        </div>
+                    </div>
                     <p id="applicantDocumentSummary" class="small text-muted" role="status" aria-live="polite" aria-atomic="true"></p>
                     <div id="applicantDocumentList" class="applicant-document-list" aria-live="polite"></div>
+                    <nav class="d-flex gap-2 align-items-center justify-content-end mt-2" aria-label="@(bn ? "নথির পৃষ্ঠা" : "Document pages")">
+                        <button id="applicantDocumentPrevious" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button>
+                        <span id="applicantDocumentPageStatus" role="status" aria-live="polite"></span>
+                        <button id="applicantDocumentNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button>
+                    </nav>
                 </section>
                 <form id="reviewForm" class="row g-3">
                     <input id="reviewReference" type="hidden" />

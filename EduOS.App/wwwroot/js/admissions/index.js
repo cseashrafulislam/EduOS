@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, savingIntake: false, intakeFingerprint: null };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -29,6 +29,11 @@
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
         document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
+        document.getElementById('applicantDocumentSearch')?.addEventListener('input', resetApplicantDocumentPage);
+        document.getElementById('applicantDocumentPageSize')?.addEventListener('change', resetApplicantDocumentPage);
+        document.getElementById('applicantDocumentPrevious')?.addEventListener('click', () => changeApplicantDocumentPage(-1));
+        document.getElementById('applicantDocumentNext')?.addEventListener('click', () => changeApplicantDocumentPage(1));
+
         document.getElementById('intakeFormList')?.addEventListener('click', handleIntakeFormAction);
         document.getElementById('intakeFormSearch')?.addEventListener('input', resetIntakeCataloguePage);
         document.getElementById('intakeFormState')?.addEventListener('change', resetIntakeCataloguePage);
@@ -959,6 +964,8 @@
         ++state.documentRequest; // Invalidate documents from the previously selected applicant.
         state.documents = [];
         state.documentReference = null;
+        state.documentPage = 1;
+        setValue('applicantDocumentSearch', '');
         const documentSummary = document.getElementById('applicantDocumentSummary');
         if (documentSummary) documentSummary.textContent = '';
         const documentList = document.getElementById('applicantDocumentList');
@@ -1065,6 +1072,16 @@
 
     // Document triage is read-only until a reviewer explicitly selects a latest,
     // pending version. The server remains authoritative for every decision.
+    function resetApplicantDocumentPage() {
+        state.documentPage = 1;
+        renderApplicantDocuments();
+    }
+
+    function changeApplicantDocumentPage(delta) {
+        state.documentPage += delta;
+        renderApplicantDocuments();
+    }
+
     function renderApplicantDocuments() {
         const list = document.getElementById('applicantDocumentList');
         const summary = document.getElementById('applicantDocumentSummary');
@@ -1095,17 +1112,29 @@
                 || (filter === 'pending' && status !== 2 && status !== 3);
         }).sort((a, b) => String(a.documentTypeCode || '').localeCompare(String(b.documentTypeCode || ''))
             || Number(b.versionNo) - Number(a.versionNo));
+        const search = valueOf('applicantDocumentSearch').toLocaleLowerCase();
+        const matched = visible.filter(item => !search || [item.documentTypeCode, item.originalFileName].some(value => String(value || '').toLocaleLowerCase().includes(search)));
+        const pageSize = [10, 20, 50].includes(Number(valueOf('applicantDocumentPageSize'))) ? Number(valueOf('applicantDocumentPageSize')) : 10;
+        const totalPages = Math.max(1, Math.ceil(matched.length / pageSize));
+        state.documentPage = Math.min(totalPages, Math.max(1, state.documentPage));
+        const pageItems = matched.slice((state.documentPage - 1) * pageSize, state.documentPage * pageSize);
+        const previous = document.getElementById('applicantDocumentPrevious');
+        const next = document.getElementById('applicantDocumentNext');
+        if (previous) previous.disabled = state.documentPage <= 1;
+        if (next) next.disabled = state.documentPage >= totalPages;
+        const pageStatus = document.getElementById('applicantDocumentPageStatus');
+        if (pageStatus) pageStatus.textContent = (bangla ? 'পৃষ্ঠা ' : 'Page ') + new Intl.NumberFormat(bangla ? 'bn-BD' : 'en-BD').format(state.documentPage) + ' / ' + new Intl.NumberFormat(bangla ? 'bn-BD' : 'en-BD').format(totalPages);
         const number = value => new Intl.NumberFormat(bangla ? 'bn-BD' : 'en-BD').format(value);
         if (summary) summary.textContent = bangla
-            ? `সর্বশেষ নথি ${number(latest.length)} · যাচাই বাকি ${number(counts.pending)} · যাচাইকৃত ${number(counts.verified)} · বাতিল ${number(counts.rejected)} · দেখানো হচ্ছে ${number(visible.length)}`
-            : `Latest documents ${number(latest.length)} · Pending ${number(counts.pending)} · Verified ${number(counts.verified)} · Rejected ${number(counts.rejected)} · Showing ${number(visible.length)}`;
-        if (!visible.length) {
+            ? `সর্বশেষ নথি ${number(latest.length)} · যাচাই বাকি ${number(counts.pending)} · যাচাইকৃত ${number(counts.verified)} · বাতিল ${number(counts.rejected)} · মিলেছে ${number(matched.length)} · দেখানো হচ্ছে ${number(pageItems.length)}`
+            : `Latest documents ${number(latest.length)} · Pending ${number(counts.pending)} · Verified ${number(counts.verified)} · Rejected ${number(counts.rejected)} · Matching ${number(matched.length)} · Showing ${number(pageItems.length)}`;
+        if (!pageItems.length) {
             list.replaceChildren(statusMessage(documents.length
                 ? (bangla ? 'এই ফিল্টারে কোনো নথি নেই।' : 'No documents match these filters.')
                 : (bangla ? 'আবেদনকারীর কোনো নথি আপলোড করা হয়নি।' : 'No applicant documents have been uploaded.')));
             return;
         }
-        list.replaceChildren(...visible.map(documentItem => {
+        list.replaceChildren(...pageItems.map(documentItem => {
             const card = document.createElement('article');
             card.className = 'applicant-document-card';
             const documentSummary = document.createElement('div');
