@@ -26,8 +26,6 @@ public partial class EducationDigitalContentReview : Migration
         migrationBuilder.AddColumn<string>("ContentRightsHolder", "Documents", "nvarchar(200)", maxLength: 200, nullable: true);
         migrationBuilder.AddColumn<string>("ContentLicenceCode", "Documents", "nvarchar(32)", maxLength: 32, nullable: true);
         migrationBuilder.AddColumn<string>("ContentLicenceEvidence", "Documents", "nvarchar(500)", maxLength: 500, nullable: true);
-        migrationBuilder.CreateIndex("IX_Documents_TenantId_ContentCurriculumId", "Documents",
-            new[] { "TenantId", "ContentCurriculumId" });
         migrationBuilder.CreateIndex("IX_Documents_TenantId_ContentLevelId", "Documents",
             new[] { "TenantId", "ContentLevelId" });
         migrationBuilder.CreateIndex("IX_Documents_TenantId_ContentSubjectId", "Documents",
@@ -56,7 +54,6 @@ public partial class EducationDigitalContentReview : Migration
         migrationBuilder.DropForeignKey("FK_Documents_AcademicCurriculums_TenantId_ContentCurriculumId", "Documents");
         migrationBuilder.DropForeignKey("FK_Documents_AcademicLevels_TenantId_ContentLevelId", "Documents");
         migrationBuilder.DropForeignKey("FK_Documents_Subjects_TenantId_ContentSubjectId", "Documents");
-        migrationBuilder.DropIndex("IX_Documents_TenantId_ContentCurriculumId", "Documents");
         migrationBuilder.DropIndex("IX_Documents_TenantId_ContentLevelId", "Documents");
         migrationBuilder.DropIndex("IX_Documents_TenantId_ContentSubjectId", "Documents");
         migrationBuilder.DropIndex("IX_Documents_TenantId_ContentCurriculumId_ContentSubjectId_IsActive", "Documents");

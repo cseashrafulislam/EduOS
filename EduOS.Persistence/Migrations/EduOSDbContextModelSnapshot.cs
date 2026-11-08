@@ -9424,8 +9424,6 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("PublicId")
                         .IsUnique();
 
-                    b.HasIndex("TenantId", "ContentCurriculumId");
-
                     b.HasIndex("TenantId", "ContentLevelId");
 
                     b.HasIndex("TenantId", "ContentSubjectId");
