@@ -63,6 +63,22 @@ public sealed class LibraryDigitalResourceService(
                 x.State == EnrollmentState.Active && studentIds.Contains(x.StudentId) &&
                 campuses.Contains(x.CampusId)).Select(x => x.CampusId);
         }
+        if (user.IsInRole("Guardian") || user.IsInRole("Parent"))
+        {
+            var guardianIds = db.Guardians.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && x.UserId == user.UserId &&
+                x.IsActive && !x.IsDeleted).Select(x => x.Id);
+            var linkedStudents = db.StudentGuardians.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && guardianIds.Contains(x.GuardianId) && !x.IsDeleted)
+                .Select(x => x.StudentId);
+            var activeStudents = db.Students.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && linkedStudents.Contains(x.Id) &&
+                x.StatusCode == "Active" && !x.IsDeleted).Select(x => x.Id);
+            return db.StudentEnrollments.AsNoTracking().Where(x =>
+                x.TenantId == Tenant && !x.IsDeleted && x.IsCurrent &&
+                x.State == EnrollmentState.Active && activeStudents.Contains(x.StudentId) &&
+                campuses.Contains(x.CampusId)).Select(x => x.CampusId);
+        }
         if (user.IsInRole("Librarian") || user.IsInRole("Teacher") || user.IsInRole("Employee") ||
             user.IsInRole("Staff"))
         {

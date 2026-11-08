@@ -362,6 +362,17 @@
             }
             const actions = document.createElement('td');
             if (resource.isActive && !expired) {
+                if (typeof resource.sourceUrl === 'string' &&
+                    /^https:\/\/[^\s]+$/i.test(resource.sourceUrl)) {
+                    const source = document.createElement('a');
+                    source.className = 'btn btn-sm btn-outline-secondary me-2';
+                    source.href = resource.sourceUrl;
+                    source.target = '_blank'; source.rel = 'noopener noreferrer';
+                    source.textContent = words('Source', 'উৎস');
+                    source.setAttribute('aria-label', words('Open licensed source in new tab',
+                        'লাইসেন্সপ্রাপ্ত উৎস নতুন ট্যাবে খুলুন'));
+                    actions.append(source);
+                }
                 if (['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(resource.contentType)) {
                     const reader = document.createElement('a');
                     reader.className = 'btn btn-sm btn-outline-success me-2';

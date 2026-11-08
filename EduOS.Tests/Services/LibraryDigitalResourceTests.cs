@@ -142,6 +142,52 @@ public sealed class LibraryDigitalResourceTests
     }
 
     [Fact]
+    public async Task Guardian_requires_active_link_to_student_and_campus_for_licensed_reading()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        var student = await db.Students.SingleAsync(x => x.Id == seed.Enrollment.StudentId);
+        student.UserId = 88;
+        var guardian = new Guardian
+        {
+            TenantId = 101, PersonId = 91, UserId = 7,
+            FullName = "Linked parent", IsActive = true
+        };
+        db.Guardians.Add(guardian);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Parent access reading", IsActive = true,
+            LibraryCampusId = seed.Enrollment.CampusId,
+            VerificationStatusCode = "Approved"
+        });
+        await db.SaveChangesAsync();
+        var storage = new Mock<IFileUploadService>();
+        storage.Setup(x => x.GetPrivateFileAsync(seed.Asset.StorageKey))
+            .ReturnsAsync(new FileDownloadResult
+            { Content = seed.Bytes, ContentType = "application/pdf" });
+        var reader = Service(db, "Guardian", storage: storage);
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        var link = new StudentGuardian
+        { TenantId = 101, StudentId = student.Id, GuardianId = guardian.Id, RelationCode = "Parent" };
+        db.StudentGuardians.Add(link);
+        await db.SaveChangesAsync();
+        (await reader.ListAsync(null, null, 1, 20, false)).Data!.Items.Should().ContainSingle();
+        (await reader.DownloadAsync(reference)).Success.Should().BeTrue();
+        link.IsDeleted = true;
+        await db.SaveChangesAsync();
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+        link.IsDeleted = false;
+        guardian.IsActive = false;
+        await db.SaveChangesAsync();
+        (await reader.DownloadAsync(reference)).StatusCode.Should().Be(404);
+    }
+
+    [Fact]
     public async Task Upload_requires_provenance_before_private_file_is_registered()
     {
         await using var db = Context();

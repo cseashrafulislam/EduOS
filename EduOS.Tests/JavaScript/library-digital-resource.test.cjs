@@ -52,6 +52,15 @@ test('digital resource UI is interactive, bounded, bilingual and avoids browser-
     assert.doesNotMatch(ui, /innerHTML\s*=/);
 });
 
+test('guardian reading is link-scoped and external source links are isolated', () => {
+    assert.match(service, /user\.IsInRole\("Guardian"\) \|\| user\.IsInRole\("Parent"\)/);
+    assert.match(service, /db\.StudentGuardians\.AsNoTracking\(\)/);
+    assert.match(service, /guardianIds\.Contains\(x\.GuardianId\) && !x\.IsDeleted/);
+    assert.match(service, /activeStudents\.Contains\(x\.StudentId\)/);
+    assert.match(ui, /source\.rel = 'noopener noreferrer'/);
+    assert.match(ui, /source\.setAttribute\('aria-label'/);
+});
+
 test('catalogue CSV export uses identical authorized advanced filters as list', () => {
     const list = api.match(/public async Task<IActionResult> List\([\s\S]*?\n    }/);
     const exportAction = api.match(/public async Task<IActionResult> Export\([\s\S]*?\n    }/);

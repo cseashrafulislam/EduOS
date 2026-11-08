@@ -31,6 +31,12 @@ canonical curriculum keys. Null metadata on pre-migration Documents is deliberat
 5. The LMS course-content page discovers the same approved `Document` records
    by canonical `Course.SubjectId`; its own LMS entitlement does not bypass the
    Library module permission. No library files are cached offline by this work.
+6. Linked guardians/parents can read resources only through an active guardian
+   record, a non-revoked student link, that student's current active enrollment,
+   and the same campus licence. No guardian role alone grants tenant-wide access.
+   Safe HTTPS source references open in a separate tab with `noopener noreferrer`;
+   these links do not exempt an uploaded file from scanning, rights review or
+   tenant-scoped authorization.
 
 ## Compatibility and rollout
 
