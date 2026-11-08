@@ -1,4 +1,5 @@
 using EduOS.Core.DTOs.Assessment;
+using EduOS.Core.DTOs.Research;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.Auth;
@@ -11,7 +12,10 @@ using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Persistence.Repositories;
 using EduOS.Service.Services.AssessmentAdministration;
+using EduOS.Service.Services.Research;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -981,6 +985,174 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
     }
 
     [Fact]
+    public async Task Published_component_obe_maps_two_clos_reviews_independently_and_preserves_frozen_evidence()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var seeded = await SeedAsync(options);
+        long campusId, programId, courseId, outcomeId;
+        Guid assessmentReference;
+        long batchId;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var subject = await db.AssessmentSubjects.SingleAsync(x => x.Id == seeded.AssessmentSubjectId);
+            var exam = await db.Assessments.SingleAsync(x => x.Id == subject.AssessmentId);
+            var offering = await db.SubjectOfferings.SingleAsync(x => x.Id == subject.SubjectOfferingId);
+            var batch = await db.AcademicBatches.SingleAsync(x => x.Id == offering.AcademicBatchId);
+            var master = await db.StudentAssessmentMarks.SingleAsync(x =>
+                x.AssessmentSubjectId == seeded.AssessmentSubjectId);
+            campusId = batch.CampusId;
+            programId = batch.AcademicProgramId;
+            batchId = batch.Id;
+            courseId = offering.CurriculumSubjectId;
+            assessmentReference = exam.PublicId;
+            var scheme = new GradeScheme { TenantId = seeded.TenantId, Code = "OBE-TEST",
+                Name = "OBE publication grade" };
+            var written = new AssessmentComponent { TenantId = seeded.TenantId,
+                AssessmentSubjectId = subject.Id, Name = "Written rubric", Code = "WRITTEN",
+                FullMarks = 100m, Weightage = 50m };
+            var practical = new AssessmentComponent { TenantId = seeded.TenantId,
+                AssessmentSubjectId = subject.Id, Name = "Practical rubric", Code = "PRACTICAL",
+                FullMarks = 100m, Weightage = 50m };
+            var role = new ApplicationRole { TenantId = seeded.TenantId,
+                Name = "AccreditationCoordinator", NormalizedName = "ACCREDITATIONCOORDINATOR",
+                IsActive = true };
+            db.AddRange(scheme, written, practical, role);
+            db.ProgramCampuses.Add(new ProgramCampus { TenantId = seeded.TenantId,
+                CampusId = campusId, AcademicProgramId = programId, IsActive = true });
+            foreach (var userId in new[] { seeded.TeacherId, seeded.ReviewerId })
+            {
+                db.TenantMemberships.Add(new TenantMembership { TenantId = seeded.TenantId,
+                    UserId = userId, Status = MembershipStatus.Active });
+                db.UserCampusAccesses.Add(new UserCampusAccess { TenantId = seeded.TenantId,
+                    CampusId = campusId, UserId = userId, IsActive = true });
+            }
+            await db.SaveChangesAsync();
+            db.UserRoles.AddRange(
+                new IdentityUserRole<long> { UserId = seeded.TeacherId, RoleId = role.Id },
+                new IdentityUserRole<long> { UserId = seeded.ReviewerId, RoleId = role.Id });
+            db.GradeRules.Add(new GradeRule { TenantId = seeded.TenantId,
+                GradeSchemeId = scheme.Id, MinMarks = 0m, MaxMarks = 100m,
+                GradeLetter = "B", GradePoint = 3m });
+            db.StudentAssessmentComponentMarks.AddRange(
+                new StudentAssessmentComponentMark { TenantId = seeded.TenantId,
+                    AssessmentComponentId = written.Id, StudentAssessmentMarkId = master.Id,
+                    ObtainedMarks = 60m, EnteredByUserId = seeded.TeacherId },
+                new StudentAssessmentComponentMark { TenantId = seeded.TenantId,
+                    AssessmentComponentId = practical.Id, StudentAssessmentMarkId = master.Id,
+                    ObtainedMarks = 90m, EnteredByUserId = seeded.TeacherId });
+            exam.GradeSchemeId = scheme.Id;
+            exam.State = AssessmentState.Locked;
+            await db.SaveChangesAsync();
+            var createRequest = Guid.NewGuid();
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO dbo.AccreditationProgramOutcomes
+                  (TenantId, AcademicProgramId, Code, VersionNo, Statement,
+                   CreateRequestId, CreateSha256, CreatedByUserId, CreatedAtUtc)
+                VALUES ({seeded.TenantId}, {programId}, {"PLO_OBE"}, {1},
+                    {"Use reviewed academic evidence to support programme outcomes"},
+                    {createRequest}, {new string('A', 64)}, {seeded.TeacherId}, {DateTime.UtcNow})
+                """);
+            outcomeId = await db.Database.SqlQueryRaw<long>("""
+                SELECT Id AS Value FROM dbo.AccreditationProgramOutcomes
+                WHERE TenantId = {0} AND CreateRequestId = {1}
+                """, seeded.TenantId, createRequest).SingleAsync();
+        }
+
+        long publicationId;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var published = await Service(db,
+                new Actor(seeded.TenantId, seeded.ReviewerId, "TenantAdmin"))
+                .PublishResultAsync(new() { ClientRequestId = Guid.NewGuid(),
+                    AssessmentReference = assessmentReference, AcademicBatchId = batchId,
+                    VisibleToStudent = true, VisibleToGuardian = true });
+            Assert.True(published.Success, published.Message);
+            publicationId = published.Data!.Id;
+            var count = await db.Database.SqlQueryRaw<int>("""
+                SELECT ComponentRowCount AS Value FROM dbo.ObePublishedComponentRegisters
+                WHERE TenantId = {0} AND ResultPublicationId = {1}
+                """, seeded.TenantId, publicationId).SingleAsync();
+            Assert.Equal(2, count);
+            Assert.Equal(2, await db.Database.SqlQueryRaw<int>("""
+                SELECT COUNT(*) AS Value FROM dbo.ObePublishedComponentEvidence
+                WHERE TenantId = {0} AND ResultPublicationId = {1}
+                """, seeded.TenantId, publicationId).SingleAsync());
+        }
+
+        Guid reportReference;
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var owner = new Actor(seeded.TenantId, seeded.TeacherId, "AccreditationCoordinator");
+            var service = new ObeAttainmentService(db, new ResearchWorkflowAccess(db, owner),
+                TimeProvider.System, NullLogger<ObeAttainmentService>.Instance);
+            var policyRequest = new ObePolicyCreateDto {
+                ClientRequestId = Guid.NewGuid(), CampusId = campusId,
+                AcademicProgramId = programId, VersionNo = 1,
+                CourseOutcomes = [
+                    new() { CurriculumSubjectId = courseId, Code = "CLO_WRITTEN",
+                        ComponentCode = "WRITTEN", Statement = "Understand written evidence under review" },
+                    new() { CurriculumSubjectId = courseId, Code = "CLO_PRACTICAL",
+                        ComponentCode = "PRACTICAL", Statement = "Demonstrate practical evidence in assessment" }
+                ],
+                Contributions = [
+                    new() { CourseOutcomeCode = "CLO_WRITTEN", ProgramOutcomeId = outcomeId, WeightPercent = 40m },
+                    new() { CourseOutcomeCode = "CLO_PRACTICAL", ProgramOutcomeId = outcomeId, WeightPercent = 60m }
+                ] };
+            var created = await service.CreatePolicyAsync(policyRequest);
+            Assert.True(created.Success, created.Message);
+            var replay = await service.CreatePolicyAsync(policyRequest);
+            Assert.Equal(created.Data!.Policy.Id, replay.Data!.Policy.Id);
+            var preview = await service.PreviewAsync(created.Data.Policy.Id, publicationId);
+            Assert.True(preview.Success, preview.Message);
+            Assert.Equal(78m, Assert.Single(preview.Data!.Outcomes).AttainmentPercent);
+            var clos = preview.Data.CourseOutcomes.ToDictionary(x => x.CourseOutcomeCode);
+            Assert.Equal(60m, clos["CLO_WRITTEN"].AttainmentPercent);
+            Assert.Equal(90m, clos["CLO_PRACTICAL"].AttainmentPercent);
+            var submittedRequest = new ObeSubmitDto { ClientRequestId = Guid.NewGuid(),
+                ResultPublicationId = publicationId };
+            var submitted = await service.SubmitAsync(created.Data.Policy.Id, submittedRequest);
+            Assert.True(submitted.Success, submitted.Message);
+            reportReference = submitted.Data!.Reference;
+            Assert.Equal(reportReference,
+                (await service.SubmitAsync(created.Data.Policy.Id, submittedRequest)).Data!.Reference);
+            Assert.False((await service.ReviewAsync(reportReference, new()
+            { ClientRequestId = Guid.NewGuid(), Decision = "Approve",
+                Reason = "Self-approval must remain forbidden" })).Success);
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var checker = new ObeAttainmentService(db, new ResearchWorkflowAccess(db,
+                new Actor(seeded.TenantId, seeded.ReviewerId, "AccreditationCoordinator")),
+                TimeProvider.System, NullLogger<ObeAttainmentService>.Instance);
+            var approved = await checker.ReviewAsync(reportReference, new()
+            { ClientRequestId = Guid.NewGuid(), Decision = "Approve",
+                Reason = "Independent verification of published rubric evidence" });
+            Assert.True(approved.Success, approved.Message);
+            Assert.Equal("Approved", approved.Data!.StateCode);
+            Assert.Equal(78m, Assert.Single(approved.Data.Snapshot.Outcomes).AttainmentPercent);
+            var denied = new ObeAttainmentService(db, new ResearchWorkflowAccess(db,
+                new Actor(seeded.TenantId + 900000, seeded.ReviewerId, "AccreditationCoordinator")),
+                TimeProvider.System, NullLogger<ObeAttainmentService>.Instance);
+            Assert.False((await denied.ReportAsync(reportReference)).Success);
+            Assert.Equal(78m, Assert.Single((await checker.ReportAsync(reportReference)).Data!
+                .Snapshot.Outcomes).AttainmentPercent);
+        }
+
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            // SQL-level immutability is not a client-side promise: a direct edit
+            // must fail even for a privileged connection.
+            await Assert.ThrowsAsync<SqlException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+                UPDATE dbo.ObePublishedComponentEvidence SET ObtainedMarks = {99m}
+                WHERE TenantId = {seeded.TenantId} AND ResultPublicationId = {publicationId}
+                """));
+        }
+    }
+
+    [Fact]
     public async Task Historical_grade_distribution_and_version_comparison_execute_on_real_sql_with_tenant_guards()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
@@ -1438,6 +1610,18 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 .Where(x => x.ResultPublicationId == latestId).SingleAsync();
             Assert.Equal(75m, historic.ObtainedMarks);
             Assert.Equal(85m, corrected.ObtainedMarks);
+            // A corrected publication is a new frozen OBE evidence version;
+            // a synthetic legacy publication without component marks still
+            // receives an explicit zero-component register.
+            var frozenCorrection = await db.Database.SqlQueryRaw<int>("""
+                SELECT ComponentRowCount AS Value FROM dbo.ObePublishedComponentRegisters
+                WHERE TenantId = {0} AND ResultPublicationId = {1}
+                """, seeded.TenantId, latestId).SingleAsync();
+            Assert.Equal(0, frozenCorrection);
+            Assert.Equal(1, await db.Database.SqlQueryRaw<int>("""
+                SELECT CourseRowCount AS Value FROM dbo.ObePublishedComponentRegisters
+                WHERE TenantId = {0} AND ResultPublicationId = {1}
+                """, seeded.TenantId, latestId).SingleAsync());
             Assert.Equal(1, await db.ResultCorrectionEvents.AsNoTracking()
                 .CountAsync(x => x.CaseReference == caseReference));
             var subjectMark = await db.StudentAssessmentMarks.AsNoTracking()
@@ -1596,7 +1780,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             NullLogger<AssessmentAdministrationService>.Instance,
             Repo<ResultRescrutinyEvent>(), Repo<Guardian>(), Repo<StudentGuardian>(),
             Repo<ResultCorrectionEvent>(), Repo<StudentResultCourseSnapshot>(),
-            null, null, Repo<AssessmentAttemptRegistration>());
+            null, null, Repo<AssessmentAttemptRegistration>(), obeDb: db);
     }
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)
