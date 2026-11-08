@@ -257,9 +257,12 @@ public sealed class ScholarshipDisbursementService(EduOSDbContext db, ICurrentUs
                     on new { aid.TenantId, Id = aid.StudentEnrollmentId }
                     equals new { enrollment.TenantId, enrollment.Id }
                 where payment.TenantId == user.TenantId && aid.PublicId == applicationReference &&
-                    !payment.IsDeleted && !aid.IsDeleted && !enrollment.IsDeleted
+                    !payment.IsDeleted && !aid.IsDeleted && !enrollment.IsDeleted &&
+                    (payment.State != "Rejected" || payment.ReviewRequestId == request.RequestId)
                 select new { payment, aid, enrollment.StudentId, enrollment.CampusId,
-                    enrollment.AcademicProgramId }).SingleOrDefaultAsync(ct);
+                    enrollment.AcademicProgramId })
+                .OrderByDescending(x => x.payment.ReviewRequestId == request.RequestId)
+                .ThenByDescending(x => x.payment.Id).FirstOrDefaultAsync(ct);
             if (source == null) return Fail<ScholarshipDisbursementRow>("Disbursement not found.", 404);
             var p = source.payment;
             if (p.ReviewRequestId == request.RequestId && p.ReviewedByUserId == user.UserId &&
@@ -381,8 +384,9 @@ public sealed class ScholarshipDisbursementService(EduOSDbContext db, ICurrentUs
                     on new { payment.TenantId, Id = payment.ScholarshipApplicationId }
                     equals new { aid.TenantId, aid.Id }
                 where payment.TenantId == user.TenantId && aid.PublicId == applicationReference &&
-                    !payment.IsDeleted && !aid.IsDeleted
-                select new { payment, aid.PublicId }).SingleOrDefaultAsync(ct);
+                    !payment.IsDeleted && !aid.IsDeleted && payment.State != "Rejected"
+                select new { payment, aid.PublicId }).OrderByDescending(x => x.payment.Id)
+                .FirstOrDefaultAsync(ct);
             if (source == null) return Fail<ScholarshipDisbursementRow>("Disbursement not found.", 404);
             var p = source.payment;
             if (p.State == "ReversalRequested" && p.ReversalRequestId == request.RequestId &&
@@ -442,9 +446,9 @@ public sealed class ScholarshipDisbursementService(EduOSDbContext db, ICurrentUs
                     on new { aid.TenantId, Id = aid.StudentEnrollmentId }
                     equals new { enrollment.TenantId, enrollment.Id }
                 where p.TenantId == user.TenantId && aid.PublicId == applicationReference &&
-                    !p.IsDeleted && !aid.IsDeleted && !enrollment.IsDeleted
+                    !p.IsDeleted && !aid.IsDeleted && !enrollment.IsDeleted && p.State != "Rejected"
                 select new { p, aid, enrollment.StudentId, enrollment.CampusId,
-                    enrollment.AcademicProgramId }).SingleOrDefaultAsync(ct);
+                    enrollment.AcademicProgramId }).OrderByDescending(x => x.p.Id).FirstOrDefaultAsync(ct);
             if (source == null) return Fail<ScholarshipDisbursementRow>("Disbursement not found.", 404);
             var item = source.p;
             if (item.ReversalReviewRequestId == request.RequestId &&

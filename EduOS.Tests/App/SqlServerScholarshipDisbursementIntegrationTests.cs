@@ -132,6 +132,21 @@ public sealed class SqlServerScholarshipDisbursementIntegrationTests
         Assert.Equal(0, await db.Journals.CountAsync());
 
         attempt.PaymentAccountId = bankLedgerId;
+        var rejectedInstruction = await maker.PrepareAsync(applicationRef, attempt);
+        Assert.True(rejectedInstruction.Success, rejectedInstruction.Message);
+        var rejectRequest = new ReviewScholarshipDisbursementRequest
+        {
+            RequestId = Guid.NewGuid(), RowVersion = rejectedInstruction.Data!.RowVersion,
+            ConfirmPaid = false, Reason = "Bank transfer reference could not be verified"
+        };
+        var rejected = await checker.ReviewAsync(applicationRef, rejectRequest);
+        Assert.True(rejected.Success, rejected.Message);
+        Assert.Equal("Rejected", rejected.Data!.State);
+        var rejectedReplay = await checker.ReviewAsync(applicationRef, rejectRequest);
+        Assert.True(rejectedReplay.Success, rejectedReplay.Message);
+        Assert.Equal(0, await db.Journals.CountAsync());
+        attempt.RequestId = Guid.NewGuid();
+        attempt.ExternalPaymentReference = "CI-BANK-VERIFIED-" + suffix;
         var prepared = await maker.PrepareAsync(applicationRef, attempt);
         Assert.True(prepared.Success, prepared.Message);
         Assert.Equal("Submitted", prepared.Data!.State);
