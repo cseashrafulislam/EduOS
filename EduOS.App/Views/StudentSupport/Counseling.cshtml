@@ -46,7 +46,7 @@
                     <p id="caseSelected" class="small text-muted">@L("Select a case above.", "উপর থেকে কেস বাছুন।")</p>
                     @if (officer)
                     {
-                        <label class="form-label" for="caseCounselorId">@L("Assigned counselor user ID", "কাউন্সেলরের ইউজার আইডি")</label><div class="input-group mb-3"><input id="caseCounselorId" type="number" min="1" step="1" class="form-control" /><button id="caseAssign" type="button" class="btn btn-outline-primary" disabled>@L("Assign", "বরাদ্দ")</button></div>
+                        <label class="form-label" for="caseCounselorId">@L("Eligible campus counselor", "ক্যাম্পাসের অনুমোদিত কাউন্সেলর")</label><div class="input-group mb-3"><select id="caseCounselorId" class="form-select" disabled><option value="">@L("Select a case first", "আগে একটি কেস নির্বাচন করুন")</option></select><button id="caseAssign" type="button" class="btn btn-outline-primary" disabled>@L("Assign", "বরাদ্দ")</button></div>
                     }
                     <div class="d-flex gap-2 flex-wrap mb-3"><button id="casePrivate" type="button" class="btn btn-outline-secondary" disabled>@L("Open private notes (audited)", "গোপন নোট খুলুন (অডিট হয়)")</button></div>
                     <div id="casePrivatePanel" class="alert alert-light border d-none" aria-live="polite"><h3 class="h6">@L("Private case narrative", "গোপনীয় কেস বিবরণ")</h3><p id="casePrivateSummary" class="text-break"></p><div id="casePrivateEvents" class="list-group"></div></div>

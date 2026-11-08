@@ -106,11 +106,13 @@ public sealed class CounselingWorkflowService(
                 join membership in db.TenantMemberships.AsNoTracking()
                     on new { access.TenantId, access.UserId }
                     equals new { membership.TenantId, membership.UserId }
+                join staff in db.Users.AsNoTracking() on access.UserId equals staff.Id
                 join assignment in db.UserRoles.AsNoTracking() on access.UserId equals assignment.UserId
                 join role in db.Roles.AsNoTracking() on assignment.RoleId equals role.Id
                 where access.TenantId == user.TenantId && access.CampusId == enrollment.CampusId &&
                     access.IsActive && !access.IsDeleted && membership.Status ==
                         EduOS.Core.Enums.Domain.MembershipStatus.Active && !membership.IsDeleted &&
+                    staff.IsActive && !staff.IsDeleted &&
                     role.NormalizedName == "SAFEGUARDINGOFFICER" && role.IsActive && !role.IsDeleted &&
                     (role.TenantId == user.TenantId ||
                         (role.TenantId == null && db.TenantMemberships.Count(m =>
@@ -267,7 +269,10 @@ public sealed class CounselingWorkflowService(
                             m.TenantId == user.TenantId && !m.IsDeleted &&
                             m.Status == EduOS.Core.Enums.Domain.MembershipStatus.Active)
                     select membership.UserId).AnyAsync(token);
-                if (!targetIsCounselor || !await CampusAccess(row.CampusId, request.CounselorUserId, token))
+                var activeUser = await db.Users.AsNoTracking().AnyAsync(x =>
+                    x.Id == request.CounselorUserId && x.IsActive && !x.IsDeleted, token);
+                if (!targetIsCounselor || !activeUser ||
+                    !await CampusAccess(row.CampusId, request.CounselorUserId, token))
                     return Fail<CounselingCaseRow>("Counselor must have an active campus role.", 403);
                 row.State = "Assigned"; row.AssignedCounselorUserId = request.CounselorUserId;
                 row.AssignedByUserId = user.UserId; row.AssignedAtUtc = DateTime.UtcNow;

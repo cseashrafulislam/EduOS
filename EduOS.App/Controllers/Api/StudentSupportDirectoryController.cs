@@ -30,4 +30,11 @@ public sealed class StudentSupportDirectoryController(StudentSupportDirectorySer
         var response = await service.AidRulesAsync(ct);
         return StatusCode(response.StatusCode, response);
     }
+
+    [HttpGet("counselors")]
+    public async Task<IActionResult> Counselors(long campusId, CancellationToken ct)
+    {
+        var response = await service.CounselorsAsync(campusId, ct);
+        return StatusCode(response.StatusCode, response);
+    }
 }

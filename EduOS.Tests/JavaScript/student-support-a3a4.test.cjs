@@ -39,4 +39,12 @@ test('A4 keeps confidential narratives outside GET and never builds HTML from no
     assert.match(svc, /CampusAccess\(row\.CampusId/);
     assert.match(svc, /Safeguarding intake is not staffed for this campus/);
     assert.match(svc, /row\.State == "Requested" \|\| row\.State == "Escalated"/);
+    assert.match(js, /student-support-directory\/counselors/);
+    assert.match(view, /Eligible campus counselor/);
+    assert.doesNotMatch(view, /Assigned counselor user ID/);
+    const directory = file('EduOS.Service/Services/Students/StudentSupportDirectoryService.cs');
+    assert.match(directory, /CounselorsAsync/);
+    assert.match(directory, /TenantMemberships\.Any/);
+    assert.match(directory, /UserCampusAccesses\.Any/);
+    assert.match(directory, /IsActive && !x\.IsDeleted/);
 });

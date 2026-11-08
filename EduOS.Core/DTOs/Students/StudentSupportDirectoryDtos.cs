@@ -19,3 +19,9 @@ public sealed class StudentSupportAidRuleOption
     public DateOnly? EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
 }
+
+public sealed class StudentSupportCounselorOption
+{
+    public long UserId { get; set; }
+    public string FullName { get; set; } = "";
+}

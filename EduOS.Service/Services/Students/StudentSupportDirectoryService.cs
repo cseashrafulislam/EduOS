@@ -76,4 +76,34 @@ public sealed class StudentSupportDirectoryService(EduOSDbContext db, ICurrentUs
             }).ToListAsync(ct);
         return ApiResponse<IReadOnlyList<StudentSupportAidRuleOption>>.SuccessResponse(rules);
     }
+
+    public async Task<ApiResponse<IReadOnlyList<StudentSupportCounselorOption>>> CounselorsAsync(
+        long campusId, CancellationToken ct = default)
+    {
+        if (!Scoped || !user.IsInRole("SafeguardingOfficer"))
+            return ApiResponse<IReadOnlyList<StudentSupportCounselorOption>>
+                .ErrorResponse("Safeguarding officer required.", 403);
+        if (campusId <= 0 || !await db.UserCampusAccesses.AsNoTracking().AnyAsync(x =>
+            x.TenantId == user.TenantId && x.CampusId == campusId &&
+            x.UserId == user.UserId && x.IsActive && !x.IsDeleted, ct))
+            return ApiResponse<IReadOnlyList<StudentSupportCounselorOption>>
+                .ErrorResponse("Campus not accessible.", 403);
+
+        var staff = await db.Users.AsNoTracking().Where(x => x.IsActive && !x.IsDeleted &&
+            db.TenantMemberships.Any(m => m.TenantId == user.TenantId && m.UserId == x.Id &&
+                m.Status == MembershipStatus.Active && !m.IsDeleted) &&
+            db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId && a.UserId == x.Id &&
+                a.CampusId == campusId && a.IsActive && !a.IsDeleted) &&
+            db.UserRoles.Any(ur => ur.UserId == x.Id && db.Roles.Any(r =>
+                r.Id == ur.RoleId && r.IsActive && !r.IsDeleted &&
+                r.NormalizedName == "COUNSELOR" && (r.TenantId == user.TenantId ||
+                    (r.TenantId == null && db.TenantMemberships.Count(m =>
+                        m.UserId == x.Id && !m.IsDeleted && m.Status != MembershipStatus.Left) == 1)))))
+            .OrderBy(x => x.FullName).ThenBy(x => x.Id).Take(100)
+            .Select(x => new StudentSupportCounselorOption
+            {
+                UserId = x.Id, FullName = x.FullName
+            }).ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<StudentSupportCounselorOption>>.SuccessResponse(staff);
+    }
 }

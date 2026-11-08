@@ -32,6 +32,7 @@
             $('caseRows').replaceChildren(); $('caseSelected').textContent = '';
             $('casePrivateSummary').textContent = ''; $('casePrivateEvents').replaceChildren();
             $('casePrivatePanel').classList.add('d-none');
+            if (officer) $('caseCounselorId').replaceChildren();
         }
         for (const control of root.querySelectorAll('button,input,select,textarea')) control.disabled = true;
         notice(T('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠাটি রিলোড করুন।'), true);
@@ -50,7 +51,8 @@
                 ['Requested', 'Escalated'].includes(state.selected.state)));
         $('casePrivate').disabled = state.busy || !canOpen;
         $('caseAct').disabled = state.busy || !canOpen || state.selected.state === 'Closed';
-        if (officer) $('caseAssign').disabled = state.busy || state.selected?.state !== 'Requested';
+        if (officer) $('caseAssign').disabled = state.busy || state.selected?.state !== 'Requested' ||
+            $('caseCounselorId').disabled || !val('caseCounselorId');
     }
     async function api(path, method = 'GET', payload) {
         if (!checkSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। রিলোড করুন।'));
@@ -91,8 +93,28 @@
             $('casePrivateSummary').textContent = '';
             $('casePrivateEvents').replaceChildren();
             controls();
+            if (officer) loadCounselors(item);
         });
         return button;
+    }
+    async function loadCounselors(item) {
+        const chooser = $('caseCounselorId'); chooser.replaceChildren();
+        const placeholder = node('option', T('Select an eligible counselor', 'অনুমোদিত কাউন্সেলর নির্বাচন করুন'));
+        placeholder.value = ''; chooser.append(placeholder); chooser.disabled = true;
+        if (item.state !== 'Requested') return;
+        await run(async () => {
+            const result = await api('/api/student-support-directory/counselors?' +
+                new URLSearchParams({ campusId: String(item.campusId) }));
+            if (state.selected?.reference !== item.reference) return;
+            for (const counselor of result || []) {
+                const option = node('option', counselor.fullName ||
+                    T('Counselor', 'কাউন্সেলর'));
+                option.value = String(counselor.userId); chooser.append(option);
+            }
+            chooser.disabled = !result?.length;
+            if (!result?.length) notice(T('No active counselor is assigned to this campus.',
+                'এই ক্যাম্পাসে কোনো সক্রিয় কাউন্সেলর নেই।'), true);
+        });
     }
     async function lookup(event) {
         event?.preventDefault();
@@ -169,6 +191,7 @@
             state.selected = result;
             $('caseSelected').textContent = result.reference + ' · ' + result.state;
             $('casePrivatePanel').classList.add('d-none');
+            if (officer && result.state !== 'Requested') $('caseCounselorId').disabled = true;
             notice(T('Case action saved.', 'কেস কার্যক্রম সংরক্ষিত হয়েছে।'));
             await listRaw();
         });
@@ -206,6 +229,7 @@
             if (!Number.isSafeInteger(id) || id <= 0) return notice(T('Valid counselor ID required.', 'সঠিক কাউন্সেলর আইডি দিন।'), true);
             selectedAction('/assign', { requestId: guid(), rowVersion: state.selected.rowVersion, counselorUserId: id });
         });
+        if (officer) $('caseCounselorId').addEventListener('change', controls);
         $('caseActionForm').addEventListener('submit', event => {
             event.preventDefault();
             if (!state.selected || !val('caseNote')) return;
