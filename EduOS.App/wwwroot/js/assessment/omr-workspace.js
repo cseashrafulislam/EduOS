@@ -10,7 +10,11 @@
         name: ['Form name', 'ফর্মের নাম'], key: ['Answer key (A–E)', 'সঠিক উত্তর (A–E)'], options: ['Options', 'অপশন'],
         correct: ['Correct', 'সঠিকের নম্বর'], penalty: ['Penalty', 'ভুলের কর্তন'], seal: ['Seal template', 'টেমপ্লেট সংরক্ষণ'],
         capture: ['Upload and recognize', 'আপলোড ও শনাক্তকরণ'], template: ['OMR template', 'ওএমআর টেমপ্লেট'],
-        student: ['Registered student', 'নিবন্ধিত শিক্ষার্থী'], image: ['Straight PNG/JPEG scan (up to 5 MB)', 'সোজা PNG/JPEG স্ক্যান (সর্বোচ্চ ৫ এমবি)'],
+        student: ['Registered student', 'নিবন্ধিত শিক্ষার্থী'], findStudent: ['Find', 'খুঁজুন'],
+        studentSearch: ['Roll, code or name', 'রোল, কোড বা নাম'],
+        previousStudents: ['Previous student page', 'আগের শিক্ষার্থীদের পৃষ্ঠা'],
+        nextStudents: ['Next student page', 'পরের শিক্ষার্থীদের পৃষ্ঠা'],
+        image: ['Straight PNG/JPEG scan (up to 5 MB)', 'সোজা PNG/JPEG স্ক্যান (সর্বোচ্চ ৫ এমবি)'],
         recognize: ['Upload and recognize', 'আপলোড ও শনাক্ত'], print: ['Download blank sheet', 'খালি উত্তরপত্র ডাউনলোড'],
         queue: ['Review queue', 'যাচাইয়ের তালিকা'], refresh: ['Refresh', 'রিফ্রেশ'], state: ['Status', 'অবস্থা'],
         uncertain: ['Uncertain', 'অনিশ্চিত'], marks: ['Proposed marks', 'প্রস্তাবিত নম্বর'], action: ['Action', 'অ্যাকশন'],
@@ -26,6 +30,10 @@
     };
     const t = key => (words[key] || [key, key])[bn ? 1 : 0];
     root.querySelectorAll('[data-omr-i18n]').forEach(el => { el.textContent = t(el.dataset.omrI18n); });
+    $('omrStudentSearch').placeholder = t('studentSearch');
+    $('omrStudentSearch').setAttribute('aria-label', t('studentSearch'));
+    $('omrStudentPrev').setAttribute('aria-label', t('previousStudents'));
+    $('omrStudentNext').setAttribute('aria-label', t('nextStudents'));
     const manual = bn
         ? '<p>পরীক্ষা ব্যবস্থাপক টেমপ্লেট তৈরি করেন। অনুমোদিত শিক্ষক ও ব্যবস্থাপক স্ক্যান করতে পারেন।</p><ol><li>পরীক্ষা, ব্যাচ, বিষয় ও অংশ বেছে নিন।</li><li>সঠিক উত্তর-কী দিয়ে টেমপ্লেট সিল করে ফর্ম প্রিন্ট করুন।</li><li>সোজা, যথাযথ আলোর স্ক্যান আপলোড করুন।</li><li>অন্য অনুমোদিত ব্যক্তি মূল ছবির সঙ্গে প্রতিটি উত্তর যাচাই করে সংশোধনের কারণসহ অনুমোদন দেবেন।</li><li>ব্যবস্থাপক Reviewed শিটে Post verified marks ক্লিক করে বিদ্যমান Assessment marks-এ একবার পোস্ট করবেন।</li><li>পোস্টকৃত নম্বরের Excel/PDF অভ্যন্তরীণ রিপোর্ট ডাউনলোড করতে পারবেন। এটি সরাসরি কোনো শিক্ষা বোর্ডে জমা নয়।</li></ol><p>আগে ম্যানুয়ালি দেওয়া বা অমিল নম্বর থাকলে পোস্ট ব্যর্থ হবে; বিদ্যমান marks-amendment workflow ব্যবহার করুন। capture ও review একই ব্যক্তি করতে পারবেন না। একই request পুনরায় পাঠালে duplicate হবে না।</p>'
         : '<p>Exam managers seal answer templates; assigned teachers and managers may capture sheets.</p><ol><li>Select assessment, batch, subject and component.</li><li>Seal the answer key; download the printable sheet.</li><li>Upload a straight, well-lit scan. Poor scans are rejected.</li><li>A different authorized staff member compares every choice with the original and confirms the review, recording correction reasons.</li><li>An exam manager separately posts a Reviewed sheet once to the existing Assessment marks register.</li><li>Export posted marks as internal-preparation Excel or PDF. These are not direct board submissions.</li></ol><p>Existing/manual or unreconciled marks block posting; use the approved marks-amendment workflow. The capturer cannot review their own sheet, and retries must reuse request IDs.</p>';
@@ -36,7 +44,11 @@
     $('omrHelpClose').addEventListener('click', closeHelp);
     help.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { scopes: [], components: [], students: [], templates: [], sheets: [], page: 1, total: 0, selectedSheet: null, uploadKey: null, captureKey: null, reviewKey: null, postKey: null };
+    const state = { scopes: [], components: [], students: [], studentPage: 1, studentTotal: 0,
+        studentSearch: '', templates: [], sheets: [], page: 1,
+        total: 0, selectedSheet: null, uploadKey: null, captureKey: null, captureContext: null,
+        reviewKey: null, reviewContext: null, postKey: null, scopeGeneration: 0,
+        componentGeneration: 0, sheetGeneration: 0 };
     function notice(message, error = false) {
         const el = $('omrNotice'); el.textContent = message; el.className = `alert ${error ? 'alert-danger' : 'alert-success'}`;
     }
@@ -52,36 +64,73 @@
     }
     function clear(select) { select.replaceChildren(); option(select, '', '—'); }
     function currentScope() { return state.scopes.find(x => String(x.assessmentSubjectId) === $('omrScope').value); }
+    function clearQueue() {
+        state.sheetGeneration++;
+        state.sheets = []; state.total = 0; state.selectedSheet = null;
+        state.reviewKey = null; state.reviewContext = null; state.postKey = null;
+        $('omrReviewForm').classList.add('d-none'); renderRows();
+    }
+    function resetCapture() { state.uploadKey = null; state.captureKey = null; state.captureContext = null; }
     async function scopes() {
+        const generation = ++state.scopeGeneration;
         const data = await api('assessment-administration/scopes/page?page=1&pageSize=100');
+        if (generation !== state.scopeGeneration) return;
         state.scopes = data.items || [];
         clear($('omrScope'));
         state.scopes.forEach(x => option($('omrScope'), x.assessmentSubjectId,
             `${x.assessmentName} / ${x.academicBatchName} / ${x.subjectName}`));
     }
     async function selectScope() {
+        state.scopeGeneration++; state.componentGeneration++;
+        clearQueue(); resetCapture(); state.page = 1;
+        state.studentPage = 1; state.studentTotal = 0; state.studentSearch = '';
+        $('omrStudentSearch').value = '';
         state.components = []; state.students = []; clear($('omrComponent')); clear($('omrStudent'));
+        await loadStudents();
+    }
+    async function loadStudents() {
+        const generation = ++state.scopeGeneration;
+        resetCapture(); state.students = []; clear($('omrStudent'));
         const s = currentScope(); if (!s) return;
         const qs = new URLSearchParams({ AssessmentId: s.assessmentId, AcademicBatchId: s.academicBatchId,
-            AssessmentSubjectId: s.assessmentSubjectId, Page: 1, PageSize: 100 });
+            AssessmentSubjectId: s.assessmentSubjectId, Page: state.studentPage, PageSize: 100,
+            Search: state.studentSearch });
         const roster = await api(`assessment-administration/component-marks/roster?${qs}`);
-        state.components = roster.components || []; state.students = roster.students || [];
-        state.components.forEach(x => option($('omrComponent'), x.id, `${x.name} (${x.fullMarks})`));
+        if (generation !== state.scopeGeneration || !currentScope() ||
+            currentScope().assessmentSubjectId !== s.assessmentSubjectId) return;
+        state.students = roster.students || []; state.studentTotal = roster.totalCount || 0;
         state.students.forEach(x => option($('omrStudent'), x.studentSubjectRegistrationId,
             `${x.rollNo || x.studentCode} - ${x.studentName}`));
-        if (state.components.length) { $('omrComponent').value = String(state.components[0].id); await selectComponent(); }
+        $('omrStudentPrev').disabled = state.studentPage <= 1;
+        $('omrStudentNext').disabled = state.studentPage * 100 >= state.studentTotal;
+        if (!state.components.length) {
+            state.components = roster.components || [];
+            state.components.forEach(x => option($('omrComponent'), x.id, `${x.name} (${x.fullMarks})`));
+            if (state.components.length) {
+                $('omrComponent').value = String(state.components[0].id);
+                await selectComponent();
+            }
+        } else renderRows();
     }
     async function selectComponent() {
+        const generation = ++state.componentGeneration;
+        clearQueue(); resetCapture(); state.page = 1;
         const id = Number($('omrComponent').value); clear($('omrTemplate')); state.templates = [];
         if (!id) return;
-        state.templates = await api(`assessment-omr/templates?componentId=${id}`);
+        const templates = await api(`assessment-omr/templates?componentId=${id}`);
+        if (generation !== state.componentGeneration || Number($('omrComponent').value) !== id) return;
+        state.templates = templates;
         state.templates.forEach(x => option($('omrTemplate'), x.reference, `${x.name} (${x.questionCount} Q)`));
         if (state.templates.length) { $('omrTemplate').value = state.templates[0].reference; await listSheets(); }
         else { state.sheets = []; renderRows(); }
     }
     async function listSheets() {
         const reference = $('omrTemplate').value; if (!reference) return;
-        const data = await api(`assessment-omr/sheets?templateReference=${encodeURIComponent(reference)}&page=${state.page}&pageSize=30`);
+        const generation = ++state.sheetGeneration;
+        const page = state.page;
+        state.sheets = []; renderRows();
+        const data = await api(`assessment-omr/sheets?templateReference=${encodeURIComponent(reference)}&page=${page}&pageSize=30`);
+        if (generation !== state.sheetGeneration || $('omrTemplate').value !== reference || state.page !== page) return;
         state.sheets = data.items || []; state.total = data.totalCount || 0; renderRows();
     }
     function renderRows() {
@@ -99,7 +148,10 @@
         $('omrPrev').disabled = state.page <= 1; $('omrNext').disabled = state.page * 30 >= state.total;
     }
     function openReview(sheet) {
-        state.selectedSheet = sheet; state.reviewKey = null; state.postKey = null;
+        if (state.selectedSheet?.reference !== sheet.reference) {
+            state.reviewKey = null; state.reviewContext = null; state.postKey = null;
+        }
+        state.selectedSheet = sheet;
         $('omrReviewForm').classList.remove('d-none');
         $('omrSuggested').value = sheet.suggestedAnswers;
         $('omrConfirmed').value = sheet.confirmedAnswers || sheet.suggestedAnswers.replaceAll('?', '-');
@@ -119,11 +171,33 @@
     }
     $('omrScope').addEventListener('change', () => selectScope().catch(e => notice(e.message, true)));
     $('omrComponent').addEventListener('change', () => { state.page = 1; selectComponent().catch(e => notice(e.message, true)); });
-    $('omrTemplate').addEventListener('change', () => { state.page = 1; listSheets().catch(e => notice(e.message, true)); });
-    $('omrRefresh').addEventListener('click', () => listSheets().catch(e => notice(e.message, true)));
-    $('omrPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; listSheets().catch(e => notice(e.message, true)); } });
-    $('omrNext').addEventListener('click', () => { if (state.page * 30 < state.total) { state.page++; listSheets().catch(e => notice(e.message, true)); } });
-    $('omrCancel').addEventListener('click', () => { state.selectedSheet = null; state.reviewKey = null; state.postKey = null; $('omrReviewForm').classList.add('d-none'); });
+    $('omrTemplate').addEventListener('change', () => {
+        state.page = 1; clearQueue(); resetCapture();
+        listSheets().catch(e => notice(e.message, true));
+    });
+    $('omrRefresh').addEventListener('click', () => {
+        clearQueue(); listSheets().catch(e => notice(e.message, true));
+    });
+    $('omrPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; clearQueue(); listSheets().catch(e => notice(e.message, true)); } });
+    $('omrNext').addEventListener('click', () => { if (state.page * 30 < state.total) { state.page++; clearQueue(); listSheets().catch(e => notice(e.message, true)); } });
+    $('omrCancel').addEventListener('click', () => { state.selectedSheet = null; state.reviewKey = null; state.reviewContext = null; state.postKey = null; $('omrReviewForm').classList.add('d-none'); });
+    $('omrStudent').addEventListener('change', resetCapture);
+    $('omrStudentFind').addEventListener('click', () => {
+        state.studentSearch = $('omrStudentSearch').value.trim(); state.studentPage = 1;
+        loadStudents().catch(e => notice(e.message, true));
+    });
+    $('omrStudentSearch').addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault(); $('omrStudentFind').click();
+    });
+    $('omrStudentPrev').addEventListener('click', () => {
+        if (state.studentPage <= 1) return;
+        state.studentPage--; loadStudents().catch(e => notice(e.message, true));
+    });
+    $('omrStudentNext').addEventListener('click', () => {
+        if (state.studentPage * 100 >= state.studentTotal) return;
+        state.studentPage++; loadStudents().catch(e => notice(e.message, true));
+    });
     $('omrPrint').addEventListener('click', () => {
         if (!$('omrTemplate').value) { notice('Select a template.', true); return; }
         window.location.assign(`/api/assessment-omr/templates/${encodeURIComponent($('omrTemplate').value)}/print`);
@@ -132,13 +206,17 @@
     if (templateForm) templateForm.addEventListener('submit', async e => {
         e.preventDefault(); const button = templateForm.querySelector('button[type="submit"]'); button.disabled = true;
         try {
+            const componentId = Number($('omrComponent').value);
             const created = await api('assessment-omr/templates', { method: 'POST',
                 headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-                    assessmentComponentId: Number($('omrComponent').value), name: $('omrName').value,
+                    assessmentComponentId: componentId, name: $('omrName').value,
                     answerKey: $('omrKey').value, optionsPerQuestion: Number($('omrOptions').value),
                     correctAnswerMarks: Number($('omrCorrect').value), incorrectAnswerMarks: Number($('omrPenalty').value)
                 }) });
-            await selectComponent(); $('omrTemplate').value = created.reference; await listSheets();
+            if (Number($('omrComponent').value) !== componentId) return;
+            await selectComponent();
+            if (Number($('omrComponent').value) !== componentId) return;
+            $('omrTemplate').value = created.reference; await listSheets();
             templateForm.reset(); notice('Template sealed. Download its printable form.');
         } catch (error) { notice(error.message, true); } finally { button.disabled = false; }
     });
@@ -148,33 +226,51 @@
             const file = $('omrImage').files?.[0];
             if (!file || file.size > 5_242_880 || !['image/png', 'image/jpeg'].includes(file.type))
                 throw new Error('Choose a PNG/JPEG scan up to 5 MB.');
+            const templateReference = $('omrTemplate').value;
+            const registrationId = Number($('omrStudent').value);
+            if (!templateReference || !registrationId) throw new Error('Select a template and registered student.');
+            const context = `${templateReference}/${registrationId}/${file.name}/${file.size}/${file.lastModified}`;
+            if (state.captureContext !== context) resetCapture();
+            state.captureContext = context;
             if (!state.uploadKey) state.uploadKey = crypto.randomUUID();
             if (!state.captureKey) state.captureKey = crypto.randomUUID();
             const form = new FormData(); form.append('file', file); form.append('requestId', state.uploadKey);
             const uploaded = await api('assessment-omr/images', { method: 'POST', body: form });
+            if (state.captureContext !== context) return;
             const captured = await api('assessment-omr/sheets', { method: 'POST',
                 headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-                    requestId: state.captureKey, templateReference: $('omrTemplate').value,
-                    studentSubjectRegistrationId: Number($('omrStudent').value), fileReference: uploaded.reference
+                    requestId: state.captureKey, templateReference,
+                    studentSubjectRegistrationId: registrationId, fileReference: uploaded.reference
                 }) });
-            state.uploadKey = null; state.captureKey = null; $('omrImage').value = '';
-            await listSheets(); openReview(captured); notice('Sheet captured. An independent reviewer must verify it.');
+            if (state.captureContext !== context) return;
+            resetCapture(); $('omrImage').value = '';
+            await listSheets();
+            if ($('omrTemplate').value !== templateReference ||
+                Number($('omrStudent').value) !== registrationId) return;
+            openReview(captured); notice('Sheet captured. An independent reviewer must verify it.');
         } catch (error) { notice(error.message, true); } finally { button.disabled = false; }
     });
-    $('omrImage').addEventListener('change', () => { state.uploadKey = null; state.captureKey = null; });
+    $('omrImage').addEventListener('change', resetCapture);
     $('omrReviewForm').addEventListener('submit', async e => {
         e.preventDefault(); const sheet = state.selectedSheet;
         if (!sheet || sheet.state !== 'Captured') return;
         const button = $('omrReviewForm').querySelector('button[type="submit"]'); button.disabled = true;
         try {
+            const confirmedAnswers = $('omrConfirmed').value;
+            const reason = $('omrReason').value;
+            const identityConfirmed = $('omrIdentityConfirmed').checked;
+            const context = JSON.stringify([sheet.reference, sheet.rowVersion, confirmedAnswers, reason, identityConfirmed]);
+            if (state.reviewContext !== context) state.reviewKey = null;
+            state.reviewContext = context;
             await api(`assessment-omr/sheets/${encodeURIComponent(sheet.reference)}/review`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-                    requestId: state.reviewKey ||= crypto.randomUUID(), confirmedAnswers: $('omrConfirmed').value,
-                    reason: $('omrReason').value, rowVersion: sheet.rowVersion,
-                    identityConfirmed: $('omrIdentityConfirmed').checked
+                    requestId: state.reviewKey ||= crypto.randomUUID(), confirmedAnswers,
+                    reason, rowVersion: sheet.rowVersion, identityConfirmed
                 })
             });
-            $('omrReviewForm').classList.add('d-none'); state.selectedSheet = null;
+            if (state.selectedSheet?.reference === sheet.reference) {
+                $('omrReviewForm').classList.add('d-none'); state.selectedSheet = null;
+            }
             await listSheets(); notice('Independent review saved. Exam management can now post marks.');
         } catch (error) { notice(error.message, true); } finally { button.disabled = false; }
     });
@@ -188,7 +284,9 @@
                     requestId: state.postKey ||= crypto.randomUUID(), rowVersion: sheet.rowVersion
                 })
             });
-            $('omrReviewForm').classList.add('d-none'); state.selectedSheet = null; state.postKey = null;
+            if (state.selectedSheet?.reference === sheet.reference) {
+                $('omrReviewForm').classList.add('d-none'); state.selectedSheet = null; state.postKey = null;
+            }
             await listSheets(); notice('Verified OMR marks posted to the canonical Assessment register.');
         } catch (error) { notice(error.message, true); } finally { button.disabled = false; }
     });

@@ -8,6 +8,7 @@ using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Helpers.Storage;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Data;
@@ -88,6 +89,12 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
     {
         if (scope.State != AssessmentState.MarksEntry) return false;
         var t = user.TenantId;
+        // The caller may have read Scope before another manager locked the exam.
+        // Re-read within the writer's transaction so a stale snapshot cannot
+        // authorize capture/review against an already closed assessment.
+        if (!await db.Assessments.AsNoTracking().AnyAsync(x => x.TenantId == t &&
+            x.Id == scope.AssessmentId && !x.IsDeleted &&
+            x.State == AssessmentState.MarksEntry, ct)) return false;
         if (await db.ResultPublications.AsNoTracking().AnyAsync(x =>
             x.TenantId == t && x.AssessmentId == scope.AssessmentId && x.AcademicBatchId == scope.BatchId &&
             !x.IsDeleted && (x.State == ResultPublicationState.Published ||
@@ -261,6 +268,12 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             {
                 if (!await MarksOpenAsync(scope, token))
                     return Fail<OmrSheetDto>("Assessment marks are locked or published.", 409);
+                if (!await db.FileAssets.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenant && x.Id == asset.Id && !x.IsDeleted &&
+                    x.StorageKey == asset.StorageKey && x.Sha256 == asset.Sha256 &&
+                    x.SizeBytes == asset.SizeBytes && x.UploadedByUserId == user.UserId &&
+                    x.IsVerifiedSafe && x.MalwareScanStateCode == "Clean", token))
+                    return Fail<OmrSheetDto>("OMR image verification changed; upload again.", 409);
                 if (await db.OmrSheets.AnyAsync(x => x.TenantId == tenant && !x.IsDeleted &&
                     (x.FileAssetId == asset.Id || (x.OmrTemplateId == form.Id &&
                     x.StudentSubjectRegistrationId == request.StudentSubjectRegistrationId)), token))
@@ -282,6 +295,11 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
         {
             logger.LogWarning(ex, "Concurrent OMR sheet capture tenant {Tenant}", tenant);
             return Fail<OmrSheetDto>("OMR capture conflicted with an existing sheet.", 409);
+        }
+        catch (SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "OMR capture database contention tenant {Tenant}", tenant);
+            return Fail<OmrSheetDto>("OMR capture was busy; reload and retry with the same request ID.", 409);
         }
     }
 
@@ -414,6 +432,11 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             logger.LogWarning(ex, "OMR review conflict tenant {Tenant}", user.TenantId);
             return Fail<OmrSheetDto>("OMR review conflicted; reload and retry.", 409);
         }
+        catch (SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "OMR review database contention tenant {Tenant}", user.TenantId);
+            return Fail<OmrSheetDto>("OMR review was busy; reload and retry with the same request ID.", 409);
+        }
     }
 
     /// <summary>Posts an independently reviewed sheet through the canonical subject and component
@@ -525,6 +548,11 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             logger.LogWarning(ex, "OMR canonical marks posting conflict tenant {Tenant}", user.TenantId);
             return Fail<OmrSheetDto>("Marks posting conflicted; reload and retry.", 409);
         }
+        catch (SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "OMR posting database contention tenant {Tenant}", user.TenantId);
+            return Fail<OmrSheetDto>("Marks posting was busy; reload and retry with the same request ID.", 409);
+        }
     }
 
     public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(Guid reference,
@@ -546,10 +574,21 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             return Fail<DocumentFileDownloadDto>("OMR image not found.", 404);
         FileDownloadResult? file;
         try { file = await files.GetPrivateFileAsync(row.StorageKey); }
-        catch (IOException) { return Fail<DocumentFileDownloadDto>("Private OMR image unavailable.", 503); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Private OMR image unavailable tenant {Tenant}", user.TenantId);
+            return Fail<DocumentFileDownloadDto>("Private OMR image unavailable.", 503);
+        }
         if (file == null || file.Content.Length != row.SizeBytes ||
             Convert.ToHexString(SHA256.HashData(file.Content)) != row.Sha256)
             return Fail<DocumentFileDownloadDto>("OMR image integrity failed.", 409);
+        if (!await db.OmrSheets.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
+            x.PublicId == reference && !x.IsDeleted && db.FileAssets.Any(f =>
+                f.TenantId == user.TenantId && f.Id == x.FileAssetId && !f.IsDeleted &&
+                f.IsVerifiedSafe && f.MalwareScanStateCode == "Clean" &&
+                f.StorageKey == row.StorageKey && f.Sha256 == row.Sha256 &&
+                f.SizeBytes == row.SizeBytes), ct))
+            return Fail<DocumentFileDownloadDto>("OMR evidence changed; reload before downloading.", 409);
         return ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
         {
             Content = file.Content, ContentType = row.ContentType, FileName = row.OriginalFileName

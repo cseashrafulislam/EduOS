@@ -43,7 +43,14 @@
             <div class="col-lg-4"><label for="omrTemplate" class="form-label" data-omr-i18n="template">OMR template</label>
                 <select id="omrTemplate" class="form-select" required></select></div>
             <div class="col-lg-4"><label for="omrStudent" class="form-label" data-omr-i18n="student">Registered student</label>
-                <select id="omrStudent" class="form-select" required></select></div>
+                <select id="omrStudent" class="form-select" required></select>
+                <div class="d-flex gap-1 mt-1">
+                    <input id="omrStudentSearch" class="form-control form-control-sm" maxlength="100" autocomplete="off" placeholder="Roll, code or name" aria-label="Search registered students" />
+                    <button id="omrStudentFind" type="button" class="btn btn-sm btn-outline-secondary" data-omr-i18n="findStudent">Find</button>
+                    <button id="omrStudentPrev" type="button" class="btn btn-sm btn-outline-secondary" aria-label="Previous student page">‹</button>
+                    <button id="omrStudentNext" type="button" class="btn btn-sm btn-outline-secondary" aria-label="Next student page">›</button>
+                </div>
+            </div>
             <div class="col-lg-4"><label for="omrImage" class="form-label" data-omr-i18n="image">Straight PNG/JPEG scan (up to 5 MB)</label>
                 <input id="omrImage" class="form-control" type="file" accept="image/png,image/jpeg" required /></div>
         </div><div class="d-flex flex-wrap gap-2 mt-3">

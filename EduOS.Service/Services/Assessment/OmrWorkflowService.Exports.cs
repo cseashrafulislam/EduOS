@@ -137,7 +137,7 @@ public sealed partial class OmrWorkflowService
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("OMR Posted Marks");
         sheet.Cell(1, 1).Value = "INTERNAL PREPARATION ONLY — NOT A BOARD SUBMISSION";
-        sheet.Cell(2, 1).Value = title;
+        sheet.Cell(2, 1).SetValue(SafeSpreadsheetText(title));
         for (var c = 0; c < columns.Count; c++)
         {
             sheet.Cell(4, c + 1).Value = ExportLabels[columns[c]];
@@ -147,10 +147,7 @@ public sealed partial class OmrWorkflowService
         for (var r = 0; r < rows.Count; r++)
         for (var c = 0; c < columns.Count; c++)
         {
-            var value = CellText(rows[r], columns[c]);
-            // Prevent spreadsheet formula execution from untrusted enrollment/master text.
-            if (value.Length > 0 && "=+-@\t\r".Contains(value[0])) value = "'" + value;
-            sheet.Cell(r + 5, c + 1).SetValue(value);
+            sheet.Cell(r + 5, c + 1).SetValue(SafeSpreadsheetText(CellText(rows[r], columns[c])));
         }
         sheet.SheetView.FreezeRows(4);
         sheet.Range(4, 1, rows.Count + 4, columns.Count).SetAutoFilter();
@@ -158,6 +155,9 @@ public sealed partial class OmrWorkflowService
         workbook.SaveAs(memory);
         return memory.ToArray();
     }
+
+    private static string SafeSpreadsheetText(string value) =>
+        value.Length > 0 && "=+-@\t\r".Contains(value[0]) ? "'" + value : value;
 
     private static byte[] MakePdf(string title, IReadOnlyList<string> columns,
         IReadOnlyList<OmrReportRow> rows)
