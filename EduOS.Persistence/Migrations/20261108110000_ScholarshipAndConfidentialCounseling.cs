@@ -212,6 +212,7 @@ public sealed class ScholarshipAndConfidentialCounseling : Migration
         m.CreateIndex("IX_CounselingCases_TenantId_StudentId", "CounselingCases",
             new[] { "TenantId", "StudentId" });
         m.CreateIndex("IX_CounselingCases_OpenedByUserId", "CounselingCases", "OpenedByUserId");
+        m.CreateIndex("IX_CounselingCases_AssignedCounselorUserId", "CounselingCases", "AssignedCounselorUserId");
         m.CreateIndex("IX_CounselingCases_AssignedByUserId", "CounselingCases", "AssignedByUserId");
         m.CreateIndex("IX_CounselingCases_ClosedByUserId", "CounselingCases", "ClosedByUserId");
         m.CreateIndex("IX_CounselingCaseEvents_TenantId_ClientRequestId", "CounselingCaseEvents",

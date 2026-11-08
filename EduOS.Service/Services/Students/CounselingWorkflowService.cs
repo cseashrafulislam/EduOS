@@ -163,7 +163,15 @@ public sealed class CounselingWorkflowService(
             join student in db.Students.AsNoTracking()
                 on new { row.TenantId, Id = row.StudentId }
                 equals new { student.TenantId, student.Id }
-            where row.OpenedByUserId == user.UserId && !student.IsDeleted
+            where row.OpenedByUserId == user.UserId && !student.IsDeleted &&
+                (student.UserId == user.UserId ||
+                    (from link in db.StudentGuardians
+                     join guardian in db.Guardians on new { link.TenantId, Id = link.GuardianId }
+                         equals new { guardian.TenantId, guardian.Id }
+                     where link.TenantId == user.TenantId && link.StudentId == row.StudentId &&
+                         !link.IsDeleted && !guardian.IsDeleted && guardian.IsActive &&
+                         guardian.UserId == user.UserId
+                     select link.Id).Any())
             select new { row, student.PublicId };
         var count = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(x => x.row.OpenedAtUtc)
@@ -184,7 +192,7 @@ public sealed class CounselingWorkflowService(
         if (row == null) return Fail<CounselingCaseRow>("Case not found.", 404);
         // A guardian's relationship must never reveal a learner's separate confidential case.
         if (!Officer && !(Counselor && row.AssignedCounselorUserId == user.UserId) &&
-            row.OpenedByUserId != user.UserId)
+            (row.OpenedByUserId != user.UserId || !await OwnsStudent(row.StudentId, ct)))
             return Fail<CounselingCaseRow>("Case not found.", 404);
         if ((Officer || row.AssignedCounselorUserId == user.UserId) &&
             !await CampusAccess(row.CampusId, user.UserId, ct))

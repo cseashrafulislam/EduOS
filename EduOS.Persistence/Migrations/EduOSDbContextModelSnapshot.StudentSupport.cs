@@ -116,6 +116,7 @@ partial class EduOSDbContextModelSnapshot
             b.HasAlternateKey("TenantId", "Id");
             b.HasIndex("PublicId").IsUnique();
             b.HasIndex("OpenedByUserId");
+            b.HasIndex("AssignedCounselorUserId");
             b.HasIndex("AssignedByUserId");
             b.HasIndex("ClosedByUserId");
             b.HasIndex("TenantId", "StudentId");
