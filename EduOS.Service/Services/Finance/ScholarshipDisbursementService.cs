@@ -253,7 +253,7 @@ public sealed class ScholarshipDisbursementService(EduOSDbContext db, ICurrentUs
                 join aid in db.ScholarshipApplications
                     on new { payment.TenantId, Id = payment.ScholarshipApplicationId }
                     equals new { aid.TenantId, aid.Id }
-                join enrollment in db.StudentEnrollments.AsNoTracking()
+                join enrollment in db.StudentEnrollments
                     on new { aid.TenantId, Id = aid.StudentEnrollmentId }
                     equals new { enrollment.TenantId, enrollment.Id }
                 where payment.TenantId == user.TenantId && aid.PublicId == applicationReference &&
@@ -442,7 +442,7 @@ public sealed class ScholarshipDisbursementService(EduOSDbContext db, ICurrentUs
                 join aid in db.ScholarshipApplications
                     on new { p.TenantId, Id = p.ScholarshipApplicationId }
                     equals new { aid.TenantId, aid.Id }
-                join enrollment in db.StudentEnrollments.AsNoTracking()
+                join enrollment in db.StudentEnrollments
                     on new { aid.TenantId, Id = aid.StudentEnrollmentId }
                     equals new { enrollment.TenantId, enrollment.Id }
                 where p.TenantId == user.TenantId && aid.PublicId == applicationReference &&

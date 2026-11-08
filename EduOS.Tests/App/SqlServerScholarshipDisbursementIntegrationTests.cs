@@ -144,6 +144,9 @@ public sealed class SqlServerScholarshipDisbursementIntegrationTests
         Assert.Equal("Rejected", rejected.Data!.State);
         var rejectedReplay = await checker.ReviewAsync(applicationRef, rejectRequest);
         Assert.True(rejectedReplay.Success, rejectedReplay.Message);
+        db.ChangeTracker.Clear();
+        Assert.Equal("Rejected", (await db.ScholarshipDisbursements.AsNoTracking()
+            .SingleAsync(x => x.PublicId == rejected.Data.Reference)).State);
         Assert.Equal(0, await db.Journals.CountAsync());
         attempt.RequestId = Guid.NewGuid();
         attempt.ExternalPaymentReference = "CI-BANK-VERIFIED-" + suffix;
@@ -159,6 +162,11 @@ public sealed class SqlServerScholarshipDisbursementIntegrationTests
         var posted = await checker.ReviewAsync(applicationRef, review);
         Assert.True(posted.Success, posted.Message);
         Assert.Equal("Posted", posted.Data!.State);
+        db.ChangeTracker.Clear();
+        Assert.Equal("Posted", (await db.ScholarshipDisbursements.AsNoTracking()
+            .SingleAsync(x => x.PublicId == posted.Data.Reference)).State);
+        Assert.Equal("Awarded", (await db.ScholarshipApplications.AsNoTracking()
+            .SingleAsync(x => x.PublicId == applicationRef)).State);
         var postedReplay = await checker.ReviewAsync(applicationRef, review);
         Assert.True(postedReplay.Success, postedReplay.Message);
         db.ChangeTracker.Clear();
