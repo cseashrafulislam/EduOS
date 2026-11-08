@@ -220,6 +220,17 @@ test('authenticated navigation is network-only and offline fallback contains no 
     assert.equal((await w.doFetch(page)).body, 'public:/offline.html');
 });
 
+test('offline study reader opens its precached public shell when connectivity is lost', async () => {
+    const w = worker();
+    await w.install();
+    const reader = request('/offline-study.html', { mode: 'navigate' });
+    w.queued.push(new Error('offline'));
+    assert.equal((await w.doFetch(reader)).body, 'public:/offline-study.html');
+    assert.equal(w.network[0].opts.cache, 'no-store');
+    assert.equal((await w.store('eduos-static-v12').match(reader)).body,
+        'public:/offline-study.html');
+});
+
 test('offline fallback ignores a private offline page in an unrelated cache', async () => {
     const w = worker();
     await w.store('unrelated-app-cache').put(request('/offline.html'), response('TENANT_A_PRIVATE', { contentType: 'text/html' }));

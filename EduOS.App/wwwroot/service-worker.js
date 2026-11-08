@@ -108,7 +108,8 @@ self.addEventListener('fetch', event => {
     if (request.mode === 'navigate') {
         event.respondWith(
             fetch(request, { cache: 'no-store' })
-                .catch(() => caches.open(CACHE_NAME).then(cache => cache.match(OFFLINE_URL)))
+                .catch(() => caches.open(CACHE_NAME).then(cache => cache.match(
+                    url.pathname === '/offline-study.html' ? '/offline-study.html' : OFFLINE_URL)))
         );
         return;
     }
