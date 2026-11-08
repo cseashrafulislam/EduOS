@@ -267,7 +267,6 @@ public sealed class LibraryDigitalResourceService(
                 source.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(source.UserInfo))
                 return false;
         }
-        if (rights.OfflineAllowed && rights.ExamCode == null) return false;
         if (rights.ExamCode == null)
         {
             if (rights.BoardCode != null || rights.SyllabusYear != null ||

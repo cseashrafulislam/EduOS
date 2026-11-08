@@ -69,6 +69,17 @@ public sealed class LibraryDigitalResourceTests
     };
 
     [Fact]
+    public void Non_exam_licensed_resources_can_explicitly_opt_in_to_offline_use()
+    {
+        var rights = Rights();
+        rights.OfflineAllowed = true;
+        var validator = typeof(LibraryDigitalResourceService).GetMethod("ValidRights",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        validator.Should().NotBeNull();
+        ((bool)validator!.Invoke(null, new object?[] { rights })!).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Offline_copy_requires_explicit_reviewed_rights_and_rechecks_revocation()
     {
         await using var db = Context();
