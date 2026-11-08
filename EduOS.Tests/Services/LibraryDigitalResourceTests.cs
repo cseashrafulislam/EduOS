@@ -135,6 +135,8 @@ public sealed class LibraryDigitalResourceTests
         (await reader.GetStudyReaderProgressAsync(reference)).Data!.Page.Should().Be(6);
         (await reader.SetStudyBookmarkAsync(reference, false)).Success.Should().BeTrue();
         (await reader.GetStudyReaderProgressAsync(reference)).Data!.Page.Should().Be(0);
+        (await reader.SaveStudyReaderProgressAsync(reference, new SaveStudyReaderProgressDto
+        { Page = 2, CommandId = Guid.NewGuid() })).Success.Should().BeTrue();
     }
 
     private static async Task<(Book Book, StudentEnrollment Enrollment, FileAsset Asset, byte[] Bytes)> SeedAsync(

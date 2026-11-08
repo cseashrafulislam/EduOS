@@ -3494,6 +3494,7 @@ public class EduOSDbContext :
             or CounselingPolicyChange
             or FacilityVisitorEvent
             or OmrSheetEvent
+            or StudyBookmark
             or FacilityVisitorPolicyChange
             or ApplicationUser
             or TenantSetting

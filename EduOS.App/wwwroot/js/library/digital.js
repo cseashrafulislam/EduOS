@@ -232,7 +232,8 @@
             ['SyllabusVersion', 'syllabusVersion'], ['SyllabusSourceUrl', 'syllabusSourceUrl'],
             ['PreviousPaperYear', 'previousPaperYear'], ['StudyExplanation', 'studyExplanation']])
             el('digitalReplace' + field).value = resource[key] || (field === 'Language' ? 'bn-BD' : '');
-        el('digitalReplaceOfflineAllowed').checked = resource.offlineAllowed === true;
+        const offlineRights = el('digitalReplaceOfflineAllowed');
+        if (offlineRights) offlineRights.checked = resource.offlineAllowed === true;
         el('digitalReplaceDialog').showModal();
     }
     async function saveReplacement(event) {

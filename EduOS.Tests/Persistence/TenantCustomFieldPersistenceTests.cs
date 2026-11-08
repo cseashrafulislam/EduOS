@@ -1,6 +1,7 @@
 using System.Reflection;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Entities.Assessment;
+using EduOS.Core.Entities.Library;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +37,15 @@ public sealed class TenantCustomFieldPersistenceTests
         Assert.NotNull(method);
         Assert.True((bool)method!.Invoke(null, new object[]
         { new OmrSheetEvent { BeforeAnswers = "ABCD", AfterAnswers = "ABCE" } })!);
+    }
+
+    [Fact]
+    public void Audit_suppresses_private_reader_positions_and_idempotency_references()
+    {
+        var method = typeof(EduOSDbContext).GetMethod("SuppressAuditPayload", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        Assert.True((bool)method!.Invoke(null, new object[]
+        { new StudyBookmark { LastReadPage = 55, LastProgressCommandId = Guid.NewGuid() } })!);
     }
 
     private static EduOSDbContext Db()

@@ -473,7 +473,7 @@ public sealed class LibraryDigitalResourceService(
                 x.Document.ContentExamCode, x.Document.ContentBoardCode,
                 x.Document.ContentSyllabusYear, x.Document.ContentSyllabusVersion,
                 x.Document.ContentSyllabusSourceUrl, x.Document.ContentPreviousPaperYear,
-                x.Document.ContentStudyExplanation,
+                x.Document.ContentStudyExplanation, x.Document.ContentOfflineAllowed,
                 BookReference = x.Book.PublicId,
                 BookTitle = x.Book.Title, BookAuthor = x.Book.Author,
                 BookPublisher = x.Book.Publisher, BookEdition = x.Book.Edition,
@@ -639,7 +639,9 @@ public sealed class LibraryDigitalResourceService(
                     return ApiResponse<StudyReaderProgressDto>.SuccessResponse(ReaderProgress(reference, row));
                 }
                 if (row == null && !string.IsNullOrEmpty(request.ExpectedRowVersion) ||
-                    row != null && !VersionMatches(row.RowVersion, request.ExpectedRowVersion))
+                    row != null && row.IsDeleted && !string.IsNullOrEmpty(request.ExpectedRowVersion) ||
+                    row != null && !row.IsDeleted &&
+                        !VersionMatches(row.RowVersion, request.ExpectedRowVersion))
                     return Fail<StudyReaderProgressDto>("Reader position changed; resolve the conflict before retry.", 409);
                 if (row == null)
                 {
