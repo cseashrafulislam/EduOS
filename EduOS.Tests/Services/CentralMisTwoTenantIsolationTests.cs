@@ -470,6 +470,7 @@ public sealed class CentralMisTwoTenantIsolationTests
         await using (var seed = Open(options, 41))
         {
             SeedAdmin(seed, 41, 9, 1, 2);
+            await seed.SaveChangesAsync();
             var membership = await seed.TenantMemberships.SingleAsync(
                 x => x.TenantId == 41 && x.UserId == 9);
             membership.Status = MembershipStatus.Suspended;

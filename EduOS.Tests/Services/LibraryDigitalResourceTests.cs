@@ -90,9 +90,9 @@ public sealed class LibraryDigitalResourceTests
 
     [Theory]
     [InlineData("   ")]
-    [InlineData("\\t")]
-    [InlineData("Science\\nprivate")]
-    [InlineData("History\\u0000")]
+    [InlineData("\t")]
+    [InlineData("Science\nprivate")]
+    [InlineData("History\u0000")]
     [InlineData("History\u200Bhidden")]
     [InlineData("\u200EScience")]
     [InlineData("Biology\u2066")]
@@ -559,6 +559,8 @@ public sealed class LibraryDigitalResourceTests
         await using var db = Context();
         var reference = Guid.NewGuid();
         var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
         db.Documents.Add(new Document
         {
             TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,

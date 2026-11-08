@@ -94,7 +94,7 @@ public sealed class GroundedChapterStudyTests
 
     [Theory]
     [InlineData("<script>alert(1)</script>")]
-    [InlineData("Chapter 2\\u202Epage 14")]
+    [InlineData("Chapter 2\u202Epage 14")]
     [InlineData("Chapter 2 & page 14")]
     public void Unsafe_citation_is_rejected(string citation)
     {
@@ -116,7 +116,7 @@ public sealed class GroundedChapterStudyTests
     public void Invisible_formatting_in_source_is_rejected()
     {
         var result = GroundedChapterStudy.Answer(Request,
-            [Excerpt(text: "Photosynthesis\\u200B converts light energy.")]);
+            [Excerpt(text: "Photosynthesis\u200B converts light energy.")]);
         Assert.Equal(Outcome.Invalid, result.Status);
     }
 
