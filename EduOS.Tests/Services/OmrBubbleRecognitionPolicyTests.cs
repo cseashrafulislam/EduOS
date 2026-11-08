@@ -1,4 +1,4 @@
-using EduOS.Service.Services.Assessment;
+using EduOS.Service.Services.Omr;
 using Xunit;
 
 namespace EduOS.Tests.Services;

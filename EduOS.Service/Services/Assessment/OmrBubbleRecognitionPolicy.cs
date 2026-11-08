@@ -1,4 +1,4 @@
-namespace EduOS.Service.Services.Assessment;
+namespace EduOS.Service.Services.Omr;
 
 /// <summary>
 /// Offline OMR bubble classifier for an already aligned/cropped sheet. Pixel
