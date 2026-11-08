@@ -46,7 +46,7 @@ public sealed class ScholarshipDisbursement : BaseTenantEntity
     public long AccountingPeriodId { get; set; }
     public DateOnly PaymentDate { get; set; }
     [Required, MaxLength(100)] public string ExternalPaymentReference { get; set; } = "";
-    [Required, MaxLength(16)] public string State { get; set; } = "Submitted";
+    [Required, MaxLength(24)] public string State { get; set; } = "Submitted";
     public long PreparedByUserId { get; set; }
     public DateTime SubmittedAtUtc { get; set; } = DateTime.UtcNow;
     public long? ReviewedByUserId { get; set; }

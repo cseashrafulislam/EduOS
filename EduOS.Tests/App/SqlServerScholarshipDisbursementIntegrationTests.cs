@@ -190,6 +190,9 @@ public sealed class SqlServerScholarshipDisbursementIntegrationTests
         var requested = await maker.RequestReversalAsync(applicationRef, reversal);
         Assert.True(requested.Success, requested.Message);
         Assert.Equal("ReversalRequested", requested.Data!.State);
+        db.ChangeTracker.Clear();
+        Assert.Equal("ReversalRequested", (await db.ScholarshipDisbursements.AsNoTracking()
+            .SingleAsync(x => x.PublicId == posted.Data.Reference)).State);
         var confirm = new ReviewScholarshipReversalRequest { RequestId = Guid.NewGuid(),
             RowVersion = requested.Data.RowVersion, ConfirmReversed = true,
             Reason = "Verified bank reversal reference" };

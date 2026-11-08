@@ -109,7 +109,7 @@ partial class EduOSDbContextModelSnapshot
             b.Property<long>("AccountingPeriodId").HasColumnType("bigint");
             b.Property<DateOnly>("PaymentDate").HasColumnType("date");
             b.Property<string>("ExternalPaymentReference").IsRequired().HasMaxLength(100).HasColumnType("nvarchar(100)");
-            b.Property<string>("State").IsRequired().HasMaxLength(16).HasColumnType("nvarchar(16)");
+            b.Property<string>("State").IsRequired().HasMaxLength(24).HasColumnType("nvarchar(24)");
             b.Property<long>("PreparedByUserId").HasColumnType("bigint");
             b.Property<DateTime>("SubmittedAtUtc").HasColumnType("datetime2");
             b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
