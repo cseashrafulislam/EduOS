@@ -251,8 +251,7 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
         OmrRecognitionResult recognition;
         try { recognition = OmrImageRecognition.Read(downloaded.Content,
             form.AnswerKey.Length, form.OptionsPerQuestion); }
-        catch (Exception ex) when (ex is ArgumentException or InvalidDataException or
-            SixLabors.ImageSharp.UnknownImageFormatException or SixLabors.ImageSharp.InvalidImageContentException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidDataException)
         {
             return Fail<OmrSheetDto>("OMR image could not be read reliably. Recapture using the printed template.", 422);
         }

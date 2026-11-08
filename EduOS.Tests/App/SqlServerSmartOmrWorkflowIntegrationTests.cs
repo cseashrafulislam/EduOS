@@ -19,8 +19,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using System.Security.Cryptography;
 using Xunit;
 
@@ -38,16 +37,17 @@ public sealed class SqlServerSmartOmrWorkflowIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var seeded = await SeedAsync(options);
-        using var png = new Image<Rgba32>(OmrImageRecognition.SheetWidth,
-            OmrImageRecognition.SheetHeight(2), new Rgba32(255, 255, 255));
+        using var png = new SKBitmap(OmrImageRecognition.SheetWidth,
+            OmrImageRecognition.SheetHeight(2));
+        png.Erase(SKColors.White);
         foreach (var (x, y) in new[] { (50, 50), (950, 50),
             (50, png.Height - 50), (950, png.Height - 50),
             (320, OmrImageRecognition.FirstQuestionY) })
             for (var dy = -9; dy <= 9; dy++)
             for (var dx = -9; dx <= 9; dx++)
-                if (dx * dx + dy * dy <= 81) png[x + dx, y + dy] = new Rgba32(0, 0, 0);
-        using var bytes = new MemoryStream();
-        png.SaveAsPng(bytes);
+                if (dx * dx + dy * dy <= 81) png.SetPixel(x + dx, y + dy, SKColors.Black);
+        using var snapshot = SKImage.FromBitmap(png);
+        using var bytes = snapshot.Encode(SKEncodedImageFormat.Png, 100);
         var content = bytes.ToArray();
         var key = $"tenant-{seeded.TenantId}/omr/{Guid.NewGuid():N}.png";
         Guid fileReference;

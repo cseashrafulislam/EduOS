@@ -1,5 +1,4 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using System.Text;
 
 namespace EduOS.Service.Services.Omr;
@@ -23,11 +22,14 @@ public static class OmrImageRecognition
         if (imageBytes is not { Length: > 0 and <= 5_242_880 } ||
             questions is < 1 or > MaxPrintableQuestions || options is < 4 or > 5)
             throw new ArgumentException("Invalid OMR photo or template.");
-        var info = Image.Identify(imageBytes);
-        if (info == null || info.Width is < 600 or > 5000 || info.Height is < 300 or > 8000 ||
-            (long)info.Width * info.Height > 16_000_000)
+        using var data = SKData.CreateCopy(imageBytes);
+        using var codec = SKCodec.Create(data);
+        if (codec == null || codec.Info.Width is < 600 or > 5000 ||
+            codec.Info.Height is < 300 or > 8000 ||
+            (long)codec.Info.Width * codec.Info.Height > 16_000_000)
             throw new InvalidDataException("OMR image dimensions are outside the safe range.");
-        using var image = Image.Load<Rgba32>(imageBytes);
+        using var image = SKBitmap.Decode(codec);
+        if (image == null) throw new InvalidDataException("OMR image could not be decoded.");
         var expectedHeight = SheetHeight(questions);
         if (Math.Abs((decimal)image.Width / image.Height - (decimal)SheetWidth / expectedHeight) > 0.045m)
             throw new InvalidDataException("OMR photo is cropped, rotated or not aligned with the printable template.");
@@ -67,7 +69,7 @@ public static class OmrImageRecognition
         return OmrBubbleRecognitionPolicy.Evaluate(questions, options, bubbles);
     }
 
-    private static (int DarkPixels, int SampledPixels) Measure(Image<Rgba32> image,
+    private static (int DarkPixels, int SampledPixels) Measure(SKBitmap image,
         int sheetHeight, int logicalX, int logicalY, int radius)
     {
         var cx = logicalX * image.Width / SheetWidth;
@@ -81,10 +83,10 @@ public static class OmrImageRecognition
             var dx = (double)(x - cx) / rx;
             var dy = (double)(y - cy) / ry;
             if (dx * dx + dy * dy > 1) continue;
-            var pixel = image[x, y];
+            var pixel = image.GetPixel(x, y);
             // The scan must be opaque; transparency is not white paper.
-            if (pixel.A < 240) throw new InvalidDataException("Transparent OMR image is not permitted.");
-            if (pixel.R + pixel.G + pixel.B < 465) dark++;
+            if (pixel.Alpha < 240) throw new InvalidDataException("Transparent OMR image is not permitted.");
+            if (pixel.Red + pixel.Green + pixel.Blue < 465) dark++;
             count++;
         }
         return (dark, count);

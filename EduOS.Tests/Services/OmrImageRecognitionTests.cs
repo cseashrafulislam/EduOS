@@ -1,38 +1,37 @@
 using EduOS.Service.Services.Omr;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using SkiaSharp;
 using Xunit;
 
 namespace EduOS.Tests.Services;
 
 public sealed class OmrImageRecognitionTests
 {
-    private static Image<Rgba32> Form(int questions)
+    private static SKBitmap Form(int questions)
     {
         var height = OmrImageRecognition.SheetHeight(questions);
-        var image = new Image<Rgba32>(OmrImageRecognition.SheetWidth, height,
-            new Rgba32(255, 255, 255));
+        var image = new SKBitmap(OmrImageRecognition.SheetWidth, height);
+        image.Erase(SKColors.White);
         foreach (var (x, y) in new[] { (50, 50), (950, 50), (50, height - 50), (950, height - 50) })
             Fill(image, x, y, 9);
         return image;
     }
 
-    private static void Fill(Image<Rgba32> image, int cx, int cy, int radius)
+    private static void Fill(SKBitmap image, int cx, int cy, int radius)
     {
         for (var y = cy - radius; y <= cy + radius; y++)
         for (var x = cx - radius; x <= cx + radius; x++)
         {
             if (x >= 0 && y >= 0 && x < image.Width && y < image.Height &&
                 (x - cx) * (x - cx) + (y - cy) * (y - cy) <= radius * radius)
-                image[x, y] = new Rgba32(0, 0, 0);
+                image.SetPixel(x, y, SKColors.Black);
         }
     }
 
-    private static byte[] Png(Image<Rgba32> image)
+    private static byte[] Png(SKBitmap image)
     {
-        using var memory = new MemoryStream();
-        image.SaveAsPng(memory);
-        return memory.ToArray();
+        using var snapshot = SKImage.FromBitmap(image);
+        using var png = snapshot.Encode(SKEncodedImageFormat.Png, 100);
+        return png.ToArray();
     }
 
     [Fact]
@@ -64,7 +63,7 @@ public sealed class OmrImageRecognitionTests
     {
         using var image = Form(1);
         for (var y = 37; y <= 63; y++)
-        for (var x = 37; x <= 63; x++) image[x, y] = new Rgba32(255, 255, 255);
+        for (var x = 37; x <= 63; x++) image.SetPixel(x, y, SKColors.White);
         Assert.Throws<InvalidDataException>(() => OmrImageRecognition.Read(Png(image), 1, 4));
     }
 
