@@ -116,28 +116,107 @@ public sealed class SqlServerSmartOmrWorkflowIntegrationTests
             Assert.False(selfReview.Success);
             Assert.Equal(403, selfReview.StatusCode);
         }
-        Guid reviewId = Guid.NewGuid();
-        Guid postId = Guid.NewGuid();
-        string reviewedVersion;
+        // A closed assessment must reject review without changing the sheet or
+        // appending review history. The disposable fixture then reopens marks.
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var examId = await db.AssessmentSubjects.AsNoTracking().Where(x =>
+                x.Id == seeded.SubjectId).Select(x => x.AssessmentId).SingleAsync();
+            var exam = await db.Assessments.SingleAsync(x => x.Id == examId);
+            exam.State = AssessmentState.Locked;
+            await db.SaveChangesAsync();
+        }
         await using (var db = TenantDb(options, seeded.TenantId))
         {
             var manager = Service(db, seeded, seeded.ReviewerId, "TenantAdmin", storage.Object);
             var sheet = await manager.GetAsync(sheetRef);
             Assert.True(sheet.Success);
-            var review = await manager.ReviewAsync(sheetRef, new ReviewOmrSheetRequestDto
+            var blocked = await manager.ReviewAsync(sheetRef, new ReviewOmrSheetRequestDto
             {
-                RequestId = reviewId, RowVersion = sheet.Data!.RowVersion,
+                RequestId = Guid.NewGuid(), RowVersion = sheet.Data!.RowVersion,
                 ConfirmedAnswers = "A-", IdentityConfirmed = true
             });
-            Assert.True(review.Success, review.Message);
-            Assert.Equal("Reviewed", review.Data!.State);
-            reviewedVersion = review.Data.RowVersion;
+            Assert.False(blocked.Success);
+            Assert.Equal(409, blocked.StatusCode);
+            Assert.False(await db.OmrSheetEvents.AnyAsync());
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var examId = await db.AssessmentSubjects.AsNoTracking().Where(x =>
+                x.Id == seeded.SubjectId).Select(x => x.AssessmentId).SingleAsync();
+            var exam = await db.Assessments.SingleAsync(x => x.Id == examId);
+            exam.State = AssessmentState.MarksEntry;
+            await db.SaveChangesAsync();
+        }
+        Guid reviewId;
+        Guid postId = Guid.NewGuid();
+        string reviewedVersion;
+        // Two independent connections race with the same rowversion. Exactly
+        // one review commits; the loser cannot overwrite approved evidence.
+        await using (var firstDb = TenantDb(options, seeded.TenantId))
+        await using (var secondDb = TenantDb(options, seeded.TenantId))
+        {
+            var firstManager = Service(firstDb, seeded, seeded.ReviewerId, "TenantAdmin", storage.Object);
+            var secondManager = Service(secondDb, seeded, seeded.ReviewerId, "TenantAdmin", storage.Object);
+            var sheet = await firstManager.GetAsync(sheetRef);
+            Assert.True(sheet.Success);
+            var firstRequest = new ReviewOmrSheetRequestDto
+            {
+                RequestId = Guid.NewGuid(), RowVersion = sheet.Data!.RowVersion,
+                ConfirmedAnswers = "A-", IdentityConfirmed = true
+            };
+            var secondRequest = new ReviewOmrSheetRequestDto
+            {
+                RequestId = Guid.NewGuid(), RowVersion = sheet.Data.RowVersion,
+                ConfirmedAnswers = "A-", IdentityConfirmed = true
+            };
+            var results = await Task.WhenAll(firstManager.ReviewAsync(sheetRef, firstRequest),
+                secondManager.ReviewAsync(sheetRef, secondRequest));
+            Assert.Equal(1, results.Count(x => x.Success));
+            Assert.Equal(1, results.Count(x => !x.Success && x.StatusCode == 409));
+            var winner = results.Single(x => x.Success);
+            Assert.Equal("Reviewed", winner.Data!.State);
+            reviewedVersion = winner.Data.RowVersion;
+            reviewId = results[0].Success ? firstRequest.RequestId : secondRequest.RequestId;
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var manager = Service(db, seeded, seeded.ReviewerId, "TenantAdmin", storage.Object);
             var repeated = await manager.ReviewAsync(sheetRef, new ReviewOmrSheetRequestDto
             {
-                RequestId = reviewId, RowVersion = sheet.Data.RowVersion,
+                RequestId = reviewId, RowVersion = "AQAAAAAAAAA=",
                 ConfirmedAnswers = "A-", IdentityConfirmed = true
             });
             Assert.True(repeated.Success, repeated.Message);
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var examId = await db.AssessmentSubjects.AsNoTracking().Where(x =>
+                x.Id == seeded.SubjectId).Select(x => x.AssessmentId).SingleAsync();
+            var exam = await db.Assessments.SingleAsync(x => x.Id == examId);
+            exam.State = AssessmentState.Locked;
+            await db.SaveChangesAsync();
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var manager = Service(db, seeded, seeded.ReviewerId, "TenantAdmin", storage.Object);
+            var blocked = await manager.PostReviewedAsync(sheetRef, new PostOmrSheetRequestDto
+            {
+                RequestId = postId, RowVersion = reviewedVersion
+            });
+            Assert.False(blocked.Success);
+            Assert.Equal(409, blocked.StatusCode);
+            Assert.False(await db.StudentAssessmentMarks.AnyAsync(x =>
+                x.AssessmentSubjectId == seeded.SubjectId &&
+                x.StudentSubjectRegistrationId == seeded.RegistrationId));
+        }
+        await using (var db = TenantDb(options, seeded.TenantId))
+        {
+            var examId = await db.AssessmentSubjects.AsNoTracking().Where(x =>
+                x.Id == seeded.SubjectId).Select(x => x.AssessmentId).SingleAsync();
+            var exam = await db.Assessments.SingleAsync(x => x.Id == examId);
+            exam.State = AssessmentState.MarksEntry;
+            await db.SaveChangesAsync();
         }
         await using (var db = TenantDb(options, seeded.TenantId))
         {
