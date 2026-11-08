@@ -89,6 +89,84 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
         return ApiResponse<List<ObePublishedBatchDto>>.SuccessResponse(rows);
     }
 
+    // Show only component codes frozen with this exact publication. It is a
+    // discovery aid for policy authors, never a substitute for Preview's full
+    // cohort/provenance validation and immutable report approval.
+    public async Task<ApiResponse<ObePublishedComponentCatalogDto>> ComponentOptionsAsync(
+        long campusId, long programId, long publicationId, CancellationToken ct = default)
+    {
+        if (!Coordinator(await access.RolesAsync(ct)) ||
+            !await ProgramScopeAsync(campusId, programId, ct) || publicationId <= 0)
+            return Denied<ObePublishedComponentCatalogDto>();
+        var belongs = await (from published in db.ResultPublications.AsNoTracking()
+            join batch in db.AcademicBatches.AsNoTracking() on published.AcademicBatchId equals batch.Id
+            join assessment in db.Assessments.AsNoTracking() on published.AssessmentId equals assessment.Id
+            where published.TenantId == access.TenantId && batch.TenantId == access.TenantId &&
+                assessment.TenantId == access.TenantId && published.Id == publicationId &&
+                published.State == ResultPublicationState.Published && published.HasCourseGradeSnapshots &&
+                published.PublishedAt != null && !published.IsDeleted && !batch.IsDeleted &&
+                !assessment.IsDeleted && batch.CampusId == campusId &&
+                assessment.CampusId == campusId && batch.AcademicProgramId == programId
+            select published.Id).AnyAsync(ct);
+        if (!belongs) return Denied<ObePublishedComponentCatalogDto>();
+        var installed = await db.Database.SqlQueryRaw<int>("""
+            SELECT CASE WHEN OBJECT_ID(N'dbo.ObePublishedComponentRegisters', N'U') IS NOT NULL
+                AND OBJECT_ID(N'dbo.ObePublishedComponentEvidence', N'U') IS NOT NULL
+                THEN 1 ELSE 0 END AS Value
+            """).SingleAsync(ct);
+        var result = new ObePublishedComponentCatalogDto();
+        if (installed == 0) return ApiResponse<ObePublishedComponentCatalogDto>.SuccessResponse(result);
+        var registers = await db.Database.SqlQueryRaw<ObeFrozenRegisterRow>("""
+            SELECT CourseRowCount, ComponentRowCount FROM dbo.ObePublishedComponentRegisters
+            WHERE TenantId = {0} AND ResultPublicationId = {1}
+            """, access.TenantId, publicationId).ToListAsync(ct);
+        if (registers.Count == 0) return ApiResponse<ObePublishedComponentCatalogDto>.SuccessResponse(result);
+        var register = registers.Single();
+        var courseCounts = await db.StudentResultCourseSnapshots.AsNoTracking().Where(x =>
+            x.TenantId == access.TenantId && x.ResultPublicationId == publicationId && !x.IsDeleted)
+            .GroupBy(x => x.CurriculumSubjectId)
+            .Select(g => new { CurriculumSubjectId = g.Key, Count = g.Count(),
+                Invalid = g.Count(x => x.IsAbsent || x.IsWithheld || x.FullMarks <= 0) })
+            .Take(251).ToListAsync(ct);
+        if (courseCounts.Count > 250 || courseCounts.Sum(x => x.Count) != register.CourseRowCount ||
+            register.ComponentRowCount > 75000)
+            return ApiResponse<ObePublishedComponentCatalogDto>.ErrorResponse(
+                "Published assessment-component catalogue reconciliation failed.", 422);
+        var rows = await db.Database.SqlQueryRaw<ObeComponentCatalogRow>("""
+            SELECT TOP(5001) CurriculumSubjectId, ComponentCode, COUNT(*) AS RecordedRowCount,
+                COUNT(DISTINCT StudentEnrollmentId) AS LearnerCount,
+                SUM(CASE WHEN IsAbsent = 1 OR IsWithheld = 1 OR FullMarks <= 0
+                    OR ObtainedMarks < 0 OR ObtainedMarks > FullMarks THEN 1 ELSE 0 END) AS InvalidRowCount
+            FROM dbo.ObePublishedComponentEvidence
+            WHERE TenantId = {0} AND ResultPublicationId = {1}
+            GROUP BY CurriculumSubjectId, ComponentCode
+            ORDER BY CurriculumSubjectId, ComponentCode
+            """, access.TenantId, publicationId).ToListAsync(ct);
+        if (rows.Count > 5000 || rows.Sum(x => x.RecordedRowCount) != register.ComponentRowCount)
+            return ApiResponse<ObePublishedComponentCatalogDto>.ErrorResponse(
+                "Frozen component rows failed the completeness check.", 422);
+        var coursesById = courseCounts.ToDictionary(x => x.CurriculumSubjectId);
+        result.HasFrozenRegister = true;
+        result.Components = rows.Select(row => new ObePublishedComponentOptionDto
+        {
+            CurriculumSubjectId = row.CurriculumSubjectId, ComponentCode = row.ComponentCode,
+            RecordedRowCount = row.RecordedRowCount, LearnerCount = row.LearnerCount,
+            CompleteForCourse = coursesById.TryGetValue(row.CurriculumSubjectId, out var course) &&
+                course.Invalid == 0 && row.InvalidRowCount == 0 &&
+                row.RecordedRowCount == course.Count && row.LearnerCount == course.Count
+        }).ToList();
+        return ApiResponse<ObePublishedComponentCatalogDto>.SuccessResponse(result);
+    }
+
+    private sealed class ObeComponentCatalogRow
+    {
+        public long CurriculumSubjectId { get; set; }
+        public string ComponentCode { get; set; } = "";
+        public int RecordedRowCount { get; set; }
+        public int LearnerCount { get; set; }
+        public int InvalidRowCount { get; set; }
+    }
+
     private async Task<ObePolicyDetailDto?> ReadPolicyAsync(long id, CancellationToken ct)
     {
         var policy = (await db.Database.SqlQueryRaw<ObePolicyDto>("""

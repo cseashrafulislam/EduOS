@@ -1087,6 +1087,17 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             var owner = new Actor(seeded.TenantId, seeded.TeacherId, "AccreditationCoordinator");
             var service = new ObeAttainmentService(db, new ResearchWorkflowAccess(db, owner),
                 TimeProvider.System, NullLogger<ObeAttainmentService>.Instance);
+            var catalog = await service.ComponentOptionsAsync(campusId, programId, publicationId);
+            Assert.True(catalog.Success, catalog.Message);
+            Assert.True(catalog.Data!.HasFrozenRegister);
+            Assert.Equal(2, catalog.Data.Components.Count);
+            Assert.All(catalog.Data.Components, c => {
+                Assert.Equal(courseId, c.CurriculumSubjectId);
+                Assert.Equal(1, c.LearnerCount);
+                Assert.True(c.CompleteForCourse);
+            });
+            Assert.False((await service.ComponentOptionsAsync(campusId, programId + 99000,
+                publicationId)).Success);
             var policyRequest = new ObePolicyCreateDto {
                 ClientRequestId = Guid.NewGuid(), CampusId = campusId,
                 AcademicProgramId = programId, VersionNo = 1,

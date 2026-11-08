@@ -41,6 +41,10 @@ public sealed class ObeAttainmentApiController(IObeAttainmentService service) : 
     public async Task<IActionResult> Publications(long campusId, long programId, CancellationToken ct) =>
         Reply(await service.PublicationsAsync(campusId, programId, ct));
 
+    [HttpGet("publications/{id:long}/component-options")]
+    public async Task<IActionResult> ComponentOptions(long id, long campusId, long programId, CancellationToken ct) =>
+        Reply(await service.ComponentOptionsAsync(campusId, programId, id, ct));
+
     [HttpGet("policies")]
     public async Task<IActionResult> Policies(long campusId, long programId, CancellationToken ct) =>
         Reply(await service.PoliciesAsync(campusId, programId, ct));

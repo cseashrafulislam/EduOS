@@ -39,3 +39,18 @@ test('OBE UI provides bilingual mapping, review, privacy-aware export and page h
     assert.match(help, /Component CLOs require the exact immutable component register/);
     assert.match(js, /componentCode: row\.querySelector/);
 });
+
+test('OBE component discovery is publication-version scoped and never reads editable marks', () => {
+    const service = read('EduOS.Service/Services/Research/ObeAttainmentService.cs');
+    assert.match(api, /HttpGet\("publications\/\{id:long\}\/component-options"\)/);
+    assert.match(service, /ComponentOptionsAsync\(/);
+    assert.match(service, /ObePublishedComponentRegisters/);
+    assert.match(service, /ObePublishedComponentEvidence/);
+    assert.match(service, /ProgramScopeAsync\(campusId, programId, ct\)/);
+    assert.match(service, /CompleteForCourse/);
+    assert.match(js, /refreshComponentOptions/);
+    assert.match(js, /completeForCourse/);
+    assert.match(view, /id="obeEvidenceNotice"/);
+    assert.doesNotMatch(service.slice(service.indexOf('public async Task<ApiResponse<ObePublishedComponentCatalogDto>>'),
+        service.indexOf('private sealed class ObeComponentCatalogRow')), /StudentAssessmentComponentMarks/);
+});

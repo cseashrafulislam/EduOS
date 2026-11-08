@@ -80,6 +80,21 @@ public sealed class ObePublishedBatchDto
     public DateTime PublishedAtUtc { get; set; }
 }
 
+public sealed class ObePublishedComponentCatalogDto
+{
+    public bool HasFrozenRegister { get; set; }
+    public List<ObePublishedComponentOptionDto> Components { get; set; } = new();
+}
+
+public sealed class ObePublishedComponentOptionDto
+{
+    public long CurriculumSubjectId { get; set; }
+    public string ComponentCode { get; set; } = "";
+    public int RecordedRowCount { get; set; }
+    public int LearnerCount { get; set; }
+    public bool CompleteForCourse { get; set; }
+}
+
 public sealed class ObeOutcomeAttainmentDto
 {
     public long ProgramOutcomeId { get; set; }

@@ -12,6 +12,7 @@
     const valid = () => Boolean(tenant && session && tenant === document.body.dataset.authTenantId &&
         session === document.body.dataset.authSessionReference);
     let busy = false, generation = 0, courses = [], plos = [], selected = null;
+    let componentCatalog = null, cloRowIndex = 0;
     let policyRetry = null, submitRetry = null, reviewRetry = null;
     const create = (tag, className, text) => {
         const node = document.createElement(tag);
@@ -39,6 +40,8 @@
         const scoped = !!scope().campusId && !!scope().programId;
         get('obeCampus').disabled = busy;
         get('obeProgram').disabled = busy || !scope().campusId;
+        get('obePublication').disabled = busy;
+        get('obePolicy').disabled = busy;
         for (const id of ['obeAddClo', 'obeAddLink', 'obeSavePolicy']) get(id).disabled = busy || !scoped;
         get('obePreview').disabled = busy || !get('obePolicy').value || !get('obePublication').value;
         get('obeSubmit').disabled = get('obePreview').disabled;
@@ -98,6 +101,33 @@
             select.value = codes.includes(old) ? old : '';
         });
     }
+    function refreshComponentOptions() {
+        const currentPublication = get('obePublication').value;
+        const message = !currentPublication
+            ? t('Choose a published result to discover its frozen rubric codes.',
+                'সংরক্ষিত রুব্রিক কোড দেখতে প্রকাশিত ফল নির্বাচন করুন।')
+            : !componentCatalog
+                ? t('Checking frozen component evidence…', 'সংরক্ষিত কম্পোনেন্ট তথ্য যাচাই হচ্ছে…')
+                : !componentCatalog.hasFrozenRegister
+                    ? t('This result predates component capture or has no frozen register. A component CLO cannot use it.',
+                        'এই ফলাফলে অপরিবর্তনীয় কম্পোনেন্ট রেজিস্টার নেই। কম্পোনেন্ট CLO ব্যবহার করা যাবে না।')
+                    : t('Only fully evidenced codes below can produce attainment for this published result.',
+                        'শুধুমাত্র সম্পূর্ণ তথ্যসহ কোড দিয়ে এই ফলাফলের অর্জন হিসাব করা যাবে।');
+        get('obeEvidenceNotice').textContent = message;
+        get('obeCloRows').querySelectorAll('[data-role="component-list"]').forEach(list => {
+            const row = list.parentElement, courseId = Number(row.querySelector('[data-role="course"]').value);
+            list.replaceChildren();
+            const options = componentCatalog?.components?.filter(x =>
+                x.curriculumSubjectId === courseId && x.completeForCourse) || [];
+            options.forEach(x => option(list, x.componentCode, x.componentCode + ' · ' +
+                x.learnerCount + ' ' + t('learners', 'শিক্ষার্থী')));
+            row.querySelector('[data-role="component-hint"]').textContent = options.length
+                ? t('Frozen component suggestions: ', 'সংরক্ষিত কম্পোনেন্ট: ') +
+                    options.map(x => x.componentCode).join(', ')
+                : t('Blank uses the course-grade proxy. An unlisted code fails closed during preview.',
+                    'খালি রাখলে কোর্স গ্রেড নেওয়া হবে। তালিকার বাইরের কোড প্রিভিউতে বাতিল হবে।');
+        });
+    }
     function addClo() {
         const box = create('div', 'border rounded p-2');
         const course = create('select', 'form-select mb-2'); course.dataset.role = 'course';
@@ -109,13 +139,18 @@
         component.maxLength = 50;
         component.placeholder = t('Published assessment component code (optional; blank = course-grade proxy)',
             'প্রকাশিত মূল্যায়ন কম্পোনেন্ট কোড (ঐচ্ছিক; খালি = কোর্স গ্রেড)');
+        const choices = create('datalist'); choices.id = 'obeComponentChoices' + ++cloRowIndex;
+        choices.dataset.role = 'component-list'; component.setAttribute('list', choices.id);
+        const help = create('p', 'small text-muted mb-2'); help.dataset.role = 'component-hint';
         const statement = create('textarea', 'form-control mb-2'); statement.dataset.role = 'statement';
         statement.required = true; statement.minLength = 10; statement.maxLength = 1000; statement.rows = 2;
         statement.placeholder = t('Measurable course learning outcome', 'পরিমাপযোগ্য কোর্স শিক্ষণফল');
         const remove = create('button', 'btn btn-sm btn-outline-danger', t('Remove', 'সরান')); remove.type = 'button';
         remove.addEventListener('click', () => { box.remove(); refreshCloOptions(); policyRetry = null; });
         code.addEventListener('input', refreshCloOptions);
-        box.append(course, code, component, statement, remove); get('obeCloRows').appendChild(box);
+        course.addEventListener('change', refreshComponentOptions);
+        box.append(course, code, component, choices, help, statement, remove); get('obeCloRows').appendChild(box);
+        refreshComponentOptions();
         policyRetry = null;
     }
     function addLink() {
@@ -149,6 +184,7 @@
     }
     async function loadScope() {
         invalidate(); policyRetry = null;
+        componentCatalog = null;
         courses = []; plos = []; get('obeCloRows').replaceChildren(); get('obeLinkRows').replaceChildren();
         resetOptions(get('obePolicy'), t('Choose policy', 'নীতি নির্বাচন'));
         resetOptions(get('obePublication'), t('Choose published result', 'প্রকাশিত ফল নির্বাচন'));
@@ -238,7 +274,19 @@
         });
     });
     get('obePolicy').addEventListener('change', () => { submitRetry = null; get('obePreviewDetails').replaceChildren(); });
-    get('obePublication').addEventListener('change', () => { submitRetry = null; get('obePreviewDetails').replaceChildren(); });
+    get('obePublication').addEventListener('change', () => {
+        submitRetry = null; componentCatalog = null;
+        get('obePreviewDetails').replaceChildren(); refreshComponentOptions();
+        const publicationId = get('obePublication').value, request = generation;
+        if (!publicationId) return;
+        run(async () => {
+            const { campusId, programId } = scope();
+            const catalog = await api('/api/accreditation/obe/publications/' +
+                encodeURIComponent(publicationId) + '/component-options?' + query({ campusId, programId }));
+            if (request !== generation || get('obePublication').value !== publicationId || !valid()) return;
+            componentCatalog = catalog; refreshComponentOptions();
+        });
+    });
     get('obePreview').addEventListener('click', () => run(async () => {
         const policy = get('obePolicy').value, publication = get('obePublication').value;
         const preview = await api('/api/accreditation/obe/policies/' + encodeURIComponent(policy) +
