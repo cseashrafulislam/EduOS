@@ -15,6 +15,8 @@ test('A3 aid form keeps antiforgery, server-enrollment selection and tenant-boun
     assert.match(js, /student-support-directory\/aid-rules/);
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /safeSession\(\)/);
+    assert.match(js, /visibilitychange/);
+    assert.match(js, /querySelectorAll\('button,input,select,textarea'\)/);
     assert.match(js, /credentials: 'same-origin', cache: 'no-store'/);
     assert.doesNotMatch(js, /\.innerHTML\s*=/);
 });
@@ -28,6 +30,8 @@ test('A4 keeps confidential narratives outside GET and never builds HTML from no
     assert.match(view, /@L\("Student Counseling & Safeguarding"/);
     assert.match(js, /\/private-view', 'POST'/);
     assert.match(js, /casePrivateSummary'\)\.textContent/);
+    assert.match(js, /visibilitychange/);
+    assert.match(js, /casePrivatePanel'\)\.classList\.add\('d-none'\)/);
     assert.doesNotMatch(js, /\.innerHTML\s*=/);
     assert.match(api, /\[HttpPost\("\{reference:guid\}\/private-view"\)\]/);
     assert.match(svc, /data protection|IDataProtectionProvider/i);

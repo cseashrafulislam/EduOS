@@ -13,14 +13,32 @@
     const safeSession = () => session[0] && session[1] &&
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
-    const state = { student: '', selected: null, busy: false, page: 1, total: 0, requestId: null };
+    const state = { student: '', selected: null, busy: false, locked: false, page: 1, total: 0, requestId: null };
     const val = id => $(id)?.value?.trim() || '';
     const guid = () => crypto.randomUUID();
     function notice(text, danger = false) {
         const box = $('caseNotice'); box.textContent = text;
         box.className = 'alert ' + (danger ? 'alert-danger' : 'alert-info');
     }
+    function checkSession() {
+        if (state.locked) return false;
+        if (safeSession()) return true;
+        state.locked = true; state.busy = true;
+        state.student = ''; state.selected = null; state.requestId = null;
+        for (const field of root.querySelectorAll('input,select,textarea'))
+            if (field.type !== 'hidden') field.value = '';
+        $('caseStudents').replaceChildren(); $('myCases').replaceChildren();
+        if (staff) {
+            $('caseRows').replaceChildren(); $('caseSelected').textContent = '';
+            $('casePrivateSummary').textContent = ''; $('casePrivateEvents').replaceChildren();
+            $('casePrivatePanel').classList.add('d-none');
+        }
+        for (const control of root.querySelectorAll('button,input,select,textarea')) control.disabled = true;
+        notice(T('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠাটি রিলোড করুন।'), true);
+        return false;
+    }
     function controls() {
+        if (state.locked) return;
         $('caseSubmit').disabled = state.busy || !state.student || val('caseSummary').length < 10;
         $('caseMineRefresh').disabled = state.busy;
         if (!staff) return;
@@ -34,7 +52,7 @@
         if (officer) $('caseAssign').disabled = state.busy || state.selected?.state !== 'Requested';
     }
     async function api(path, method = 'GET', payload) {
-        if (!safeSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। রিলোড করুন।'));
+        if (!checkSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। রিলোড করুন।'));
         const headers = { Accept: 'application/json' };
         if (method !== 'GET') {
             if (!token) throw Error(T('Security token missing. Reload.', 'নিরাপত্তা টোকেন নেই। রিলোড করুন।'));
@@ -46,6 +64,7 @@
             ...(payload === undefined ? {} : { body: JSON.stringify(payload) })
         });
         const json = await response.json().catch(() => null);
+        if (!checkSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। রিলোড করুন।'));
         if (!response.ok || json?.success !== true)
             throw Error(json?.message || T('Request failed. Check access and refresh.', 'অনুরোধ ব্যর্থ। অনুমতি যাচাই করে রিফ্রেশ করুন।'));
         return json.data;
@@ -202,5 +221,7 @@
     $('caseSubmitForm').addEventListener('submit', submit);
     $('caseSummary').addEventListener('input', controls);
     $('caseMineRefresh').addEventListener('click', mine);
+    window.addEventListener('focus', checkSession);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSession(); });
     (async () => { await lookup(); await mine(); })();
 })();

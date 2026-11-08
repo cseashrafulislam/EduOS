@@ -12,7 +12,7 @@
     const safeSession = () => session[0] && session[1] &&
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
-    const state = { busy: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null };
+    const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null };
     const guid = () => crypto.randomUUID();
     const val = id => $(id)?.value?.trim() || '';
     const date = value => value ? String(value).slice(0, 10) : '';
@@ -21,7 +21,21 @@
         box.className = 'alert ' + (danger ? 'alert-danger' : 'alert-info');
         box.textContent = message;
     }
+    function checkSession() {
+        if (state.locked) return false;
+        if (safeSession()) return true;
+        state.locked = true; state.busy = true; state.enrollment = '';
+        state.selected = null; state.requestId = null; state.total = 0;
+        for (const field of root.querySelectorAll('input,select,textarea'))
+            if (field.type !== 'hidden') field.value = '';
+        $('aidStudents').replaceChildren(); $('aidRows').replaceChildren();
+        if (review) $('aidSelected').textContent = '';
+        for (const control of root.querySelectorAll('button,input,select,textarea')) control.disabled = true;
+        notice(T('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠাটি রিলোড করুন।'), true);
+        return false;
+    }
     function refreshControls() {
+        if (state.locked) return;
         $('aidSubmit').disabled = state.busy || !state.enrollment || !val('aidRule') ||
             !val('aidFrom') || !val('aidStatement');
         for (const id of ['aidRefresh', 'aidPrev', 'aidNext']) $(id).disabled = state.busy ||
@@ -35,7 +49,7 @@
             !['Submitted', 'Awarded'].includes(state.selected?.state);
     }
     async function api(path, method = 'GET', payload) {
-        if (!safeSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'));
+        if (!checkSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'));
         const headers = { Accept: 'application/json' };
         if (method !== 'GET') {
             if (!token) throw Error(T('Security token missing. Reload.', 'নিরাপত্তা টোকেন নেই। রিলোড করুন।'));
@@ -47,6 +61,7 @@
             ...(payload === undefined ? {} : { body: JSON.stringify(payload) })
         });
         const json = await response.json().catch(() => null);
+        if (!checkSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। রিলোড করুন।'));
         if (!response.ok || json?.success !== true)
             throw Error(json?.message || T('Request failed. Reload and retry.', 'অনুরোধ ব্যর্থ। রিলোড করে চেষ্টা করুন।'));
         return json.data;
@@ -196,5 +211,7 @@
     }
     const today = new Date();
     $('aidFrom').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    window.addEventListener('focus', checkSession);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSession(); });
     (async () => { await rules(); await searchStudent(); await list(); })();
 })();
