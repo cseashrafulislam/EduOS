@@ -1665,6 +1665,24 @@
             recovery: ['If no standard appears, confirm independent publication. On 403/404 verify module, role and campus. On 409 reload before a new command. Repeat an uncertain request with its original key.', 'মানদণ্ড না এলে প্রকাশ হয়েছে কি না দেখুন। ৪০৩/৪০৪ হলে মডিউল, ভূমিকা ও ক্যাম্পাস যাচাই করুন। ৪০৯ হলে রিফ্রেশ করুন। অনিশ্চিত অনুরোধে আগের key ব্যবহার করুন।'],
             related: [['/ResearchProposals/Index', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন']]
         },
+        '/accreditation/obe/index': {
+            version: 1, reviewed: true,
+            title: ['University OBE attainment', 'বিশ্ববিদ্যালয় OBE শিক্ষণফল মূল্যায়ন'],
+            purpose: ['Map versioned course outcomes (CLO) to existing program outcomes (PLO), calculate course-grade attainment from a published result, submit and independently review a frozen aggregate report.', 'সংস্করণভিত্তিক কোর্স শিক্ষণফল (CLO) বিদ্যমান প্রোগ্রাম শিক্ষণফলের (PLO) সঙ্গে যুক্ত করুন, প্রকাশিত ফল থেকে অর্জন হিসাব ও স্বতন্ত্র অনুমোদনের জন্য অপরিবর্তনীয় সমষ্টিগত রিপোর্ট জমা দিন।'],
+            before: ['ACCREDITATION access, active campus grant, an existing program PLO version, curriculum courses and reconciled published course-grade snapshots. Coordinators alone can save policies and review reports.', 'ACCREDITATION অনুমতি, সক্রিয় ক্যাম্পাস অধিকার, প্রোগ্রামের PLO সংস্করণ, পাঠ্যক্রমের কোর্স এবং সমন্বিত প্রকাশিত কোর্স-ফল প্রয়োজন। সমন্বয়কারী নীতি ও রিপোর্ট অনুমোদন করবেন।'],
+            steps: [
+                ['Choose the campus and program, add measurable CLO codes with their curriculum courses.', 'ক্যাম্পাস ও প্রোগ্রাম বেছে পাঠ্যক্রমের কোর্সের সঙ্গে পরিমাপযোগ্য CLO কোড যোগ করুন।'],
+                ['Map each CLO to an existing PLO and assign weights totaling exactly 100% per PLO; save an immutable version.', 'প্রতিটি CLO বিদ্যমান PLO-তে যুক্ত করে প্রতিটি PLO-এর ওজনের যোগফল ঠিক ১০০% করুন; অপরিবর্তনীয় সংস্করণ সংরক্ষণ করুন।'],
+                ['Select that policy and an already published assessment/batch; calculate the read-only CLO/PLO attainment preview.', 'ওই নীতি ও প্রকাশিত পরীক্ষা/ব্যাচ বেছে CLO/PLO অর্জনের হিসাব দেখুন।'],
+                ['Submit the frozen report; a different coordinator records approval or rejection with a reason.', 'অপরিবর্তনীয় রিপোর্ট জমা দিন; ভিন্ন সমন্বয়কারী কারণসহ অনুমোদন বা প্রত্যাখ্যান করবেন।'],
+                ['Review historical reports and download the approved aggregate CSV or print to PDF.', 'ঐতিহাসিক রিপোর্ট দেখুন; অনুমোদিত সমষ্টিগত CSV নিন বা PDF প্রিন্ট করুন।']
+            ],
+            example: ['Fictional: CLO1 and CLO2 contribute 60% and 40% to PLO1. The publication has one full course-grade row per learner and course; the report freezes the resulting cohort percentage.', 'কাল্পনিক: CLO1 ও CLO2 যথাক্রমে ৬০% ও ৪০% দিয়ে PLO1-এ যুক্ত। প্রকাশিত ফলাফলে প্রতি শিক্ষার্থী ও কোর্সের পূর্ণ তথ্য থাকলে সমষ্টিগত অর্জনের শতাংশ অপরিবর্তনীয়ভাবে সংরক্ষিত হয়।'],
+            result: ['The policy and report stay versioned. Approved exports include aggregate outcome scores only; marks, grade authority and original result snapshots remain unchanged.', 'নীতি ও রিপোর্ট সংস্করণভিত্তিক থাকে। অনুমোদিত CSV-তে শুধু সমষ্টিগত শিক্ষণফল ফলাফল থাকে; মূল নম্বর, গ্রেড ও প্রকাশিত ফল অপরিবর্তিত।'],
+            rules: ['The current calculation uses published course-grade CLO proxies, not component-level rubric evidence. Absent, withheld, incomplete or unreconciled grade snapshots are rejected. The submitter cannot review their report; retries are keyed and permissions are rechecked.', 'বর্তমান হিসাব প্রকাশিত কোর্স-গ্রেডভিত্তিক CLO অনুমান ব্যবহার করে, আলাদা rubric component evidence নয়। অনুপস্থিত, স্থগিত বা অসম্পূর্ণ ফল প্রত্যাখ্যাত। জমাদাতা নিজের রিপোর্ট অনুমোদন করতে পারেন না; পুনরায় অনুরোধ ও অধিকার সার্ভার যাচাই করে।'],
+            recovery: ['If no publication appears, finish the existing official result publication first. Fix incomplete course evidence in the authorized Assessment workflow and publish a new version; do not edit a frozen OBE report. On a conflict, refresh and reuse the original request key for uncertain retries.', 'ফল প্রকাশ না থাকলে আগে মূল ফল প্রকাশ করুন। অসম্পূর্ণ কোর্সের তথ্য Assessment-এর অনুমোদিত উপায়ে সংশোধন করে নতুন সংস্করণ প্রকাশ করুন; অপরিবর্তনীয় OBE রিপোর্ট বদলাবেন না। দ্বন্দ্ব হলে রিফ্রেশ করুন; অনিশ্চিত অনুরোধে আগের request key ব্যবহার করুন।'],
+            related: [['/Accreditation/Index', 'Accreditation evidence', 'স্বীকৃতি প্রমাণ']]
+        },
         '/careeropportunities/index': {
             version: 1, reviewed: true,
             title: ['Career Opportunities & Applications', 'চাকরি ও ইন্টার্নশিপ আবেদন'],

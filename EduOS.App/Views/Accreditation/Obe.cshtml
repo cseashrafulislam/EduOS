@@ -1,0 +1,93 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "OBE শিক্ষণফল মূল্যায়ন" : "University OBE Attainment";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<div class="container-fluid py-4" id="obeWorkspace">
+    @Html.AntiForgeryToken()
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+        <h1 class="h4 mb-0" data-o-en="University OBE attainment" data-o-bn="বিশ্ববিদ্যালয় OBE শিক্ষণফল মূল্যায়ন">University OBE attainment</h1>
+        <a class="btn btn-sm btn-outline-secondary" asp-controller="Accreditation" asp-action="Index"
+           data-o-en="Accreditation" data-o-bn="স্বীকৃতি">Accreditation</a>
+    </div>
+    <div id="obeNotice" class="alert d-none" role="status" aria-live="polite"></div>
+    <section class="card border-0 shadow-sm mb-3" aria-labelledby="obeScopeHeading">
+        <div class="card-body">
+            <h2 id="obeScopeHeading" class="h5" data-o-en="Academic scope" data-o-bn="একাডেমিক পরিসর">Academic scope</h2>
+            <div class="row g-2">
+                <div class="col-md-6"><label for="obeCampus" class="form-label" data-o-en="Campus" data-o-bn="ক্যাম্পাস">Campus</label>
+                    <select id="obeCampus" class="form-select"></select></div>
+                <div class="col-md-6"><label for="obeProgram" class="form-label" data-o-en="Program" data-o-bn="প্রোগ্রাম">Program</label>
+                    <select id="obeProgram" class="form-select"></select></div>
+            </div>
+        </div>
+    </section>
+    <div class="row g-3">
+        <div class="col-xl-6">
+            <section class="card border-0 shadow-sm mb-3" aria-labelledby="obePolicyHeading">
+                <div class="card-body">
+                    <h2 id="obePolicyHeading" class="h5" data-o-en="Versioned CLO/PLO policy" data-o-bn="সংস্করণভিত্তিক CLO/PLO নীতি">Versioned CLO/PLO policy</h2>
+                    <form id="obePolicyForm">
+                        <label for="obeVersion" class="form-label" data-o-en="New policy version" data-o-bn="নতুন নীতির সংস্করণ">New policy version</label>
+                        <input id="obeVersion" class="form-control mb-3" type="number" min="1" max="1000" value="1" required />
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h3 class="h6 mb-0" data-o-en="Course learning outcomes (CLO)" data-o-bn="কোর্স শিক্ষণফল (CLO)">Course learning outcomes (CLO)</h3>
+                            <button id="obeAddClo" type="button" class="btn btn-sm btn-outline-primary" data-o-en="Add CLO" data-o-bn="CLO যোগ">Add CLO</button>
+                        </div>
+                        <div id="obeCloRows" class="vstack gap-2 mb-3"></div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h3 class="h6 mb-0" data-o-en="Weighted CLO → PLO contributions" data-o-bn="CLO → PLO ওজনযুক্ত সংযোগ">Weighted CLO → PLO contributions</h3>
+                            <button id="obeAddLink" type="button" class="btn btn-sm btn-outline-primary" data-o-en="Add link" data-o-bn="সংযোগ যোগ">Add link</button>
+                        </div>
+                        <div id="obeLinkRows" class="vstack gap-2 mb-3"></div>
+                        <button id="obeSavePolicy" class="btn btn-primary" type="submit" data-o-en="Save immutable policy" data-o-bn="অপরিবর্তনীয় নীতি সংরক্ষণ">Save immutable policy</button>
+                    </form>
+                </div>
+            </section>
+        </div>
+        <div class="col-xl-6">
+            <section class="card border-0 shadow-sm mb-3" aria-labelledby="obeComputeHeading">
+                <div class="card-body">
+                    <h2 id="obeComputeHeading" class="h5" data-o-en="Published-result attainment" data-o-bn="প্রকাশিত ফলাফল থেকে অর্জন">Published-result attainment</h2>
+                    <label for="obePolicy" class="form-label" data-o-en="Policy version" data-o-bn="নীতির সংস্করণ">Policy version</label>
+                    <select id="obePolicy" class="form-select mb-2"></select>
+                    <label for="obePublication" class="form-label" data-o-en="Published assessment / batch" data-o-bn="প্রকাশিত পরীক্ষা / ব্যাচ">Published assessment / batch</label>
+                    <select id="obePublication" class="form-select mb-2"></select>
+                    <div class="d-flex gap-2 flex-wrap mb-3">
+                        <button id="obePreview" type="button" class="btn btn-outline-primary" data-o-en="Calculate preview" data-o-bn="হিসাব দেখুন">Calculate preview</button>
+                        <button id="obeSubmit" type="button" class="btn btn-primary" data-o-en="Submit for independent review" data-o-bn="স্বতন্ত্র অনুমোদনের জন্য জমা">Submit for independent review</button>
+                    </div>
+                    <div id="obePreviewDetails" aria-live="polite"></div>
+                    <h3 class="h6 mt-3" data-o-en="Attainment reports" data-o-bn="শিক্ষণফল রিপোর্ট">Attainment reports</h3>
+                    <div class="table-responsive"><table class="table table-sm table-striped">
+                        <thead><tr><th data-o-en="Publication" data-o-bn="ফল প্রকাশ">Publication</th><th data-o-en="Status" data-o-bn="অবস্থা">Status</th><th data-o-en="Action" data-o-bn="কাজ">Action</th></tr></thead>
+                        <tbody id="obeReportRows"></tbody>
+                    </table></div>
+                </div>
+            </section>
+            <section id="obeReportPanel" class="card border-0 shadow-sm d-none" aria-labelledby="obeReportHeading">
+                <div class="card-body">
+                    <h2 id="obeReportHeading" class="h5" data-o-en="Frozen report / independent decision" data-o-bn="অপরিবর্তনীয় রিপোর্ট / স্বতন্ত্র সিদ্ধান্ত">Frozen report / independent decision</h2>
+                    <div id="obeReportSummary" class="mb-3"></div>
+                    <div id="obeReportDetails" class="mb-3"></div>
+                    <form id="obeReviewForm" class="border-top pt-3">
+                        <label for="obeDecision" class="form-label" data-o-en="Decision" data-o-bn="সিদ্ধান্ত">Decision</label>
+                        <select id="obeDecision" class="form-select mb-2"><option value="Approve">Approve</option><option value="Reject">Reject</option></select>
+                        <label for="obeReason" class="form-label" data-o-en="Independent review reason" data-o-bn="স্বতন্ত্র পর্যালোচনার কারণ">Independent review reason</label>
+                        <textarea id="obeReason" class="form-control mb-2" minlength="10" maxlength="500" rows="2" required></textarea>
+                        <button id="obeReview" class="btn btn-success" type="submit" data-o-en="Record decision" data-o-bn="সিদ্ধান্ত সংরক্ষণ">Record decision</button>
+                    </form>
+                    <button id="obeCsv" class="btn btn-outline-success mt-2 d-none" type="button" data-o-en="Approved CSV" data-o-bn="অনুমোদিত CSV">Approved CSV</button>
+                    <button id="obePrint" class="btn btn-outline-secondary mt-2" type="button" data-o-en="Print / PDF" data-o-bn="প্রিন্ট / PDF">Print / PDF</button>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+<style media="print">
+    body * { visibility: hidden !important; }
+    #obeReportPanel, #obeReportPanel * { visibility: visible !important; }
+    #obeReportPanel { position: absolute; inset: 0; width: 100%; box-shadow: none !important; }
+    #obeReviewForm, #obeCsv, #obePrint { display: none !important; }
+</style>
+@section Scripts { <script src="~/js/research/obe-attainment.js" asp-append-version="true"></script> }

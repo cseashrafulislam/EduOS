@@ -13,6 +13,8 @@
 </style>
 <div class="container-fluid py-4" id="accreditationWorkspace">
     @Html.AntiForgeryToken()
+    <div class="d-flex justify-content-end mb-3"><a class="btn btn-outline-primary" asp-controller="Accreditation" asp-action="Obe"
+        data-a-en="University OBE attainment" data-a-bn="বিশ্ববিদ্যালয় OBE মূল্যায়ন">University OBE attainment</a></div>
     <div id="accreditationNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="row g-3">
         <div class="col-xl-4">

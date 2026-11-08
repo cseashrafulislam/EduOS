@@ -13,4 +13,12 @@ public sealed class AccreditationController : Controller
         Response.Headers["Referrer-Policy"] = "no-referrer";
         return View();
     }
+
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Obe()
+    {
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        return View();
+    }
 }

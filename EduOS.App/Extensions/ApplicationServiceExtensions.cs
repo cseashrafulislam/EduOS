@@ -167,6 +167,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<IResearchGrantOutputService, ResearchGrantOutputService>();
             s.AddScoped<IAccreditationService, AccreditationService>();
             s.AddScoped<IResearchQualityExtensionService, ResearchQualityExtensionService>();
+            s.AddScoped<IObeAttainmentService, ObeAttainmentService>();
             s.AddScoped<IResearchEvidenceFileService, ResearchEvidenceFileService>();
             s.AddScoped<IProcurementRequisitionService, ProcurementRequisitionService>();
             s.AddScoped<IProcurementSupplierService, ProcurementSupplierService>();
