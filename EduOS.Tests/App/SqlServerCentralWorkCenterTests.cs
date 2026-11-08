@@ -151,6 +151,40 @@ public sealed class SqlServerCentralWorkCenterTests
         Assert.Equal(100m, Assert.Single(misResult.Data.Metrics,
             m => m.Key == "net_surplus").Value);
 
+        // Direct-service SQL acceptance, independent of middleware. A stale
+        // TenantAdmin cookie must not restore access after membership or role
+        // revocation, and a switched ambient tenant must never leak the inbox
+        // or aggregate institution-wide finance/operations metrics.
+        await using (var switched = Open(options, tenantId + 100000))
+        {
+            var switchedInbox = new CentralWorkCenterService(switched,
+                new User(tenantId, userId), moduleMock.Object, config);
+            var switchedMis = new CentralInstitutionMisService(switched,
+                new User(tenantId, userId), moduleMock.Object, financeMock.Object,
+                TimeProvider.System);
+            Assert.Equal(403, (await switchedInbox.GetPendingAsync()).StatusCode);
+            Assert.Equal(403, (await switchedMis.GetAsync(new DateOnly(2026, 11, 1),
+                new DateOnly(2026, 11, 30))).StatusCode);
+        }
+
+        await db.TenantMemberships.Where(x => x.TenantId == tenantId && x.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, MembershipStatus.Suspended));
+        Assert.Equal(403, (await service.GetPendingAsync()).StatusCode);
+        Assert.Equal(403, (await mis.GetAsync(new DateOnly(2026, 11, 1),
+            new DateOnly(2026, 11, 30))).StatusCode);
+        await db.Roles.IgnoreQueryFilters().Where(x => x.TenantId == tenantId && x.NormalizedName == "TENANTADMIN")
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false));
+        await db.Roles.IgnoreQueryFilters().Where(x => x.TenantId == tenantId && x.NormalizedName == "TENANTADMIN")
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, true));
+        Assert.Equal(403, (await service.GetPendingAsync()).StatusCode);
+        Assert.Equal(403, (await mis.GetAsync(new DateOnly(2026, 11, 1),
+            new DateOnly(2026, 11, 30))).StatusCode);
+        await db.TenantMemberships.Where(x => x.TenantId == tenantId && x.UserId == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, MembershipStatus.Active));
+        Assert.Equal(200, (await service.GetPendingAsync()).StatusCode);
+        Assert.Equal(200, (await mis.GetAsync(new DateOnly(2026, 11, 1),
+            new DateOnly(2026, 11, 30))).StatusCode);
+
         await db.UserRoles.Where(x => x.UserId == userId).ExecuteDeleteAsync();
         Assert.Equal(403, (await service.GetPendingAsync()).StatusCode);
         Assert.Equal(403, (await mis.GetAsync(new DateOnly(2026, 11, 1),

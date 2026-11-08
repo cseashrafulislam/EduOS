@@ -269,3 +269,11 @@ Status labels below are deliberately conservative:
 
 **Scope of “complete”:** The legacy central-core foundation and earlier exact-commit automated QA are preserved. “Centralized by default” is an ongoing implementation standard: it does **not** certify every historical consumer, financial/stock reconciliation, external API provider, representative production query plan, real authenticated browser/UAT, security exposure triage, restored-data rehearsal or owner production go/no-go. Maintain those acceptance gates without resurrecting a separate manual centralization task.
 
+## 18. Cross-module regression release gate (2026-11-08)
+
+The full-solution CI on the OBE integration SHA revealed eight previously persistent failures spread across Admission UI, MIS role reactivation, Library private-resource discovery and grounded study evidence. The failure investigation found test fixtures that used literal backslash sequences where **actual** control/invisible Unicode was required, an unsaved tenant-membership seed, a resource missing its canonical `DocumentTypeDefinition` trust gate, and an outdated Admission rejection-button string contract. These fixtures were corrected without relaxing live tenant/role checks, private document trust, learner citation validation or existing APIs.
+
+The real SQL Server central Work Center/MIS acceptance now additionally checks switched ambient tenant denial, suspended member denial, re-enabled role denial while membership remains suspended, and restored access only after **both** live membership and role eligibility return. This verifies the canonical live-role implementation on actual SQL instead of trusting old cookies or only an in-memory test provider. All operations are read-only except isolated test authorization fixtures; no GL, inventory, identity or source data is rewritten.
+
+**Acceptance boundary:** The changes require exact-SHA full C# CI and disposable SQL Server smoke before recording a passed development gate. They do not establish exhaustive Finance/stock source-leg amounts, provider retry delivery, every file/export IDOR route, real browser membership switches, production-like performance, backup restore or institutional UAT; those remain tracked under the existing owner-led QA backlog.
+
