@@ -18,11 +18,11 @@ public sealed class CounselingPrivacySafeguarding : Migration
         m.AddColumn<long?>("RedactedByUserId", "CounselingCases", "bigint", nullable: true);
         m.CreateIndex("IX_CounselingCases_RedactionRequestedByUserId", "CounselingCases", "RedactionRequestedByUserId");
         m.CreateIndex("IX_CounselingCases_RedactedByUserId", "CounselingCases", "RedactedByUserId");
-        m.AddForeignKey("FK_CounselingCases_AspNetUsers_RedactionRequestedByUserId",
-            "CounselingCases", "RedactionRequestedByUserId", "AspNetUsers", "Id",
+        m.AddForeignKey(name: "FK_CounselingCases_AspNetUsers_RedactionRequestedByUserId",
+            table: "CounselingCases", column: "RedactionRequestedByUserId", principalTable: "AspNetUsers", principalColumn: "Id",
             onDelete: ReferentialAction.Restrict);
-        m.AddForeignKey("FK_CounselingCases_AspNetUsers_RedactedByUserId",
-            "CounselingCases", "RedactedByUserId", "AspNetUsers", "Id",
+        m.AddForeignKey(name: "FK_CounselingCases_AspNetUsers_RedactedByUserId",
+            table: "CounselingCases", column: "RedactedByUserId", principalTable: "AspNetUsers", principalColumn: "Id",
             onDelete: ReferentialAction.Restrict);
 
         m.CreateTable("CounselingCampusPolicies", columns: t => new
