@@ -6,8 +6,21 @@ const row=(id,ref,n,passed)=>({attemptId:id,quizReference:ref,quizTitle:ref,atte
 test('learner journey: graded review first, pending is not failure, no chapter inference',()=>{
  const p=progress.build([[row(1,'Math',1,false),row(2,'English',1,true),row(3,'Science',1,null)]],3,'en-BD');
  const x=plan.build(p,'en-BD');assert.equal(x.status,'ready');
- assert.deepEqual(x.items.map(y=>y.priority),['review','pending','extend']);
+ assert.deepEqual(x.items.map(y=>y.priority),['review','awaiting-evidence','extend']);
  assert.match(x.note,/not teacher goals/);
+});
+test('latest ungraded attempt is pending only when prior graded evidence exists',()=>{
+ const p=progress.build([[
+  row(1,'Math',1,false),
+  row(2,'Math',2,null),
+  row(3,'Science',1,null)
+ ]],3,'en-BD');
+ const x=plan.build(p,'en-BD');
+ assert.equal(x.status,'ready');
+ assert.deepEqual(x.items.map(y=>[y.quizReference,y.priority]),[
+  ['Science','awaiting-evidence'],['Math','pending']
+ ]);
+ assert.match(x.items[1].guidance,/prior graded evidence remains unchanged/);
 });
 test('bilingual and partial evidence are disclosed',()=>{
  const p=progress.build([[row(1,'Math',1,false)]],3,'bn-BD');
