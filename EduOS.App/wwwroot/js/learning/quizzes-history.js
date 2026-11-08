@@ -4,13 +4,13 @@ const course=$('quizHistoryCourse'),body=$('quizHistoryRows');let analysisEpoch=
 function cell(tr,value){const td=el('td',String(value??''));tr.append(td);}
 function clearProgress(){const b=$('quizProgressRows');if(b)b.replaceChildren();const s=$('quizProgressStatus');if(s)s.textContent='';}
 function clearPlan(){currentPlan=null;currentPlanLocale=null;const csv=$('quizPlanCsv'),print=$('quizPlanPrint');if(csv)csv.disabled=true;if(print)print.disabled=true;const list=$('quizPlanItems');if(list)list.replaceChildren();const status=$('quizPlanStatus');if(status)status.textContent='';const note=$('quizPlanNote');if(note)note.textContent='';}
-function renderPlan(progress,locale){
+function renderPlan(progress,locale,practice){
  const plan=window.EduQuizStudyPlan?.build(progress,locale);
  if(!plan||plan.status==='invalid')throw Error('Invalid study plan evidence');
  clearPlan();currentPlan={...plan,scanned:progress.scanned,totalCount:progress.totalCount};currentPlanLocale=locale;$('quizPlanCsv').disabled=plan.status!=='ready';$('quizPlanPrint').disabled=plan.status!=='ready';$('quizPlanStatus').textContent=plan.message+' ('+plan.items.length+')';
  $('quizPlanNote').textContent=plan.note;
  for(const item of plan.items){const li=el('li');li.className='list-group-item';
- li.append(el('strong',item.title),el('span',' — '+item.guidance));$('quizPlanItems').append(li);}
+ li.append(el('strong',item.title),el('span',' — '+item.guidance));const access=practice?.items?.find(x=>x.quizReference===item.quizReference);if(access)li.append(el('small',' — '+access.practiceMessage));$('quizPlanItems').append(li);}
 }
 function studyScope(value){const node=$('quizStudyScope');if(node)node.textContent=value;}
 async function analyzeCourse(){
@@ -32,7 +32,18 @@ async function analyzeCourse(){
   if(!result||result.status==='invalid')throw Error('Invalid study evidence');
   const progress=window.EduQuizProgress?.build(pages,count,locale);
   if(!progress||progress.status==='invalid')throw Error('Invalid quiz progress evidence');
-  renderPlan(progress,locale);
+  let practice=null;
+  try{
+   const endpoint='/api/lms/quizzes/course/'+encodeURIComponent(selected);
+   const eligibility=await api(endpoint+'/eligibility');
+   if(k!==analysisEpoch||selected!==course.value)return;
+   const available=eligibility?.canAttempt?await api(endpoint+'/available'):[];
+   if(k!==analysisEpoch||selected!==course.value)return;
+   practice=window.EduQuizStudyPlan?.practiceAccess(window.EduQuizStudyPlan.build(progress,locale),eligibility,available,locale);
+   if(!practice||practice.status!=='ready')practice=null;
+  }catch(e){practice=null;}
+  if(k!==analysisEpoch||selected!==course.value)return;
+  renderPlan(progress,locale,practice);
   const progressRows=$('quizProgressRows');progressRows.replaceChildren();
   $('quizProgressStatus').textContent=(locale==='bn-BD'?'পর্যালোচিত প্রচেষ্টা: ':'Scanned attempts: ')+progress.scanned+'/'+progress.totalCount+(progress.complete?'':(locale==='bn-BD'?' (আংশিক)':' (partial)'));
   $('quizProgressNote').textContent=progress.note;

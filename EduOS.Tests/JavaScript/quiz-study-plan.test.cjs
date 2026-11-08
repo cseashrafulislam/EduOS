@@ -32,3 +32,14 @@ test('untrusted or contradictory progress fails closed',()=>{
  assert.equal(plan.build({...p,items:[p.items[0],p.items[0]]},'en-BD').status,'invalid');
  assert.equal(plan.build(p,'fr-FR').status,'invalid');
 });
+
+test('canonical published practice is advisory and fail-closed',()=>{
+ const x=plan.build(progress.build([[row(1,'Math',1,false),row(2,'English',1,true)]],2,'en-BD'),'en-BD');
+ const a=plan.practiceAccess(x,{canAttempt:true},[{reference:'Math'}],'en-BD');
+ assert.equal(a.status,'ready');assert.equal(a.items.find(i=>i.quizReference==='Math').practiceStatus,'available');
+ assert.equal(a.items.find(i=>i.quizReference==='English').practiceStatus,'unavailable');
+ assert.match(a.items[0].practiceMessage,/rechecked when starting/);
+ assert.equal(plan.practiceAccess(x,{canAttempt:false},[{reference:'Math'}],'bn-BD').items[0].practiceStatus,'unavailable');
+ assert.equal(plan.practiceAccess(x,{canAttempt:true},[{reference:'Math'},{reference:'Math'}],'en-BD').status,'invalid');
+ assert.equal(plan.practiceAccess(x,null,[],'en-BD').status,'invalid');
+});

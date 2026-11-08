@@ -49,5 +49,22 @@ function exportCsv(result,locale){
  };
  return '\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
 }
-return Object.freeze({build,exportCsv});
+
+function practiceAccess(result,eligibility,available,locale){
+ if(!['bn-BD','en-BD'].includes(locale)||!result||result.status!=='ready'||!Array.isArray(result.items)||
+ !eligibility||typeof eligibility.canAttempt!=='boolean'||!Array.isArray(available)||available.length>100)
+ return {status:'invalid',items:[]};
+ const bn=locale==='bn-BD',refs=new Set();
+ for(const q of available){if(!q||typeof q.reference!=='string'||!q.reference.trim()||refs.has(q.reference))return {status:'invalid',items:[]};refs.add(q.reference);}
+ const items=[];
+ for(const item of result.items){
+  if(!item||typeof item.quizReference!=='string'||!item.quizReference.trim())return {status:'invalid',items:[]};
+  const visible=eligibility.canAttempt&&refs.has(item.quizReference);
+  items.push({...item,practiceStatus:visible?'available':'unavailable',
+   practiceMessage:visible?(bn?'অনুশীলন পাওয়া গেছে; শুরু করার সময় যোগ্যতা পুনরায় যাচাই হবে।':'Practice available; eligibility is rechecked when starting.'):
+   (bn?'বর্তমানে অনুমোদিত অনুশীলন নেই; আগের ফল অপরিবর্তিত।':'No authorized practice currently available; historical results are unchanged.')});
+ }
+ return {status:'ready',items};
+}
+return Object.freeze({build,exportCsv,practiceAccess});
 });
