@@ -27,6 +27,12 @@ The authoring screen can now discover **eligible component codes from the select
 
 The stored report freezes publication ID/version, mapping policy ID, aggregate CLO and PLO percentages, roster size and SHA-256 evidence digest. The **submitted snapshot cannot be edited**, including after a reviewer decision. An independent, current accreditation coordinator may approve or reject once with a reason. Approval recomputes the current published evidence digest and fails closed if the source was withdrawn/altered. Approved CSV omits student names, marks, private files and reviewer narratives.
 
+## Approved academic-year / semester / programme rollup
+
+The programme screen provides a read-only aggregate of **independently approved** OBE reports for one campus/programme policy and academic year, optionally one semester/term. It reads only SHA-256-verified approved report snapshots whose canonical result publications are still `Published`, whose version numbers match, and whose assessment/batch academic periods match the requested scope. Reports for withdrawn publication versions are retained as individual historical records, but excluded from the current management aggregate; replacement versions require a fresh independent OBE approval. Corrupted, inconsistent, duplicate or too-large input (over 200 approved reports per interactive scope) fails closed.
+
+For the same PLO and **one fixed policy ID**, `rollupPercent = Σ(approvedReportPloPercent × approvedReportLearnerCount) / Σ(approvedReportLearnerCount)`, rounded once to two decimals. E.g., an approved cohort of 2 learners averaging 60% and an approved cohort of 3 learners averaging 90% combine to **78%**. This is an *observation-weighted management view*, not a new approved regulatory submission or a count of distinct people: a learner present in two publications contributes two learner-publication observations. The response includes the exact report references, evidence counts and total observations for audit. Separate policy versions must never be silently pooled.
+
 ## Transaction, privacy, scale and deployment
 
 - Authorization uses current membership/role and explicit tenant/campus grant on all read/write/export paths. `RequireModule("ACCREDITATION")`, session-reference verification, antiforgery on writes and `no-store` apply to the API.

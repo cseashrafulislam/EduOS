@@ -74,6 +74,10 @@ public sealed class ObeCurriculumCourseDto
 public sealed class ObePublishedBatchDto
 {
     public long ResultPublicationId { get; set; }
+    public long AcademicYearId { get; set; }
+    public string AcademicYearName { get; set; } = "";
+    public long? AcademicTermId { get; set; }
+    public string? AcademicTermName { get; set; }
     public int VersionNo { get; set; }
     public string AssessmentName { get; set; } = "";
     public string BatchName { get; set; } = "";
@@ -101,6 +105,19 @@ public sealed class ObeOutcomeAttainmentDto
     public string ProgramOutcomeCode { get; set; } = "";
     public decimal AttainmentPercent { get; set; }
     public int EvidenceCount { get; set; }
+}
+
+public sealed class ObeProgrammeRollupDto
+{
+    public long PolicyId { get; set; }
+    public long AcademicYearId { get; set; }
+    public long? AcademicTermId { get; set; }
+    public int ApprovedPublicationCount { get; set; }
+    // The same learner can appear in more than one assessment. This is not a
+    // unique-person count and must not be presented as one.
+    public long LearnerPublicationObservations { get; set; }
+    public List<Guid> SourceReportReferences { get; set; } = new();
+    public List<ObeOutcomeAttainmentDto> Outcomes { get; set; } = new();
 }
 
 public sealed class ObeCloAttainmentDto

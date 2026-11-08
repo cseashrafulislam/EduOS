@@ -77,13 +77,21 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
         var rows = await (from p in db.ResultPublications.AsNoTracking()
             join batch in db.AcademicBatches.AsNoTracking() on p.AcademicBatchId equals batch.Id
             join exam in db.Assessments.AsNoTracking() on p.AssessmentId equals exam.Id
+            join year in db.AcademicYears.AsNoTracking() on batch.AcademicYearId equals year.Id
+            join optionalTerm in db.AcademicTerms.AsNoTracking() on batch.AcademicTermId equals (long?)optionalTerm.Id into terms
+            from term in terms.DefaultIfEmpty()
             where p.TenantId == access.TenantId && batch.TenantId == access.TenantId &&
-                exam.TenantId == access.TenantId && !p.IsDeleted && !batch.IsDeleted && !exam.IsDeleted &&
+                exam.TenantId == access.TenantId && year.TenantId == access.TenantId &&
+                (term == null || term.TenantId == access.TenantId) &&
+                !p.IsDeleted && !batch.IsDeleted && !exam.IsDeleted && !year.IsDeleted &&
                 batch.CampusId == campusId && batch.AcademicProgramId == programId &&
-                exam.CampusId == campusId && p.State == ResultPublicationState.Published &&
+                exam.CampusId == campusId && exam.AcademicYearId == batch.AcademicYearId &&
+                p.State == ResultPublicationState.Published &&
                 p.HasCourseGradeSnapshots && p.PublishedAt != null
             orderby p.PublishedAt descending, p.Id descending
             select new ObePublishedBatchDto { ResultPublicationId = p.Id, VersionNo = p.VersionNo,
+                AcademicYearId = year.Id, AcademicYearName = year.Name,
+                AcademicTermId = batch.AcademicTermId, AcademicTermName = term == null ? null : term.Name,
                 AssessmentName = exam.Name, BatchName = batch.Name,
                 PublishedAtUtc = p.PublishedAt!.Value }).Take(100).ToListAsync(ct);
         return ApiResponse<List<ObePublishedBatchDto>>.SuccessResponse(rows);
@@ -608,6 +616,88 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
         }
         catch (JsonException)
         { return ApiResponse<List<ObeReportDto>>.ErrorResponse("Report integrity check failed.", 409); }
+    }
+
+    // Read-only institution/year/semester management view. Its only inputs are
+    // independently approved, checksum-verified, immutable report snapshots;
+    // a withdrawn source publication cannot silently enter the current rollup.
+    // Cohort means are weighted by learner-publication observations, NOT by a
+    // purported unique-student headcount across distinct assessments.
+    public async Task<ApiResponse<ObeProgrammeRollupDto>> ProgrammeRollupAsync(long policyId,
+        long academicYearId, long? academicTermId, CancellationToken ct = default)
+    {
+        if (academicYearId <= 0 || academicTermId is <= 0)
+            return Invalid<ObeProgrammeRollupDto>("A valid academic year and optional semester are required.");
+        var policy = await PolicyAsync(policyId, ct);
+        if (!policy.Success || policy.Data == null) return Denied<ObeProgrammeRollupDto>();
+        if (!await db.AcademicYears.AsNoTracking().AnyAsync(x => x.TenantId == access.TenantId &&
+            x.Id == academicYearId && !x.IsDeleted, ct) ||
+            (academicTermId.HasValue && !await db.AcademicTerms.AsNoTracking().AnyAsync(x =>
+                x.TenantId == access.TenantId && x.Id == academicTermId.Value &&
+                x.AcademicYearId == academicYearId && !x.IsDeleted, ct)))
+            return Denied<ObeProgrammeRollupDto>();
+        var rows = await db.Database.SqlQueryRaw<ReportRecord>("""
+            SELECT TOP(201) r.Reference, r.PolicyId, p.CampusId, p.AcademicProgramId,
+                r.ResultPublicationId, r.PublicationVersionNo, r.StateCode,
+                r.SubmittedByUserId, r.SubmittedAtUtc, r.ReviewedByUserId,
+                r.ReviewedAtUtc, r.ReviewRequestId, r.ReviewReason,
+                r.SnapshotJson, r.SnapshotSha256
+            FROM dbo.ObeAttainmentReports AS r
+            JOIN dbo.ObePolicies AS p ON p.TenantId = r.TenantId AND p.Id = r.PolicyId
+            JOIN dbo.ResultPublications AS publication
+                ON publication.TenantId = r.TenantId AND publication.Id = r.ResultPublicationId
+            JOIN dbo.AcademicBatches AS batch
+                ON batch.TenantId = publication.TenantId AND batch.Id = publication.AcademicBatchId
+            JOIN dbo.Assessments AS assessment
+                ON assessment.TenantId = publication.TenantId AND assessment.Id = publication.AssessmentId
+            WHERE r.TenantId = {0} AND r.PolicyId = {1} AND r.StateCode = N'Approved'
+                AND publication.State = {2} AND publication.IsDeleted = 0
+                AND publication.VersionNo = r.PublicationVersionNo
+                AND publication.HasCourseGradeSnapshots = 1 AND publication.PublishedAt <= {3}
+                AND batch.IsDeleted = 0 AND assessment.IsDeleted = 0
+                AND batch.CampusId = p.CampusId AND assessment.CampusId = p.CampusId
+                AND batch.AcademicProgramId = p.AcademicProgramId
+                AND batch.AcademicYearId = {4} AND assessment.AcademicYearId = {4}
+                AND ({5} = 0 OR (batch.AcademicTermId = {5} AND assessment.AcademicTermId = {5}))
+            ORDER BY r.SubmittedAtUtc DESC, r.Reference
+            """, access.TenantId, policyId, (int)ResultPublicationState.Published, Now,
+            academicYearId, academicTermId.GetValueOrDefault()).ToListAsync(ct);
+        if (rows.Count > 200)
+            return ApiResponse<ObeProgrammeRollupDto>.ErrorResponse(
+                "Too many approved reports for one interactive rollup; select a specific semester.", 422);
+        var result = new ObeProgrammeRollupDto { PolicyId = policyId,
+            AcademicYearId = academicYearId, AcademicTermId = academicTermId };
+        if (rows.Count == 0) return ApiResponse<ObeProgrammeRollupDto>.SuccessResponse(result);
+        try
+        {
+            var reports = rows.Select(MapReport).ToArray();
+            if (reports.Any(x => x == null)) return Conflict<ObeProgrammeRollupDto>();
+            var accepted = reports.Select(x => x!).ToArray();
+            var expectedIds = policy.Data.Contributions.Select(x => x.ProgramOutcomeId).Distinct().ToHashSet();
+            if (expectedIds.Count == 0 || accepted.Any(x => x.Snapshot.LearnerCount <= 0 ||
+                x.Snapshot.Outcomes.Count != expectedIds.Count ||
+                x.Snapshot.Outcomes.Select(o => o.ProgramOutcomeId).Distinct().Count() != expectedIds.Count ||
+                x.Snapshot.Outcomes.Any(o => !expectedIds.Contains(o.ProgramOutcomeId) ||
+                    o.AttainmentPercent is < 0m or > 100m || o.EvidenceCount <= 0)))
+                return Conflict<ObeProgrammeRollupDto>();
+            var observations = accepted.Sum(x => (long)x.Snapshot.LearnerCount);
+            result.ApprovedPublicationCount = accepted.Length;
+            result.LearnerPublicationObservations = observations;
+            result.SourceReportReferences = accepted.Select(x => x.Reference).ToList();
+            result.Outcomes = policy.Data.Contributions.GroupBy(x => x.ProgramOutcomeId)
+                .OrderBy(g => g.Key).Select(g => new ObeOutcomeAttainmentDto
+                {
+                    ProgramOutcomeId = g.Key,
+                    ProgramOutcomeCode = g.First().ProgramOutcomeCode,
+                    AttainmentPercent = decimal.Round(accepted.Sum(x =>
+                        x.Snapshot.Outcomes.Single(o => o.ProgramOutcomeId == g.Key).AttainmentPercent *
+                        x.Snapshot.LearnerCount) / observations, 2, MidpointRounding.AwayFromZero),
+                    EvidenceCount = accepted.Sum(x => x.Snapshot.Outcomes.Single(o =>
+                        o.ProgramOutcomeId == g.Key).EvidenceCount)
+                }).ToList();
+            return ApiResponse<ObeProgrammeRollupDto>.SuccessResponse(result);
+        }
+        catch (JsonException) { return Conflict<ObeProgrammeRollupDto>(); }
     }
 
     public async Task<ApiResponse<ObeReportDto>> SubmitAsync(long policyId, ObeSubmitDto input,

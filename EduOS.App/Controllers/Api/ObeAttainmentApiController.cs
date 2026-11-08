@@ -61,6 +61,11 @@ public sealed class ObeAttainmentApiController(IObeAttainmentService service) : 
     public async Task<IActionResult> Preview(long id, long publicationId, CancellationToken ct) =>
         Reply(await service.PreviewAsync(id, publicationId, ct));
 
+    [HttpGet("policies/{id:long}/programme-rollup")]
+    public async Task<IActionResult> ProgrammeRollup(long id, long academicYearId, long? academicTermId,
+        CancellationToken ct) =>
+        Reply(await service.ProgrammeRollupAsync(id, academicYearId, academicTermId, ct));
+
     [HttpPost("policies/{id:long}/reports")]
     public async Task<IActionResult> Submit(long id, [FromBody] ObeSubmitDto input, CancellationToken ct) =>
         ModelState.IsValid ? Reply(await service.SubmitAsync(id, input, ct)) : ValidationProblem(ModelState);

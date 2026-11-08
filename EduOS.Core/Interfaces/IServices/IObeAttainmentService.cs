@@ -8,6 +8,7 @@ public interface IObeAttainmentService
     Task<ApiResponse<List<ObeCurriculumCourseDto>>> CoursesAsync(long campusId, long programId, CancellationToken ct = default);
     Task<ApiResponse<List<ObePublishedBatchDto>>> PublicationsAsync(long campusId, long programId, CancellationToken ct = default);
     Task<ApiResponse<ObePublishedComponentCatalogDto>> ComponentOptionsAsync(long campusId, long programId, long publicationId, CancellationToken ct = default);
+    Task<ApiResponse<ObeProgrammeRollupDto>> ProgrammeRollupAsync(long policyId, long academicYearId, long? academicTermId, CancellationToken ct = default);
     Task<ApiResponse<List<ObePolicyDto>>> PoliciesAsync(long campusId, long programId, CancellationToken ct = default);
     Task<ApiResponse<ObePolicyDetailDto>> PolicyAsync(long policyId, CancellationToken ct = default);
     Task<ApiResponse<ObePolicyDetailDto>> CreatePolicyAsync(ObePolicyCreateDto input, CancellationToken ct = default);

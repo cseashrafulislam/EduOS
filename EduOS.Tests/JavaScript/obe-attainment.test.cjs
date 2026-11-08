@@ -56,3 +56,18 @@ test('OBE component discovery is publication-version scoped and never reads edit
     assert.doesNotMatch(service.slice(service.indexOf('public async Task<ApiResponse<ObePublishedComponentCatalogDto>>'),
         service.indexOf('private sealed class ObeComponentCatalogRow')), /StudentAssessmentComponentMarks/);
 });
+
+test('OBE programme-year and semester rollup uses independent approved snapshots', () => {
+    const service = read('EduOS.Service/Services/Research/ObeAttainmentService.cs');
+    assert.match(api, /HttpGet\("policies\/\{id:long\}\/programme-rollup"\)/);
+    assert.match(service, /ProgrammeRollupAsync\(/);
+    assert.match(service, /r\.StateCode = N'Approved'/);
+    assert.match(service, /publication\.State = \{2\}/);
+    assert.match(service, /Snapshot\.LearnerCount/);
+    assert.match(service, /SourceReportReferences/);
+    assert.match(view, /id="obeYear"/);
+    assert.match(view, /id="obeTerm"/);
+    assert.match(view, /id="obeRollupDetails"/);
+    assert.match(js, /renderProgrammeRollup/);
+    assert.match(js, /learner-publication observations/);
+});

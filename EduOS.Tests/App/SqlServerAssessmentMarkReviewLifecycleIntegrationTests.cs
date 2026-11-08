@@ -991,7 +991,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var seeded = await SeedAsync(options);
-        long campusId, programId, courseId, outcomeId;
+        long campusId, programId, courseId, outcomeId, academicYearId;
         Guid assessmentReference;
         long batchId;
         await using (var db = TenantDb(options, seeded.TenantId))
@@ -1003,6 +1003,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             var master = await db.StudentAssessmentMarks.SingleAsync(x =>
                 x.AssessmentSubjectId == seeded.AssessmentSubjectId);
             campusId = batch.CampusId;
+            academicYearId = exam.AcademicYearId;
             programId = batch.AcademicProgramId;
             batchId = batch.Id;
             courseId = offering.CurriculumSubjectId;
@@ -1082,6 +1083,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
         }
 
         Guid reportReference;
+        long policyId;
         await using (var db = TenantDb(options, seeded.TenantId))
         {
             var owner = new Actor(seeded.TenantId, seeded.TeacherId, "AccreditationCoordinator");
@@ -1113,6 +1115,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 ] };
             var created = await service.CreatePolicyAsync(policyRequest);
             Assert.True(created.Success, created.Message);
+            policyId = created.Data!.Policy.Id;
             var replay = await service.CreatePolicyAsync(policyRequest);
             Assert.Equal(created.Data!.Policy.Id, replay.Data!.Policy.Id);
             var preview = await service.PreviewAsync(created.Data.Policy.Id, publicationId);
@@ -1144,6 +1147,13 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             Assert.True(approved.Success, approved.Message);
             Assert.Equal("Approved", approved.Data!.StateCode);
             Assert.Equal(78m, Assert.Single(approved.Data.Snapshot.Outcomes).AttainmentPercent);
+            var programme = await checker.ProgrammeRollupAsync(policyId, academicYearId, null);
+            Assert.True(programme.Success, programme.Message);
+            Assert.Equal(1, programme.Data!.ApprovedPublicationCount);
+            Assert.Equal(1, programme.Data.LearnerPublicationObservations);
+            Assert.Equal(reportReference, Assert.Single(programme.Data.SourceReportReferences));
+            Assert.Equal(78m, Assert.Single(programme.Data.Outcomes).AttainmentPercent);
+            Assert.False((await checker.ProgrammeRollupAsync(policyId, academicYearId, -1)).Success);
             var denied = new ObeAttainmentService(db, new ResearchWorkflowAccess(db,
                 new Actor(seeded.TenantId + 900000, seeded.ReviewerId, "AccreditationCoordinator")),
                 TimeProvider.System, NullLogger<ObeAttainmentService>.Instance);

@@ -12,7 +12,7 @@
     const valid = () => Boolean(tenant && session && tenant === document.body.dataset.authTenantId &&
         session === document.body.dataset.authSessionReference);
     let busy = false, generation = 0, courses = [], plos = [], selected = null;
-    let componentCatalog = null, cloRowIndex = 0;
+    let componentCatalog = null, cloRowIndex = 0, publicationOptions = [];
     let policyRetry = null, submitRetry = null, reviewRetry = null;
     const create = (tag, className, text) => {
         const node = document.createElement(tag);
@@ -34,6 +34,7 @@
     function invalidate() {
         generation++; selected = null; submitRetry = null; reviewRetry = null;
         get('obePreviewDetails').replaceChildren(); get('obeReportRows').replaceChildren();
+        get('obeRollupDetails').replaceChildren();
         get('obeReportPanel').classList.add('d-none');
     }
     function controls() {
@@ -42,6 +43,9 @@
         get('obeProgram').disabled = busy || !scope().campusId;
         get('obePublication').disabled = busy;
         get('obePolicy').disabled = busy;
+        get('obeYear').disabled = busy;
+        get('obeTerm').disabled = busy || !get('obeYear').value;
+        get('obeRollup').disabled = busy || !get('obePolicy').value || !get('obeYear').value;
         for (const id of ['obeAddClo', 'obeAddLink', 'obeSavePolicy']) get(id).disabled = busy || !scoped;
         get('obePreview').disabled = busy || !get('obePolicy').value || !get('obePublication').value;
         get('obeSubmit').disabled = get('obePreview').disabled;
@@ -91,6 +95,43 @@
         preview.outcomes.forEach(p => rowText(body, ['PLO', p.programOutcomeCode, Number(p.attainmentPercent).toFixed(2)]));
         table.appendChild(body); target.appendChild(create('div', 'table-responsive')).appendChild(table);
         target.appendChild(create('p', 'small text-muted', t('Evidence digest: ', 'প্রমাণের হ্যাশ: ') + preview.evidenceSha256));
+    }
+    function renderProgrammeRollup(data) {
+        const target = get('obeRollupDetails'); target.replaceChildren();
+        if (!data.approvedPublicationCount) {
+            target.appendChild(create('p', 'text-muted small',
+                t('No currently published, independently approved OBE reports in this academic period.',
+                    'এই শিক্ষাবর্ষে বর্তমানে প্রকাশিত স্বতন্ত্র অনুমোদিত কোনো OBE রিপোর্ট নেই।')));
+            return;
+        }
+        target.appendChild(create('p', 'small', data.approvedPublicationCount + ' ' +
+            t('approved publications', 'অনুমোদিত প্রকাশনা') + ' · ' +
+            data.learnerPublicationObservations + ' ' +
+            t('learner-publication observations', 'ফলাফলভিত্তিক শিক্ষার্থী পর্যবেক্ষণ')));
+        const table = create('table', 'table table-sm table-striped');
+        const thead = create('thead'), tr = create('tr');
+        [t('Programme outcome', 'প্রোগ্রাম শিক্ষণফল'), t('Weighted attainment %', 'ওজনযুক্ত অর্জন %')]
+            .forEach(x => tr.appendChild(create('th', '', x)));
+        thead.appendChild(tr); table.appendChild(thead);
+        const tbody = create('tbody');
+        data.outcomes.forEach(x => rowText(tbody, [x.programOutcomeCode,
+            Number(x.attainmentPercent).toFixed(2)]));
+        table.appendChild(tbody); target.appendChild(create('div', 'table-responsive')).appendChild(table);
+        target.appendChild(create('p', 'small text-muted',
+            t('Source report references: ', 'উৎস রিপোর্ট রেফারেন্স: ') +
+            data.sourceReportReferences.join(', ')));
+    }
+    function refreshTerms() {
+        const selectedYear = Number(get('obeYear').value), term = get('obeTerm');
+        resetOptions(term, t('All terms in the year', 'বছরের সব টার্ম'));
+        const seen = new Set();
+        publicationOptions.filter(x => x.academicYearId === selectedYear && x.academicTermId)
+            .forEach(x => {
+                if (seen.has(x.academicTermId)) return;
+                seen.add(x.academicTermId);
+                option(term, x.academicTermId, x.academicTermName || String(x.academicTermId));
+            });
+        get('obeRollupDetails').replaceChildren(); controls();
     }
     function refreshCloOptions() {
         const codes = [...get('obeCloRows').querySelectorAll('[data-role="code"]')]
@@ -184,10 +225,12 @@
     }
     async function loadScope() {
         invalidate(); policyRetry = null;
-        componentCatalog = null;
+        componentCatalog = null; publicationOptions = [];
         courses = []; plos = []; get('obeCloRows').replaceChildren(); get('obeLinkRows').replaceChildren();
         resetOptions(get('obePolicy'), t('Choose policy', 'নীতি নির্বাচন'));
         resetOptions(get('obePublication'), t('Choose published result', 'প্রকাশিত ফল নির্বাচন'));
+        resetOptions(get('obeYear'), t('Choose academic year', 'শিক্ষাবর্ষ নির্বাচন'));
+        resetOptions(get('obeTerm'), t('All terms in the year', 'বছরের সব টার্ম'));
         const { campusId, programId } = scope(), current = generation;
         if (!campusId || !programId) { controls(); return; }
         const base = '/api/accreditation/obe';
@@ -198,10 +241,16 @@
             api(base + '/policies' + params), api(base + '/publications' + params)
         ]);
         if (current !== generation || !valid()) return;
-        courses = c; plos = p;
+        courses = c; plos = p; publicationOptions = publications;
         policies.forEach(x => option(get('obePolicy'), x.id, 'v' + x.versionNo));
         publications.forEach(x => option(get('obePublication'), x.resultPublicationId,
             x.assessmentName + ' · ' + x.batchName + ' (v' + x.versionNo + ')'));
+        const years = new Set();
+        publications.forEach(x => {
+            if (years.has(x.academicYearId)) return;
+            years.add(x.academicYearId);
+            option(get('obeYear'), x.academicYearId, x.academicYearName || String(x.academicYearId));
+        });
         addClo(); addLink(); await loadReports(current); controls();
     }
     async function loadPolicies() {
@@ -273,7 +322,20 @@
             notify(t('Immutable policy saved.', 'অপরিবর্তনীয় নীতি সংরক্ষিত।'));
         });
     });
-    get('obePolicy').addEventListener('change', () => { submitRetry = null; get('obePreviewDetails').replaceChildren(); });
+    get('obePolicy').addEventListener('change', () => {
+        submitRetry = null; get('obePreviewDetails').replaceChildren();
+        get('obeRollupDetails').replaceChildren(); controls();
+    });
+    get('obeYear').addEventListener('change', refreshTerms);
+    get('obeTerm').addEventListener('change', () => get('obeRollupDetails').replaceChildren());
+    get('obeRollup').addEventListener('click', () => run(async () => {
+        const data = await api('/api/accreditation/obe/policies/' +
+            encodeURIComponent(get('obePolicy').value) + '/programme-rollup?' + query({
+                academicYearId: get('obeYear').value,
+                ...(get('obeTerm').value ? { academicTermId: get('obeTerm').value } : {})
+            }));
+        renderProgrammeRollup(data);
+    }));
     get('obePublication').addEventListener('change', () => {
         submitRetry = null; componentCatalog = null;
         get('obePreviewDetails').replaceChildren(); refreshComponentOptions();

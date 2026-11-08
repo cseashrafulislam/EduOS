@@ -82,6 +82,18 @@
                     <button id="obePrint" class="btn btn-outline-secondary mt-2" type="button" data-o-en="Print / PDF" data-o-bn="প্রিন্ট / PDF">Print / PDF</button>
                 </div>
             </section>
+            <section class="card border-0 shadow-sm mb-3" aria-labelledby="obeProgrammeHeading">
+                <div class="card-body">
+                    <h2 id="obeProgrammeHeading" class="h5" data-o-en="Approved semester / programme attainment" data-o-bn="অনুমোদিত সেমিস্টার / প্রোগ্রাম অর্জন">Approved semester / programme attainment</h2>
+                    <p class="small text-muted" data-o-en="Aggregates independently approved reports from the selected policy; counts are learner-publication observations, not unique students." data-o-bn="নির্বাচিত নীতির স্বতন্ত্রভাবে অনুমোদিত রিপোর্টের সমষ্টি; এটি অনন্য শিক্ষার্থীর সংখ্যা নয়, ফলাফলভিত্তিক শিক্ষার্থী পর্যবেক্ষণ।">Aggregates independently approved reports from the selected policy; counts are learner-publication observations, not unique students.</p>
+                    <label for="obeYear" class="form-label" data-o-en="Academic year" data-o-bn="শিক্ষাবর্ষ">Academic year</label>
+                    <select id="obeYear" class="form-select mb-2"></select>
+                    <label for="obeTerm" class="form-label" data-o-en="Semester / term (optional)" data-o-bn="সেমিস্টার / টার্ম (ঐচ্ছিক)">Semester / term (optional)</label>
+                    <select id="obeTerm" class="form-select mb-2"></select>
+                    <button id="obeRollup" type="button" class="btn btn-outline-primary mb-3" data-o-en="Calculate approved programme summary" data-o-bn="অনুমোদিত প্রোগ্রাম সারাংশ হিসাব">Calculate approved programme summary</button>
+                    <div id="obeRollupDetails" aria-live="polite"></div>
+                </div>
+            </section>
         </div>
     </div>
 </div>
