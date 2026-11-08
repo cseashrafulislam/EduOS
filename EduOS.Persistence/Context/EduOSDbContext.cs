@@ -341,6 +341,8 @@ public class EduOSDbContext :
     public DbSet<ScholarshipDisbursement> ScholarshipDisbursements => Set<ScholarshipDisbursement>();
     public DbSet<CounselingCase> CounselingCases => Set<CounselingCase>();
     public DbSet<CounselingCaseEvent> CounselingCaseEvents => Set<CounselingCaseEvent>();
+    public DbSet<CounselingCampusPolicy> CounselingCampusPolicies => Set<CounselingCampusPolicy>();
+    public DbSet<CounselingPolicyChange> CounselingPolicyChanges => Set<CounselingPolicyChange>();
     public DbSet<StudentFine> StudentFines => Set<StudentFine>();
     public DbSet<StudentFeeInstallmentPlan> StudentFeeInstallmentPlans => Set<StudentFeeInstallmentPlan>();
     public DbSet<StudentFeeInstallmentPlanLine> StudentFeeInstallmentPlanLines => Set<StudentFeeInstallmentPlanLine>();
@@ -3308,6 +3310,7 @@ public class EduOSDbContext :
             or ScholarshipApplicationEvent
             or ScholarshipDisbursement
             or CounselingCaseEvent
+            or CounselingPolicyChange
             or StudentPromotionRecord
             or StudentExitRecord
             or StudentStatusHistory
@@ -3449,6 +3452,7 @@ public class EduOSDbContext :
             or ScholarshipDisbursement
             or CounselingCase
             or CounselingCaseEvent
+            or CounselingPolicyChange
             or FacilityVisitorEvent
             or FacilityVisitorPolicyChange
             or ApplicationUser

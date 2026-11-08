@@ -7,6 +7,7 @@
     const T = (en, bd) => bn ? bd : en;
     const officer = root.dataset.officer === 'true';
     const staff = officer || root.dataset.counselor === 'true';
+    const admin = root.dataset.admin === 'true';
     const aggregateAccess = root.dataset.aggregate === 'true';
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
         document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -14,7 +15,8 @@
     const safeSession = () => session[0] && session[1] &&
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
-    const state = { student: '', selected: null, busy: false, locked: false, page: 1, total: 0, requestId: null };
+    const state = { student: '', selected: null, busy: false, locked: false, page: 1, total: 0,
+        requestId: null, policy: null, policyRequestId: null, redactionRequestId: null, notificationRequestId: null };
     const val = id => $(id)?.value?.trim() || '';
     const guid = () => crypto.randomUUID();
     function notice(text, danger = false) {
@@ -26,10 +28,18 @@
         if (safeSession()) return true;
         state.locked = true; state.busy = true;
         state.student = ''; state.selected = null; state.requestId = null;
+        state.policy = null; state.policyRequestId = null; state.redactionRequestId = null;
         for (const field of root.querySelectorAll('input,select,textarea'))
             if (field.type !== 'hidden') field.value = '';
         $('caseStudents').replaceChildren(); $('myCases').replaceChildren();
         if (aggregateAccess) $('caseAggregates').replaceChildren();
+        if (admin || staff) {
+            $('casePolicyDetails').textContent = '';
+            $('casePolicyCampus').replaceChildren();
+        }
+        if (admin) {
+            $('casePolicyPending').replaceChildren(); $('caseRedactionPending').replaceChildren();
+        }
         if (staff) {
             $('caseRows').replaceChildren(); $('caseSelected').textContent = '';
             $('casePrivateSummary').textContent = ''; $('casePrivateEvents').replaceChildren();
@@ -45,6 +55,12 @@
         $('caseSubmit').disabled = state.busy || !state.student || val('caseSummary').length < 10;
         $('caseMineRefresh').disabled = state.busy;
         if (aggregateAccess) $('caseAggregateLoad').disabled = state.busy || !val('caseAggregateMonth');
+        if (admin || staff) $('casePolicyLoad').disabled = state.busy || !val('casePolicyCampus');
+        if (admin) {
+            $('casePolicySubmit').disabled = state.busy || !val('casePolicyCampus');
+            $('casePolicyPendingLoad').disabled = state.busy;
+            $('caseRedactionPendingLoad').disabled = state.busy;
+        }
         if (!staff) return;
         $('caseRefresh').disabled = state.busy;
         $('casePrev').disabled = state.busy || state.page <= 1;
@@ -52,8 +68,13 @@
         const canOpen = !!state.selected && (root.dataset.counselor === 'true' ||
             (officer && state.selected.isUrgent &&
                 ['Requested', 'Escalated'].includes(state.selected.state)));
-        $('casePrivate').disabled = state.busy || !canOpen;
-        $('caseAct').disabled = state.busy || !canOpen || state.selected.state === 'Closed';
+        $('casePrivate').disabled = state.busy || !canOpen || state.selected?.isRedacted;
+        $('caseAct').disabled = state.busy || !canOpen || state.selected.state === 'Closed' || state.selected?.isRedacted;
+        $('caseNotifyGuardian').disabled = state.busy || !state.selected ||
+            !state.selected.guardianContactConsented || state.selected.state === 'Closed' || state.selected.isRedacted;
+        $('caseRedactRequest').disabled = state.busy || !state.selected ||
+            state.selected.state !== 'Closed' || state.selected.redactionPending || state.selected.isRedacted ||
+            val('caseRedactReason').length < 10;
         if (officer) $('caseAssign').disabled = state.busy || state.selected?.state !== 'Requested' ||
             $('caseCounselorId').disabled || !val('caseCounselorId');
     }
@@ -91,6 +112,7 @@
         button.type = 'button';
         button.addEventListener('click', () => {
             state.selected = item;
+            state.redactionRequestId = null; state.notificationRequestId = null;
             $('caseSelected').textContent = item.reference + ' · ' + item.state;
             $('casePrivatePanel').classList.add('d-none');
             $('casePrivateSummary').textContent = '';
@@ -191,6 +213,98 @@
                     'প্রকাশযোগ্য গ্রুপ নেই (পাঁচটির কম হলে তথ্য গোপন রাখা হয়)।'), 'list-group-item text-muted'));
         });
     }
+    function currentCampus() { return Number(val('casePolicyCampus')); }
+    async function loadPolicyRaw() {
+        const campus = currentCampus();
+        if (!Number.isSafeInteger(campus) || campus <= 0) return;
+        state.policy = null;
+        $('casePolicyDetails').textContent = T('No approved campus policy. Independent approval required.',
+            'অনুমোদিত নীতি নেই। স্বতন্ত্র অনুমোদন আবশ্যক।');
+        const policy = await api('/api/student-counseling/policy/' + campus);
+        state.policy = policy;
+        const info = $('casePolicyDetails'); info.replaceChildren();
+        info.append(node('strong', T('Retention after closure: ', 'বন্ধের পর সংরক্ষণ: ') +
+            policy.retentionDays + T(' days', ' দিন')));
+        info.append(node('p', policy.legalHold ? T('LEGAL HOLD: redaction suspended.', 'আইনি সংরক্ষণ: তথ্য অপসারণ স্থগিত।') :
+            T('No legal hold is currently recorded.', 'বর্তমানে আইনি সংরক্ষণ নেই।'), 'mt-2 mb-1'));
+        info.append(node('p', T('Emergency guidance: ', 'জরুরি নির্দেশনা: ') +
+            (bn ? policy.emergencyGuidanceBn : policy.emergencyGuidanceEn), 'mb-0 text-break'));
+        if (admin) {
+            $('caseRetentionDays').value = String(policy.retentionDays);
+            $('caseLegalHold').checked = policy.legalHold;
+            $('caseEmergencyEn').value = policy.emergencyGuidanceEn;
+            $('caseEmergencyBn').value = policy.emergencyGuidanceBn;
+        }
+    }
+    async function loadPolicy() {
+        await run(async () => {
+            try { await loadPolicyRaw(); }
+            catch (error) {
+                if (!error.message.includes('not been independently approved')) throw error;
+                state.policy = null;
+            }
+        });
+    }
+    function decisionRow(item, kind) {
+        const entry = node('div', '', 'list-group-item');
+        const title = kind === 'policy' ?
+            T('Campus ', 'ক্যাম্পাস ') + item.campusId + ' · ' + item.retentionDays +
+                T(' days', ' দিন') + (item.legalHold ? T(' · LEGAL HOLD', ' · আইনি সংরক্ষণ') : '') :
+            T('Closed case reference ', 'বন্ধ কেস রেফারেন্স ') + item.reference.slice(0, 12) +
+                T(' · campus ', ' · ক্যাম্পাস ') + item.campusId;
+        entry.append(node('strong', title, 'd-block text-break'));
+        if (kind === 'policy') entry.append(node('p', T('English: ', 'ইংরেজি: ') + item.emergencyGuidanceEn +
+            T(' · Bangla: ', ' · বাংলা: ') + item.emergencyGuidanceBn, 'small text-break mb-1'));
+        const input = node('input', '', 'form-control form-control-sm mb-2');
+        input.placeholder = T('Independent decision reason (10–500 chars)', 'স্বতন্ত্র সিদ্ধান্তের কারণ (১০–৫০০ অক্ষর)');
+        input.type = 'text'; input.minLength = 10; input.maxLength = 500;
+        entry.append(input);
+        for (const approve of [true, false]) {
+            const button = node('button', approve ? T('Approve', 'অনুমোদন') : T('Reject', 'বাতিল'),
+                'btn btn-sm me-2 ' + (approve ? 'btn-outline-success' : 'btn-outline-danger'));
+            button.type = 'button';
+            let id = null;
+            button.addEventListener('click', () => run(async () => {
+                const reason = input.value.trim();
+                if (reason.length < 10) throw Error(T('Provide at least 10 characters of reasoning.',
+                    'কমপক্ষে ১০ অক্ষরের কারণ দিন।'));
+                if (approve && kind === 'redaction' && !window.confirm(T(
+                    'Permanently clear confidential narratives for this expired case? This cannot be undone.',
+                    'এই মেয়াদোত্তীর্ণ কেসের গোপন বিবরণ স্থায়ীভাবে অপসারণ করবেন? ফিরিয়ে আনা যাবে না।'))) return;
+                const path = kind === 'policy' ? '/policy-requests/' + item.reference + '/review' :
+                    '/' + item.reference + '/redaction/review';
+                await api('/api/student-counseling' + path, 'POST', {
+                    requestId: id || (id = guid()), rowVersion: item.rowVersion,
+                    reason, approve
+                });
+                entry.remove(); id = null;
+                notice(T('Independent decision recorded.', 'স্বতন্ত্র সিদ্ধান্ত সংরক্ষিত।'));
+                if (kind === 'policy' && currentCampus() === item.campusId) {
+                    try { await loadPolicyRaw(); } catch (_) { state.policy = null; }
+                }
+                if (kind === 'redaction' && state.selected?.reference === item.reference)
+                    state.selected = await api('/api/student-counseling/' + item.reference);
+            }));
+            entry.append(button);
+        }
+        return entry;
+    }
+    async function pendingPolicies() {
+        await run(async () => {
+            const items = await api('/api/student-counseling/policy-requests');
+            const box = $('casePolicyPending'); box.replaceChildren();
+            if (!items?.length) box.append(node('div', T('No pending campus policies.', 'অপেক্ষমাণ ক্যাম্পাস নীতি নেই।'), 'small text-muted'));
+            for (const item of items || []) box.append(decisionRow(item, 'policy'));
+        });
+    }
+    async function pendingRedactions() {
+        await run(async () => {
+            const items = await api('/api/student-counseling/redaction-requests');
+            const box = $('caseRedactionPending'); box.replaceChildren();
+            if (!items?.length) box.append(node('div', T('No pending redactions.', 'অপেক্ষমাণ অপসারণ আবেদন নেই।'), 'small text-muted'));
+            for (const item of items || []) box.append(decisionRow(item, 'redaction'));
+        });
+    }
     async function listRaw() {
         const data = await api('/api/student-counseling?' + new URLSearchParams({
             page: String(state.page), pageSize: '20'
@@ -269,6 +383,24 @@
                 notice(T('Private access recorded.', 'গোপন তথ্য দেখার ঘটনা অডিটে সংরক্ষিত।'));
             });
         });
+        $('caseNotifyGuardian').addEventListener('click', () => {
+            if (!state.selected || !window.confirm(T(
+                'Send a neutral in-app message only to the original consenting guardian? No case details will be included.',
+                'শুধু মূল সম্মত অভিভাবককে সাধারণ অ্যাপ বার্তা পাঠাবেন? কেস তথ্য থাকবে না।'))) return;
+            selectedAction('/notify-guardian', {
+                requestId: state.notificationRequestId || (state.notificationRequestId = guid()),
+                rowVersion: state.selected.rowVersion
+            }).then(() => { state.notificationRequestId = null; });
+        });
+        $('caseRedactReason').addEventListener('input', controls);
+        $('caseRedactForm').addEventListener('submit', event => {
+            event.preventDefault();
+            if (!state.selected || val('caseRedactReason').length < 10) return;
+            selectedAction('/redaction', {
+                requestId: state.redactionRequestId || (state.redactionRequestId = guid()),
+                rowVersion: state.selected.rowVersion, reason: val('caseRedactReason'), approve: false
+            }).then(() => { if (!state.busy) $('caseRedactReason').value = ''; });
+        });
         if (officer) $('caseAssign').addEventListener('click', () => {
             const id = Number(val('caseCounselorId'));
             if (!Number.isSafeInteger(id) || id <= 0) return notice(T('Valid counselor ID required.', 'সঠিক কাউন্সেলর আইডি দিন।'), true);
@@ -297,7 +429,47 @@
             String(now.getUTCMonth() + 1).padStart(2, '0');
         $('caseAggregateLoad').addEventListener('click', aggregates);
     }
+    async function bootstrapPolicy() {
+        await run(async () => {
+            const campuses = await api('/api/student-counseling/policy-campuses');
+            for (const campus of campuses || []) {
+                const option = node('option', campus.campusName);
+                option.value = String(campus.campusId);
+                $('casePolicyCampus').append(option);
+            }
+        });
+        if (admin) { await pendingPolicies(); await pendingRedactions(); }
+    }
+    if (admin || staff) {
+        $('casePolicyLoad').addEventListener('click', loadPolicy);
+        $('casePolicyCampus').addEventListener('change', () => {
+            state.policy = null; state.policyRequestId = null;
+            $('casePolicyDetails').textContent = T('Select Load to read the approved policy.',
+                'অনুমোদিত নীতি দেখতে লোড চাপুন।');
+            controls();
+        });
+    }
+    if (admin) {
+        $('casePolicyPendingLoad').addEventListener('click', pendingPolicies);
+        $('caseRedactionPendingLoad').addEventListener('click', pendingRedactions);
+        $('casePolicyForm').addEventListener('submit', event => {
+            event.preventDefault();
+            run(async () => {
+                const submitted = await api('/api/student-counseling/policy-requests', 'POST', {
+                    requestId: state.policyRequestId || (state.policyRequestId = guid()),
+                    campusId: currentCampus(), expectedPolicyRowVersion: state.policy?.rowVersion || '',
+                    retentionDays: Number(val('caseRetentionDays')), legalHold: $('caseLegalHold').checked,
+                    emergencyGuidanceEn: val('caseEmergencyEn'), emergencyGuidanceBn: val('caseEmergencyBn'),
+                    reason: val('casePolicyReason')
+                });
+                state.policyRequestId = null;
+                $('casePolicyReason').value = '';
+                notice(T('Policy change submitted for independent review: ', 'নীতি পরিবর্তন স্বতন্ত্র যাচাইয়ে পাঠানো হয়েছে: ') +
+                    submitted.reference.slice(0, 12));
+            }).then(pendingPolicies);
+        });
+    }
     window.addEventListener('focus', checkSession);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSession(); });
-    (async () => { await lookup(); await mine(); })();
+    (async () => { if (admin || staff) await bootstrapPolicy(); await lookup(); await mine(); })();
 })();

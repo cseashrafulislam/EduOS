@@ -96,8 +96,58 @@ public sealed class CounselingCaseConfiguration : IEntityTypeConfiguration<Couns
             .HasForeignKey(x => x.AssignedCounselorUserId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<ApplicationUser>().WithMany()
             .HasForeignKey(x => x.ClosedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.RedactionRequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.RedactedByUserId).OnDelete(DeleteBehavior.Restrict);
         b.ToTable(t => t.HasCheckConstraint("CK_CounselingCases_State",
             "[State] IN ('Requested','Assigned','Active','Escalated','Closed')"));
+    }
+}
+
+public sealed class CounselingCampusPolicyConfiguration : IEntityTypeConfiguration<CounselingCampusPolicy>
+{
+    public void Configure(EntityTypeBuilder<CounselingCampusPolicy> b)
+    {
+        b.HasIndex(x => new { x.TenantId, x.CampusId }).IsUnique();
+        b.HasOne<Campus>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.CampusId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.ApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.ToTable(t => t.HasCheckConstraint("CK_CounselingCampusPolicy_Retention",
+            "[RetentionDays] BETWEEN 30 AND 3650"));
+    }
+}
+
+public sealed class CounselingPolicyChangeConfiguration : IEntityTypeConfiguration<CounselingPolicyChange>
+{
+    public void Configure(EntityTypeBuilder<CounselingPolicyChange> b)
+    {
+        b.HasIndex(x => x.PublicId).IsUnique();
+        b.HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        b.HasIndex(x => new { x.TenantId, x.ReviewRequestId }).IsUnique()
+            .HasFilter("[ReviewRequestId] IS NOT NULL");
+        b.HasIndex(x => new { x.TenantId, x.CampusId }).IsUnique()
+            .HasFilter("[State] = N'Submitted' AND [IsDeleted] = 0");
+        b.HasOne<Campus>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.CampusId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.ProposedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<ApplicationUser>().WithMany()
+            .HasForeignKey(x => x.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+        b.ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_CounselingPolicyChange_Retention",
+                "[RetentionDays] BETWEEN 30 AND 3650");
+            t.HasCheckConstraint("CK_CounselingPolicyChange_State",
+                "[State] IN ('Submitted','Approved','Rejected')");
+            t.HasCheckConstraint("CK_CounselingPolicyChange_Reviewer",
+                "([State]='Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR " +
+                "([State]<>'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND " +
+                "[ReviewRequestId] IS NOT NULL AND [ReviewedByUserId]<>[ProposedByUserId])");
+        });
     }
 }
 

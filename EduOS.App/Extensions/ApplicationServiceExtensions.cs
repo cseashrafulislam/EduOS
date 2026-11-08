@@ -31,6 +31,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ScholarshipWorkflowService>();
             s.AddScoped<ScholarshipDisbursementService>();
             s.AddScoped<CounselingWorkflowService>();
+            s.AddScoped<CounselingPrivacyService>();
             s.AddScoped<StudentSupportDirectoryService>();
             s.AddScoped<ITenantUserAdministrationService, TenantUserAdministrationService>();
             s.AddScoped<IFileUploadService, FileUploadService>();

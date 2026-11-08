@@ -14,7 +14,8 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class CounselingCasesController(CounselingWorkflowService service) : ControllerBase
+public sealed class CounselingCasesController(CounselingWorkflowService service,
+    CounselingPrivacyService privacy) : ControllerBase
 {
     [HttpPost]
     public async Task<IActionResult> RequestCase(
@@ -80,6 +81,74 @@ public sealed class CounselingCasesController(CounselingWorkflowService service)
     public async Task<IActionResult> Aggregates(int year, int month, CancellationToken ct)
     {
         var result = await service.AggregatesAsync(year, month, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/notify-guardian")]
+    public async Task<IActionResult> NotifyGuardian(Guid reference,
+        [FromBody] NotifyCounselingGuardianRequest request, CancellationToken ct)
+    {
+        var result = await service.NotifyGuardianAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("policy/{campusId:long}")]
+    public async Task<IActionResult> Policy(long campusId, CancellationToken ct)
+    {
+        var result = await privacy.PolicyAsync(campusId, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("policy-campuses")]
+    public async Task<IActionResult> PolicyCampuses(CancellationToken ct)
+    {
+        var result = await privacy.CampusesAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("redaction-requests")]
+    public async Task<IActionResult> RedactionRequests(CancellationToken ct)
+    {
+        var result = await privacy.PendingRedactionsAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("policy-requests")]
+    public async Task<IActionResult> PolicyRequests(CancellationToken ct)
+    {
+        var result = await privacy.PendingAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("policy-requests")]
+    public async Task<IActionResult> ProposePolicy([FromBody] ProposeCounselingPolicyRequest request,
+        CancellationToken ct)
+    {
+        var result = await privacy.ProposeAsync(request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("policy-requests/{reference:guid}/review")]
+    public async Task<IActionResult> ReviewPolicy(Guid reference,
+        [FromBody] ReviewCounselingPolicyRequest request, CancellationToken ct)
+    {
+        var result = await privacy.ReviewAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/redaction")]
+    public async Task<IActionResult> RequestRedaction(Guid reference,
+        [FromBody] CounselingPrivacyCommandRequest request, CancellationToken ct)
+    {
+        var result = await privacy.RequestRedactionAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPost("{reference:guid}/redaction/review")]
+    public async Task<IActionResult> ReviewRedaction(Guid reference,
+        [FromBody] CounselingPrivacyCommandRequest request, CancellationToken ct)
+    {
+        var result = await privacy.ReviewRedactionAsync(reference, request, ct);
         return StatusCode(result.StatusCode, result);
     }
 }

@@ -2,8 +2,11 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.System;
+using EduOS.Core.Entities.Communication;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
+using EduOS.Service.Services.Platform;
+using EduOS.Core.Enums.Domain;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -19,6 +22,17 @@ public sealed class CounselingWorkflowService(
         db.CurrentTenantId == user.TenantId;
     private bool Officer => Scoped && user.IsInRole("SafeguardingOfficer");
     private bool Counselor => Scoped && user.IsInRole("Counselor");
+    private async Task<bool> LiveSession(CancellationToken ct) => Scoped &&
+        await db.Users.AsNoTracking().AnyAsync(x => x.Id == user.UserId && x.IsActive && !x.IsDeleted, ct) &&
+        await db.TenantMemberships.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
+            x.UserId == user.UserId && x.Status == MembershipStatus.Active && !x.IsDeleted, ct);
+    private async Task<bool> LiveOfficer(CancellationToken ct) => Officer &&
+        await CentralPrivilegedAccess.HasRoleAsync(db, user, new[] { "SAFEGUARDINGOFFICER" }, ct);
+    private async Task<bool> LiveCounselor(CancellationToken ct) => Counselor &&
+        await CentralPrivilegedAccess.HasRoleAsync(db, user, new[] { "COUNSELOR" }, ct);
+    private async Task<bool> LiveGuardian(CancellationToken ct) =>
+        (user.IsInRole("Guardian") || user.IsInRole("Parent")) &&
+        await CentralPrivilegedAccess.HasRoleAsync(db, user, new[] { "GUARDIAN", "PARENT" }, ct);
     private static ApiResponse<T> Fail<T>(string reason, int status = 400) =>
         ApiResponse<T>.ErrorResponse(reason, status);
     private string Protect(string text) => protection.CreateProtector(
@@ -39,11 +53,13 @@ public sealed class CounselingWorkflowService(
         State = x.State, IsUrgent = x.IsUrgent, OpenedAtUtc = x.OpenedAtUtc,
         AssignedCounselorUserId = x.AssignedCounselorUserId,
         GuardianContactConsented = x.GuardianContactConsented,
+        IsRedacted = x.RedactedAtUtc.HasValue,
+        RedactionPending = x.RedactionRequestId.HasValue && !x.RedactedAtUtc.HasValue,
         RowVersion = Convert.ToBase64String(x.RowVersion)
     };
-    private bool HasPrivateAccess(CounselingCase row) =>
-        (Counselor && row.AssignedCounselorUserId == user.UserId) ||
-        (Officer && row.IsUrgent && (row.State == "Requested" || row.State == "Escalated"));
+    private bool HasPrivateAccess(CounselingCase row, bool officer, bool counselor) =>
+        (counselor && row.AssignedCounselorUserId == user.UserId) ||
+        (officer && row.IsUrgent && (row.State == "Requested" || row.State == "Escalated"));
     private async Task<bool> OwnsStudent(long studentId, CancellationToken ct)
     {
         if (await db.Students.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
@@ -65,7 +81,8 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingCaseRow>> OpenAsync(
         OpenCounselingCaseRequest request, CancellationToken ct = default)
     {
-        if (!Scoped) return Fail<CounselingCaseRow>("Authentication required.", 403);
+        if (!await LiveSession(ct) || (Officer && !await LiveOfficer(ct)))
+            return Fail<CounselingCaseRow>("Active tenant access required.", 403);
         if (request == null || request.RequestId == Guid.Empty ||
             request.StudentReference == Guid.Empty || string.IsNullOrWhiteSpace(request.PrivateSummary) ||
             request.PrivateSummary.Trim().Length is < 10 or > 1500)
@@ -83,7 +100,7 @@ public sealed class CounselingWorkflowService(
         if (Officer && !await CampusAccess(enrollment.CampusId, user.UserId, ct))
             return Fail<CounselingCaseRow>("Campus not accessible.", 403);
         var guardianConsented = request.GuardianContactConsented &&
-            (user.IsInRole("Guardian") || user.IsInRole("Parent")) &&
+            await LiveGuardian(ct) &&
             await (from link in db.StudentGuardians.AsNoTracking()
                 join guardian in db.Guardians.AsNoTracking()
                     on new { link.TenantId, Id = link.GuardianId }
@@ -95,7 +112,7 @@ public sealed class CounselingWorkflowService(
         var replay = await Cases.AsNoTracking().FirstOrDefaultAsync(x =>
             x.ClientRequestId == request.RequestId, ct);
         if (replay != null)
-            return replay.StudentId == student.Id && replay.OpenedByUserId == user.UserId &&
+            return !replay.RedactedAtUtc.HasValue && replay.StudentId == student.Id && replay.OpenedByUserId == user.UserId &&
                 replay.IsUrgent == request.Urgent &&
                 Unprotect(replay.ProtectedSummary) == request.PrivateSummary.Trim() &&
                 replay.GuardianContactConsented == guardianConsented
@@ -130,6 +147,9 @@ public sealed class CounselingWorkflowService(
         {
             return await db.ExecuteInTransactionAsync(async token =>
             {
+                if (!await LiveSession(token) || (Officer && !await LiveOfficer(token)) ||
+                    (!Officer && !await OwnsStudent(student.Id, token)))
+                    return Fail<CounselingCaseRow>("Student access changed; reload.", 403);
                 var now = DateTime.UtcNow;
                 var row = new CounselingCase
                 {
@@ -162,7 +182,9 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingCasePage>> SearchAsync(
         int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
-        if (!Scoped || (!Officer && !Counselor))
+        var officer = await LiveOfficer(ct);
+        var counselor = await LiveCounselor(ct);
+        if (!await LiveSession(ct) || (!officer && !counselor))
             return Fail<CounselingCasePage>("Support role required.", 403);
         if (page <= 0 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize)
             return Fail<CounselingCasePage>("Invalid page.");
@@ -172,7 +194,7 @@ public sealed class CounselingWorkflowService(
                 equals new { student.TenantId, student.Id }
             where !student.IsDeleted
             select new { row, student.PublicId };
-        if (!Officer)
+        if (!officer)
             query = query.Where(x => x.row.AssignedCounselorUserId == user.UserId);
         query = query.Where(x => db.UserCampusAccesses.Any(a =>
             a.TenantId == user.TenantId && a.CampusId == x.row.CampusId &&
@@ -191,7 +213,7 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingCasePage>> MineAsync(int page = 1,
         int pageSize = 20, CancellationToken ct = default)
     {
-        if (!Scoped) return Fail<CounselingCasePage>("Authentication required.", 403);
+        if (!await LiveSession(ct)) return Fail<CounselingCasePage>("Active tenant access required.", 403);
         if (page <= 0 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize)
             return Fail<CounselingCasePage>("Invalid page.");
         var query = from row in Cases.AsNoTracking()
@@ -222,14 +244,16 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingCaseRow>> StatusAsync(
         Guid reference, CancellationToken ct = default)
     {
-        if (!Scoped) return Fail<CounselingCaseRow>("Authentication required.", 403);
+        if (!await LiveSession(ct)) return Fail<CounselingCaseRow>("Active tenant access required.", 403);
+        var officer = await LiveOfficer(ct);
+        var counselor = await LiveCounselor(ct);
         var row = await Cases.AsNoTracking().FirstOrDefaultAsync(x => x.PublicId == reference, ct);
         if (row == null) return Fail<CounselingCaseRow>("Case not found.", 404);
         // A guardian's relationship must never reveal a learner's separate confidential case.
-        if (!Officer && !(Counselor && row.AssignedCounselorUserId == user.UserId) &&
+        if (!officer && !(counselor && row.AssignedCounselorUserId == user.UserId) &&
             (row.OpenedByUserId != user.UserId || !await OwnsStudent(row.StudentId, ct)))
             return Fail<CounselingCaseRow>("Case not found.", 404);
-        if ((Officer || row.AssignedCounselorUserId == user.UserId) &&
+        if ((officer || (counselor && row.AssignedCounselorUserId == user.UserId)) &&
             !await CampusAccess(row.CampusId, user.UserId, ct))
             return Fail<CounselingCaseRow>("Campus access revoked.", 403);
         var studentRef = await db.Students.AsNoTracking().Where(x =>
@@ -237,7 +261,7 @@ public sealed class CounselingWorkflowService(
             .Select(x => x.PublicId).FirstOrDefaultAsync(ct);
         if (studentRef == Guid.Empty) return Fail<CounselingCaseRow>("Case not found.", 404);
         var result = Map(row, studentRef);
-        if (!Officer && row.AssignedCounselorUserId != user.UserId)
+        if (!officer && row.AssignedCounselorUserId != user.UserId)
             result.AssignedCounselorUserId = null;
         return ApiResponse<CounselingCaseRow>.SuccessResponse(result);
     }
@@ -248,7 +272,7 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingCaseRow>> UpdateGuardianConsentAsync(Guid reference,
         UpdateGuardianContactConsentRequest request, CancellationToken ct = default)
     {
-        if (!Scoped || !(user.IsInRole("Guardian") || user.IsInRole("Parent")))
+        if (!await LiveSession(ct) || !await LiveGuardian(ct))
             return Fail<CounselingCaseRow>("Linked guardian permission required.", 403);
         if (reference == Guid.Empty || request == null || request.RequestId == Guid.Empty)
             return Fail<CounselingCaseRow>("Invalid consent request.");
@@ -256,6 +280,8 @@ public sealed class CounselingWorkflowService(
         {
             return await db.ExecuteInTransactionAsync(async token =>
             {
+                if (!await LiveGuardian(token))
+                    return Fail<CounselingCaseRow>("Guardian permission revoked.", 403);
                 var row = await Cases.FirstOrDefaultAsync(x => x.PublicId == reference, token);
                 if (row == null || row.OpenedByUserId != user.UserId ||
                     !await OwnsStudent(row.StudentId, token))
@@ -304,13 +330,15 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingCaseRow>> AssignAsync(Guid reference,
         AssignCounselorRequest request, CancellationToken ct = default)
     {
-        if (!Officer) return Fail<CounselingCaseRow>("Safeguarding officer required.", 403);
+        if (!await LiveOfficer(ct)) return Fail<CounselingCaseRow>("Active safeguarding officer required.", 403);
         if (request == null || request.RequestId == Guid.Empty || request.CounselorUserId <= 0)
             return Fail<CounselingCaseRow>("Invalid counselor assignment.");
         try
         {
             return await db.ExecuteInTransactionAsync(async token =>
             {
+                if (!await LiveOfficer(token))
+                    return Fail<CounselingCaseRow>("Safeguarding role revoked.", 403);
                 var row = await Cases.FirstOrDefaultAsync(x => x.PublicId == reference, token);
                 if (row == null) return Fail<CounselingCaseRow>("Case not found.", 404);
                 if (!await CampusAccess(row.CampusId, user.UserId, token))
@@ -365,7 +393,8 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingCaseRow>> ActAsync(Guid reference,
         CounselingCaseActionRequest request, CancellationToken ct = default)
     {
-        if (!Scoped) return Fail<CounselingCaseRow>("Authentication required.", 403);
+        if (!await LiveSession(ct) || (!await LiveOfficer(ct) && !await LiveCounselor(ct)))
+            return Fail<CounselingCaseRow>("Active confidential support role required.", 403);
         if (request == null || request.RequestId == Guid.Empty ||
             request.Action is not ("Note" or "Appointment" or "Referral" or "Escalate" or "Close") ||
             string.IsNullOrWhiteSpace(request.PrivateNote) ||
@@ -381,7 +410,7 @@ public sealed class CounselingWorkflowService(
             {
                 var row = await Cases.FirstOrDefaultAsync(x => x.PublicId == reference, token);
                 if (row == null) return Fail<CounselingCaseRow>("Case not found.", 404);
-                if (!HasPrivateAccess(row))
+                if (!HasPrivateAccess(row, await LiveOfficer(token), await LiveCounselor(token)))
                     return Fail<CounselingCaseRow>("Assigned counselor or safeguarding escalation access required.", 403);
                 if (!await CampusAccess(row.CampusId, user.UserId, token))
                     return Fail<CounselingCaseRow>("Campus access revoked.", 403);
@@ -397,7 +426,8 @@ public sealed class CounselingWorkflowService(
                         Unprotect(previous.ProtectedNote) == request.PrivateNote.Trim()
                         ? ApiResponse<CounselingCaseRow>.SuccessResponse(Map(row, studentRef))
                         : Fail<CounselingCaseRow>("Case action key already used.", 409);
-                if (row.State == "Closed" || !Version(row.RowVersion, request.RowVersion))
+                if (row.State == "Closed" || row.RedactedAtUtc.HasValue ||
+                    !Version(row.RowVersion, request.RowVersion))
                     return Fail<CounselingCaseRow>("Case changed or closed.", 409);
                 if (request.Action == "Escalate")
                 {
@@ -427,19 +457,110 @@ public sealed class CounselingWorkflowService(
         catch (DbUpdateException) { return Fail<CounselingCaseRow>("Concurrent case action.", 409); }
     }
 
+    /// <summary>Consent-bound, generic in-app notification only; never send case text,
+    /// case reference, student identity or an off-platform SMS/email from this path.</summary>
+    public async Task<ApiResponse<CounselingCaseRow>> NotifyGuardianAsync(Guid reference,
+        NotifyCounselingGuardianRequest request, CancellationToken ct = default)
+    {
+        if (!await LiveOfficer(ct) && !await LiveCounselor(ct))
+            return Fail<CounselingCaseRow>("Authorized safeguarding staff required.", 403);
+        if (reference == Guid.Empty || request == null || request.RequestId == Guid.Empty)
+            return Fail<CounselingCaseRow>("Invalid guardian notification.");
+        try
+        {
+            return await db.ExecuteInTransactionAsync(async token =>
+            {
+                var officer = await LiveOfficer(token);
+                var counselor = await LiveCounselor(token);
+                var row = await Cases.FirstOrDefaultAsync(x => x.PublicId == reference, token);
+                if (row == null) return Fail<CounselingCaseRow>("Case unavailable.", 404);
+                if (!await CampusAccess(row.CampusId, user.UserId, token) ||
+                    (!officer && !(counselor && row.AssignedCounselorUserId == user.UserId)))
+                    return Fail<CounselingCaseRow>("Campus or case permission revoked.", 403);
+                var studentRef = await db.Students.AsNoTracking().Where(x =>
+                    x.TenantId == user.TenantId && x.Id == row.StudentId && !x.IsDeleted)
+                    .Select(x => x.PublicId).FirstOrDefaultAsync(token);
+                var previous = await db.CounselingCaseEvents.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == user.TenantId && x.ClientRequestId == request.RequestId, token);
+                if (previous != null)
+                {
+                    if (previous.CounselingCaseId != row.Id || previous.ActorUserId != user.UserId ||
+                        previous.Action != "GuardianNotified" ||
+                        !await db.Notifications.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
+                            x.SourceType == "CounselingCaseEvent" && x.SourceId == previous.Id && !x.IsDeleted, token))
+                        return Fail<CounselingCaseRow>("Notification key or delivery evidence conflicts.", 409);
+                    return ApiResponse<CounselingCaseRow>.SuccessResponse(Map(row, studentRef));
+                }
+                if (!row.GuardianContactConsented || row.State == "Closed" || row.RedactedAtUtc.HasValue ||
+                    !Version(row.RowVersion, request.RowVersion))
+                    return Fail<CounselingCaseRow>("Current guardian consent and unchanged open case required.", 409);
+                var recipient = await (from link in db.StudentGuardians.AsNoTracking()
+                    join guardian in db.Guardians.AsNoTracking()
+                        on new { link.TenantId, Id = link.GuardianId }
+                        equals new { guardian.TenantId, guardian.Id }
+                    join member in db.TenantMemberships.AsNoTracking()
+                        on new { link.TenantId, UserId = guardian.UserId.Value }
+                        equals new { member.TenantId, member.UserId }
+                    join account in db.Users.AsNoTracking() on member.UserId equals account.Id
+                    where link.TenantId == user.TenantId && link.StudentId == row.StudentId &&
+                        !link.IsDeleted && !guardian.IsDeleted && guardian.IsActive &&
+                        guardian.UserId.HasValue && guardian.UserId == row.OpenedByUserId &&
+                        member.Status == MembershipStatus.Active && !member.IsDeleted &&
+                        account.IsActive && !account.IsDeleted &&
+                        (from assigned in db.UserRoles
+                         join role in db.Roles on assigned.RoleId equals role.Id
+                         where assigned.UserId == member.UserId && role.IsActive && !role.IsDeleted &&
+                            (role.NormalizedName == "GUARDIAN" || role.NormalizedName == "PARENT") &&
+                            (role.TenantId == user.TenantId || (role.TenantId == null && !role.IsSystemRole &&
+                                db.TenantMemberships.Count(m => m.UserId == member.UserId && !m.IsDeleted &&
+                                    m.Status != MembershipStatus.Left) == 1))
+                         select assigned.UserId).Any()
+                    select member.UserId).Distinct().Take(2).ToArrayAsync(token);
+                if (recipient.Length != 1)
+                    return Fail<CounselingCaseRow>("Original consenting guardian is not currently verified.", 409);
+                var now = DateTime.UtcNow;
+                var ev = new CounselingCaseEvent
+                {
+                    TenantId = user.TenantId, CounselingCaseId = row.Id,
+                    ClientRequestId = request.RequestId, Action = "GuardianNotified",
+                    ProtectedNote = "", ActorUserId = user.UserId,
+                    OccurredAtUtc = now, CreatedAt = now, CreatedBy = user.UserId
+                };
+                db.CounselingCaseEvents.Add(ev);
+                await db.SaveChangesAsync(token);
+                db.Notifications.Add(new Notification
+                {
+                    TenantId = user.TenantId, UserId = recipient[0],
+                    Title = "Student support office", Body =
+                        "Please contact your institution's student support office through the official portal.",
+                    TypeCode = "StudentSupportPrivate", SourceType = "CounselingCaseEvent",
+                    SourceId = ev.Id, CreatedAt = now, CreatedBy = user.UserId
+                });
+                await db.SaveChangesAsync(token);
+                return ApiResponse<CounselingCaseRow>.SuccessResponse(Map(row, studentRef));
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException) { return Fail<CounselingCaseRow>("Guardian consent changed; reload.", 409); }
+        catch (DbUpdateException) { return Fail<CounselingCaseRow>("Notification conflict; reconcile.", 409); }
+    }
+
     /// <summary>Explicit POST view access, auditable without revealing details to list APIs.</summary>
     public async Task<ApiResponse<CounselingPrivateDetail>> OpenPrivateAsync(
         Guid reference, Guid accessRequestId, CancellationToken ct = default)
     {
-        if (!Scoped || accessRequestId == Guid.Empty)
+        if (!await LiveSession(ct) || accessRequestId == Guid.Empty ||
+            (!await LiveOfficer(ct) && !await LiveCounselor(ct)))
             return Fail<CounselingPrivateDetail>("Invalid private access.", 403);
         try
         {
             return await db.ExecuteInTransactionAsync(async token =>
             {
                 var row = await Cases.AsNoTracking().FirstOrDefaultAsync(x => x.PublicId == reference, token);
-                if (row == null || !HasPrivateAccess(row))
+                if (row == null || !HasPrivateAccess(row,
+                    await LiveOfficer(token), await LiveCounselor(token)))
                     return Fail<CounselingPrivateDetail>("Private case unavailable.", 404);
+                if (row.RedactedAtUtc.HasValue)
+                    return Fail<CounselingPrivateDetail>("Private records lawfully redacted.", 410);
                 if (!await CampusAccess(row.CampusId, user.UserId, token))
                     return Fail<CounselingPrivateDetail>("Campus access revoked.", 403);
                 var studentRef = await db.Students.AsNoTracking().Where(x =>
@@ -486,14 +607,17 @@ public sealed class CounselingWorkflowService(
     public async Task<ApiResponse<CounselingAggregateReport>> AggregatesAsync(
         int year, int month, CancellationToken ct = default)
     {
-        if (!Scoped || (!Officer && !user.IsTenantAdmin))
+        var officer = await LiveOfficer(ct);
+        var admin = user.IsTenantAdmin && await CentralPrivilegedAccess.HasRoleAsync(db, user,
+            new[] { "TENANTADMIN" }, ct);
+        if (!await LiveSession(ct) || (!officer && !admin))
             return Fail<CounselingAggregateReport>("Safeguarding aggregate access required.", 403);
         if (year is < 2020 or > 2200 || month is < 1 or > 12)
             return Fail<CounselingAggregateReport>("Choose a valid calendar month.");
         var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
         var to = from.AddMonths(1);
         var query = Cases.AsNoTracking().Where(x => x.OpenedAtUtc >= from && x.OpenedAtUtc < to);
-        if (!user.IsTenantAdmin)
+        if (!admin)
             query = query.Where(x => db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
                 a.CampusId == x.CampusId && a.UserId == user.UserId && a.IsActive && !a.IsDeleted));
         var campuses = await query.GroupBy(x => x.CampusId)

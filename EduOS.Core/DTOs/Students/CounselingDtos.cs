@@ -56,6 +56,70 @@ public sealed class CounselingCaseRow
     public DateTime OpenedAtUtc { get; set; }
     public long? AssignedCounselorUserId { get; set; }
     public bool GuardianContactConsented { get; set; }
+    public bool IsRedacted { get; set; }
+    public bool RedactionPending { get; set; }
+    public string RowVersion { get; set; } = "";
+}
+
+public sealed class CounselingCampusPolicyRow
+{
+    public long CampusId { get; set; }
+    public int RetentionDays { get; set; }
+    public bool LegalHold { get; set; }
+    public string EmergencyGuidanceEn { get; set; } = "";
+    public string EmergencyGuidanceBn { get; set; } = "";
+    public string RowVersion { get; set; } = "";
+}
+
+public sealed class CounselingCampusOption
+{
+    public long CampusId { get; set; }
+    public string CampusName { get; set; } = "";
+}
+
+public sealed class ProposeCounselingPolicyRequest
+{
+    public Guid RequestId { get; set; }
+    public long CampusId { get; set; }
+    public string ExpectedPolicyRowVersion { get; set; } = "";
+    public int RetentionDays { get; set; }
+    public bool LegalHold { get; set; }
+    public string EmergencyGuidanceEn { get; set; } = "";
+    public string EmergencyGuidanceBn { get; set; } = "";
+    public string Reason { get; set; } = "";
+}
+
+public sealed class ReviewCounselingPolicyRequest
+{
+    public Guid RequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public bool Approve { get; set; }
+    public string Reason { get; set; } = "";
+}
+
+public sealed class CounselingPolicyChangeRow
+{
+    public Guid Reference { get; set; }
+    public long CampusId { get; set; }
+    public string State { get; set; } = "";
+    public int RetentionDays { get; set; }
+    public bool LegalHold { get; set; }
+    public string EmergencyGuidanceEn { get; set; } = "";
+    public string EmergencyGuidanceBn { get; set; } = "";
+    public string RowVersion { get; set; } = "";
+}
+
+public sealed class CounselingPrivacyCommandRequest
+{
+    public Guid RequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public string Reason { get; set; } = "";
+    public bool Approve { get; set; }
+}
+
+public sealed class NotifyCounselingGuardianRequest
+{
+    public Guid RequestId { get; set; }
     public string RowVersion { get; set; } = "";
 }
 

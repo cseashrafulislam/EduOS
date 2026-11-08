@@ -4,16 +4,42 @@
     string L(string en, string bd) => bn ? bd : en;
     var officer = User.IsInRole("SafeguardingOfficer");
     var counselor = User.IsInRole("Counselor");
-    var aggregateAccess = officer || User.IsInRole("TenantAdmin");
+    var admin = User.IsInRole("TenantAdmin");
+    var aggregateAccess = officer || admin;
     ViewData["Title"] = L("Student Counseling & Safeguarding", "শিক্ষার্থী কাউন্সেলিং ও সুরক্ষা");
 }
-<section id="counselingApp" class="container-fluid py-4" data-officer="@officer.ToString().ToLowerInvariant()" data-counselor="@counselor.ToString().ToLowerInvariant()" data-aggregate="@aggregateAccess.ToString().ToLowerInvariant()">
+<section id="counselingApp" class="container-fluid py-4" data-officer="@officer.ToString().ToLowerInvariant()" data-counselor="@counselor.ToString().ToLowerInvariant()" data-admin="@admin.ToString().ToLowerInvariant()" data-aggregate="@aggregateAccess.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
     <header class="mb-3"><h1 class="h4">@L("Student Counseling & Safeguarding", "শিক্ষার্থী কাউন্সেলিং ও সুরক্ষা")</h1>
         <p class="text-muted">@L("Private educational support. Only the assigned counselor can open notes, with a narrowly scoped urgent safeguarding escalation.", "ব্যক্তিগত শিক্ষাগত সহায়তা। কেবল নির্ধারিত কাউন্সেলর নোট খুলতে পারেন; জরুরি সুরক্ষা ঘটনায় সীমিত ব্যতিক্রম।")</p>
         <p class="small text-danger">@L("For immediate danger, contact local emergency or child-protection services. This form is not an emergency response channel.", "তাৎক্ষণিক বিপদে স্থানীয় জরুরি বা শিশু সুরক্ষা সেবায় যোগাযোগ করুন। এই ফর্ম জরুরি সাড়া দেওয়ার মাধ্যম নয়।")</p>
     </header>
     <div id="caseNotice" class="alert alert-info" role="status" aria-live="polite">@L("Only authorized staff can view case worklists.", "কেবল অনুমোদিত কর্মীরা কেস তালিকা দেখতে পারবেন।")</div>
+    @if (admin || officer || counselor)
+    {
+        <section class="card mb-3"><div class="card-body">
+            <h2 class="h6">@L("Approved campus safeguarding policy", "অনুমোদিত ক্যাম্পাস সুরক্ষা নীতি")</h2>
+            <div class="d-flex gap-2 flex-wrap mb-2"><label class="visually-hidden" for="casePolicyCampus">@L("Campus", "ক্যাম্পাস")</label><select id="casePolicyCampus" class="form-select" style="max-width:350px"><option value="">@L("Select campus", "ক্যাম্পাস নির্বাচন করুন")</option></select><button id="casePolicyLoad" type="button" class="btn btn-outline-primary">@L("Load approved policy", "অনুমোদিত নীতি দেখুন")</button></div>
+            <div id="casePolicyDetails" class="alert alert-light border small" role="status" aria-live="polite">@L("Select a campus to view approved emergency guidance and retention.", "অনুমোদিত জরুরি নির্দেশনা ও সংরক্ষণকাল দেখতে ক্যাম্পাস নির্বাচন করুন।")</div>
+            @if (admin)
+            {
+                <form id="casePolicyForm" class="row g-2 mb-3">
+                    <h3 class="h6 mb-0">@L("Submit a campus policy for independent approval", "স্বতন্ত্র অনুমোদনের জন্য ক্যাম্পাস নীতির প্রস্তাব")</h3>
+                    <div class="col-sm-4"><label for="caseRetentionDays" class="form-label">@L("Retention days after closure", "বন্ধের পর সংরক্ষণের দিন")</label><input id="caseRetentionDays" class="form-control" type="number" min="30" max="3650" value="365" required /></div>
+                    <div class="col-sm-8 d-flex align-items-end"><div class="form-check mb-2"><input id="caseLegalHold" type="checkbox" class="form-check-input"/><label for="caseLegalHold" class="form-check-label">@L("Legal hold — block redaction", "আইনি সংরক্ষণ — মুছে ফেলা বন্ধ")</label></div></div>
+                    <div class="col-md-6"><label for="caseEmergencyEn" class="form-label">@L("Emergency guidance (English)", "জরুরি নির্দেশনা (ইংরেজি)")</label><textarea id="caseEmergencyEn" class="form-control" minlength="10" maxlength="350" rows="2" required></textarea></div>
+                    <div class="col-md-6"><label for="caseEmergencyBn" class="form-label">@L("Emergency guidance (Bangla)", "জরুরি নির্দেশনা (বাংলা)")</label><textarea id="caseEmergencyBn" class="form-control" minlength="10" maxlength="350" rows="2" required></textarea></div>
+                    <div class="col-12"><label for="casePolicyReason" class="form-label">@L("Change justification (minimum 10 characters)", "পরিবর্তনের কারণ (কমপক্ষে ১০ অক্ষর)")</label><textarea id="casePolicyReason" class="form-control" minlength="10" maxlength="500" required></textarea></div>
+                    <div class="col-12"><button type="submit" id="casePolicySubmit" class="btn btn-primary">@L("Request independent approval", "স্বতন্ত্র অনুমোদনের আবেদন")</button></div>
+                </form>
+                <div class="d-flex gap-2 mb-2"><h3 class="h6 mb-0">@L("Pending policy decisions", "অপেক্ষমাণ নীতি সিদ্ধান্ত")</h3><button id="casePolicyPendingLoad" type="button" class="btn btn-sm btn-outline-secondary">@L("Refresh", "রিফ্রেশ")</button></div>
+                <div id="casePolicyPending" class="list-group mb-3" aria-live="polite"></div>
+                <div class="d-flex gap-2 mb-2"><h3 class="h6 mb-0">@L("Pending confidential redaction approvals", "অপেক্ষমাণ গোপন তথ্য অপসারণ অনুমোদন")</h3><button id="caseRedactionPendingLoad" type="button" class="btn btn-sm btn-outline-secondary">@L("Refresh", "রিফ্রেশ")</button></div>
+                <p class="small text-muted">@L("Review requests independently. Only anonymized references appear here. Redaction erases protected notes while keeping minimal evidence; backups follow separate expiry schedules.", "স্বতন্ত্রভাবে আবেদন যাচাই করুন। এখানে পরিচয়বিহীন রেফারেন্স থাকে। অপসারণে গোপন নোট মুছে যায়, ন্যূনতম অডিট থাকে; ব্যাকআপের মেয়াদ আলাদা।")</p>
+                <div id="caseRedactionPending" class="list-group" aria-live="polite"></div>
+            }
+        </div></section>
+    }
     <div class="row g-3">
         <div class="col-xl-5">
             <section class="card"><div class="card-body">
@@ -59,7 +85,7 @@
                     {
                         <label class="form-label" for="caseCounselorId">@L("Eligible campus counselor", "ক্যাম্পাসের অনুমোদিত কাউন্সেলর")</label><div class="input-group mb-3"><select id="caseCounselorId" class="form-select" disabled><option value="">@L("Select a case first", "আগে একটি কেস নির্বাচন করুন")</option></select><button id="caseAssign" type="button" class="btn btn-outline-primary" disabled>@L("Assign", "বরাদ্দ")</button></div>
                     }
-                    <div class="d-flex gap-2 flex-wrap mb-3"><button id="casePrivate" type="button" class="btn btn-outline-secondary" disabled>@L("Open private notes (audited)", "গোপন নোট খুলুন (অডিট হয়)")</button></div>
+                    <div class="d-flex gap-2 flex-wrap mb-3"><button id="casePrivate" type="button" class="btn btn-outline-secondary" disabled>@L("Open private notes (audited)", "গোপন নোট খুলুন (অডিট হয়)")</button><button id="caseNotifyGuardian" type="button" class="btn btn-outline-secondary" disabled>@L("Notify consenting guardian (no case details)", "সম্মত অভিভাবককে জানান (কেস তথ্য ছাড়া)")</button></div>
                     <div id="casePrivatePanel" class="alert alert-light border d-none" aria-live="polite"><h3 class="h6">@L("Private case narrative", "গোপনীয় কেস বিবরণ")</h3><p id="casePrivateSummary" class="text-break"></p><div id="casePrivateEvents" class="list-group"></div></div>
                     <form id="caseActionForm" class="row g-2">
                         <div class="col-sm-6"><label class="form-label" for="caseAction">@L("Action", "কার্যক্রম")</label><select id="caseAction" class="form-select"><option value="Note">@L("Note", "নোট")</option><option value="Appointment">@L("Appointment", "অ্যাপয়েন্টমেন্ট")</option><option value="Referral">@L("Referral", "রেফারেল")</option><option value="Escalate">@L("Escalate", "জরুরি এস্কেলেশন")</option><option value="Close">@L("Close", "বন্ধ")</option></select></div>
@@ -67,6 +93,10 @@
                         <div class="col-12"><label class="form-label" for="caseNote">@L("Restricted case note", "সংরক্ষিত কেস নোট")</label><textarea id="caseNote" class="form-control" maxlength="1500" rows="3" required></textarea></div>
                         <div class="col-12"><button id="caseAct" class="btn btn-primary" type="submit" disabled>@L("Save confidential action", "গোপন কার্যক্রম সংরক্ষণ")</button></div>
                     </form>
+                    <hr />
+                    <h3 class="h6">@L("Retention-expired case redaction", "সংরক্ষণকাল শেষ হওয়া কেসের তথ্য অপসারণ")</h3>
+                    <p class="small text-muted">@L("Closed cases only, after the approved campus retention period, without legal hold. A different tenant admin must approve. This clears encrypted narratives and retains only minimal audit evidence.", "কেবল বন্ধ কেসে অনুমোদিত সংরক্ষণকাল শেষ এবং আইনি সংরক্ষণ না থাকলে। অন্য একজন টেন্যান্ট অ্যাডমিন অনুমোদন করবেন। গোপন বিবরণ মুছে যাবে, ন্যূনতম অডিট থাকবে।")</p>
+                    <form id="caseRedactForm" class="d-flex flex-wrap gap-2"><label for="caseRedactReason" class="visually-hidden">@L("Reason", "কারণ")</label><input id="caseRedactReason" class="form-control" minlength="10" maxlength="500" placeholder="@L("Reason (minimum 10 characters)", "কারণ (কমপক্ষে ১০ অক্ষর)")" required /><button id="caseRedactRequest" type="submit" class="btn btn-outline-danger" disabled>@L("Request independent redaction", "স্বতন্ত্র অপসারণ অনুমোদন চান")</button></form>
                 </div></section>
             }
         </div>

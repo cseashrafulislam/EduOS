@@ -182,6 +182,11 @@ partial class EduOSDbContextModelSnapshot
             b.Property<string>("ProtectedSummary").IsRequired().HasMaxLength(8000).HasColumnType("nvarchar(max)");
             b.Property<bool>("GuardianContactConsented").HasColumnType("bit");
             b.Property<DateTime?>("GuardianConsentAtUtc").HasColumnType("datetime2");
+            b.Property<Guid?>("RedactionRequestId").HasColumnType("uniqueidentifier");
+            b.Property<long?>("RedactionRequestedByUserId").HasColumnType("bigint");
+            b.Property<DateTime?>("RedactionRequestedAtUtc").HasColumnType("datetime2");
+            b.Property<DateTime?>("RedactedAtUtc").HasColumnType("datetime2");
+            b.Property<long?>("RedactedByUserId").HasColumnType("bigint");
             b.Property<long>("TenantId").HasColumnType("bigint");
             b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
             b.Property<long?>("CreatedBy").HasColumnType("bigint");
@@ -199,6 +204,8 @@ partial class EduOSDbContextModelSnapshot
             b.HasIndex("AssignedCounselorUserId");
             b.HasIndex("AssignedByUserId");
             b.HasIndex("ClosedByUserId");
+            b.HasIndex("RedactionRequestedByUserId");
+            b.HasIndex("RedactedByUserId");
             b.HasIndex("TenantId", "StudentId");
             b.HasIndex("TenantId", "ClientRequestId").IsUnique();
             b.HasIndex("TenantId", "CampusId", "State", "OpenedAtUtc");
@@ -233,6 +240,84 @@ partial class EduOSDbContextModelSnapshot
             b.HasIndex("TenantId", "ClientRequestId").IsUnique();
             b.HasIndex("TenantId", "CounselingCaseId", "Id");
             b.ToTable("CounselingCaseEvents");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCampusPolicy", b =>
+        {
+            b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+            b.Property<long>("TenantId").HasColumnType("bigint");
+            b.Property<long>("CampusId").HasColumnType("bigint");
+            b.Property<int>("RetentionDays").HasColumnType("int");
+            b.Property<bool>("LegalHold").HasColumnType("bit");
+            b.Property<string>("EmergencyGuidanceEn").IsRequired().HasMaxLength(350).HasColumnType("nvarchar(350)");
+            b.Property<string>("EmergencyGuidanceBn").IsRequired().HasMaxLength(350).HasColumnType("nvarchar(350)");
+            b.Property<long>("ApprovedByUserId").HasColumnType("bigint");
+            b.Property<DateTime>("ApprovedAtUtc").HasColumnType("datetime2");
+            b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+            b.Property<long?>("CreatedBy").HasColumnType("bigint");
+            b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+            b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+            b.Property<bool>("IsDeleted").HasColumnType("bit");
+            b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+            b.Property<long?>("DeletedBy").HasColumnType("bigint");
+            b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+            b.HasKey("Id");
+            b.HasAlternateKey("TenantId", "Id");
+            b.HasIndex("ApprovedByUserId");
+            b.HasIndex("TenantId", "CampusId").IsUnique();
+            b.ToTable("CounselingCampusPolicies", t => t.HasCheckConstraint(
+                "CK_CounselingCampusPolicy_Retention", "[RetentionDays] BETWEEN 30 AND 3650"));
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingPolicyChange", b =>
+        {
+            b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+            b.Property<long>("TenantId").HasColumnType("bigint");
+            b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+            b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+            b.Property<Guid?>("ReviewRequestId").HasColumnType("uniqueidentifier");
+            b.Property<long>("CampusId").HasColumnType("bigint");
+            b.Property<string>("State").IsRequired().HasMaxLength(12).HasColumnType("nvarchar(12)");
+            b.Property<int>("RetentionDays").HasColumnType("int");
+            b.Property<bool>("LegalHold").HasColumnType("bit");
+            b.Property<string>("EmergencyGuidanceEn").IsRequired().HasMaxLength(350).HasColumnType("nvarchar(350)");
+            b.Property<string>("EmergencyGuidanceBn").IsRequired().HasMaxLength(350).HasColumnType("nvarchar(350)");
+            b.Property<byte[]>("ExpectedPolicyVersion").HasMaxLength(8).HasColumnType("varbinary(8)");
+            b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
+            b.Property<long>("ProposedByUserId").HasColumnType("bigint");
+            b.Property<DateTime>("ProposedAtUtc").HasColumnType("datetime2");
+            b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
+            b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
+            b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+            b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+            b.Property<long?>("CreatedBy").HasColumnType("bigint");
+            b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+            b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+            b.Property<bool>("IsDeleted").HasColumnType("bit");
+            b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+            b.Property<long?>("DeletedBy").HasColumnType("bigint");
+            b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+            b.HasKey("Id");
+            b.HasAlternateKey("TenantId", "Id");
+            b.HasIndex("PublicId").IsUnique();
+            b.HasIndex("ProposedByUserId");
+            b.HasIndex("ReviewedByUserId");
+            b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+            b.HasIndex("TenantId", "ReviewRequestId").IsUnique()
+                .HasFilter("[ReviewRequestId] IS NOT NULL");
+            b.HasIndex("TenantId", "CampusId").IsUnique()
+                .HasFilter("[State] = N'Submitted' AND [IsDeleted] = 0");
+            b.ToTable("CounselingPolicyChanges", t =>
+            {
+                t.HasCheckConstraint("CK_CounselingPolicyChange_Retention", "[RetentionDays] BETWEEN 30 AND 3650");
+                t.HasCheckConstraint("CK_CounselingPolicyChange_State", "[State] IN ('Submitted','Approved','Rejected')");
+                t.HasCheckConstraint("CK_CounselingPolicyChange_Reviewer",
+                    "([State]='Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR " +
+                    "([State]<>'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND " +
+                    "[ReviewRequestId] IS NOT NULL AND [ReviewedByUserId]<>[ProposedByUserId])");
+            });
         });
         modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipApplication", b =>
         {
@@ -309,6 +394,10 @@ partial class EduOSDbContextModelSnapshot
                 .HasForeignKey("AssignedByUserId").OnDelete(DeleteBehavior.Restrict);
             b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
                 .HasForeignKey("ClosedByUserId").OnDelete(DeleteBehavior.Restrict);
+            b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                .HasForeignKey("RedactionRequestedByUserId").OnDelete(DeleteBehavior.Restrict);
+            b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                .HasForeignKey("RedactedByUserId").OnDelete(DeleteBehavior.Restrict);
             b.Navigation("Tenant");
         });
         modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCaseEvent", b =>
@@ -320,6 +409,30 @@ partial class EduOSDbContextModelSnapshot
             b.HasOne("EduOS.Core.Entities.Students.CounselingCase", null).WithMany()
                 .HasForeignKey("TenantId", "CounselingCaseId")
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.Navigation("Tenant");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCampusPolicy", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("EduOS.Core.Entities.SaaS.Campus", null).WithMany()
+                .HasForeignKey("TenantId", "CampusId")
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                .HasForeignKey("ApprovedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.Navigation("Tenant");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingPolicyChange", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("EduOS.Core.Entities.SaaS.Campus", null).WithMany()
+                .HasForeignKey("TenantId", "CampusId")
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                .HasForeignKey("ProposedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                .HasForeignKey("ReviewedByUserId").OnDelete(DeleteBehavior.Restrict);
             b.Navigation("Tenant");
         });
         AddStudentInvoiceDiscountAttributionSnapshot(modelBuilder);

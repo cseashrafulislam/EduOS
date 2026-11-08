@@ -127,6 +127,17 @@ jobs:
             --filter "FullyQualifiedName~SqlServerScholarshipDisbursementIntegrationTests" \
             --logger "trx;LogFileName=sql-scholarship-cash-ledger-acceptance.trx" --results-directory TestResults
 
+      - name: Verify A4 safeguarding policy, retention, guardian consent and encrypted redaction on real SQL
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerCounselingSafeguardingIntegrationTests" \
+            --logger "trx;LogFileName=sql-a4-safeguarding-acceptance.trx" --results-directory TestResults
+
       - name: Verify Research grants and Accreditation approvals on real SQL Server
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
         shell: bash
@@ -206,6 +217,7 @@ jobs:
           name: sql-acceptance-diagnostics-${{ github.sha }}
           path: |
             TestResults/sql-v1-acceptance.trx
+            TestResults/sql-a4-safeguarding-acceptance.trx
             TestResults/sql-research-accreditation-acceptance.trx
             TestResults/sql-v3-alumni-acceptance.trx
             TestResults/sql-v3-facilities-acceptance.trx
