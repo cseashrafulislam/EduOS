@@ -20,9 +20,10 @@ public sealed class ScholarshipCashDisbursement : Migration
         m.AddColumn<decimal>("CashAmount", "ScholarshipApplications", "decimal(18,2)", nullable: true);
         m.CreateIndex("IX_ScholarshipApplications_TenantId_DiscountRuleId", "ScholarshipApplications",
             new[] { "TenantId", "DiscountRuleId" });
-        m.AddForeignKey("FK_ScholarshipApplications_DiscountRules_TenantId_DiscountRuleId",
-            "ScholarshipApplications", new[] { "TenantId", "DiscountRuleId" }, "DiscountRules",
-            new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
+        m.AddForeignKey(name: "FK_ScholarshipApplications_DiscountRules_TenantId_DiscountRuleId",
+            table: "ScholarshipApplications", columns: new[] { "TenantId", "DiscountRuleId" },
+            principalTable: "DiscountRules", principalColumns: new[] { "TenantId", "Id" },
+            onDelete: ReferentialAction.Restrict);
         m.AddCheckConstraint("CK_ScholarshipApplications_Benefit", "ScholarshipApplications",
             "([AwardMode]='FeeCredit' AND [DiscountRuleId] IS NOT NULL AND [CashAmount] IS NULL) OR " +
             "([AwardMode]='CashGrant' AND [DiscountRuleId] IS NULL AND [CashAmount]>0 AND [StudentDiscountId] IS NULL)");
@@ -156,8 +157,9 @@ public sealed class ScholarshipCashDisbursement : Migration
             oldClrType: typeof(long), oldType: "bigint", oldNullable: true);
         m.CreateIndex("IX_ScholarshipApplications_TenantId_DiscountRuleId", "ScholarshipApplications",
             new[] { "TenantId", "DiscountRuleId" });
-        m.AddForeignKey("FK_ScholarshipApplications_DiscountRules_TenantId_DiscountRuleId",
-            "ScholarshipApplications", new[] { "TenantId", "DiscountRuleId" }, "DiscountRules",
-            new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
+        m.AddForeignKey(name: "FK_ScholarshipApplications_DiscountRules_TenantId_DiscountRuleId",
+            table: "ScholarshipApplications", columns: new[] { "TenantId", "DiscountRuleId" },
+            principalTable: "DiscountRules", principalColumns: new[] { "TenantId", "Id" },
+            onDelete: ReferentialAction.Restrict);
     }
 }
