@@ -19,6 +19,10 @@ function fixture(admin, language) {
         '<form id="digitalUploadForm"><input name="__RequestVerificationToken" value="csrf">',
         '<input id="digitalBookSearch"><button id="digitalBookFind" type="button">Find</button>',
         '<select id="digitalBook" required><option value="">Select</option></select>',
+        '<input id="digitalCurriculumSearch"><button id="digitalCurriculumFind" type="button">Find</button>',
+        '<select id="digitalCurriculum"></select>',
+        ...['Chapter', 'Topic', 'Language', 'SourceUrl', 'RightsHolder',
+            'LicenceCode', 'LicenceEvidence'].map(name => '<input id="digital' + name + '">'),
         '<input id="digitalTitle" required><input id="digitalFile" type="file" required>',
         '<input id="digitalExpiresOn" type="date"><select id="digitalCampus" disabled></select>',
         '<button id="digitalPublish" type="submit">Publish</button></form>',
@@ -38,6 +42,8 @@ function fixture(admin, language) {
         '<button id="digitalEditCancel" type="button">Cancel</button></form></dialog>',
         '<dialog id="digitalReplaceDialog"><form id="digitalReplaceForm">',
         '<input id="digitalReplaceTitle" required><input id="digitalReplaceExpiry" type="date">',
+        ...['Chapter', 'Topic', 'Language', 'SourceUrl', 'RightsHolder',
+            'LicenceCode', 'LicenceEvidence'].map(name => '<input id="digitalReplace' + name + '">'),
         '<input id="digitalReplaceFile" type="file" required>',
         '<button id="digitalReplaceSave" type="submit">Publish version</button>',
         '<button id="digitalReplaceCancel" type="button">Cancel</button></form></dialog>',
@@ -55,7 +61,10 @@ function fixture(admin, language) {
         '<body data-auth-session-reference="' + SESSION + '" data-auth-tenant-id="101">' +
         '<div id="digitalAlert" class="d-none" tabindex="-1"></div>' +
         adminFields +
-        '<form id="digitalSearchForm"><input id="digitalQuery"></form>' +
+        '<form id="digitalSearchForm"><input id="digitalQuery">' +
+        ['Category', 'Author', 'Publisher', 'Edition', 'Chapter', 'Language']
+            .map(name => '<input id="digital' + name + 'Filter">').join('') +
+        '<button id="digitalClearFilters" type="button">Clear</button></form>' +
         '<span id="digitalCount"></span><span id="digitalPage"></span>' +
         '<button id="digitalPrevious" type="button"></button>' +
         '<button id="digitalNext" type="button"></button>' +
@@ -90,6 +99,9 @@ async function scenario(browser, admin, language) {
                     { id: 41, name: 'North', code: 'N' },
                     { id: 42, name: 'South', code: 'S' }
                 ] }) });
+        if (url.pathname === '/api/library/digital/curriculum-options')
+            return route.fulfill({ contentType: 'application/json',
+                body: JSON.stringify({ success: true, data: { items: [] } }) });
         if (url.pathname === '/api/library/digital/' + RESOURCE + '/versions')
             return route.fulfill({ contentType: 'application/json',
                 body: JSON.stringify({ success: true, data: {
