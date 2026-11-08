@@ -204,7 +204,16 @@ public sealed class SqlServerCentralWorkCenterTests
         var http = new DefaultHttpContext();
         http.Items["TenantId"] = tenant;
         return new EduOSDbContext(options,
-            new HttpContextAccessor { HttpContext = http });
+            new FixedHttpContextAccessor { HttpContext = http });
+    }
+
+    // HttpContextAccessor uses a shared AsyncLocal: opening a deliberately
+    // switched tenant context would otherwise replace the first context's
+    // tenant mid-test and turn later role-revocation assertions into false
+    // positives. Each simulated request needs its own immutable context.
+    private sealed class FixedHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 
     private sealed class User(long tenant, long id) : ICurrentUserService
