@@ -98,6 +98,7 @@
             const value = el(prefix + field)?.value?.trim() || '';
             if (value) form.append('Rights.' + (field === 'Language' ? 'LanguageCode' : field), value);
         }
+        form.append('Rights.OfflineAllowed', el(prefix + 'OfflineAllowed')?.checked === true ? 'true' : 'false');
     }
     async function findCurricula() {
         if (!admin || !currentSession()) return;
@@ -231,6 +232,7 @@
             ['SyllabusVersion', 'syllabusVersion'], ['SyllabusSourceUrl', 'syllabusSourceUrl'],
             ['PreviousPaperYear', 'previousPaperYear'], ['StudyExplanation', 'studyExplanation']])
             el('digitalReplace' + field).value = resource[key] || (field === 'Language' ? 'bn-BD' : '');
+        el('digitalReplaceOfflineAllowed').checked = resource.offlineAllowed === true;
         el('digitalReplaceDialog').showModal();
     }
     async function saveReplacement(event) {

@@ -333,7 +333,7 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
         if (reference == Guid.Empty || request == null || string.IsNullOrWhiteSpace(request.RowVersion) ||
             request.Note?.Length > 500 || (target == "Withdrawn" && string.IsNullOrWhiteSpace(request.Note)))
             return Error<TeacherResourceDto>("Resource, row version and withdrawal reason required.");
-        return await db.ExecuteInTransactionAsync(async token =>
+        try { return await db.ExecuteInTransactionAsync(async token =>
         {
             var row = await db.TeacherResources.FirstOrDefaultAsync(x =>
                 x.TenantId == Tenant && x.PublicId == reference && !x.IsDeleted, token);
@@ -358,7 +358,12 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
             db.AuditLogs.Add(Audit(row, target == "Submitted" ? "TeacherResource.Submitted" : "TeacherResource.Withdrawn"));
             await db.SaveChangesAsync(token);
             return ApiResponse<TeacherResourceDto>.SuccessResponse(await MapAsync(row, token));
-        }, IsolationLevel.Serializable, ct);
+        }, IsolationLevel.Serializable, ct); }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Teacher resource transition collision for tenant {Tenant}", Tenant);
+            return Error<TeacherResourceDto>("Resource changed concurrently. Reload and retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<TeacherResourceDto>> ReviewAsync(Guid reference,
@@ -368,7 +373,7 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
         if (reference == Guid.Empty || request == null || string.IsNullOrWhiteSpace(request.RowVersion) ||
             request.Note?.Length > 500 || (!approve && string.IsNullOrWhiteSpace(request.Note)))
             return Error<TeacherResourceDto>("Current version and rejection reason required.");
-        return await db.ExecuteInTransactionAsync(async token =>
+        try { return await db.ExecuteInTransactionAsync(async token =>
         {
             var row = await db.TeacherResources.FirstOrDefaultAsync(x =>
                 x.TenantId == Tenant && x.PublicId == reference && !x.IsDeleted, token);
@@ -410,7 +415,12 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
             db.AuditLogs.Add(Audit(row, approve ? "TeacherResource.Approved" : "TeacherResource.Rejected"));
             await db.SaveChangesAsync(token);
             return ApiResponse<TeacherResourceDto>.SuccessResponse(await MapAsync(row, token));
-        }, IsolationLevel.Serializable, ct);
+        }, IsolationLevel.Serializable, ct); }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Teacher resource review collision for tenant {Tenant}", Tenant);
+            return Error<TeacherResourceDto>("Resource changed concurrently. Reload and retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(Guid reference, CancellationToken ct = default)

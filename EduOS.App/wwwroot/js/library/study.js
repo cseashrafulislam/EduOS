@@ -92,6 +92,15 @@
             read.target = '_blank'; read.rel = 'noopener noreferrer';
             read.textContent = label('Read', 'পড়ুন'); actions.append(read);
         }
+        if (item.offlineAllowed && item.sizeBytes > 0 && item.sizeBytes <= 4194304 &&
+            ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(item.contentType) &&
+            window.EduOSOfflineStudy?.prepare) {
+            const offline = document.createElement('button'); offline.type = 'button';
+            offline.className = 'btn btn-sm btn-outline-primary';
+            offline.textContent = label('Save offline', 'অফলাইনে রাখুন');
+            offline.addEventListener('click', () => window.EduOSOfflineStudy.prepare(item));
+            actions.append(offline);
+        }
         if (safeHttps(item.syllabusSourceUrl)) {
             const source = document.createElement('a');
             source.className = 'btn btn-sm btn-outline-secondary';

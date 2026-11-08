@@ -2102,6 +2102,7 @@ public class EduOSDbContext :
         // LMS
         UniqueTenant<Course>(modelBuilder, nameof(Course.Code));
         UniqueTenant<TeacherResource>(modelBuilder, nameof(TeacherResource.PublicId));
+        modelBuilder.Entity<TeacherResource>().HasIndex(x => x.PublicId).IsUnique();
         UniqueTenant<TeacherResource>(modelBuilder, nameof(TeacherResource.FileAssetId));
         modelBuilder.Entity<TeacherResource>()
             .HasIndex(x => new { x.TenantId, x.SupersedesResourceId })
@@ -2173,6 +2174,8 @@ public class EduOSDbContext :
         modelBuilder.Entity<Document>().HasIndex(x => new
             { x.TenantId, x.ContentExamCode, x.ContentBoardCode, x.ContentSyllabusYear, x.IsActive });
         UniqueTenant<StudyBookmark>(modelBuilder, nameof(StudyBookmark.UserId), nameof(StudyBookmark.DocumentId));
+        modelBuilder.Entity<StudyBookmark>().ToTable(t =>
+            t.HasCheckConstraint("CK_StudyBookmarks_LastReadPage", "[LastReadPage] >= 0 AND [LastReadPage] <= 100000"));
         UniqueTenant<DocumentTemplate>(modelBuilder, nameof(DocumentTemplate.Code));
         UniqueTenant<CustomFieldDefinition>(modelBuilder, nameof(CustomFieldDefinition.EntityType), nameof(CustomFieldDefinition.FieldKey));
         UniqueTenant<CustomFieldOption>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId), nameof(CustomFieldOption.Value));

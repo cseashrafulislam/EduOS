@@ -68,6 +68,75 @@ public sealed class LibraryDigitalResourceTests
         LicenceEvidence = "Written institutional ownership record"
     };
 
+    [Fact]
+    public async Task Offline_copy_requires_explicit_reviewed_rights_and_rechecks_revocation()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        var document = new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Offline syllabus note", IsActive = true,
+            VerificationStatusCode = "Approved", ContentExamCode = "SSC",
+            ContentLicenceCode = "InstitutionOwned", ContentOfflineAllowed = false
+        };
+        db.Documents.Add(document);
+        await db.SaveChangesAsync();
+        var reader = Service(db, "Student");
+        (await reader.GetOfflinePermitAsync(reference)).StatusCode.Should().Be(404);
+        document.ContentOfflineAllowed = true;
+        await db.SaveChangesAsync();
+        var permit = await reader.GetOfflinePermitAsync(reference);
+        permit.Success.Should().BeTrue(permit.Message);
+        permit.Data!.SizeBytes.Should().Be(seed.Bytes.Length);
+        permit.Data.ExpiresAtUtc.Should().BeAfter(DateTime.UtcNow);
+        document.IsActive = false;
+        await db.SaveChangesAsync();
+        (await reader.GetOfflinePermitAsync(reference)).StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task Reader_position_retries_are_idempotent_and_stale_replays_conflict()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Reader position", IsActive = true,
+            VerificationStatusCode = "Approved", ContentExamCode = "SSC"
+        });
+        await db.SaveChangesAsync();
+        var reader = Service(db, "Student");
+        (await reader.GetStudyReaderProgressAsync(reference)).Data!.Page.Should().Be(0);
+        var command = new SaveStudyReaderProgressDto { Page = 3, CommandId = Guid.NewGuid() };
+        (await reader.SaveStudyReaderProgressAsync(reference, command)).Success.Should().BeTrue();
+        (await reader.SaveStudyReaderProgressAsync(reference, command)).Data!.Page.Should().Be(3);
+        (await db.StudyBookmarks.CountAsync()).Should().Be(1);
+        var bookmark = await db.StudyBookmarks.SingleAsync();
+        bookmark.RowVersion = [1, 2, 3, 4];
+        await db.SaveChangesAsync();
+        (await reader.SaveStudyReaderProgressAsync(reference, new SaveStudyReaderProgressDto
+        { Page = 6, CommandId = Guid.NewGuid(), ExpectedRowVersion = "AQ==" }))
+            .StatusCode.Should().Be(409);
+        (await reader.SaveStudyReaderProgressAsync(reference, new SaveStudyReaderProgressDto
+        {
+            Page = 6, CommandId = Guid.NewGuid(),
+            ExpectedRowVersion = Convert.ToBase64String(bookmark.RowVersion)
+        })).Success.Should().BeTrue();
+        (await reader.GetStudyReaderProgressAsync(reference)).Data!.Page.Should().Be(6);
+        (await reader.SetStudyBookmarkAsync(reference, false)).Success.Should().BeTrue();
+        (await reader.GetStudyReaderProgressAsync(reference)).Data!.Page.Should().Be(0);
+    }
+
     private static async Task<(Book Book, StudentEnrollment Enrollment, FileAsset Asset, byte[] Bytes)> SeedAsync(
         EduOSDbContext db, Guid reference)
     {

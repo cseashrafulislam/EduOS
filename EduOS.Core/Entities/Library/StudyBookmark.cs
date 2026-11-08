@@ -10,4 +10,9 @@ public sealed class StudyBookmark : BaseTenantEntity
 {
     public long UserId { get; set; }
     public long DocumentId { get; set; }
+    // Canonical per-user manual reader position. No quiz answers or grades are
+    // synchronized from offline clients.
+    public int LastReadPage { get; set; }
+    public Guid? LastProgressCommandId { get; set; }
+    public DateTime? ProgressUpdatedAtUtc { get; set; }
 }

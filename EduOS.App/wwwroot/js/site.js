@@ -29,6 +29,11 @@
         const action = new URL(form.action, window.location.href);
         if (action.origin !== window.location.origin || action.pathname.toLowerCase() !== '/account/logout') return;
         form.addEventListener('submit', () => {
+            window.EduOSOfflineStudy?.clear?.();
+            if (typeof BroadcastChannel === 'function') {
+                const broadcast = new BroadcastChannel('eduos-offline-study');
+                broadcast.postMessage({ type: 'clear' }); broadcast.close();
+            }
             navigator.serviceWorker?.controller?.postMessage({ type: 'EDUOS_CLEAR_RUNTIME_STATIC' });
             window.EduOSNotifySessionChanged?.();
         });

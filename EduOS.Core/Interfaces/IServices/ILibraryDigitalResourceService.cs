@@ -39,4 +39,10 @@ public interface ILibraryDigitalResourceService
         Guid reference, LibraryDigitalReviewRequestDto request, bool approve,
         CancellationToken ct = default);
     Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<OfflineStudyPermitDto>> GetOfflinePermitAsync(
+        Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<StudyReaderProgressDto>> GetStudyReaderProgressAsync(
+        Guid reference, CancellationToken ct = default);
+    Task<ApiResponse<StudyReaderProgressDto>> SaveStudyReaderProgressAsync(
+        Guid reference, SaveStudyReaderProgressDto request, CancellationToken ct = default);
 }

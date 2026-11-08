@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="bn">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src blob: 'self'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>EduOS – Offline Study / অফলাইন অধ্যয়ন</title>
+    <link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/css/offline-study.css" />
+</head>
+<body class="bg-light">
+    <main id="offlineStudyReader" class="container py-4 offline-study-container">
+        <header class="d-flex flex-wrap justify-content-between gap-3 align-items-start mb-4">
+            <div><h1 class="h3">অফলাইন অধ্যয়ন / Offline study</h1>
+                <p class="text-muted">শুধু অনুমোদিত এনক্রিপ্টেড ফাইল। পাসফ্রেজ ছাড়া কিছু খোলা যাবে না। / Encrypted approved material only; a passphrase is required.</p></div>
+            <a class="btn btn-outline-secondary" href="/Library/Study">অনলাইন লাইব্রেরি / Online library</a>
+        </header>
+        <div id="offlineReaderStatus" role="status" aria-live="polite" class="alert alert-info">Saved content is encrypted on this device. Offline access expires within 24 hours; a revoked licence cannot be checked until reconnecting.</div>
+        <div id="offlineReaderList" class="list-group mb-3"></div>
+        <label for="offlineReaderPassphrase" class="form-label">পাসফ্রেজ / Encryption passphrase</label>
+        <input id="offlineReaderPassphrase" type="password" class="form-control mb-3" autocomplete="off" minlength="12" maxlength="128" />
+        <button type="button" id="offlineReaderClear" class="btn btn-outline-danger mb-4">সব অফলাইন ফাইল মুছুন / Clear device</button>
+        <section id="offlineReaderContent" aria-live="polite"></section>
+    </main>
+    <script src="/js/learning/offline-library.js"></script>
+</body>
+</html>

@@ -86,6 +86,7 @@ public partial class TeacherResourceStudio : Migration
         });
         m.CreateIndex("IX_TeacherResources_TenantId_PublicId", "TeacherResources",
             new[] { "TenantId", "PublicId" }, unique: true);
+        m.CreateIndex("IX_TeacherResources_PublicId", "TeacherResources", "PublicId", unique: true);
         m.CreateIndex("IX_TeacherResources_TenantId_FileAssetId", "TeacherResources",
             new[] { "TenantId", "FileAssetId" }, unique: true);
         m.CreateIndex("IX_TeacherResources_TenantId_SupersedesResourceId", "TeacherResources",

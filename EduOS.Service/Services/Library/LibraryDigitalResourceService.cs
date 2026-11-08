@@ -206,6 +206,7 @@ public sealed class LibraryDigitalResourceService(
         SyllabusSourceUrl = document.ContentSyllabusSourceUrl,
         PreviousPaperYear = document.ContentPreviousPaperYear,
         StudyExplanation = document.ContentStudyExplanation,
+        OfflineAllowed = document.ContentOfflineAllowed,
         ReviewStatus = document.VerificationStatusCode
     };
 
@@ -228,6 +229,7 @@ public sealed class LibraryDigitalResourceService(
         document.ContentSyllabusSourceUrl = rights.SyllabusSourceUrl?.Trim();
         document.ContentPreviousPaperYear = rights.PreviousPaperYear;
         document.ContentStudyExplanation = rights.StudyExplanation?.Trim();
+        document.ContentOfflineAllowed = rights.OfflineAllowed;
     }
 
     private static bool RightsMatch(Document document, LibraryDigitalRightsRequestDto rights) =>
@@ -246,7 +248,8 @@ public sealed class LibraryDigitalResourceService(
         document.ContentSyllabusVersion == rights.SyllabusVersion?.Trim() &&
         document.ContentSyllabusSourceUrl == rights.SyllabusSourceUrl?.Trim() &&
         document.ContentPreviousPaperYear == rights.PreviousPaperYear &&
-        document.ContentStudyExplanation == rights.StudyExplanation?.Trim();
+        document.ContentStudyExplanation == rights.StudyExplanation?.Trim() &&
+        document.ContentOfflineAllowed == rights.OfflineAllowed;
 
     private static bool ValidRights(LibraryDigitalRightsRequestDto? rights)
     {
@@ -264,6 +267,7 @@ public sealed class LibraryDigitalResourceService(
                 source.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(source.UserInfo))
                 return false;
         }
+        if (rights.OfflineAllowed && rights.ExamCode == null) return false;
         if (rights.ExamCode == null)
         {
             if (rights.BoardCode != null || rights.SyllabusYear != null ||
@@ -500,6 +504,7 @@ public sealed class LibraryDigitalResourceService(
                     SyllabusSourceUrl = x.ContentSyllabusSourceUrl,
                     PreviousPaperYear = x.ContentPreviousPaperYear,
                     StudyExplanation = x.ContentStudyExplanation,
+                    OfflineAllowed = x.ContentOfflineAllowed,
                     ReviewStatus = x.VerificationStatusCode,
                     Title = x.Title ?? string.Empty,
                     FileName = x.OriginalFileName, ContentType = x.ContentType,
@@ -565,6 +570,12 @@ public sealed class LibraryDigitalResourceService(
         else
         {
             existing.IsDeleted = !bookmarked;
+            if (!bookmarked)
+            {
+                existing.LastReadPage = 0;
+                existing.LastProgressCommandId = null;
+                existing.ProgressUpdatedAtUtc = null;
+            }
             existing.UpdatedBy = user.UserId;
             existing.UpdatedAt = Now;
         }
@@ -577,6 +588,85 @@ public sealed class LibraryDigitalResourceService(
         {
             logger.LogWarning(ex, "Concurrent study bookmark for tenant {TenantId}", Tenant);
             return Fail<bool>("Bookmark changed concurrently; reload and retry.", 409);
+        }
+    }
+
+    private static StudyReaderProgressDto ReaderProgress(Guid reference,
+        EduOS.Core.Entities.Library.StudyBookmark? bookmark) => new()
+    {
+        Reference = reference, Page = bookmark?.LastReadPage ?? 0,
+        RowVersion = bookmark == null ? null : Convert.ToBase64String(bookmark.RowVersion),
+        UpdatedAtUtc = bookmark?.ProgressUpdatedAtUtc
+    };
+
+    public async Task<ApiResponse<StudyReaderProgressDto>> GetStudyReaderProgressAsync(
+        Guid reference, CancellationToken ct = default)
+    {
+        if (reference == Guid.Empty || !await CanReadAsync(ct))
+            return Fail<StudyReaderProgressDto>("Study resource unavailable.", 404);
+        var documentId = await PublishedResources().Where(x =>
+            x.Document.PublicId == reference && x.Document.ContentExamCode != null)
+            .Select(x => x.Document.Id).FirstOrDefaultAsync(ct);
+        if (documentId == 0) return Fail<StudyReaderProgressDto>("Study resource unavailable.", 404);
+        var bookmark = await db.StudyBookmarks.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.UserId == user.UserId &&
+            x.DocumentId == documentId && !x.IsDeleted, ct);
+        return ApiResponse<StudyReaderProgressDto>.SuccessResponse(ReaderProgress(reference, bookmark));
+    }
+
+    public async Task<ApiResponse<StudyReaderProgressDto>> SaveStudyReaderProgressAsync(
+        Guid reference, SaveStudyReaderProgressDto request, CancellationToken ct = default)
+    {
+        if (reference == Guid.Empty || request == null || request.CommandId == Guid.Empty ||
+            request.Page is < 1 or > 100000 || !await CanReadAsync(ct))
+            return Fail<StudyReaderProgressDto>("Study progress request unavailable.", 404);
+        try
+        {
+            return await db.ExecuteInTransactionAsync(async token =>
+            {
+                var documentId = await PublishedResources().Where(x =>
+                    x.Document.PublicId == reference && x.Document.ContentExamCode != null)
+                    .Select(x => x.Document.Id).FirstOrDefaultAsync(token);
+                if (documentId == 0) return Fail<StudyReaderProgressDto>("Study resource unavailable.", 404);
+                var row = await db.StudyBookmarks.IgnoreQueryFilters().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.UserId == user.UserId &&
+                    x.DocumentId == documentId, token);
+                if (row != null && !row.IsDeleted &&
+                    row.LastProgressCommandId == request.CommandId)
+                {
+                    if (row.LastReadPage != request.Page)
+                        return Fail<StudyReaderProgressDto>("Command already used for another position.", 409);
+                    return ApiResponse<StudyReaderProgressDto>.SuccessResponse(ReaderProgress(reference, row));
+                }
+                if (row == null && !string.IsNullOrEmpty(request.ExpectedRowVersion) ||
+                    row != null && !VersionMatches(row.RowVersion, request.ExpectedRowVersion))
+                    return Fail<StudyReaderProgressDto>("Reader position changed; resolve the conflict before retry.", 409);
+                if (row == null)
+                {
+                    row = new EduOS.Core.Entities.Library.StudyBookmark
+                    {
+                        TenantId = Tenant, UserId = user.UserId, DocumentId = documentId,
+                        CreatedBy = user.UserId, CreatedAt = Now
+                    };
+                    db.StudyBookmarks.Add(row);
+                }
+                row.IsDeleted = false;
+                row.LastReadPage = request.Page;
+                row.LastProgressCommandId = request.CommandId;
+                row.ProgressUpdatedAtUtc = Now;
+                row.UpdatedAt = Now; row.UpdatedBy = user.UserId;
+                await db.SaveChangesAsync(token);
+                return ApiResponse<StudyReaderProgressDto>.SuccessResponse(ReaderProgress(reference, row));
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Fail<StudyReaderProgressDto>("Reader position changed; reload to resolve.", 409);
+        }
+        catch (Exception ex) when (IsSqlRegistrationConflict(ex) || ex is DbUpdateException)
+        {
+            logger.LogWarning(ex, "Concurrent reader progress for tenant {TenantId}", Tenant);
+            return Fail<StudyReaderProgressDto>("Reader position changed; reload to resolve.", 409);
         }
     }
 
@@ -1123,7 +1213,8 @@ public sealed class LibraryDigitalResourceService(
                         SyllabusVersion = row.ContentSyllabusVersion,
                         SyllabusSourceUrl = row.ContentSyllabusSourceUrl,
                         PreviousPaperYear = row.ContentPreviousPaperYear,
-                        StudyExplanation = row.ContentStudyExplanation
+                        StudyExplanation = row.ContentStudyExplanation,
+                        OfflineAllowed = row.ContentOfflineAllowed
                     };
                     if (!ValidRights(rights) || !await ValidCurriculumAsync(rights, token) ||
                         !await ValidCampusScopeAsync(row.LibraryCampusId, token))
@@ -1169,6 +1260,37 @@ public sealed class LibraryDigitalResourceService(
             logger.LogWarning(ex, "Library digital review contention for tenant {TenantId}", Tenant);
             return Fail<LibraryDigitalResourceDto>("Concurrent review. Reload and retry.", 409);
         }
+    }
+
+    public async Task<ApiResponse<OfflineStudyPermitDto>> GetOfflinePermitAsync(
+        Guid reference, CancellationToken ct = default)
+    {
+        if (reference == Guid.Empty || !await CanReadAsync(ct))
+            return Fail<OfflineStudyPermitDto>("Offline learning is not available.", 404);
+        // A publishing administrator explicitly grants rights on this reviewed
+        // Document/version. Historical permissions default to false.
+        var row = await PublishedResources().Where(x =>
+            x.Document.PublicId == reference && x.Document.ContentExamCode != null &&
+            x.Document.ContentOfflineAllowed && x.File.SizeBytes > 0 && x.File.SizeBytes <= 4194304 &&
+            (x.File.ContentType == "application/pdf" || x.File.ContentType == "image/png" ||
+             x.File.ContentType == "image/jpeg" || x.File.ContentType == "image/webp"))
+            .Select(x => new { x.Document.Title, x.Document.ExpiresAt,
+                x.File.Sha256, x.File.ContentType, x.File.SizeBytes })
+            .FirstOrDefaultAsync(ct);
+        if (row == null || string.IsNullOrWhiteSpace(row.Sha256) || row.Sha256.Length != 64 ||
+            !row.Sha256.All(Uri.IsHexDigit))
+            return Fail<OfflineStudyPermitDto>("Offline rights or verified file unavailable.", 404);
+        var expiry = Now.AddHours(24);
+        if (row.ExpiresAt.HasValue && row.ExpiresAt.Value < expiry)
+            expiry = row.ExpiresAt.Value;
+        if (expiry <= Now)
+            return Fail<OfflineStudyPermitDto>("Offline licence has expired.", 404);
+        return ApiResponse<OfflineStudyPermitDto>.SuccessResponse(new OfflineStudyPermitDto
+        {
+            Reference = reference, Title = row.Title ?? "Study resource", Sha256 = row.Sha256,
+            SizeBytes = row.SizeBytes, ContentType = row.ContentType,
+            ExpiresAtUtc = expiry
+        });
     }
 
     public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadAsync(

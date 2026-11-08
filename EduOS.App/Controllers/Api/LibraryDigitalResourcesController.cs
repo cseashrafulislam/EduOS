@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace EduOS.App.Controllers.Api;
 
@@ -16,7 +17,8 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceService service) : ControllerBase
+public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceService service,
+    IAntiforgery antiforgery) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] Guid? bookReference = null,
@@ -61,6 +63,33 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
     {
         if (!ModelState.IsValid || request == null) return ValidationProblem(ModelState);
         var result = await service.SetStudyBookmarkAsync(reference, request.Bookmarked, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("study/progress/{reference:guid}")]
+    public async Task<IActionResult> ReaderProgress(Guid reference, CancellationToken ct)
+    {
+        var result = await service.GetStudyReaderProgressAsync(reference, ct);
+        Response.Headers.CacheControl = "no-store, private";
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("study/progress/token")]
+    public IActionResult ProgressToken()
+    {
+        // Offline shell has no authenticated Razor layout. Same-origin cookie
+        // authorization plus antiforgery still applies to its bounded sync writes.
+        Response.Headers.CacheControl = "no-store, private";
+        return Ok(new { token = antiforgery.GetAndStoreTokens(HttpContext).RequestToken });
+    }
+
+    [HttpPut("study/progress/{reference:guid}")]
+    public async Task<IActionResult> SaveReaderProgress(Guid reference,
+        [FromBody] SaveStudyReaderProgressDto request, CancellationToken ct)
+    {
+        if (request == null || !ModelState.IsValid) return ValidationProblem(ModelState);
+        var result = await service.SaveStudyReaderProgressAsync(reference, request, ct);
+        Response.Headers.CacheControl = "no-store, private";
         return StatusCode(result.StatusCode, result);
     }
 
@@ -240,6 +269,48 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
         Response.Headers["X-Content-Type-Options"] = "nosniff";
         Response.Headers["Referrer-Policy"] = "no-referrer";
         return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+    }
+
+    [HttpGet("{reference:guid}/offline/permit")]
+    public async Task<IActionResult> OfflinePermit(Guid reference, CancellationToken ct)
+    {
+        var result = await service.GetOfflinePermitAsync(reference, ct);
+        Response.Headers.CacheControl = "no-store, private";
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/offline/chunk")]
+    public async Task<IActionResult> OfflineChunk(Guid reference,
+        [FromQuery] long offset, [FromQuery] string? sha256, CancellationToken ct)
+    {
+        var permission = await service.GetOfflinePermitAsync(reference, ct);
+        if (!permission.Success || permission.Data == null)
+            return StatusCode(permission.StatusCode, permission);
+        var grant = permission.Data;
+        if (offset < 0 || offset % grant.ChunkBytes != 0 || offset >= grant.SizeBytes ||
+            !string.Equals(sha256, grant.Sha256, StringComparison.OrdinalIgnoreCase))
+            return StatusCode(416, "The requested chunk does not match the current approved file.");
+        // Each chunk reuses the canonical private read, including its post-storage
+        // tenant, campus, expiry, malware and file-integrity reauthorization.
+        var downloaded = await service.DownloadAsync(reference, ct);
+        if (!downloaded.Success || downloaded.Data == null)
+            return StatusCode(downloaded.StatusCode, downloaded);
+        var refreshed = await service.GetOfflinePermitAsync(reference, ct);
+        if (!refreshed.Success || refreshed.Data == null ||
+            !string.Equals(grant.Sha256, refreshed.Data.Sha256, StringComparison.OrdinalIgnoreCase) ||
+            downloaded.Data.Content.LongLength != grant.SizeBytes)
+            return StatusCode(409, "Offline permission changed during download.");
+        var length = (int)Math.Min(grant.ChunkBytes, grant.SizeBytes - offset);
+        var buffer = new byte[length];
+        Buffer.BlockCopy(downloaded.Data.Content, (int)offset, buffer, 0, length);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers.Pragma = "no-cache";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Content-Range"] = $"bytes {offset}-{offset + length - 1}/{grant.SizeBytes}";
+        Response.Headers["Accept-Ranges"] = "bytes";
+        Response.Headers.ETag = $"\"{grant.Sha256}\"";
+        Response.StatusCode = StatusCodes.Status206PartialContent;
+        return File(buffer, "application/octet-stream");
     }
 
     [HttpGet("{reference:guid}/read")]

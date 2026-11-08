@@ -49,6 +49,9 @@ public class Document : BaseTenantEntity
     [MaxLength(1000)] public string? ContentSyllabusSourceUrl { get; set; }
     public int? ContentPreviousPaperYear { get; set; }
     [MaxLength(2000)] public string? ContentStudyExplanation { get; set; }
+    // False for all historical publications; an explicit, independently reviewed
+    // licence grant is required before the learner can retain an offline copy.
+    public bool ContentOfflineAllowed { get; set; }
     [MaxLength(100)] public string? EntityType { get; set; }
     public long? EntityId { get; set; }
     [MaxLength(250)] public string? Title { get; set; }

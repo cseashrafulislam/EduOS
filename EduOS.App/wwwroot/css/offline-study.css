@@ -1,0 +1,3 @@
+.offline-study-container { max-width: 940px; }
+.offline-reader-frame { height: 70vh; max-height: 850px; object-fit: contain; }
+@media (max-width: 576px) { .offline-reader-frame { height: 60vh; } }

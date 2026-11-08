@@ -30,6 +30,7 @@ public sealed class LibraryDigitalResourceDto
     public string? SyllabusSourceUrl { get; set; }
     public int? PreviousPaperYear { get; set; }
     public string? StudyExplanation { get; set; }
+    public bool OfflineAllowed { get; set; }
     public string ReviewStatus { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
@@ -40,6 +41,33 @@ public sealed class LibraryDigitalResourceDto
     public int VersionNo { get; set; }
     public DateTime CreatedAt { get; set; }
     public string RowVersion { get; set; } = string.Empty;
+}
+
+/// <summary>Short-lived, revalidated permission for explicit encrypted offline download.</summary>
+public sealed class OfflineStudyPermitDto
+{
+    public Guid Reference { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public string Sha256 { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public int ChunkBytes { get; set; } = 262144;
+    public DateTime ExpiresAtUtc { get; set; }
+}
+
+public sealed class StudyReaderProgressDto
+{
+    public Guid Reference { get; set; }
+    public int Page { get; set; }
+    public string? RowVersion { get; set; }
+    public DateTime? UpdatedAtUtc { get; set; }
+}
+
+public sealed class SaveStudyReaderProgressDto
+{
+    [Range(1, 100000)] public int Page { get; set; }
+    [Required] public Guid CommandId { get; set; }
+    public string? ExpectedRowVersion { get; set; }
 }
 
 public sealed class LibraryDigitalUploadRequestDto
@@ -71,6 +99,7 @@ public sealed class LibraryDigitalRightsRequestDto
     [MaxLength(1000)] public string? SyllabusSourceUrl { get; set; }
     public int? PreviousPaperYear { get; set; }
     [MaxLength(2000)] public string? StudyExplanation { get; set; }
+    public bool OfflineAllowed { get; set; }
 }
 
 public sealed class LibraryDigitalCurriculumOptionDto

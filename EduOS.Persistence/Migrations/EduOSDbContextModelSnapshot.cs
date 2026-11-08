@@ -2735,6 +2735,7 @@ namespace EduOS.Persistence.Migrations
                     b.HasKey("Id");
                     b.HasAlternateKey("TenantId", "Id");
                     b.HasIndex("ReviewedByUserId");
+                    b.HasIndex("PublicId").IsUnique();
                     b.HasIndex("SubmittedByUserId");
                     b.HasIndex("TenantId", "AccountId", "EffectiveFromDate").IsUnique()
                         .HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
@@ -9340,6 +9341,9 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<bool>("ContentOfflineAllowed")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("ContentPreviousPaperYear")
                         .HasColumnType("int");
 
@@ -9500,6 +9504,15 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<Guid?>("LastProgressCommandId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("LastReadPage")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProgressUpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -9529,7 +9542,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "UserId", "DocumentId")
                         .IsUnique();
 
-                    b.ToTable("StudyBookmarks");
+                    b.ToTable("StudyBookmarks", t =>
+                        {
+                            t.HasCheckConstraint("CK_StudyBookmarks_LastReadPage", "[LastReadPage] >= 0 AND [LastReadPage] <= 100000");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Files.DocumentTemplate", b =>

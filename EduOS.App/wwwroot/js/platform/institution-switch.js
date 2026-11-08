@@ -143,6 +143,11 @@
             if (redirect !== '/Dashboard/Index')
                 throw new Error('Invalid institution redirect.');
             navigator.serviceWorker?.controller?.postMessage({ type: 'EDUOS_CLEAR_RUNTIME_STATIC' });
+            window.EduOSOfflineStudy?.clear?.();
+            if (typeof BroadcastChannel === 'function') {
+                const broadcast = new BroadcastChannel('eduos-offline-study');
+                broadcast.postMessage({ type: 'clear' }); broadcast.close();
+            }
             window.EduOSNotifySessionChanged?.();
             window.location.replace(redirect);
         } catch (error) {

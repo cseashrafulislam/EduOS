@@ -1,8 +1,11 @@
 const CACHE_PREFIX = 'eduos-static-';
-const CACHE_NAME = `${CACHE_PREFIX}v11`;
+const CACHE_NAME = `${CACHE_PREFIX}v12`;
 const OFFLINE_URL = '/offline.html';
 const CORE_ASSETS = [
     OFFLINE_URL,
+    '/offline-study.html',
+    '/js/learning/offline-library.js',
+    '/css/offline-study.css',
     '/manifest.webmanifest',
     '/css/site.css',
     '/js/site.js',
@@ -39,7 +42,8 @@ self.addEventListener('activate', event => {
 });
 
 function isCacheableStaticPath(pathname) {
-    if (pathname === OFFLINE_URL || pathname === '/manifest.webmanifest') return true;
+    if (pathname === OFFLINE_URL || pathname === '/offline-study.html' ||
+        pathname === '/manifest.webmanifest') return true;
     if (!['/css/', '/js/', '/lib/', '/images/'].some(prefix => pathname.startsWith(prefix)))
         return false;
     // A route under a static prefix is not necessarily a public static file.
@@ -71,6 +75,16 @@ self.addEventListener('message', event => {
     if (event.data?.type !== 'EDUOS_CLEAR_RUNTIME_STATIC') return;
     ++cacheGeneration;
     event.waitUntil((async () => {
+        // Clear the separate encrypted study vault on sign-out/tenant switch.
+        // No authenticated response is ever stored in CacheStorage.
+        if (typeof indexedDB !== 'undefined') {
+            const deletion = indexedDB.deleteDatabase('eduos-offline-study-v1');
+            await new Promise(resolve => {
+                deletion.onsuccess = resolve;
+                deletion.onerror = resolve;
+                deletion.onblocked = resolve;
+            });
+        }
         await Promise.allSettled([...pendingWrites]);
         const cache = await caches.open(CACHE_NAME);
         const requests = await cache.keys();
