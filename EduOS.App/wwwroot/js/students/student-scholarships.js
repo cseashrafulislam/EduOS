@@ -12,7 +12,8 @@
     const safeSession = () => session[0] && session[1] &&
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
-    const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null };
+    const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null,
+        reconcilePage: 1, reconcileTotal: 0 };
     const guid = () => crypto.randomUUID();
     const val = id => $(id)?.value?.trim() || '';
     const date = value => value ? String(value).slice(0, 10) : '';
@@ -29,7 +30,10 @@
         for (const field of root.querySelectorAll('input,select,textarea'))
             if (field.type !== 'hidden') field.value = '';
         $('aidStudents').replaceChildren(); $('aidRows').replaceChildren();
-        if (review) $('aidSelected').textContent = '';
+        if (review) {
+            $('aidSelected').textContent = '';
+            $('aidReconciliationRows').replaceChildren();
+        }
         for (const control of root.querySelectorAll('button,input,select,textarea')) control.disabled = true;
         notice(T('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠাটি রিলোড করুন।'), true);
         return false;
@@ -47,6 +51,10 @@
         $('aidAward').disabled = state.busy || state.selected?.state !== 'Approved';
         $('aidCancel').disabled = state.busy ||
             !['Submitted', 'Awarded'].includes(state.selected?.state);
+        $('aidEvidenceDownload').disabled = state.busy || !state.selected?.hasEvidence;
+        $('aidReconcile').disabled = state.busy;
+        $('aidReconcilePrev').disabled = state.busy || state.reconcilePage <= 1;
+        $('aidReconcileNext').disabled = state.busy || state.reconcilePage * 30 >= state.reconcileTotal;
     }
     async function api(path, method = 'GET', payload) {
         if (!checkSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'));
@@ -199,6 +207,53 @@
             await listWithoutBusy();
         });
     }
+    async function evidence() {
+        if (!state.selected?.hasEvidence) return;
+        await run(async () => {
+            const reference = state.selected.reference;
+            if (!checkSession() || !token) throw Error(T('Session or security token unavailable.', 'সেশন বা নিরাপত্তা টোকেন নেই।'));
+            const response = await fetch('/api/student-scholarships/' +
+                encodeURIComponent(reference) + '/evidence-download', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { RequestVerificationToken: token, Accept: 'application/octet-stream,application/json' }
+            });
+            if (!checkSession()) throw Error(T('Session changed. Reload.', 'সেশন বদলেছে। রিলোড করুন।'));
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                throw Error(error?.message || T('Private evidence unavailable.', 'ব্যক্তিগত প্রমাণ পাওয়া যায়নি।'));
+            }
+            const type = (response.headers.get('content-type') || '').split(';')[0].toLowerCase();
+            const extension = ({ 'application/pdf': 'pdf', 'image/png': 'png',
+                'image/jpeg': 'jpg', 'image/webp': 'webp' })[type] || 'bin';
+            const blob = await response.blob();
+            if (!checkSession()) throw Error(T('Session changed. Reload.', 'সেশন বদলেছে। রিলোড করুন।'));
+            const url = URL.createObjectURL(blob);
+            try {
+                const link = document.createElement('a');
+                link.href = url; link.download = 'scholarship-evidence-' + reference.slice(0, 8) + '.' + extension;
+                link.style.display = 'none'; document.body.append(link); link.click(); link.remove();
+            } finally { setTimeout(() => URL.revokeObjectURL(url), 2000); }
+            notice(T('Private evidence access recorded.', 'ব্যক্তিগত প্রমাণ দেখার তথ্য অডিটে সংরক্ষিত।'));
+        });
+    }
+    async function reconcile() {
+        await run(async () => {
+            const data = await api('/api/student-scholarships/reconciliation?' + new URLSearchParams({
+                page: String(state.reconcilePage), pageSize: '30'
+            }));
+            state.reconcileTotal = data?.totalCount || 0;
+            const list = $('aidReconciliationRows'); list.replaceChildren();
+            for (const row of data?.items || []) {
+                const entry = make('div', row.applicationReference.slice(0, 8) + ' · ' +
+                    row.applicationState + ' · ' + row.lineageStatus,
+                    'list-group-item text-break');
+                list.append(entry);
+            }
+            if (!data?.items?.length) list.append(make('div',
+                T('No financial awards.', 'আর্থিক বরাদ্দ নেই।'), 'list-group-item text-muted'));
+            $('aidReconcilePage').textContent = state.reconcilePage + ' · ' + state.reconcileTotal;
+        });
+    }
     $('aidStudentSearchForm').addEventListener('submit', searchStudent);
     $('aidSubmitForm').addEventListener('submit', submit);
     for (const id of ['aidRule', 'aidFrom', 'aidStatement']) $(id).addEventListener('input', refreshControls);
@@ -208,6 +263,10 @@
     if (review) {
         for (const [id, kind] of [['aidApprove', 'approve'], ['aidReject', 'reject'],
             ['aidAward', 'award'], ['aidCancel', 'cancel']]) $(id).addEventListener('click', () => act(kind));
+        $('aidEvidenceDownload').addEventListener('click', evidence);
+        $('aidReconcile').addEventListener('click', () => { state.reconcilePage = 1; reconcile(); });
+        $('aidReconcilePrev').addEventListener('click', () => { if (state.reconcilePage > 1) { state.reconcilePage--; reconcile(); } });
+        $('aidReconcileNext').addEventListener('click', () => { if (state.reconcilePage * 30 < state.reconcileTotal) { state.reconcilePage++; reconcile(); } });
     }
     const today = new Date();
     $('aidFrom').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;

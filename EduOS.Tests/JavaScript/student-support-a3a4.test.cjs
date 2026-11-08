@@ -18,6 +18,10 @@ test('A3 aid form keeps antiforgery, server-enrollment selection and tenant-boun
     assert.match(js, /visibilitychange/);
     assert.match(js, /querySelectorAll\('button,input,select,textarea'\)/);
     assert.match(js, /credentials: 'same-origin', cache: 'no-store'/);
+    assert.match(js, /evidence-download/);
+    assert.match(js, /student-scholarships\/reconciliation/);
+    assert.match(view, /Review private evidence \(audited\)/);
+    assert.match(view, /Financial award reconciliation/);
     assert.doesNotMatch(js, /\.innerHTML\s*=/);
 });
 
@@ -40,6 +44,8 @@ test('A4 keeps confidential narratives outside GET and never builds HTML from no
     assert.match(svc, /Safeguarding intake is not staffed for this campus/);
     assert.match(svc, /row\.State == "Requested" \|\| row\.State == "Escalated"/);
     assert.match(js, /student-support-directory\/counselors/);
+    assert.match(js, /student-counseling\/aggregates/);
+    assert.match(view, /Privacy-safe monthly safeguarding summary/);
     assert.match(view, /Eligible campus counselor/);
     assert.doesNotMatch(view, /Assigned counselor user ID/);
     const directory = file('EduOS.Service/Services/Students/StudentSupportDirectoryService.cs');

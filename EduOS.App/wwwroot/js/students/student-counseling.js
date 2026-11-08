@@ -7,6 +7,7 @@
     const T = (en, bd) => bn ? bd : en;
     const officer = root.dataset.officer === 'true';
     const staff = officer || root.dataset.counselor === 'true';
+    const aggregateAccess = root.dataset.aggregate === 'true';
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
         document.querySelector('meta[name="request-verification-token"]')?.content;
     const session = [document.body.dataset.authTenantId, document.body.dataset.authSessionReference];
@@ -28,6 +29,7 @@
         for (const field of root.querySelectorAll('input,select,textarea'))
             if (field.type !== 'hidden') field.value = '';
         $('caseStudents').replaceChildren(); $('myCases').replaceChildren();
+        if (aggregateAccess) $('caseAggregates').replaceChildren();
         if (staff) {
             $('caseRows').replaceChildren(); $('caseSelected').textContent = '';
             $('casePrivateSummary').textContent = ''; $('casePrivateEvents').replaceChildren();
@@ -42,6 +44,7 @@
         if (state.locked) return;
         $('caseSubmit').disabled = state.busy || !state.student || val('caseSummary').length < 10;
         $('caseMineRefresh').disabled = state.busy;
+        if (aggregateAccess) $('caseAggregateLoad').disabled = state.busy || !val('caseAggregateMonth');
         if (!staff) return;
         $('caseRefresh').disabled = state.busy;
         $('casePrev').disabled = state.busy || state.page <= 1;
@@ -146,6 +149,23 @@
                     (item.isUrgent ? ' · ' + T('Urgent', 'জরুরি') : ''), 'list-group-item'));
         });
     }
+    async function aggregates() {
+        await run(async () => {
+            const month = val('caseAggregateMonth');
+            if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
+                throw Error(T('Choose a valid UTC month.', 'সঠিক UTC মাস নির্বাচন করুন।'));
+            const result = await api('/api/student-counseling/aggregates?' + new URLSearchParams({
+                year: month.slice(0, 4), month: String(Number(month.slice(5)))
+            }));
+            const container = $('caseAggregates'); container.replaceChildren();
+            for (const row of result?.campuses || [])
+                container.append(node('div', T('Campus ', 'ক্যাম্পাস ') + row.campusId +
+                    ' · ' + row.caseCount + ' ' + T('requests', 'আবেদন'), 'list-group-item'));
+            if (!result?.campuses?.length)
+                container.append(node('div', T('No publishable groups (groups under five are suppressed).',
+                    'প্রকাশযোগ্য গ্রুপ নেই (পাঁচটির কম হলে তথ্য গোপন রাখা হয়)।'), 'list-group-item text-muted'));
+        });
+    }
     async function listRaw() {
         const data = await api('/api/student-counseling?' + new URLSearchParams({
             page: String(state.page), pageSize: '20'
@@ -246,6 +266,12 @@
     $('caseSubmitForm').addEventListener('submit', submit);
     $('caseSummary').addEventListener('input', controls);
     $('caseMineRefresh').addEventListener('click', mine);
+    if (aggregateAccess) {
+        const now = new Date();
+        $('caseAggregateMonth').value = now.getUTCFullYear() + '-' +
+            String(now.getUTCMonth() + 1).padStart(2, '0');
+        $('caseAggregateLoad').addEventListener('click', aggregates);
+    }
     window.addEventListener('focus', checkSession);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSession(); });
     (async () => { await lookup(); await mine(); })();

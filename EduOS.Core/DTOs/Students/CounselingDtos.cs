@@ -1,5 +1,19 @@
 namespace EduOS.Core.DTOs.Students;
 
+public sealed class CounselingCampusAggregate
+{
+    public long CampusId { get; set; }
+    public int CaseCount { get; set; }
+}
+
+public sealed class CounselingAggregateReport
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public int MinimumDisclosureCount { get; set; } = 5;
+    public IReadOnlyList<CounselingCampusAggregate> Campuses { get; set; } = [];
+}
+
 public sealed class OpenCounselingCaseRequest
 {
     public Guid RequestId { get; set; }

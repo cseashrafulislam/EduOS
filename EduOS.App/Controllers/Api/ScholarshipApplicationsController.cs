@@ -56,4 +56,23 @@ public sealed class ScholarshipApplicationsController(ScholarshipWorkflowService
         var result = await service.CancelAsync(reference, request, ct);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpPost("{reference:guid}/evidence-download")]
+    public async Task<IActionResult> DownloadEvidence(Guid reference, CancellationToken ct)
+    {
+        var result = await service.DownloadEvidenceAsync(reference, ct);
+        if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
+        Response.Headers.CacheControl = "no-store, private";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        return File(result.Data.Content, result.Data.ContentType, result.Data.FileName);
+    }
+
+    [HttpGet("reconciliation")]
+    public async Task<IActionResult> Reconciliation(int page = 1, int pageSize = 30,
+        CancellationToken ct = default)
+    {
+        var result = await service.ReconciliationAsync(page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
 }

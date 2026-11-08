@@ -1,21 +1,26 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Finance;
+using EduOS.Core.DTOs.Files;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Files;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
+using EduOS.Service.Helpers.Storage;
+using EduOS.Service.Services.Documents;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Security.Cryptography;
 
 namespace EduOS.Service.Services.Finance;
 
 /// <summary>Human-reviewed educational assistance; only canonical Finance owns the actual award.</summary>
 public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserService user,
-    IFinanceAdjustmentService finance)
+    IFinanceAdjustmentService finance, IFileUploadService storage)
 {
     private bool Scoped => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
         db.CurrentTenantId == user.TenantId;
@@ -54,7 +59,7 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
             EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo,
             SubmittedByUserId = x.SubmittedByUserId, SubmittedAtUtc = x.SubmittedAtUtc,
             ReviewedByUserId = x.ReviewedByUserId, DecisionReason = x.DecisionReason,
-            StudentDiscountId = x.StudentDiscountId,
+            StudentDiscountId = x.StudentDiscountId, HasEvidence = x.EvidenceFileAssetId.HasValue,
             RowVersion = Convert.ToBase64String(x.RowVersion)
         };
     private async Task<ScholarshipRow?> FindAsync(ScholarshipApplication application, CancellationToken ct)
@@ -379,5 +384,124 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
         var mapped = await FindAsync(row, ct);
         return mapped == null ? Fail<ScholarshipRow>("Application not found.", 404) :
             ApiResponse<ScholarshipRow>.SuccessResponse(mapped);
+    }
+
+    /// <summary>Independent reviewers only. Evidence is private, scanned, tenant-keyed and hash-verified;
+    /// every successful read is purpose-limited and recorded without saving the document contents.</summary>
+    public async Task<ApiResponse<DocumentFileDownloadDto>> DownloadEvidenceAsync(
+        Guid reference, CancellationToken ct = default)
+    {
+        if (!Manager) return Fail<DocumentFileDownloadDto>("Independent administrator review required.", 403);
+        var application = await Applications.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.PublicId == reference && x.EvidenceFileAssetId.HasValue, ct);
+        if (application == null || application.SubmittedByUserId == user.UserId)
+            return Fail<DocumentFileDownloadDto>("Evidence unavailable for independent review.", 404);
+        var enrollment = await db.StudentEnrollments.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && x.Id == application.StudentEnrollmentId && !x.IsDeleted)
+            .Select(x => new { x.StudentId }).FirstOrDefaultAsync(ct);
+        if (enrollment == null) return Fail<DocumentFileDownloadDto>("Enrollment unavailable.", 404);
+        var file = await db.FileAssets.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == user.TenantId && x.Id == application.EvidenceFileAssetId &&
+            x.UploadedByUserId == application.SubmittedByUserId && !x.IsDeleted &&
+            x.IsVerifiedSafe && x.MalwareScanStateCode == "Clean" &&
+            x.StorageProvider == "LocalPrivate" && x.Visibility == FileVisibility.Private, ct);
+        if (file == null || file.SizeBytes is < 1 or > 5242880 ||
+            !DocumentFileService.IsTenantDocumentKey(file.StorageKey, user.TenantId) ||
+            string.IsNullOrWhiteSpace(file.Sha256))
+            return Fail<DocumentFileDownloadDto>("Verified evidence unavailable.", 404);
+        var otherApplication = await Applications.AsNoTracking().AnyAsync(x =>
+            x.Id != application.Id && x.EvidenceFileAssetId == file.Id &&
+            (x.StudentEnrollmentId != application.StudentEnrollmentId ||
+                x.SubmittedByUserId != application.SubmittedByUserId), ct);
+        var foreignAttachment = await db.Documents.AsNoTracking().AnyAsync(x =>
+            x.TenantId == user.TenantId && x.FileAssetId == file.Id && !x.IsDeleted &&
+            (x.EntityType != "Student" || x.EntityId != enrollment.StudentId), ct);
+        if (otherApplication || foreignAttachment)
+            return Fail<DocumentFileDownloadDto>("Evidence ownership conflict.", 409);
+        FileDownloadResult? stored;
+        try { stored = await storage.GetPrivateFileAsync(file.StorageKey); }
+        catch (IOException) { return Fail<DocumentFileDownloadDto>("Private evidence temporarily unavailable.", 503); }
+        catch (UnauthorizedAccessException) { return Fail<DocumentFileDownloadDto>("Private evidence temporarily unavailable.", 503); }
+        if (stored == null || stored.Content.LongLength != file.SizeBytes ||
+            !string.Equals(Convert.ToHexString(SHA256.HashData(stored.Content)),
+                file.Sha256, StringComparison.OrdinalIgnoreCase))
+            return Fail<DocumentFileDownloadDto>("Evidence integrity check failed.", 409);
+        db.AuditLogs.Add(new AuditLog
+        {
+            TenantId = user.TenantId, UserId = user.UserId,
+            Action = "Scholarship.EvidenceAccessed", EntityName = "ScholarshipApplication",
+            EntityId = application.Id, NewValue = application.PublicId.ToString("D"),
+            OccurredAt = DateTime.UtcNow
+        });
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { return Fail<DocumentFileDownloadDto>("Evidence access could not be audited.", 503); }
+        return ApiResponse<DocumentFileDownloadDto>.SuccessResponse(new DocumentFileDownloadDto
+        {
+            Content = stored.Content, ContentType = file.ContentType,
+            FileName = Path.GetFileName(file.OriginalFileName.Replace('\\', '/'))
+        });
+    }
+
+    /// <summary>Read-only lineage check; invoice-level discount attribution is deliberately
+    /// not inferred from aggregate invoice discounts when multiple award rules apply.</summary>
+    public async Task<ApiResponse<ScholarshipReconciliationPage>> ReconciliationAsync(
+        int page = 1, int pageSize = 30, CancellationToken ct = default)
+    {
+        if (!Manager) return Fail<ScholarshipReconciliationPage>("Finance administrator required.", 403);
+        if (page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize)
+            return Fail<ScholarshipReconciliationPage>("Invalid page.");
+        var query = from application in Applications.AsNoTracking()
+            join enrollment in db.StudentEnrollments.AsNoTracking()
+                on new { application.TenantId, Id = application.StudentEnrollmentId }
+                equals new { enrollment.TenantId, enrollment.Id }
+            where !enrollment.IsDeleted
+            select new { application, enrollment.PublicId };
+        var total = await query.CountAsync(ct);
+        var pageRows = await query.OrderByDescending(x => x.application.SubmittedAtUtc)
+            .ThenByDescending(x => x.application.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new
+            {
+                x.application.PublicId, x.application.State, x.application.StudentDiscountId,
+                x.application.StudentEnrollmentId, x.application.DiscountRuleId,
+                x.application.EffectiveFrom, x.application.EffectiveTo,
+                EnrollmentReference = x.PublicId
+            }).ToListAsync(ct);
+        var keys = pageRows.Select(x => (Guid?)x.PublicId).ToArray();
+        var canonical = await db.StudentDiscounts.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && x.ClientRequestId.HasValue &&
+            keys.Contains(x.ClientRequestId)).Select(x => new
+            {
+                x.Id, x.ClientRequestId, x.StudentEnrollmentId, x.DiscountRuleId,
+                x.EffectiveFrom, x.EffectiveTo, x.IsActive
+            }).ToListAsync(ct);
+        var rows = pageRows.Select(row =>
+        {
+            var matches = canonical.Where(x => x.ClientRequestId == row.PublicId).ToList();
+            var award = matches.Count == 1 ? matches[0] : null;
+            var valid = award != null && award.StudentEnrollmentId == row.StudentEnrollmentId &&
+                award.DiscountRuleId == row.DiscountRuleId && award.EffectiveFrom == row.EffectiveFrom &&
+                award.EffectiveTo == row.EffectiveTo;
+            var mismatchedLink = row.StudentDiscountId.HasValue &&
+                (!valid || row.StudentDiscountId.Value != award!.Id);
+            var status = mismatchedLink ? "BrokenAwardLineage" :
+                !valid && matches.Count > 0 ? "ConflictingCanonicalAward" :
+                row.State == "Awarded" ? (!valid || row.StudentDiscountId != award!.Id ?
+                    "BrokenAwardLineage" : award.IsActive ? "MatchedActive" : "AwardDeactivated") :
+                row.State == "Approved" ? valid ? "LinkPending" : "AwaitingFinancialAward" :
+                row.State == "Cancelled" ? valid && award!.IsActive ? "DeactivationPending" :
+                    valid ? "StoppedForFutureBilling" : "CancelledWithoutAward" :
+                valid ? "UnexpectedFinancialAward" : "NoFinancialAward";
+            return new ScholarshipReconciliationRow
+            {
+                ApplicationReference = row.PublicId, EnrollmentReference = row.EnrollmentReference,
+                ApplicationState = row.State, LinkedStudentDiscountId = row.StudentDiscountId,
+                CanonicalStudentDiscountId = award?.Id,
+                IsCanonicalDiscountActive = award?.IsActive, LineageStatus = status
+            };
+        }).ToArray();
+        return ApiResponse<ScholarshipReconciliationPage>.SuccessResponse(new()
+        {
+            Page = page, PageSize = pageSize, TotalCount = total, Items = rows
+        });
     }
 }

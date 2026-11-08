@@ -2,6 +2,7 @@ using EduOS.App.Authorization;
 using EduOS.App.Controllers.Api;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.DTOs.Students;
 using EduOS.Persistence.Context;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
@@ -73,5 +74,28 @@ public sealed class StudentSupportA3A4ContractsTests
     {
         typeof(CounselingCasesController).GetMethods().Single(x => x.Name == method)
             .GetCustomAttributes(typeof(HttpPostAttribute), true).Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Private_scholarship_evidence_is_audited_post_not_a_public_get()
+    {
+        var route = typeof(ScholarshipApplicationsController).GetMethods()
+            .Single(x => x.Name == nameof(ScholarshipApplicationsController.DownloadEvidence));
+        route.GetCustomAttributes(typeof(HttpPostAttribute), true)
+            .Should().ContainSingle();
+        route.GetCustomAttributes(typeof(HttpGetAttribute), true).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Confidential_aggregate_report_contains_no_case_or_student_identifiers()
+    {
+        var fields = typeof(CounselingCampusAggregate).GetProperties()
+            .Select(x => x.Name).ToArray();
+        fields.Should().BeEquivalentTo(new[] { "CampusId", "CaseCount" });
+        typeof(CounselingAggregateReport).GetProperties()
+            .Should().Contain(x => x.Name == "MinimumDisclosureCount");
+        typeof(CounselingCasesController).GetMethods()
+            .Single(x => x.Name == nameof(CounselingCasesController.Aggregates))
+            .GetCustomAttributes(typeof(HttpGetAttribute), true).Should().ContainSingle();
     }
 }

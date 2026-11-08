@@ -42,6 +42,7 @@ public sealed class ScholarshipRow
     public long? ReviewedByUserId { get; set; }
     public string? DecisionReason { get; set; }
     public long? StudentDiscountId { get; set; }
+    public bool HasEvidence { get; set; }
     public string RowVersion { get; set; } = "";
 }
 
@@ -51,4 +52,23 @@ public sealed class ScholarshipPage
     public int PageSize { get; set; }
     public int TotalCount { get; set; }
     public IReadOnlyList<ScholarshipRow> Items { get; set; } = [];
+}
+
+public sealed class ScholarshipReconciliationRow
+{
+    public Guid ApplicationReference { get; set; }
+    public Guid EnrollmentReference { get; set; }
+    public string ApplicationState { get; set; } = "";
+    public long? LinkedStudentDiscountId { get; set; }
+    public long? CanonicalStudentDiscountId { get; set; }
+    public bool? IsCanonicalDiscountActive { get; set; }
+    public string LineageStatus { get; set; } = "";
+}
+
+public sealed class ScholarshipReconciliationPage
+{
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public IReadOnlyList<ScholarshipReconciliationRow> Items { get; set; } = [];
 }

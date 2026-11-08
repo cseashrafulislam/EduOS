@@ -51,8 +51,15 @@
                         <button type="button" id="aidReject" class="btn btn-outline-danger" disabled>@L("Reject", "প্রত্যাখ্যান")</button>
                         <button type="button" id="aidAward" class="btn btn-primary" disabled>@L("Apply to future billing", "ভবিষ্যৎ বিলে ছাড় দিন")</button>
                         <button type="button" id="aidCancel" class="btn btn-outline-warning" disabled>@L("Cancel / Stop future award", "বাতিল / ভবিষ্যৎ ছাড় বন্ধ")</button>
+                        <button type="button" id="aidEvidenceDownload" class="btn btn-outline-secondary" disabled>@L("Review private evidence (audited)", "ব্যক্তিগত প্রমাণ দেখুন (অডিট হয়)")</button>
                     </div>
                     <p class="small text-muted mt-2 mb-0">@L("Approver must differ from the applicant. Rejected or issued invoices are never overwritten.", "অনুমোদনকারী আবেদনকারীর থেকে আলাদা হতে হবে। প্রত্যাখ্যাত বা ইস্যুকৃত বিল কখনো বদলানো হবে না।")</p>
+                </div></section>
+                <section class="card mt-3"><div class="card-body">
+                    <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">@L("Financial award reconciliation", "আর্থিক বরাদ্দ মিল যাচাই")</h2><button id="aidReconcile" type="button" class="btn btn-outline-primary btn-sm">@L("Check award links", "বরাদ্দ মিল যাচাই")</button></div>
+                    <p class="small text-muted">@L("Compares approved applications with canonical future-fee discounts. This does not attribute historical invoice discounts to a specific scholarship.", "অনুমোদিত আবেদন ও মূল ফি-ছাড় রেকর্ডের মিল যাচাই করে। পূর্বের ইনভয়েসের ছাড় কোনো নির্দিষ্ট বৃত্তির নামে দেখায় না।")</p>
+                    <div id="aidReconciliationRows" class="list-group mb-2" aria-live="polite"></div>
+                    <div class="d-flex gap-2 align-items-center"><button id="aidReconcilePrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>@L("Previous", "আগে")</button><span id="aidReconcilePage" class="small text-muted"></span><button id="aidReconcileNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@L("Next", "পরে")</button></div>
                 </div></section>
             }
         </div>

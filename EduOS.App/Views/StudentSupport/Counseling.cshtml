@@ -4,9 +4,10 @@
     string L(string en, string bd) => bn ? bd : en;
     var officer = User.IsInRole("SafeguardingOfficer");
     var counselor = User.IsInRole("Counselor");
+    var aggregateAccess = officer || User.IsInRole("TenantAdmin");
     ViewData["Title"] = L("Student Counseling & Safeguarding", "শিক্ষার্থী কাউন্সেলিং ও সুরক্ষা");
 }
-<section id="counselingApp" class="container-fluid py-4" data-officer="@officer.ToString().ToLowerInvariant()" data-counselor="@counselor.ToString().ToLowerInvariant()">
+<section id="counselingApp" class="container-fluid py-4" data-officer="@officer.ToString().ToLowerInvariant()" data-counselor="@counselor.ToString().ToLowerInvariant()" data-aggregate="@aggregateAccess.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
     <header class="mb-3"><h1 class="h4">@L("Student Counseling & Safeguarding", "শিক্ষার্থী কাউন্সেলিং ও সুরক্ষা")</h1>
         <p class="text-muted">@L("Private educational support. Only the assigned counselor can open notes, with a narrowly scoped urgent safeguarding escalation.", "ব্যক্তিগত শিক্ষাগত সহায়তা। কেবল নির্ধারিত কাউন্সেলর নোট খুলতে পারেন; জরুরি সুরক্ষা ঘটনায় সীমিত ব্যতিক্রম।")</p>
@@ -29,6 +30,15 @@
             </div></section>
         </div>
         <div class="col-xl-7">
+            @if (aggregateAccess)
+            {
+                <section class="card mb-3"><div class="card-body">
+                    <h2 class="h6">@L("Privacy-safe monthly safeguarding summary", "গোপনীয়তা-সুরক্ষিত মাসিক সারসংক্ষেপ")</h2>
+                    <p class="small text-muted">@L("UTC calendar month. Only campus groups containing at least five requests are shown. No identities, notes or urgency breakdowns are included.", "UTC মাস অনুযায়ী; অন্তত পাঁচটি আবেদন থাকা ক্যাম্পাসের তথ্যই দেখানো হয়। পরিচয়, নোট বা জরুরি অবস্থার ভাগ দেখানো হয় না।")</p>
+                    <div class="d-flex flex-wrap gap-2 mb-2"><input id="caseAggregateMonth" type="month" class="form-control" style="max-width:200px" aria-label="@L("UTC month", "UTC মাস")" /><button id="caseAggregateLoad" class="btn btn-outline-primary" type="button">@L("Load de-identified summary", "পরিচয়বিহীন সারসংক্ষেপ দেখুন")</button></div>
+                    <div id="caseAggregates" class="list-group" aria-live="polite"></div>
+                </div></section>
+            }
             <section class="card mb-3"><div class="card-body">
                 <h2 class="h6">@L("My requests", "আমার আবেদন")</h2>
                 <div id="myCases" class="list-group mb-2" aria-live="polite"></div>

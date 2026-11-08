@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Students;
+using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.DataProtection;
@@ -402,5 +403,42 @@ public sealed class CounselingWorkflowService(
             }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException) { return Fail<CounselingPrivateDetail>("Concurrent access; retry.", 409); }
+    }
+
+    /// <summary>Calendar-month campus counts only, with small-cell suppression.
+    /// No case identifiers, private text, status breakdowns or arbitrary dates that
+    /// would permit repeated differencing attacks against a small cohort.</summary>
+    public async Task<ApiResponse<CounselingAggregateReport>> AggregatesAsync(
+        int year, int month, CancellationToken ct = default)
+    {
+        if (!Scoped || (!Officer && !user.IsTenantAdmin))
+            return Fail<CounselingAggregateReport>("Safeguarding aggregate access required.", 403);
+        if (year is < 2020 or > 2200 || month is < 1 or > 12)
+            return Fail<CounselingAggregateReport>("Choose a valid calendar month.");
+        var from = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = from.AddMonths(1);
+        var query = Cases.AsNoTracking().Where(x => x.OpenedAtUtc >= from && x.OpenedAtUtc < to);
+        if (!user.IsTenantAdmin)
+            query = query.Where(x => db.UserCampusAccesses.Any(a => a.TenantId == user.TenantId &&
+                a.CampusId == x.CampusId && a.UserId == user.UserId && a.IsActive && !a.IsDeleted));
+        var campuses = await query.GroupBy(x => x.CampusId)
+            .Select(group => new CounselingCampusAggregate
+            {
+                CampusId = group.Key, CaseCount = group.Count()
+            }).Where(x => x.CaseCount >= 5).OrderBy(x => x.CampusId)
+            .Take(500).ToListAsync(ct);
+        db.AuditLogs.Add(new AuditLog
+        {
+            TenantId = user.TenantId, UserId = user.UserId,
+            Action = "Counseling.AggregateViewed", EntityName = "CounselingAggregate",
+            NewValue = year.ToString("D4") + "-" + month.ToString("D2"),
+            OccurredAt = DateTime.UtcNow
+        });
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { return Fail<CounselingAggregateReport>("Aggregate access could not be audited.", 503); }
+        return ApiResponse<CounselingAggregateReport>.SuccessResponse(new()
+        {
+            Year = year, Month = month, Campuses = campuses
+        });
     }
 }

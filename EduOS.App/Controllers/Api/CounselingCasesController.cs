@@ -68,4 +68,11 @@ public sealed class CounselingCasesController(CounselingWorkflowService service)
     {
         public Guid RequestId { get; set; }
     }
+
+    [HttpGet("aggregates")]
+    public async Task<IActionResult> Aggregates(int year, int month, CancellationToken ct)
+    {
+        var result = await service.AggregatesAsync(year, month, ct);
+        return StatusCode(result.StatusCode, result);
+    }
 }
