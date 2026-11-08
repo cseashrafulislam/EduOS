@@ -42,7 +42,7 @@ public sealed class CounselingWorkflowService(
     };
     private bool HasPrivateAccess(CounselingCase row) =>
         (Counselor && row.AssignedCounselorUserId == user.UserId) ||
-        (Officer && row.IsUrgent && row.State == "Escalated");
+        (Officer && row.IsUrgent && (row.State == "Requested" || row.State == "Escalated"));
     private async Task<bool> OwnsStudent(long studentId, CancellationToken ct)
     {
         if (await db.Students.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId &&
@@ -99,6 +99,27 @@ public sealed class CounselingWorkflowService(
                 replay.GuardianContactConsented == guardianConsented
                 ? ApiResponse<CounselingCaseRow>.SuccessResponse(Map(replay, student.PublicId))
                 : Fail<CounselingCaseRow>("Request key already used.", 409);
+        // Do not accept support requests into an unmonitored safeguarding worklist.
+        if (!Officer)
+        {
+            var staffed = await (from access in db.UserCampusAccesses.AsNoTracking()
+                join membership in db.TenantMemberships.AsNoTracking()
+                    on new { access.TenantId, access.UserId }
+                    equals new { membership.TenantId, membership.UserId }
+                join assignment in db.UserRoles.AsNoTracking() on access.UserId equals assignment.UserId
+                join role in db.Roles.AsNoTracking() on assignment.RoleId equals role.Id
+                where access.TenantId == user.TenantId && access.CampusId == enrollment.CampusId &&
+                    access.IsActive && !access.IsDeleted && membership.Status ==
+                        EduOS.Core.Enums.Domain.MembershipStatus.Active && !membership.IsDeleted &&
+                    role.NormalizedName == "SAFEGUARDINGOFFICER" && role.IsActive && !role.IsDeleted &&
+                    (role.TenantId == user.TenantId ||
+                        (role.TenantId == null && db.TenantMemberships.Count(m =>
+                            m.UserId == access.UserId && !m.IsDeleted &&
+                            m.Status != EduOS.Core.Enums.Domain.MembershipStatus.Left) == 1))
+                select access.UserId).AnyAsync(ct);
+            if (!staffed)
+                return Fail<CounselingCaseRow>("Safeguarding intake is not staffed for this campus. Contact the institution directly.", 409);
+        }
         // Sensitive text is never logged or copied to generic audit/outbox payloads.
         var protectedSummary = Protect(request.PrivateSummary.Trim());
         try

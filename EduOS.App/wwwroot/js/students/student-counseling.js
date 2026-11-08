@@ -46,7 +46,8 @@
         $('casePrev').disabled = state.busy || state.page <= 1;
         $('caseNext').disabled = state.busy || state.page * 20 >= state.total;
         const canOpen = !!state.selected && (root.dataset.counselor === 'true' ||
-            (officer && state.selected.isUrgent && state.selected.state === 'Escalated'));
+            (officer && state.selected.isUrgent &&
+                ['Requested', 'Escalated'].includes(state.selected.state)));
         $('casePrivate').disabled = state.busy || !canOpen;
         $('caseAct').disabled = state.busy || !canOpen || state.selected.state === 'Closed';
         if (officer) $('caseAssign').disabled = state.busy || state.selected?.state !== 'Requested';
