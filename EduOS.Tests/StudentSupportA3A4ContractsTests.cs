@@ -18,6 +18,7 @@ public sealed class StudentSupportA3A4ContractsTests
     [Theory]
     [InlineData(typeof(ScholarshipApplication))]
     [InlineData(typeof(ScholarshipApplicationEvent))]
+    [InlineData(typeof(StudentInvoiceDiscountAttribution))]
     [InlineData(typeof(CounselingCase))]
     [InlineData(typeof(CounselingCaseEvent))]
     public void New_student_support_entities_are_tenant_isolated_and_versioned(Type entityType)
@@ -32,7 +33,8 @@ public sealed class StudentSupportA3A4ContractsTests
             x.Properties.Select(p => p.Name).SequenceEqual(new[] { "TenantId", "Id" }),
             "new child records reference tenant+ID composite ownership");
         entity.GetIndexes().Should().Contain(x => x.IsUnique &&
-            x.Properties.Select(p => p.Name).SequenceEqual(new[] { "TenantId", "ClientRequestId" }));
+            (x.Properties.Select(p => p.Name).SequenceEqual(new[] { "TenantId", "ClientRequestId" }) ||
+             x.Properties.Select(p => p.Name).SequenceEqual(new[] { "TenantId", "StudentInvoiceLineId", "StudentDiscountId" })));
     }
 
     [Theory]

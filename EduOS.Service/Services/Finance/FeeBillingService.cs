@@ -262,6 +262,8 @@ public sealed partial class FeeBillingService : IFeeBillingService
         GenerateStudentInvoiceBatchRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Error<InvoiceBatchResultDto>("Finance access required.", 403));
+        if (_uow is not EduOSDbContext db || db.CurrentTenantId != _user.TenantId)
+            return Task.FromResult(Error<InvoiceBatchResultDto>("Finance tenant scope unavailable.", 403));
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.AcademicBatchId <= 0 || request.FeeStructureId <= 0 ||
             request.Year is < 2000 or > 2200 || request.Month is < 1 or > 12 ||
@@ -342,9 +344,10 @@ public sealed partial class FeeBillingService : IFeeBillingService
                     (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >= request.InvoiceDate) &&
                     (!discount.EffectiveFrom.HasValue || discount.EffectiveFrom <= request.InvoiceDate) &&
                     (!discount.EffectiveTo.HasValue || discount.EffectiveTo >= request.InvoiceDate)
-                select new { assignment.StudentEnrollmentId, discount }).ToListAsync(token);
+                select new { assignment.StudentEnrollmentId, AssignmentId = assignment.Id, discount }).ToListAsync(token);
             var discounts = discountLinks.GroupBy(x => x.StudentEnrollmentId)
-                .ToDictionary(x => x.Key, x => x.Select(v => v.discount).ToList());
+                .ToDictionary(x => x.Key, x => x.Select(v =>
+                    new AppliedDiscount(v.AssignmentId, v.discount)).ToList());
             var now = _clock.GetUtcNow().UtcDateTime;
             var generated = 0; var existing = 0;
             // Updating the tenant's rowversion serializes concurrent billing of the same month,
@@ -356,9 +359,9 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 if (byEnrollment.ContainsKey(enrollmentId)) { existing++; continue; }
                 var subtotal = lines.Sum(x => x.line.Amount);
                 discounts.TryGetValue(enrollmentId, out var applied);
-                var lineDiscounts = CalculateLineDiscounts(lines.Select(x =>
-                    (x.line.FeeHeadId, x.line.Amount)).ToArray(), applied ?? new List<DiscountRule>());
-                var discount = lineDiscounts.Sum();
+                var calculated = CalculateLineDiscounts(lines.Select(x =>
+                    (x.line.FeeHeadId, x.line.Amount)).ToArray(), applied ?? new List<AppliedDiscount>());
+                var discount = calculated.LineTotals.Sum();
                 var publicId = Guid.NewGuid();
                 var invoice = new StudentInvoice
                 {
@@ -377,15 +380,27 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 for (var i = 0; i < lines.Count; i++)
                 {
                     var entry = lines[i];
-                    var share = lineDiscounts[i];
-                    await _invoiceLines.AddAsync(new StudentInvoiceLine
+                    var share = calculated.LineTotals[i];
+                    var invoiceLine = new StudentInvoiceLine
                     {
                         TenantId = tenant, StudentInvoiceId = invoice.Id, FeeHeadId = entry.head.Id,
                         FeeHeadCodeSnapshot = entry.head.Code, FeeHeadNameSnapshot = entry.head.Name,
                         Description = entry.head.Name, Amount = entry.line.Amount,
                         DiscountAmount = share, NetAmount = entry.line.Amount - share,
                         CreatedAt = now, CreatedBy = _user.UserId
-                    });
+                    };
+                    await _invoiceLines.AddAsync(invoiceLine);
+                    foreach (var portion in calculated.Portions.Where(x => x.LineIndex == i))
+                        db.StudentInvoiceDiscountAttributions.Add(new StudentInvoiceDiscountAttribution
+                        {
+                            TenantId = tenant, StudentInvoiceLine = invoiceLine,
+                            StudentDiscountId = portion.Assignment.AssignmentId,
+                            DiscountRuleId = portion.Assignment.Rule.Id, Amount = portion.Amount,
+                            RuleValueSnapshot = portion.Assignment.Rule.Value,
+                            IsPercentageSnapshot = portion.Assignment.Rule.IsPercentage,
+                            RuleFeeHeadIdSnapshot = portion.Assignment.Rule.FeeHeadId,
+                            CreatedAt = now, CreatedBy = _user.UserId
+                        });
                 }
                 generated++;
             }
@@ -889,17 +904,24 @@ public sealed partial class FeeBillingService : IFeeBillingService
         }
     }
 
-    // Snapshot fee-head awards on their own invoice lines. Head-specific awards
-    // cannot spill onto unrelated heads; tenant-wide awards use only remaining
-    // capacity. Both preview and issuance call this exact cent-safe calculation.
-    private static decimal[] CalculateLineDiscounts(
-        (long HeadId, decimal Amount)[] lines, List<DiscountRule> rules)
+    private sealed record AppliedDiscount(long AssignmentId, DiscountRule Rule);
+    private sealed record DiscountPortion(int LineIndex, AppliedDiscount Assignment, decimal Amount);
+    private sealed record DiscountCalculation(decimal[] LineTotals, IReadOnlyList<DiscountPortion> Portions);
+
+    // Preserve the canonical cent allocation, recording each assignment's *actual*
+    // contribution on each line. Immutable provenance is created in the SAME invoice
+    // transaction; it never reconstructs historical amounts from changed master rules.
+    private static DiscountCalculation CalculateLineDiscounts(
+        (long HeadId, decimal Amount)[] lines, List<AppliedDiscount> rules)
     {
         var discounts = new decimal[lines.Length];
-        if (lines.Length == 0) return discounts;
+        var portions = new List<DiscountPortion>();
+        if (lines.Length == 0) return new DiscountCalculation(discounts, portions);
         var total = lines.Sum(x => x.Amount);
-        foreach (var rule in rules.Where(x => x.FeeHeadId.HasValue).OrderBy(x => x.Id))
+        foreach (var award in rules.Where(x => x.Rule.FeeHeadId.HasValue)
+            .OrderBy(x => x.Rule.Id).ThenBy(x => x.AssignmentId))
         {
+            var rule = award.Rule;
             for (var i = 0; i < lines.Length; i++)
             {
                 if (lines[i].HeadId != rule.FeeHeadId) continue;
@@ -907,11 +929,18 @@ public sealed partial class FeeBillingService : IFeeBillingService
                 var requested = rule.IsPercentage
                     ? decimal.Round(lines[i].Amount * Math.Clamp(rule.Value, 0m, 100m) / 100m, 2)
                     : Math.Max(0m, rule.Value);
-                discounts[i] += Math.Min(available, decimal.Round(requested, 2));
+                var amount = Math.Min(available, decimal.Round(requested, 2));
+                if (amount > 0m)
+                {
+                    discounts[i] += amount;
+                    portions.Add(new DiscountPortion(i, award, amount));
+                }
             }
         }
-        foreach (var rule in rules.Where(x => !x.FeeHeadId.HasValue).OrderBy(x => x.Id))
+        foreach (var award in rules.Where(x => !x.Rule.FeeHeadId.HasValue)
+            .OrderBy(x => x.Rule.Id).ThenBy(x => x.AssignmentId))
         {
+            var rule = award.Rule;
             var capacities = lines.Select((x, i) =>
                 decimal.Round(Math.Max(0m, x.Amount - discounts[i]) * 100m, 0)).ToArray();
             var availableCents = capacities.Sum();
@@ -939,9 +968,16 @@ public sealed partial class FeeBillingService : IFeeBillingService
             if (remainder != 0m)
                 throw new InvalidOperationException("Fee discount cent distribution failed.");
             for (var i = 0; i < lines.Length; i++)
-                discounts[i] += shares[i] / 100m;
+            {
+                var amount = shares[i] / 100m;
+                if (amount <= 0m) continue;
+                discounts[i] += amount;
+                portions.Add(new DiscountPortion(i, award, amount));
+            }
         }
-        return discounts;
+        if (portions.Sum(x => x.Amount) != discounts.Sum())
+            throw new InvalidOperationException("Invoice discount attribution does not balance.");
+        return new DiscountCalculation(discounts, portions);
     }
     private static Guid PerEnrollmentKey(Guid clientId, long enrollmentId)
     {

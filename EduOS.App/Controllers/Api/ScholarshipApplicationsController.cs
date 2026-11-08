@@ -92,4 +92,12 @@ public sealed class ScholarshipApplicationsController(ScholarshipWorkflowService
         var result = await service.ReconciliationAsync(page, pageSize, ct);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpGet("{reference:guid}/invoice-credits")]
+    public async Task<IActionResult> InvoiceCredits(Guid reference, int page = 1,
+        int pageSize = 30, CancellationToken ct = default)
+    {
+        var result = await service.InvoiceCreditsAsync(reference, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
 }

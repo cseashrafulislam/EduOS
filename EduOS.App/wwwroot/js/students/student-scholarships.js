@@ -13,7 +13,7 @@
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
     const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null, evidenceUploadId: null,
-        reconcilePage: 1, reconcileTotal: 0 };
+        reconcilePage: 1, reconcileTotal: 0, creditPage: 1, creditTotal: 0 };
     const guid = () => crypto.randomUUID();
     const val = id => $(id)?.value?.trim() || '';
     const date = value => value ? String(value).slice(0, 10) : '';
@@ -34,6 +34,8 @@
         if (review) {
             $('aidSelected').textContent = '';
             $('aidReconciliationRows').replaceChildren();
+            $('aidCreditRows').replaceChildren();
+            $('aidCreditReport').classList.add('d-none');
         }
         for (const control of root.querySelectorAll('button,input,select,textarea')) control.disabled = true;
         notice(T('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠাটি রিলোড করুন।'), true);
@@ -56,6 +58,9 @@
         $('aidCancel').disabled = state.busy ||
             !['Submitted', 'Approved', 'Awarded'].includes(state.selected?.state);
         $('aidEvidenceDownload').disabled = state.busy || !state.selected?.hasEvidence;
+        $('aidInvoiceCredits').disabled = state.busy || !state.selected;
+        $('aidCreditsPrev').disabled = state.busy || state.creditPage <= 1;
+        $('aidCreditsNext').disabled = state.busy || state.creditPage * 30 >= state.creditTotal;
         $('aidReconcile').disabled = state.busy;
         $('aidReconcilePrev').disabled = state.busy || state.reconcilePage <= 1;
         $('aidReconcileNext').disabled = state.busy || state.reconcilePage * 30 >= state.reconcileTotal;
@@ -125,6 +130,8 @@
     }
     function renderSelected() {
         if (!review) return;
+        $('aidCreditReport').classList.add('d-none');
+        state.creditPage = 1; state.creditTotal = 0;
         $('aidSelected').textContent = state.selected ? state.selected.reference + ' · ' +
             state.selected.state + ' · ' + state.selected.eligibilityStatement :
             T('Choose an application above.', 'উপরের তালিকা থেকে আবেদন বাছুন।');
@@ -291,6 +298,37 @@
             $('aidReconcilePage').textContent = state.reconcilePage + ' · ' + state.reconcileTotal;
         });
     }
+    async function invoiceCredits() {
+        if (!state.selected) return;
+        await run(async () => {
+            const selected = state.selected.reference;
+            const result = await api('/api/student-scholarships/' +
+                encodeURIComponent(selected) + '/invoice-credits?' +
+                new URLSearchParams({ page: String(state.creditPage), pageSize: '30' }));
+            if (state.selected?.reference !== selected) return;
+            state.creditTotal = result?.totalCount || 0;
+            $('aidCreditTotals').textContent = T('Applied to active invoices: ', 'সক্রিয় বিলে ছাড়: ') +
+                Number(result?.activeInvoiceCreditTotal || 0).toFixed(2) + ' BDT · ' +
+                T('Cancelled invoice history: ', 'বাতিল বিলের ইতিহাস: ') +
+                Number(result?.cancelledInvoiceCreditTotal || 0).toFixed(2) + ' BDT';
+            const list = $('aidCreditRows'); list.replaceChildren();
+            for (const row of result?.items || []) {
+                const tr = document.createElement('tr');
+                for (const value of [row.invoiceNumber, date(row.invoiceDate),
+                    row.feeHeadName, row.invoiceState, Number(row.creditedAmount).toFixed(2)])
+                    tr.append(make('td', value));
+                tr.lastChild.classList.add('text-end'); list.append(tr);
+            }
+            if (!result?.items?.length) {
+                const tr = document.createElement('tr'); const td = make('td',
+                    T('No attributable invoices yet; older invoices cannot be inferred.',
+                        'উৎসভিত্তিক নতুন ইনভয়েস নেই; পুরোনো বিলের ছাড় অনুমান করা যায় না।'));
+                td.colSpan = 5; tr.append(td); list.append(tr);
+            }
+            $('aidCreditsPage').textContent = state.creditPage + ' · ' + state.creditTotal;
+            $('aidCreditReport').classList.remove('d-none');
+        });
+    }
     $('aidStudentSearchForm').addEventListener('submit', searchStudent);
     $('aidSubmitForm').addEventListener('submit', submit);
     $('aidEvidenceUpload').addEventListener('click', uploadEvidence);
@@ -308,6 +346,9 @@
         for (const [id, kind] of [['aidApprove', 'approve'], ['aidReject', 'reject'],
             ['aidAward', 'award'], ['aidCancel', 'cancel']]) $(id).addEventListener('click', () => act(kind));
         $('aidEvidenceDownload').addEventListener('click', evidence);
+        $('aidInvoiceCredits').addEventListener('click', () => { state.creditPage = 1; invoiceCredits(); });
+        $('aidCreditsPrev').addEventListener('click', () => { if (state.creditPage > 1) { state.creditPage--; invoiceCredits(); } });
+        $('aidCreditsNext').addEventListener('click', () => { if (state.creditPage * 30 < state.creditTotal) { state.creditPage++; invoiceCredits(); } });
         $('aidReconcile').addEventListener('click', () => { state.reconcilePage = 1; reconcile(); });
         $('aidReconcilePrev').addEventListener('click', () => { if (state.reconcilePage > 1) { state.reconcilePage--; reconcile(); } });
         $('aidReconcileNext').addEventListener('click', () => { if (state.reconcilePage * 30 < state.reconcileTotal) { state.reconcilePage++; reconcile(); } });

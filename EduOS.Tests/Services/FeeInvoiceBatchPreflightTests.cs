@@ -156,6 +156,19 @@ public sealed class FeeInvoiceBatchPreflightTests
         lines[0].DiscountAmount.Should().Be(56.67m);
         lines[1].DiscountAmount.Should().Be(13.33m);
         lines.Sum(x => x.NetAmount).Should().Be(invoice.TotalAmount);
+        var evidence = await db.StudentInvoiceDiscountAttributions
+            .OrderBy(x => x.StudentDiscountId).ThenBy(x => x.StudentInvoiceLineId)
+            .ToListAsync();
+        evidence.Should().HaveCount(3);
+        evidence.Sum(x => x.Amount).Should().Be(70m);
+        evidence.Where(x => x.StudentDiscountId == 1).Sum(x => x.Amount).Should().Be(50m);
+        evidence.Where(x => x.StudentDiscountId == 2).Sum(x => x.Amount).Should().Be(20m);
+        evidence.Single(x => x.StudentDiscountId == 1).RuleValueSnapshot.Should().Be(50m);
+        local.Value = 1m;
+        (await db.StudentDiscounts.SingleAsync(x => x.Id == 1)).IsActive = false;
+        await db.SaveChangesAsync();
+        (await db.StudentInvoiceDiscountAttributions.SumAsync(x => x.Amount)).Should().Be(70m);
+        invoice.DiscountAmount.Should().Be(70m);
     }
 
     [Fact]
@@ -214,6 +227,10 @@ public sealed class FeeInvoiceBatchPreflightTests
         lines.Sum(x => x.DiscountAmount).Should().Be(0.02m);
         lines.Sum(x => x.NetAmount).Should().Be(0.01m);
         (await db.StudentInvoices.CountAsync()).Should().Be(1);
+        var credits = await db.StudentInvoiceDiscountAttributions.ToListAsync();
+        credits.Should().HaveCount(2);
+        credits.Sum(x => x.Amount).Should().Be(0.02m);
+        credits.Select(x => x.Amount).Should().OnlyContain(x => x == 0.01m);
     }
 
     private static GenerateStudentInvoiceBatchRequestDto Request() => new()

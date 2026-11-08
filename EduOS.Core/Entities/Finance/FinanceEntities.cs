@@ -72,6 +72,20 @@ public class StudentInvoiceLine : BaseTenantEntity
     [Column(TypeName = "decimal(18,2)")] public decimal NetAmount { get; set; }
 }
 
+/// <summary>Immutable issuance-time credit provenance. An invoice line may receive several
+/// independently approved discounts; later rule changes/revocations never rewrite this snapshot.</summary>
+public sealed class StudentInvoiceDiscountAttribution : BaseTenantEntity
+{
+    public long StudentInvoiceLineId { get; set; }
+    public StudentInvoiceLine StudentInvoiceLine { get; set; } = null!;
+    public long StudentDiscountId { get; set; }
+    public long DiscountRuleId { get; set; }
+    [Column(TypeName = "decimal(18,2)")] public decimal Amount { get; set; }
+    [Column(TypeName = "decimal(18,4)")] public decimal RuleValueSnapshot { get; set; }
+    public bool IsPercentageSnapshot { get; set; }
+    public long? RuleFeeHeadIdSnapshot { get; set; }
+}
+
 public class StudentPayment : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();

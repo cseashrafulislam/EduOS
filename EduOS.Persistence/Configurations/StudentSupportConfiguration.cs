@@ -55,6 +55,25 @@ public sealed class ScholarshipApplicationEventConfiguration : IEntityTypeConfig
     }
 }
 
+public sealed class StudentInvoiceDiscountAttributionConfiguration : IEntityTypeConfiguration<StudentInvoiceDiscountAttribution>
+{
+    public void Configure(EntityTypeBuilder<StudentInvoiceDiscountAttribution> b)
+    {
+        b.HasIndex(x => new { x.TenantId, x.StudentInvoiceLineId, x.StudentDiscountId }).IsUnique();
+        b.HasIndex(x => new { x.TenantId, x.StudentDiscountId, x.StudentInvoiceLineId });
+        b.HasOne(x => x.StudentInvoiceLine).WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.StudentInvoiceLineId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<StudentDiscount>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.StudentDiscountId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<DiscountRule>().WithMany()
+            .HasForeignKey(x => new { x.TenantId, x.DiscountRuleId })
+            .HasPrincipalKey(x => new { x.TenantId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.ToTable(t => t.HasCheckConstraint("CK_StudentInvoiceDiscountAttribution_PositiveAmount", "[Amount] > 0"));
+    }
+}
+
 public sealed class CounselingCaseConfiguration : IEntityTypeConfiguration<CounselingCase>
 {
     public void Configure(EntityTypeBuilder<CounselingCase> b)

@@ -221,5 +221,6 @@ partial class EduOSDbContextModelSnapshot
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
             b.Navigation("Tenant");
         });
+        AddStudentInvoiceDiscountAttributionSnapshot(modelBuilder);
     }
 }

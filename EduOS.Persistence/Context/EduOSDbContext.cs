@@ -346,6 +346,7 @@ public class EduOSDbContext :
     public DbSet<StudentFeeInstallmentPlanEvent> StudentFeeInstallmentPlanEvents => Set<StudentFeeInstallmentPlanEvent>();
     public DbSet<StudentInvoice> StudentInvoices => Set<StudentInvoice>();
     public DbSet<StudentInvoiceLine> StudentInvoiceLines => Set<StudentInvoiceLine>();
+    public DbSet<StudentInvoiceDiscountAttribution> StudentInvoiceDiscountAttributions => Set<StudentInvoiceDiscountAttribution>();
     public DbSet<StudentPayment> StudentPayments => Set<StudentPayment>();
 
     // Accounting
@@ -3267,6 +3268,7 @@ public class EduOSDbContext :
             or AdmissionPayment
             or StudentInvoice
             or StudentInvoiceLine
+            or StudentInvoiceDiscountAttribution
             or StudentPayment
             or PaymentAllocation
             or Refund

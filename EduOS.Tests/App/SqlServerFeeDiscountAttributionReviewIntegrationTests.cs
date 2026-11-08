@@ -28,7 +28,7 @@ public sealed class SqlServerFeeDiscountAttributionReviewIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..10];
-        long tenantId, campusId;
+        long tenantId, campusId, batchId;
         await using (var setup = new EduOSDbContext(options))
         {
             var tenant = new Tenant { Code = "CI-ATTR-" + suffix, Name = "Fee Attribution CI",
@@ -71,6 +71,7 @@ public sealed class SqlServerFeeDiscountAttributionReviewIntegrationTests
                     AcademicLevelId = level.Id, Name = "Nine A", Code = "NINE-A", Capacity = 30 };
                 setup.AcademicBatches.Add(batch);
                 await setup.SaveChangesAsync();
+                batchId = batch.Id;
                 var enrollment = new StudentEnrollment { TenantId = tenantId, StudentId = student.Id,
                     CampusId = campus.Id, AcademicYearId = year.Id, AcademicProgramId = program.Id,
                     AcademicLevelId = level.Id, AcademicCurriculumId = curriculum.Id,
@@ -81,8 +82,16 @@ public sealed class SqlServerFeeDiscountAttributionReviewIntegrationTests
                 await setup.SaveChangesAsync();
                 var rule = new DiscountRule { TenantId = tenantId, Name = "Tuition award",
                     FeeHeadId = tuition.Id, Value = 10m, IsActive = true };
-                setup.DiscountRules.Add(rule);
+                var structure = new FeeStructure { TenantId = tenantId, Name = "Monthly CI",
+                    CampusId = campus.Id, AcademicYearId = year.Id, AcademicBatchId = batch.Id,
+                    EffectiveFrom = new DateOnly(2026, 1, 1), CurrencyCode = "BDT" };
+                setup.AddRange(rule, structure);
                 await setup.SaveChangesAsync();
+                setup.FeeStructureLines.AddRange(
+                    new FeeStructureLine { TenantId = tenantId, FeeStructureId = structure.Id,
+                        FeeHeadId = tuition.Id, Frequency = FeeFrequencyType.Monthly, Amount = 100m },
+                    new FeeStructureLine { TenantId = tenantId, FeeStructureId = structure.Id,
+                        FeeHeadId = lab.Id, Frequency = FeeFrequencyType.Monthly, Amount = 20m });
                 setup.StudentDiscounts.Add(new StudentDiscount { TenantId = tenantId,
                     StudentEnrollmentId = enrollment.Id, DiscountRuleId = rule.Id,
                     EffectiveFrom = new DateOnly(2026, 1, 1), ApprovedByUserId = reviewerId,
@@ -121,6 +130,27 @@ public sealed class SqlServerFeeDiscountAttributionReviewIntegrationTests
             .GetDiscountAttributionReviewAsync(request)).StatusCode);
         Assert.Equal(1, await db.StudentInvoices.CountAsync());
         Assert.Equal(0, await db.StudentPayments.CountAsync());
+        Assert.Equal(0, await db.Journals.CountAsync());
+
+        // The existing February record is deliberately ambiguous and must NOT be backfilled.
+        Assert.Empty(await db.StudentInvoiceDiscountAttributions.ToListAsync());
+        var structureId = await db.FeeStructures.Select(x => x.Id).SingleAsync();
+        var issue = await Service(db, tenantId).GenerateInvoicesAsync(new GenerateStudentInvoiceBatchRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), AcademicBatchId = batchId,
+            FeeStructureId = structureId, Year = 2026, Month = 3,
+            InvoiceDate = new DateOnly(2026, 3, 1), DueDate = new DateOnly(2026, 3, 31)
+        });
+        Assert.True(issue.Success, issue.Message);
+        var fresh = await db.StudentInvoices.SingleAsync(x => x.InvoiceDate == new DateOnly(2026, 3, 1));
+        Assert.Equal(10m, fresh.DiscountAmount);
+        var proof = Assert.Single(await db.StudentInvoiceDiscountAttributions.ToListAsync());
+        Assert.Equal(10m, proof.Amount);
+        Assert.Equal(10m, proof.RuleValueSnapshot);
+        var attributable = await db.StudentInvoiceLines.SingleAsync(x => x.Id == proof.StudentInvoiceLineId);
+        Assert.Equal(fresh.Id, attributable.StudentInvoiceId);
+        Assert.Equal(10m, attributable.DiscountAmount);
+        Assert.Equal(1, await db.StudentInvoiceDiscountAttributions.CountAsync());
         Assert.Equal(0, await db.Journals.CountAsync());
     }
 

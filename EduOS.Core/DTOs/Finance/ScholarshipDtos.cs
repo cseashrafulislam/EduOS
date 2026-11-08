@@ -72,3 +72,29 @@ public sealed class ScholarshipReconciliationPage
     public int TotalCount { get; set; }
     public IReadOnlyList<ScholarshipReconciliationRow> Items { get; set; } = [];
 }
+
+/// <summary>Exact invoice-time reductions, never estimated from mutable rules.
+/// Cancelled invoice snapshots remain available but are excluded from active totals.</summary>
+public sealed class ScholarshipInvoiceCreditRow
+{
+    public Guid InvoiceReference { get; set; }
+    public string InvoiceNumber { get; set; } = "";
+    public DateOnly InvoiceDate { get; set; }
+    public string InvoiceState { get; set; } = "";
+    public string FeeHeadName { get; set; } = "";
+    public decimal CreditedAmount { get; set; }
+    public decimal RuleValueSnapshot { get; set; }
+    public bool IsPercentageSnapshot { get; set; }
+}
+
+public sealed class ScholarshipInvoiceCreditPage
+{
+    public Guid ApplicationReference { get; set; }
+    public bool HasCanonicalAward { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+    public decimal ActiveInvoiceCreditTotal { get; set; }
+    public decimal CancelledInvoiceCreditTotal { get; set; }
+    public IReadOnlyList<ScholarshipInvoiceCreditRow> Items { get; set; } = [];
+}

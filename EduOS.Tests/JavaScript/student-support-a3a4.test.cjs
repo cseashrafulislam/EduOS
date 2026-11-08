@@ -25,6 +25,8 @@ test('A3 aid form keeps antiforgery, server-enrollment selection and tenant-boun
     assert.match(js, /\['Submitted', 'Approved', 'Awarded'\]\.includes\(state\.selected\?\.state\)/);
     assert.match(view, /Review private evidence \(audited\)/);
     assert.match(view, /Financial award reconciliation/);
+    assert.match(view, /Invoice credit history/);
+    assert.match(js, /invoice-credits/);
     assert.doesNotMatch(js, /\.innerHTML\s*=/);
 });
 

@@ -536,8 +536,63 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
         });
     }
 
-    /// <summary>Read-only lineage check; invoice-level discount attribution is deliberately
-    /// not inferred from aggregate invoice discounts when multiple award rules apply.</summary>
+    /// <summary>Admin-only immutable invoice-time credit report. Historical invoices issued
+    /// before source attribution was introduced are intentionally not backfilled.</summary>
+    public async Task<ApiResponse<ScholarshipInvoiceCreditPage>> InvoiceCreditsAsync(
+        Guid reference, int page = 1, int pageSize = 30, CancellationToken ct = default)
+    {
+        if (!Manager) return Fail<ScholarshipInvoiceCreditPage>("Finance administrator required.", 403);
+        if (reference == Guid.Empty || page < 1 || pageSize is < 1 or > 100 || page > int.MaxValue / pageSize)
+            return Fail<ScholarshipInvoiceCreditPage>("Invalid application or page.");
+        var aid = await Applications.AsNoTracking().Where(x => x.PublicId == reference)
+            .Select(x => new { x.StudentDiscountId, x.StudentEnrollmentId }).FirstOrDefaultAsync(ct);
+        if (aid == null) return Fail<ScholarshipInvoiceCreditPage>("Application not found.", 404);
+        var result = new ScholarshipInvoiceCreditPage
+        {
+            ApplicationReference = reference, Page = page, PageSize = pageSize,
+            HasCanonicalAward = aid.StudentDiscountId.HasValue
+        };
+        if (!aid.StudentDiscountId.HasValue)
+            return ApiResponse<ScholarshipInvoiceCreditPage>.SuccessResponse(result);
+
+        var source = from allocation in db.StudentInvoiceDiscountAttributions.AsNoTracking()
+            join line in db.StudentInvoiceLines.AsNoTracking()
+                on new { allocation.TenantId, Id = allocation.StudentInvoiceLineId }
+                equals new { line.TenantId, line.Id }
+            join invoice in db.StudentInvoices.AsNoTracking()
+                on new { line.TenantId, Id = line.StudentInvoiceId }
+                equals new { invoice.TenantId, invoice.Id }
+            where allocation.TenantId == user.TenantId &&
+                allocation.StudentDiscountId == aid.StudentDiscountId.Value &&
+                invoice.StudentEnrollmentId == aid.StudentEnrollmentId
+            select new { allocation, line, invoice };
+        result.TotalCount = await source.CountAsync(ct);
+        var totals = await source.GroupBy(x => x.invoice.State == InvoiceState.Cancelled)
+            .Select(g => new { Cancelled = g.Key, Amount = g.Sum(x => x.allocation.Amount) })
+            .ToArrayAsync(ct);
+        result.ActiveInvoiceCreditTotal = totals.Where(x => !x.Cancelled).Sum(x => x.Amount);
+        result.CancelledInvoiceCreditTotal = totals.Where(x => x.Cancelled).Sum(x => x.Amount);
+        var rows = await source.OrderByDescending(x => x.invoice.InvoiceDate)
+            .ThenByDescending(x => x.invoice.Id).ThenBy(x => x.line.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new
+            {
+                x.invoice.PublicId, x.invoice.InvoiceNumber, x.invoice.InvoiceDate, x.invoice.State,
+                x.line.FeeHeadNameSnapshot, x.allocation.Amount,
+                x.allocation.RuleValueSnapshot, x.allocation.IsPercentageSnapshot
+            }).ToListAsync(ct);
+        result.Items = rows.Select(x => new ScholarshipInvoiceCreditRow
+        {
+            InvoiceReference = x.PublicId, InvoiceNumber = x.InvoiceNumber, InvoiceDate = x.InvoiceDate,
+            InvoiceState = x.State.ToString(), FeeHeadName = x.FeeHeadNameSnapshot ?? "",
+            CreditedAmount = x.Amount, RuleValueSnapshot = x.RuleValueSnapshot,
+            IsPercentageSnapshot = x.IsPercentageSnapshot
+        }).ToArray();
+        return ApiResponse<ScholarshipInvoiceCreditPage>.SuccessResponse(result);
+    }
+
+    /// <summary>Read-only canonical award lineage; historical aggregate discounts are not
+    /// inferred as an award amount unless an issuance-time attribution snapshot exists.</summary>
     public async Task<ApiResponse<ScholarshipReconciliationPage>> ReconciliationAsync(
         int page = 1, int pageSize = 30, CancellationToken ct = default)
     {
