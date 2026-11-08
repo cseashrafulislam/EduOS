@@ -70,6 +70,7 @@ public sealed class StudentSupportA3A4ContractsTests
     [InlineData(nameof(CounselingCasesController.Assign))]
     [InlineData(nameof(CounselingCasesController.Action))]
     [InlineData(nameof(CounselingCasesController.PrivateView))]
+    [InlineData(nameof(CounselingCasesController.GuardianContactConsent))]
     public void Confidential_case_writes_and_access_are_post_only(string method)
     {
         typeof(CounselingCasesController).GetMethods().Single(x => x.Name == method)

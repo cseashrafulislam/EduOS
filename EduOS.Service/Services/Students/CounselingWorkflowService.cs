@@ -83,6 +83,7 @@ public sealed class CounselingWorkflowService(
         if (Officer && !await CampusAccess(enrollment.CampusId, user.UserId, ct))
             return Fail<CounselingCaseRow>("Campus not accessible.", 403);
         var guardianConsented = request.GuardianContactConsented &&
+            (user.IsInRole("Guardian") || user.IsInRole("Parent")) &&
             await (from link in db.StudentGuardians.AsNoTracking()
                 join guardian in db.Guardians.AsNoTracking()
                     on new { link.TenantId, Id = link.GuardianId }
@@ -142,6 +143,16 @@ public sealed class CounselingWorkflowService(
                 };
                 db.CounselingCases.Add(row);
                 await db.SaveChangesAsync(token);
+                if (guardianConsented)
+                {
+                    db.CounselingCaseEvents.Add(new CounselingCaseEvent
+                    {
+                        TenantId = user.TenantId, CounselingCaseId = row.Id,
+                        ClientRequestId = Guid.NewGuid(), Action = "ConsentGranted",
+                        ProtectedNote = "", ActorUserId = user.UserId, CreatedBy = user.UserId
+                    });
+                    await db.SaveChangesAsync(token);
+                }
                 return ApiResponse<CounselingCaseRow>.SuccessResponse(Map(row, student.PublicId));
             }, IsolationLevel.Serializable, ct);
         }
@@ -229,6 +240,65 @@ public sealed class CounselingWorkflowService(
         if (!Officer && row.AssignedCounselorUserId != user.UserId)
             result.AssignedCounselorUserId = null;
         return ApiResponse<CounselingCaseRow>.SuccessResponse(result);
+    }
+
+    /// <summary>Only the original linked guardian may grant or withdraw permission
+    /// for guardian contact. Consent is never inferred from kinship or copied into
+    /// generic notifications; history is append-only and excludes case narratives.</summary>
+    public async Task<ApiResponse<CounselingCaseRow>> UpdateGuardianConsentAsync(Guid reference,
+        UpdateGuardianContactConsentRequest request, CancellationToken ct = default)
+    {
+        if (!Scoped || !(user.IsInRole("Guardian") || user.IsInRole("Parent")))
+            return Fail<CounselingCaseRow>("Linked guardian permission required.", 403);
+        if (reference == Guid.Empty || request == null || request.RequestId == Guid.Empty)
+            return Fail<CounselingCaseRow>("Invalid consent request.");
+        try
+        {
+            return await db.ExecuteInTransactionAsync(async token =>
+            {
+                var row = await Cases.FirstOrDefaultAsync(x => x.PublicId == reference, token);
+                if (row == null || row.OpenedByUserId != user.UserId ||
+                    !await OwnsStudent(row.StudentId, token))
+                    return Fail<CounselingCaseRow>("Case not accessible.", 404);
+                var studentRef = await db.Students.AsNoTracking().Where(x =>
+                    x.TenantId == user.TenantId && x.Id == row.StudentId && !x.IsDeleted)
+                    .Select(x => x.PublicId).FirstOrDefaultAsync(token);
+                if (studentRef == Guid.Empty)
+                    return Fail<CounselingCaseRow>("Student unavailable.", 409);
+                var action = request.Consent ? "ConsentGranted" : "ConsentWithdrawn";
+                var previous = await db.CounselingCaseEvents.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == user.TenantId && x.ClientRequestId == request.RequestId, token);
+                if (previous != null)
+                    return previous.CounselingCaseId == row.Id && previous.ActorUserId == user.UserId &&
+                        previous.Action == action && row.GuardianContactConsented == request.Consent
+                        ? ApiResponse<CounselingCaseRow>.SuccessResponse(Map(row, studentRef))
+                        : Fail<CounselingCaseRow>("Consent request key already used.", 409);
+                if (!Version(row.RowVersion, request.RowVersion))
+                    return Fail<CounselingCaseRow>("Consent changed; reload.", 409);
+                if (row.GuardianContactConsented == request.Consent)
+                    return Fail<CounselingCaseRow>("Consent is already in the requested state.", 409);
+                var now = DateTime.UtcNow;
+                row.GuardianContactConsented = request.Consent;
+                row.GuardianConsentAtUtc = request.Consent ? now : null;
+                row.UpdatedAt = now; row.UpdatedBy = user.UserId;
+                db.CounselingCaseEvents.Add(new CounselingCaseEvent
+                {
+                    TenantId = user.TenantId, CounselingCaseId = row.Id,
+                    ClientRequestId = request.RequestId, Action = action,
+                    ProtectedNote = "", ActorUserId = user.UserId, CreatedBy = user.UserId
+                });
+                await db.SaveChangesAsync(token);
+                return ApiResponse<CounselingCaseRow>.SuccessResponse(Map(row, studentRef));
+            }, IsolationLevel.Serializable, ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Fail<CounselingCaseRow>("Concurrent guardian consent update; reload.", 409);
+        }
+        catch (DbUpdateException)
+        {
+            return Fail<CounselingCaseRow>("Conflicting guardian consent update; reload.", 409);
+        }
     }
 
     public async Task<ApiResponse<CounselingCaseRow>> AssignAsync(Guid reference,

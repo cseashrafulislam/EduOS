@@ -275,17 +275,31 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
         }, ct);
         if (!assignment.Success)
             return Fail<ScholarshipRow>(assignment.Message, assignment.StatusCode);
+        if (assignment.Data == null || !assignment.Data.IsActive)
+            return Fail<ScholarshipRow>("Canonical award is inactive or unavailable; reconcile Finance.", 409);
+        var canonicalAward = await db.StudentDiscounts.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == user.TenantId && x.Id == assignment.Data.Id && !x.IsDeleted &&
+            x.ClientRequestId == row.PublicId && x.StudentEnrollmentId == row.StudentEnrollmentId &&
+            x.DiscountRuleId == row.DiscountRuleId && x.EffectiveFrom == row.EffectiveFrom &&
+            x.EffectiveTo == row.EffectiveTo, ct);
+        if (canonicalAward == null || !canonicalAward.IsActive)
+            return Fail<ScholarshipRow>("Award must have its own active, verified financial lineage.", 409);
+        ApiResponse<ScholarshipRow> linked;
         try
         {
-            return await db.ExecuteInTransactionAsync(async token =>
+            linked = await db.ExecuteInTransactionAsync(async token =>
             {
                 var current = await Applications.FirstOrDefaultAsync(x => x.Id == row.Id, token);
                 if (current == null || current.State is not ("Approved" or "Awarded"))
                     return Fail<ScholarshipRow>("Application changed; finance reconciliation required.", 409);
                 if (current.StudentDiscountId.HasValue &&
-                    current.StudentDiscountId != assignment.Data!.Id)
+                    current.StudentDiscountId != canonicalAward.Id)
                     return Fail<ScholarshipRow>("Award lineage mismatch.", 409);
-                current.StudentDiscountId = assignment.Data!.Id;
+                if (!await db.StudentDiscounts.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == user.TenantId && x.Id == canonicalAward.Id && !x.IsDeleted &&
+                    x.IsActive && x.ClientRequestId == current.PublicId, token))
+                    return Fail<ScholarshipRow>("Financial award changed before linkage; reload.", 409);
+                current.StudentDiscountId = canonicalAward.Id;
                 if (current.State == "Approved")
                 {
                     current.State = "Awarded"; current.AwardedAtUtc = DateTime.UtcNow;
@@ -301,7 +315,39 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
                 return ApiResponse<ScholarshipRow>.SuccessResponse((await FindAsync(current, token))!);
             }, IsolationLevel.Serializable, ct);
         }
-        catch (DbUpdateException) { return Fail<ScholarshipRow>("Award linked concurrently; reload.", 409); }
+        catch (DbUpdateConcurrencyException)
+        {
+            linked = Fail<ScholarshipRow>("Award linked concurrently; reload.", 409);
+        }
+        catch (DbUpdateException)
+        {
+            linked = Fail<ScholarshipRow>("Award linked concurrently; reload.", 409);
+        }
+        if (!linked.Success)
+        {
+            // A cancellation can commit between the Finance assignment and its
+            // scholarship link. Do not strand an active discount after cancellation.
+            var currentState = await Applications.AsNoTracking().Where(x => x.Id == row.Id)
+                .Select(x => x.State).FirstOrDefaultAsync(ct);
+            if (currentState == "Cancelled")
+            {
+                var posted = await db.StudentDiscounts.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == user.TenantId && x.Id == canonicalAward.Id && !x.IsDeleted &&
+                    x.ClientRequestId == row.PublicId, ct);
+                if (posted?.IsActive == true)
+                {
+                    var stop = await finance.DeactivateStudentDiscountAsync(posted.Id,
+                        new DeactivateStudentDiscountRequestDto
+                        {
+                            RowVersion = Convert.ToBase64String(posted.RowVersion)
+                        }, ct);
+                    if (!stop.Success)
+                        return Fail<ScholarshipRow>("Cancelled award needs Finance reconciliation: " +
+                            stop.Message, 409);
+                }
+            }
+        }
+        return linked;
     }
 
     public async Task<ApiResponse<ScholarshipRow>> CancelAsync(Guid reference,

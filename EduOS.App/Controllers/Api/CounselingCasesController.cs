@@ -43,6 +43,13 @@ public sealed class CounselingCasesController(CounselingWorkflowService service)
         var result = await service.StatusAsync(reference, ct);
         return StatusCode(result.StatusCode, result);
     }
+    [HttpPost("{reference:guid}/guardian-contact-consent")]
+    public async Task<IActionResult> GuardianContactConsent(Guid reference,
+        [FromBody] UpdateGuardianContactConsentRequest request, CancellationToken ct)
+    {
+        var result = await service.UpdateGuardianConsentAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
     [HttpPost("{reference:guid}/assign")]
     public async Task<IActionResult> Assign(Guid reference,
         [FromBody] AssignCounselorRequest request, CancellationToken ct)

@@ -144,9 +144,34 @@
             const container = $('myCases'); container.replaceChildren();
             if (!result?.items?.length)
                 container.append(node('div', T('No requests by this account.', 'এই অ্যাকাউন্টের কোনো আবেদন নেই।'), 'text-muted small'));
-            for (const item of result?.items || [])
-                container.append(node('div', item.reference.slice(0, 8) + ' · ' + item.state +
-                    (item.isUrgent ? ' · ' + T('Urgent', 'জরুরি') : ''), 'list-group-item'));
+            for (const item of result?.items || []) {
+                const entry = node('div', item.reference.slice(0, 8) + ' · ' + item.state +
+                    (item.isUrgent ? ' · ' + T('Urgent', 'জরুরি') : ''), 'list-group-item');
+                if (item.guardianContactConsented) {
+                    const withdraw = node('button', T('Withdraw guardian contact consent',
+                        'অভিভাবকের সঙ্গে যোগাযোগের সম্মতি প্রত্যাহার'), 'btn btn-outline-danger btn-sm d-block mt-2');
+                    withdraw.type = 'button';
+                    let requestId = null;
+                    withdraw.addEventListener('click', async () => {
+                        if (!window.confirm(T('Withdraw permission for future guardian contact on this case?',
+                            'এই কেসে ভবিষ্যতে অভিভাবকের সঙ্গে যোগাযোগের অনুমতি প্রত্যাহার করবেন?'))) return;
+                        await run(async () => {
+                            const changed = await api('/api/student-counseling/' +
+                                encodeURIComponent(item.reference) + '/guardian-contact-consent', 'POST', {
+                                requestId: requestId || (requestId = guid()),
+                                rowVersion: item.rowVersion, consent: false
+                            });
+                            item.rowVersion = changed.rowVersion;
+                            item.guardianContactConsented = false;
+                            requestId = null; withdraw.remove();
+                            notice(T('Guardian contact permission withdrawn and recorded.',
+                                'অভিভাবকের যোগাযোগের অনুমতি প্রত্যাহার ও অডিটে সংরক্ষিত।'));
+                        });
+                    });
+                    entry.append(withdraw);
+                }
+                container.append(entry);
+            }
         });
     }
     async function aggregates() {

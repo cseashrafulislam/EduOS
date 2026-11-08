@@ -30,6 +30,13 @@ public sealed class AssignCounselorRequest
     public long CounselorUserId { get; set; }
 }
 
+public sealed class UpdateGuardianContactConsentRequest
+{
+    public Guid RequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public bool Consent { get; set; }
+}
+
 public sealed class CounselingCaseActionRequest
 {
     public Guid RequestId { get; set; }

@@ -49,6 +49,8 @@ test('A4 keeps confidential narratives outside GET and never builds HTML from no
     assert.match(svc, /row\.State = "Escalated"; row\.IsUrgent = true;/);
     assert.match(js, /student-support-directory\/counselors/);
     assert.match(js, /student-counseling\/aggregates/);
+    assert.match(js, /guardian-contact-consent/);
+    assert.match(js, /rowVersion: item\.rowVersion, consent: false/);
     assert.match(view, /Privacy-safe monthly safeguarding summary/);
     assert.match(view, /Eligible campus counselor/);
     assert.doesNotMatch(view, /Assigned counselor user ID/);
@@ -66,6 +68,8 @@ test('A3 cancellation must reconcile finance assignment even before linkage and 
     assert.match(svc, /candidates\.Count > 1/);
     assert.match(svc, /assigned\.StudentEnrollmentId != row\.StudentEnrollmentId/);
     assert.match(svc, /finance\.DeactivateStudentDiscountAsync/);
+    assert.match(svc, /currentState == "Cancelled"/);
+    assert.match(svc, /Award must have its own active, verified financial lineage/);
     assert.match(svc, /canonical == null \|\| canonical\.IsActive/);
     assert.match(svc, /current\.StudentDiscountId = canonical\.Id/);
 });
