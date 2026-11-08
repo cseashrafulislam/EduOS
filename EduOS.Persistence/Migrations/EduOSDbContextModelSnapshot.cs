@@ -3417,43 +3417,6 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("ContentChapter")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<long?>("ContentCurriculumId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ContentLanguageCode")
-                        .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)");
-
-                    b.Property<long?>("ContentLevelId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ContentLicenceCode")
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<string>("ContentLicenceEvidence")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ContentRightsHolder")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("ContentSourceUrl")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<long?>("ContentSubjectId")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("ContentTopic")
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
                     b.Property<string>("DocumentTypeCode")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -9346,6 +9309,43 @@ namespace EduOS.Persistence.Migrations
 
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("ContentChapter")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<long?>("ContentCurriculumId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentLanguageCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<long?>("ContentLevelId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentLicenceCode")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("ContentLicenceEvidence")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ContentRightsHolder")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ContentSourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<long?>("ContentSubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ContentTopic")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
 
                     b.Property<string>("DocumentTypeCode")
                         .IsRequired()
