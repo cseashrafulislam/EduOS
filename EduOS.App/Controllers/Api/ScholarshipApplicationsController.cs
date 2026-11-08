@@ -36,6 +36,23 @@ public sealed class ScholarshipApplicationsController(ScholarshipWorkflowService
         var result = await service.SubmitAsync(request, ct);
         return StatusCode(result.StatusCode, result);
     }
+
+    [HttpPost("evidence-upload")]
+    [Consumes("multipart/form-data"), RequestSizeLimit(6291456)]
+    public async Task<IActionResult> UploadEvidence([FromForm] Guid enrollmentReference,
+        [FromForm] Guid requestId, [FromForm] IFormFile? file, CancellationToken ct)
+    {
+        if (file == null || file.Length is < 1 or > 5242880 || requestId == Guid.Empty)
+            return BadRequest(new { success = false, message = "Choose a file up to 5 MB and an upload request identifier." });
+        await using var stream = file.OpenReadStream();
+        var upload = new EduOS.Core.DTOs.Files.PrivateFileUploadDto
+        {
+            FileName = file.FileName, ContentType = file.ContentType,
+            Length = file.Length, Content = stream
+        };
+        var result = await service.UploadEvidenceAsync(enrollmentReference, requestId, upload, ct);
+        return StatusCode(result.StatusCode, result);
+    }
     [HttpPost("{reference:guid}/decision")]
     public async Task<IActionResult> Decide(Guid reference,
         [FromBody] ScholarshipDecisionRequest request, CancellationToken ct)

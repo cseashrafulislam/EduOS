@@ -84,6 +84,9 @@ public sealed class StudentSupportA3A4ContractsTests
         route.GetCustomAttributes(typeof(HttpPostAttribute), true)
             .Should().ContainSingle();
         route.GetCustomAttributes(typeof(HttpGetAttribute), true).Should().BeEmpty();
+        var upload = typeof(ScholarshipApplicationsController).GetMethods()
+            .Single(x => x.Name == nameof(ScholarshipApplicationsController.UploadEvidence));
+        upload.GetCustomAttributes(typeof(HttpPostAttribute), true).Should().ContainSingle();
     }
 
     [Fact]

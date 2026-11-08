@@ -20,7 +20,7 @@ namespace EduOS.Service.Services.Finance;
 
 /// <summary>Human-reviewed educational assistance; only canonical Finance owns the actual award.</summary>
 public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserService user,
-    IFinanceAdjustmentService finance, IFileUploadService storage)
+    IFinanceAdjustmentService finance, IFileUploadService storage, IDocumentFileService files)
 {
     private bool Scoped => user.IsAuthenticated && user.UserId > 0 && user.TenantId > 0 &&
         db.CurrentTenantId == user.TenantId;
@@ -75,6 +75,28 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
             result.DecisionReason = null;
         }
         return result;
+    }
+
+    /// <summary>Stages already scanned, private evidence through the canonical file service;
+    /// the application still binds this asset in SubmitAsync under the same actor/tenant.</summary>
+    public async Task<ApiResponse<FileAssetDto>> UploadEvidenceAsync(Guid enrollmentReference,
+        Guid requestId, PrivateFileUploadDto upload, CancellationToken ct = default)
+    {
+        if (!Scoped) return Fail<FileAssetDto>("Authentication required.", 403);
+        if (enrollmentReference == Guid.Empty || requestId == Guid.Empty || upload == null ||
+            upload.Length is < 1 or > 5242880)
+            return Fail<FileAssetDto>("Select an enrollment and a private evidence file up to 5 MB.");
+        var enrollment = await db.StudentEnrollments.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == user.TenantId && x.PublicId == enrollmentReference &&
+            x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct);
+        if (enrollment == null || (!Manager && !await OwnsEnrollment(enrollment.StudentId, ct)))
+            return Fail<FileAssetDto>("Enrollment not accessible.", 404);
+        if (Manager) return await files.UploadAsync(requestId, upload, ct);
+        var studentRef = await db.Students.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && x.Id == enrollment.StudentId && !x.IsDeleted)
+            .Select(x => x.PublicId).FirstOrDefaultAsync(ct);
+        return studentRef == Guid.Empty ? Fail<FileAssetDto>("Student unavailable.", 404) :
+            await files.UploadPortalAsync(studentRef, requestId, upload, ct);
     }
     public async Task<ApiResponse<ScholarshipRow>> SubmitAsync(
         SubmitScholarshipRequest request, CancellationToken ct = default)
@@ -133,6 +155,13 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
                 x.MalwareScanStateCode == "Clean" && x.StorageProvider == "LocalPrivate" &&
                 x.Visibility == FileVisibility.Private).Select(x => (long?)x.Id).FirstOrDefaultAsync(ct);
             if (!fileId.HasValue) return Fail<ScholarshipRow>("Private evidence not verified.", 404);
+            if (await db.Documents.AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && x.FileAssetId == fileId.Value && !x.IsDeleted &&
+                (x.EntityType != "Student" || x.EntityId != enrollment.StudentId), ct) ||
+                await Applications.AsNoTracking().AnyAsync(x =>
+                    x.EvidenceFileAssetId == fileId.Value &&
+                    x.StudentEnrollmentId != enrollment.Id, ct))
+                return Fail<ScholarshipRow>("Evidence belongs to another student or purpose.", 409);
         }
         long? renewal = null;
         if (request.RenewalOfReference.HasValue)

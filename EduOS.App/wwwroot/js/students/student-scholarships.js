@@ -12,7 +12,7 @@
     const safeSession = () => session[0] && session[1] &&
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
-    const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null,
+    const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null, evidenceUploadId: null,
         reconcilePage: 1, reconcileTotal: 0 };
     const guid = () => crypto.randomUUID();
     const val = id => $(id)?.value?.trim() || '';
@@ -26,10 +26,11 @@
         if (state.locked) return false;
         if (safeSession()) return true;
         state.locked = true; state.busy = true; state.enrollment = '';
-        state.selected = null; state.requestId = null; state.total = 0;
+        state.selected = null; state.requestId = null; state.evidenceUploadId = null; state.total = 0;
         for (const field of root.querySelectorAll('input,select,textarea'))
             if (field.type !== 'hidden') field.value = '';
         $('aidStudents').replaceChildren(); $('aidRows').replaceChildren();
+        $('aidEvidence').value = '';
         if (review) {
             $('aidSelected').textContent = '';
             $('aidReconciliationRows').replaceChildren();
@@ -41,7 +42,10 @@
     function refreshControls() {
         if (state.locked) return;
         $('aidSubmit').disabled = state.busy || !state.enrollment || !val('aidRule') ||
-            !val('aidFrom') || !val('aidStatement');
+            !val('aidFrom') || !val('aidStatement') ||
+            ($('aidEvidenceFile').files?.length > 0 && !val('aidEvidence'));
+        $('aidEvidenceUpload').disabled = state.busy || !state.enrollment ||
+            $('aidEvidenceFile').files?.length !== 1;
         for (const id of ['aidRefresh', 'aidPrev', 'aidNext']) $(id).disabled = state.busy ||
             (id === 'aidPrev' && state.page <= 1) ||
             (id === 'aidNext' && state.page * state.pageSize >= state.total);
@@ -100,7 +104,11 @@
                 button.addEventListener('click', () => {
                     state.enrollment = row.enrollmentReference;
                     $('aidEnrollment').value = row.studentName + ' / ' + row.rollNo;
-                    state.requestId = null; box.replaceChildren(); refreshControls();
+                    state.requestId = null; state.evidenceUploadId = null;
+                    $('aidEvidenceFile').value = ''; $('aidEvidence').value = '';
+                    $('aidEvidenceStatus').textContent = T('No evidence uploaded for this enrollment.',
+                        'এই ভর্তির জন্য কোনো প্রমাণ আপলোড হয়নি।');
+                    box.replaceChildren(); refreshControls();
                 });
                 box.append(button);
             }
@@ -155,6 +163,8 @@
         if (!state.enrollment) return notice(T('Select current enrollment.', 'বর্তমান ভর্তি নির্বাচন করুন।'), true);
         if (val('aidTo') && val('aidTo') < val('aidFrom'))
             return notice(T('End date must follow start date.', 'শেষের তারিখ শুরুর আগে হবে না।'), true);
+        if ($('aidEvidenceFile').files?.length && !val('aidEvidence'))
+            return notice(T('Upload the selected evidence first.', 'নির্বাচিত প্রমাণ আগে আপলোড করুন।'), true);
         await run(async () => {
             const payload = {
                 requestId: state.requestId || (state.requestId = guid()),
@@ -168,6 +178,33 @@
             state.requestId = null; $('aidStatement').value = ''; $('aidEvidence').value = '';
             $('aidRenewal').value = ''; notice(T('Submitted for review: ', 'পর্যালোচনার জন্য জমা: ') + result.reference);
             state.page = 1; await listWithoutBusy();
+        });
+    }
+    async function uploadEvidence() {
+        if (!state.enrollment) return notice(T('Choose an enrollment first.', 'আগে ভর্তি নির্বাচন করুন।'), true);
+        const file = $('aidEvidenceFile').files?.[0];
+        if (!file || file.size < 1 || file.size > 5242880)
+            return notice(T('Choose a supported private file up to 5 MB.',
+                'সর্বোচ্চ ৫ MB-এর সমর্থিত ব্যক্তিগত ফাইল নির্বাচন করুন।'), true);
+        await run(async () => {
+            if (!checkSession() || !token) throw Error(T('Session or security token unavailable.', 'সেশন বা নিরাপত্তা টোকেন নেই।'));
+            const form = new FormData();
+            form.append('enrollmentReference', state.enrollment);
+            form.append('requestId', state.evidenceUploadId || (state.evidenceUploadId = guid()));
+            form.append('file', file, file.name);
+            const response = await fetch('/api/student-scholarships/evidence-upload', {
+                method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                headers: { RequestVerificationToken: token, Accept: 'application/json' }, body: form
+            });
+            const result = await response.json().catch(() => null);
+            if (!checkSession()) throw Error(T('Session changed; reload.', 'সেশন বদলেছে; রিলোড করুন।'));
+            if (!response.ok || result?.success !== true)
+                throw Error(result?.message || T('Secure upload failed.', 'নিরাপদ আপলোড ব্যর্থ হয়েছে।'));
+            $('aidEvidence').value = result.data.reference;
+            $('aidEvidenceFile').value = ''; state.evidenceUploadId = null;
+            $('aidEvidenceStatus').textContent = T('Verified private evidence ready: ',
+                'যাচাইকৃত ব্যক্তিগত প্রমাণ প্রস্তুত: ') + file.name;
+            notice(T('Private evidence uploaded and scanned.', 'ব্যক্তিগত প্রমাণ আপলোড ও পরীক্ষা সম্পন্ন।'));
         });
     }
     async function listWithoutBusy() {
@@ -256,6 +293,13 @@
     }
     $('aidStudentSearchForm').addEventListener('submit', searchStudent);
     $('aidSubmitForm').addEventListener('submit', submit);
+    $('aidEvidenceUpload').addEventListener('click', uploadEvidence);
+    $('aidEvidenceFile').addEventListener('change', () => {
+        $('aidEvidence').value = ''; state.evidenceUploadId = null;
+        $('aidEvidenceStatus').textContent = T('Selected evidence is not uploaded yet.',
+            'নির্বাচিত প্রমাণ এখনো আপলোড হয়নি।');
+        refreshControls();
+    });
     for (const id of ['aidRule', 'aidFrom', 'aidStatement']) $(id).addEventListener('input', refreshControls);
     $('aidRefresh').addEventListener('click', () => list());
     $('aidPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; list(); } });

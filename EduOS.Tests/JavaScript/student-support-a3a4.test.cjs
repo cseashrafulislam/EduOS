@@ -19,6 +19,8 @@ test('A3 aid form keeps antiforgery, server-enrollment selection and tenant-boun
     assert.match(js, /querySelectorAll\('button,input,select,textarea'\)/);
     assert.match(js, /credentials: 'same-origin', cache: 'no-store'/);
     assert.match(js, /evidence-download/);
+    assert.match(js, /evidence-upload/);
+    assert.match(js, /new FormData\(\)/);
     assert.match(js, /student-scholarships\/reconciliation/);
     assert.match(view, /Review private evidence \(audited\)/);
     assert.match(view, /Financial award reconciliation/);
