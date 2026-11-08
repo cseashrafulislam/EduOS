@@ -605,7 +605,7 @@ public sealed class LibraryDigitalResourceService(
         if (reference == Guid.Empty || !await CanReadAsync(ct))
             return Fail<StudyReaderProgressDto>("Study resource unavailable.", 404);
         var documentId = await PublishedResources().Where(x =>
-            x.Document.PublicId == reference && x.Document.ContentExamCode != null)
+            x.Document.PublicId == reference)
             .Select(x => x.Document.Id).FirstOrDefaultAsync(ct);
         if (documentId == 0) return Fail<StudyReaderProgressDto>("Study resource unavailable.", 404);
         var bookmark = await db.StudyBookmarks.AsNoTracking().FirstOrDefaultAsync(x =>
@@ -625,7 +625,7 @@ public sealed class LibraryDigitalResourceService(
             return await db.ExecuteInTransactionAsync(async token =>
             {
                 var documentId = await PublishedResources().Where(x =>
-                    x.Document.PublicId == reference && x.Document.ContentExamCode != null)
+                    x.Document.PublicId == reference)
                     .Select(x => x.Document.Id).FirstOrDefaultAsync(token);
                 if (documentId == 0) return Fail<StudyReaderProgressDto>("Study resource unavailable.", 404);
                 var row = await db.StudyBookmarks.IgnoreQueryFilters().FirstOrDefaultAsync(x =>
@@ -1272,7 +1272,7 @@ public sealed class LibraryDigitalResourceService(
         // A publishing administrator explicitly grants rights on this reviewed
         // Document/version. Historical permissions default to false.
         var row = await PublishedResources().Where(x =>
-            x.Document.PublicId == reference && x.Document.ContentExamCode != null &&
+            x.Document.PublicId == reference &&
             x.Document.ContentOfflineAllowed && x.File.SizeBytes > 0 && x.File.SizeBytes <= 4194304 &&
             (x.File.ContentType == "application/pdf" || x.File.ContentType == "image/png" ||
              x.File.ContentType == "image/jpeg" || x.File.ContentType == "image/webp"))

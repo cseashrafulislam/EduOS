@@ -81,7 +81,7 @@ public sealed class LibraryDigitalResourceTests
             TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
             DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
             EntityId = seed.Book.Id, Title = "Offline syllabus note", IsActive = true,
-            VerificationStatusCode = "Approved", ContentExamCode = "SSC",
+            VerificationStatusCode = "Approved",
             ContentLicenceCode = "InstitutionOwned", ContentOfflineAllowed = false
         };
         db.Documents.Add(document);
@@ -97,6 +97,30 @@ public sealed class LibraryDigitalResourceTests
         document.IsActive = false;
         await db.SaveChangesAsync();
         (await reader.GetOfflinePermitAsync(reference)).StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task General_licensed_library_resource_can_save_reader_position_without_exam_tag()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        db.Documents.Add(new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "Licensed academic reading", IsActive = true,
+            VerificationStatusCode = "Approved", ContentLicenceCode = "InstitutionOwned"
+        });
+        await db.SaveChangesAsync();
+        var reader = Service(db, "Student");
+        (await reader.GetStudyReaderProgressAsync(reference)).Data!.Page.Should().Be(0);
+        var saved = await reader.SaveStudyReaderProgressAsync(reference,
+            new SaveStudyReaderProgressDto { Page = 4, CommandId = Guid.NewGuid() });
+        saved.Success.Should().BeTrue(saved.Message);
+        (await reader.GetStudyReaderProgressAsync(reference)).Data!.Page.Should().Be(4);
     }
 
     [Fact]
