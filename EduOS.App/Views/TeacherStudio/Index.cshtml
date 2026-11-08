@@ -7,6 +7,7 @@
 <section id="teacherStudio" class="container-fluid py-3" data-can-author="@teacher.ToString().ToLowerInvariant()" data-can-review="@admin.ToString().ToLowerInvariant()">
     <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
         <h2 class="h4 mb-0">@(bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</h2>
+        <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/Public">@(bn ? "উন্মুক্ত শিক্ষাসামগ্রীর তালিকা" : "Public teaching materials")</a>
         <details class="position-relative">
             <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পৃষ্ঠা সহায়তা" : "Page help")">ⓘ</summary>
             <div class="card card-body shadow-sm position-absolute end-0" style="width:min(22rem,85vw);z-index:10">
@@ -17,7 +18,7 @@
                     <li>@(bn ? "প্রশাসক ফাইল পরীক্ষা করে অনুমোদন বা প্রত্যাখ্যান করবেন।" : "An administrator must inspect the file before approving or rejecting.")</li>
                     <li>@(bn ? "নতুন সংস্করণ দিলে পুরোনো অনুমোদিত ফাইলটি নতুন অনুমোদন পর্যন্ত প্রকাশিত থাকবে।" : "A revised version leaves the prior approved version available until the revision is approved.")</li>
                 </ol>
-                <p class="small mb-1">@(bn ? "লগআউট/প্রতিষ্ঠান পরিবর্তনের পর নতুন করে খুলুন। অন্য প্রতিষ্ঠানে ফাইল শেয়ার হয় না।" : "Reload after logout or institution switch. Files are never shared across institutions.")</p>
+                <p class="small mb-1">@(bn ? "Public হলে শুধু Creative Commons/Public Domain অনুমোদিত HTTPS উৎস-লিংক অন্য প্রতিষ্ঠানের শিক্ষক দেখতে পারবেন; private file কখনো প্রকাশিত হবে না।" : "Public scope shares only an approved Creative Commons/Public Domain HTTPS source link across institutions, never the private uploaded file.")</p>
                 <a href="/AcademicInstruction/Index" class="small">@(bn ? "পাঠ পরিকল্পনায় যান" : "Open lesson plans")</a>
             </div>
         </details>
@@ -40,7 +41,7 @@
                     <div class="col-md-6"><label class="form-label" for="studioTitle">@(bn ? "শিরোনাম" : "Title")</label><input id="studioTitle" class="form-control" maxlength="250" required /></div>
                     <div class="col-md-3"><label class="form-label" for="studioCampus">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="studioCampus" class="form-select" required disabled></select></div>
                     <div class="col-md-3"><label class="form-label" for="studioKind">@(bn ? "রিসোর্সের ধরন" : "Resource type")</label><select id="studioKind" class="form-select"><option value="LessonPlan">Lesson plan</option><option value="Slide">Slides</option><option value="Worksheet" selected>Worksheet</option><option value="Assessment">Assessment</option><option value="Exemplar">Exemplar</option><option value="Other">Other</option></select></div>
-                    <div class="col-md-4"><label class="form-label" for="studioScope">@(bn ? "প্রকাশের সীমা" : "Sharing scope")</label><select id="studioScope" class="form-select"><option value="Private">@(bn ? "শুধু লেখক" : "Author only")</option><option value="Campus">@(bn ? "ক্যাম্পাস শিক্ষক" : "Campus teachers")</option><option value="Institution">@(bn ? "প্রতিষ্ঠানের শিক্ষক" : "Institution teachers")</option></select></div>
+                    <div class="col-md-4"><label class="form-label" for="studioScope">@(bn ? "প্রকাশের সীমা" : "Sharing scope")</label><select id="studioScope" class="form-select"><option value="Private">@(bn ? "শুধু লেখক" : "Author only")</option><option value="Campus">@(bn ? "ক্যাম্পাস শিক্ষক" : "Campus teachers")</option><option value="Institution">@(bn ? "প্রতিষ্ঠানের শিক্ষক" : "Institution teachers")</option><option value="Public">@(bn ? "উন্মুক্ত উৎস-লিংক" : "Public source link")</option></select></div>
                     <div class="col-md-4"><label class="form-label" for="studioLevel">@(bn ? "শ্রেণি (ঐচ্ছিক)" : "Class/level (optional)")</label><select id="studioLevel" class="form-select"></select></div>
                     <div class="col-md-4"><label class="form-label" for="studioSubject">@(bn ? "বিষয় (ঐচ্ছিক)" : "Subject (optional)")</label><select id="studioSubject" class="form-select"></select></div>
                     <div class="col-md-6"><label class="form-label" for="studioPlan">@(bn ? "নিজের পাঠ পরিকল্পনা (ঐচ্ছিক)" : "Own lesson plan (optional)")</label><select id="studioPlan" class="form-select"></select></div>

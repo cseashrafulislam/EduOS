@@ -74,3 +74,21 @@ public sealed class TeacherStudioOptionsDto
     public IReadOnlyList<TeacherStudioOptionDto> Levels { get; set; } = [];
     public IReadOnlyList<TeacherStudioOptionDto> LessonPlans { get; set; } = [];
 }
+
+// Deliberately public metadata only. No source-tenant IDs, private FileAsset
+// references, employee identity, review evidence or private download URLs.
+public sealed class TeacherPublicResourceDto
+{
+    public Guid Reference { get; set; }
+    public string Institution { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string KindCode { get; set; } = string.Empty;
+    public string? Topic { get; set; }
+    public string? Subject { get; set; }
+    public string? Level { get; set; }
+    public string LanguageCode { get; set; } = string.Empty;
+    public string SourceUrl { get; set; } = string.Empty;
+    public string RightsHolder { get; set; } = string.Empty;
+    public string LicenceCode { get; set; } = string.Empty;
+    public DateTime? PublishedAtUtc { get; set; }
+}

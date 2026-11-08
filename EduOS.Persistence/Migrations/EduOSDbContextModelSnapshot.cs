@@ -17491,6 +17491,8 @@ namespace EduOS.Persistence.Migrations
                     b.HasAlternateKey("TenantId", "Id");
                     b.HasIndex("ReviewedByUserId");
                     b.HasIndex("PublicId").IsUnique();
+                    b.HasIndex("ScopeCode", "StateCode", "PublishedAtUtc")
+                        .HasFilter("[IsDeleted] = 0");
                     b.HasIndex("TenantId", "AcademicLevelId");
                     b.HasIndex("TenantId", "FileAssetId").IsUnique();
                     b.HasIndex("TenantId", "LessonPlanId");
@@ -17505,7 +17507,7 @@ namespace EduOS.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_TeacherResources_Version", "[VersionNo] >= 1");
                             t.HasCheckConstraint("CK_TeacherResources_State", "[StateCode] IN (N'Draft', N'Submitted', N'Approved', N'Rejected', N'Withdrawn')");
-                            t.HasCheckConstraint("CK_TeacherResources_Scope", "[ScopeCode] IN (N'Private', N'Campus', N'Institution')");
+                            t.HasCheckConstraint("CK_TeacherResources_Scope", "[ScopeCode] IN (N'Private', N'Campus', N'Institution', N'Public')");
                             t.HasCheckConstraint("CK_TeacherResources_Kind", "[KindCode] IN (N'LessonPlan', N'Slide', N'Worksheet', N'Assessment', N'Exemplar', N'Other')");
                         });
                 });

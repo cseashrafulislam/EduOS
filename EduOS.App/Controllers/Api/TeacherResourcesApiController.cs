@@ -17,6 +17,15 @@ namespace EduOS.App.Controllers.Api;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class TeacherResourcesApiController(ITeacherResourceService service) : ControllerBase
 {
+    [HttpGet("public")]
+    public async Task<IActionResult> PublicCatalogue([FromQuery] string? search = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await service.ListPublicAsync(search, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("options")]
     public async Task<IActionResult> Options(CancellationToken ct)
     {

@@ -39,3 +39,31 @@ test('teacher studio UI remains bilingual, session-bound and safe against untrus
     assert.match(controller, /\[RequestSizeLimit\(11534336\)\]/);
     assert.match(controller, /CacheControl = "no-store, private"/);
 });
+
+test('public teacher catalogue exposes approved HTTPS metadata only, never private files', () => {
+    const service = source('EduOS.Service/Services/LMS/TeacherResourceService.cs');
+    const migration = source('EduOS.Persistence/Migrations/20261109040000_TeacherPublicSourceLinks.cs');
+    const script = source('EduOS.App/wwwroot/js/lms/teacher-public-catalogue.js');
+    const view = source('EduOS.App/Views/TeacherStudio/Public.cshtml');
+    const controller = source('EduOS.App/Controllers/Api/TeacherResourcesApiController.cs');
+    assert.match(service, /ListPublicAsync/);
+    assert.match(service, /IgnoreQueryFilters\(\)/);
+    assert.match(service, /resource\.ScopeCode == "Public"/);
+    assert.match(service, /resource\.StateCode == "Approved"/);
+    assert.match(service, /institution\.State == TenantState\.Active/);
+    assert.match(service, /LicenceCode == "CreativeCommons"/);
+    assert.match(service, /file\.IsVerifiedSafe/);
+    assert.match(service, /TeacherPublicResourceDto/);
+    assert.match(migration, /CK_TeacherResources_Scope/);
+    assert.match(migration, /IX_TeacherResources_ScopeCode_StateCode_PublishedAtUtc/);
+    assert.match(view, /উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী/);
+    assert.match(view, /পৃষ্ঠা সহায়তা/);
+    assert.match(script, /authSessionReference/);
+    assert.match(script, /encodeURIComponent|URLSearchParams/);
+    assert.match(script, /\.textContent\s*=/);
+    assert.doesNotMatch(script, /\.innerHTML\s*=/);
+    assert.match(script, /url\.protocol !== 'https:'/);
+    assert.match(script, /noopener noreferrer/);
+    assert.doesNotMatch(script, /\/download/);
+    assert.match(controller, /\[HttpGet\("public"\)\]/);
+});

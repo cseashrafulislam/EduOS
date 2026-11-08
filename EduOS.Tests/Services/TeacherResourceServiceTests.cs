@@ -188,4 +188,70 @@ public sealed class TeacherResourceServiceTests
         (await owner.UploadAsync(request, UploadFile())).StatusCode.Should().Be(409);
         (await db.TeacherResources.CountAsync()).Should().Be(1);
     }
+
+    [Fact]
+    public async Task Public_catalogue_shares_only_licensed_links_and_enforces_live_withdrawal()
+    {
+        await using var db = Context(102);
+        db.Tenants.AddRange(
+            new Tenant { Id = 101, Code = "SOURCE", Name = "Source school", Email = "source@example.org",
+                State = TenantState.Active },
+            new Tenant { Id = 102, Code = "READER", Name = "Reader school", Email = "reader@example.org",
+                State = TenantState.Active });
+        db.Employees.Add(new Employee
+        {
+            TenantId = 102, UserId = 7, EmployeeCode = "READER-1", FullName = "Reader",
+            State = EmployeeState.Active, CanTeach = true
+        });
+        var asset = new FileAsset
+        {
+            TenantId = 101, PublicId = Guid.NewGuid(), StorageKey = "tenant-101/lms/source.pdf",
+            StorageProvider = "LocalPrivate", ContentType = "application/pdf",
+            OriginalFileName = "source.pdf", SizeBytes = 1024, IsVerifiedSafe = true,
+            MalwareScanStateCode = "Clean", Visibility = FileVisibility.Private
+        };
+        db.FileAssets.Add(asset);
+        await db.SaveChangesAsync();
+        var publicReference = Guid.NewGuid();
+        var publicRow = new TeacherResource
+        {
+            TenantId = 101, PublicId = publicReference, FileAssetId = asset.Id,
+            AuthorEmployeeId = 42, CampusId = 43, Title = "Open classroom handout",
+            KindCode = "Worksheet", StateCode = "Approved", ScopeCode = "Public",
+            LanguageCode = "bn-BD", RightsHolder = "Source school",
+            LicenceCode = "CreativeCommons", LicenceEvidence = "Reviewed CC-BY author declaration",
+            SourceUrl = "https://education.example.org/cc-by-handout",
+            PublishedAtUtc = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
+        };
+        db.TeacherResources.Add(publicRow);
+        await db.SaveChangesAsync();
+        var viewer = Service(db, "Teacher", tenant: 102);
+        var result = await viewer.ListPublicAsync("classroom", 1, 20);
+        result.Success.Should().BeTrue(result.Message);
+        result.Data!.Items.Should().ContainSingle();
+        result.Data.Items[0].Reference.Should().Be(publicReference);
+        result.Data.Items[0].Institution.Should().Be("Source school");
+        result.Data.Items[0].SourceUrl.Should().StartWith("https://");
+        (await viewer.DownloadAsync(publicReference)).StatusCode.Should().Be(404);
+        (await Service(db, "Student", tenant: 102).ListPublicAsync(null, 1, 20))
+            .StatusCode.Should().Be(403);
+        publicRow.StateCode = "Withdrawn";
+        await db.SaveChangesAsync();
+        (await viewer.ListPublicAsync(null, 1, 20)).Data!.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Public_scope_rejects_institution_licence_and_missing_public_source()
+    {
+        await using var db = Context();
+        var teacher = await TeacherAsync(db);
+        var owner = Service(db, "Teacher");
+        var request = UploadRequest(Guid.NewGuid(), teacher.CampusId);
+        request.ScopeCode = "Public";
+        (await owner.UploadAsync(request, UploadFile())).StatusCode.Should().Be(400);
+        request.LicenceCode = "CreativeCommons";
+        (await owner.UploadAsync(request, UploadFile())).StatusCode.Should().Be(400);
+        request.SourceUrl = "http://untrusted.example.org/file";
+        (await owner.UploadAsync(request, UploadFile())).StatusCode.Should().Be(400);
+    }
 }

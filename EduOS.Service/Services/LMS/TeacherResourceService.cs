@@ -55,7 +55,7 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
         return query.Where(x => employees.Contains(x.AuthorEmployeeId) ||
             (x.StateCode == "Approved" &&
                 (!x.ExpiresAtUtc.HasValue || x.ExpiresAtUtc > Now) &&
-                (x.ScopeCode == "Institution" && campuses.Any() ||
+                ((x.ScopeCode == "Institution" || x.ScopeCode == "Public") && campuses.Any() ||
                  x.ScopeCode == "Campus" && campuses.Contains(x.CampusId))));
     }
 
@@ -80,13 +80,16 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
         x.RequestId != Guid.Empty && x.CampusId > 0 &&
         !string.IsNullOrWhiteSpace(x.Title) && x.Title.Trim().Length <= 250 &&
         (x.KindCode is "LessonPlan" or "Slide" or "Worksheet" or "Assessment" or "Exemplar" or "Other") &&
-        (x.ScopeCode is "Private" or "Campus" or "Institution") &&
+        (x.ScopeCode is "Private" or "Campus" or "Institution" or "Public") &&
         (x.LanguageCode is "bn-BD" or "en-BD") &&
         (x.Topic == null || x.Topic.Length <= 150) &&
         (x.SourceUrl == null || x.SourceUrl.Length <= 1000) && Https(x.SourceUrl) &&
         !string.IsNullOrWhiteSpace(x.RightsHolder) && x.RightsHolder.Length <= 200 &&
         (x.LicenceCode is "InstitutionOwned" or "PermissionGranted" or "CreativeCommons" or "PublicDomain") &&
         !string.IsNullOrWhiteSpace(x.LicenceEvidence) && x.LicenceEvidence.Length <= 500 &&
+        (x.ScopeCode != "Public" ||
+            (x.LicenceCode is "CreativeCommons" or "PublicDomain") &&
+            !string.IsNullOrWhiteSpace(x.SourceUrl) && Https(x.SourceUrl)) &&
         (!x.ExpiresAtUtc.HasValue || x.ExpiresAtUtc.Value.Kind == DateTimeKind.Utc);
 
     private static TeacherResourceDto Map(TeacherResource row, FileAsset asset,
@@ -193,6 +196,65 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
             }).ToList(),
             TotalCount = total, Page = page, PageSize = pageSize
         });
+    }
+
+    public async Task<ApiResponse<PagedResult<TeacherPublicResourceDto>>> ListPublicAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        if (!Manager && !Teacher)
+            return Error<PagedResult<TeacherPublicResourceDto>>("Teacher access required.", 403);
+        if (!Manager && !await MyActiveEmployees().AnyAsync(ct))
+            return Error<PagedResult<TeacherPublicResourceDto>>("Active teacher required.", 403);
+        if (page < 1 || pageSize is < 1 or > 50 || page > int.MaxValue / pageSize ||
+            search?.Length > 100)
+            return Error<PagedResult<TeacherPublicResourceDto>>("Invalid public catalogue filter.");
+        // The only intentionally cross-tenant read in Teacher Studio. No private
+        // FileAsset content, evidence, employee details or source tenant IDs leave
+        // the server. Source tenant suspension and asset revocation take effect live.
+        var query = from resource in db.TeacherResources.IgnoreQueryFilters().AsNoTracking()
+                    join institution in db.Tenants.AsNoTracking() on resource.TenantId equals institution.Id
+                    join file in db.FileAssets.IgnoreQueryFilters().AsNoTracking()
+                        on new { resource.TenantId, Id = resource.FileAssetId }
+                        equals new { file.TenantId, file.Id }
+                    where !resource.IsDeleted && resource.ScopeCode == "Public" &&
+                        resource.StateCode == "Approved" && resource.PublishedAtUtc.HasValue &&
+                        (!resource.ExpiresAtUtc.HasValue || resource.ExpiresAtUtc > Now) &&
+                        (resource.LicenceCode == "CreativeCommons" || resource.LicenceCode == "PublicDomain") &&
+                        resource.SourceUrl != null && resource.SourceUrl.StartsWith("https://") &&
+                        !institution.IsDeleted && institution.State == TenantState.Active &&
+                        !file.IsDeleted && file.IsVerifiedSafe && file.MalwareScanStateCode == "Clean" &&
+                        file.Visibility == FileVisibility.Private && file.StorageProvider == "LocalPrivate"
+                    select new { resource, institution };
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(x => x.resource.Title.Contains(term) ||
+                x.resource.Topic != null && x.resource.Topic.Contains(term));
+        }
+        var count = await query.CountAsync(ct);
+        var rows = await query.OrderByDescending(x => x.resource.PublishedAtUtc)
+            .ThenByDescending(x => x.resource.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new TeacherPublicResourceDto
+            {
+                Reference = x.resource.PublicId, Institution = x.institution.Name,
+                Title = x.resource.Title, KindCode = x.resource.KindCode,
+                Topic = x.resource.Topic, LanguageCode = x.resource.LanguageCode,
+                SourceUrl = x.resource.SourceUrl!, RightsHolder = x.resource.RightsHolder,
+                LicenceCode = x.resource.LicenceCode,
+                PublishedAtUtc = x.resource.PublishedAtUtc,
+                Subject = db.Subjects.IgnoreQueryFilters().Where(subject =>
+                    subject.TenantId == x.resource.TenantId &&
+                    subject.Id == x.resource.SubjectId && !subject.IsDeleted)
+                    .Select(subject => subject.Name).FirstOrDefault(),
+                Level = db.AcademicLevels.IgnoreQueryFilters().Where(level =>
+                    level.TenantId == x.resource.TenantId &&
+                    level.Id == x.resource.AcademicLevelId && !level.IsDeleted)
+                    .Select(level => level.Name).FirstOrDefault()
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<TeacherPublicResourceDto>>.SuccessResponse(
+            new PagedResult<TeacherPublicResourceDto>
+            { Items = rows, TotalCount = count, Page = page, PageSize = pageSize });
     }
 
     public async Task<ApiResponse<TeacherResourceDto>> UploadAsync(

@@ -2103,6 +2103,9 @@ public class EduOSDbContext :
         UniqueTenant<Course>(modelBuilder, nameof(Course.Code));
         UniqueTenant<TeacherResource>(modelBuilder, nameof(TeacherResource.PublicId));
         modelBuilder.Entity<TeacherResource>().HasIndex(x => x.PublicId).IsUnique();
+        modelBuilder.Entity<TeacherResource>()
+            .HasIndex(x => new { x.ScopeCode, x.StateCode, x.PublishedAtUtc })
+            .HasFilter("[IsDeleted] = 0");
         UniqueTenant<TeacherResource>(modelBuilder, nameof(TeacherResource.FileAssetId));
         modelBuilder.Entity<TeacherResource>()
             .HasIndex(x => new { x.TenantId, x.SupersedesResourceId })
@@ -2115,7 +2118,7 @@ public class EduOSDbContext :
         {
             t.HasCheckConstraint("CK_TeacherResources_Version", "[VersionNo] >= 1");
             t.HasCheckConstraint("CK_TeacherResources_State", "[StateCode] IN (N'Draft', N'Submitted', N'Approved', N'Rejected', N'Withdrawn')");
-            t.HasCheckConstraint("CK_TeacherResources_Scope", "[ScopeCode] IN (N'Private', N'Campus', N'Institution')");
+            t.HasCheckConstraint("CK_TeacherResources_Scope", "[ScopeCode] IN (N'Private', N'Campus', N'Institution', N'Public')");
             t.HasCheckConstraint("CK_TeacherResources_Kind", "[KindCode] IN (N'LessonPlan', N'Slide', N'Worksheet', N'Assessment', N'Exemplar', N'Other')");
         });
         UniqueTenant<CourseEnrollment>(modelBuilder, nameof(CourseEnrollment.ClientRequestId));
