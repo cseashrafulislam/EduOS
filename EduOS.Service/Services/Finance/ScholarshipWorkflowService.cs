@@ -381,7 +381,7 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
         {
             if (await db.ScholarshipDisbursements.AsNoTracking().AnyAsync(x =>
                 x.TenantId == user.TenantId && x.ScholarshipApplicationId == row.Id &&
-                x.State is "Submitted" or "Posted", ct))
+                (x.State == "Submitted" || x.State == "Posted" || x.State == "ReversalRequested"), ct))
                 return Fail<ScholarshipRow>("Cash payment must be rejected or reversed before cancellation.", 409);
         }
         // AwardAsync commits the canonical financial assignment before it links the

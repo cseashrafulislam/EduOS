@@ -149,16 +149,16 @@ public sealed class ScholarshipDisbursementService(EduOSDbContext db, ICurrentUs
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var source = await (from aid in db.ScholarshipApplications
+            var source = await (from application in db.ScholarshipApplications
                 join enrollment in db.StudentEnrollments.AsNoTracking()
-                    on new { aid.TenantId, Id = aid.StudentEnrollmentId }
+                    on new { application.TenantId, Id = application.StudentEnrollmentId }
                     equals new { enrollment.TenantId, enrollment.Id }
                 join student in db.Students.AsNoTracking()
                     on new { enrollment.TenantId, Id = enrollment.StudentId }
                     equals new { student.TenantId, student.Id }
-                where aid.TenantId == user.TenantId && aid.PublicId == applicationReference &&
-                    !aid.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted
-                select new { Aid = aid, enrollment.StudentId, enrollment.CampusId, student.FullName })
+                where application.TenantId == user.TenantId && application.PublicId == applicationReference &&
+                    !application.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted
+                select new { Aid = application, enrollment.StudentId, enrollment.CampusId, student.FullName })
                 .SingleOrDefaultAsync(ct);
             if (source == null) return Fail<ScholarshipDisbursementRow>("Scholarship unavailable.", 404);
             var aid = source.Aid;
