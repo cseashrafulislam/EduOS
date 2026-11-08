@@ -30,8 +30,12 @@
         document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
         document.getElementById('intakeFormList')?.addEventListener('click', handleIntakeFormAction);
-        document.getElementById('intakeFormSearch')?.addEventListener('input', renderIntakeForms);
-        document.getElementById('intakeFormState')?.addEventListener('change', renderIntakeForms);
+        document.getElementById('intakeFormSearch')?.addEventListener('input', resetIntakeCataloguePage);
+        document.getElementById('intakeFormState')?.addEventListener('change', resetIntakeCataloguePage);
+        document.getElementById('intakeFormSort')?.addEventListener('change', resetIntakeCataloguePage);
+        document.getElementById('intakeFormPageSize')?.addEventListener('change', resetIntakeCataloguePage);
+        document.getElementById('intakePreviousPage')?.addEventListener('click', () => changeIntakeCataloguePage(-1));
+        document.getElementById('intakeNextPage')?.addEventListener('click', () => changeIntakeCataloguePage(1));
         document.getElementById('newIntakeFormButton')?.addEventListener('click', openNewIntakeForm);
         document.getElementById('intakeFormEditor')?.addEventListener('submit', saveIntakeForm);
         document.getElementById('intakeFormEditor')?.addEventListener('input', clearIntakeValidation);
@@ -258,6 +262,20 @@
 
     function intakeText(english, bengali) { return bangla ? bengali : english; }
 
+    // Catalogue pagination is presentation-only: it never changes tenant-authorized API data.
+    const intakePaging = { page: 1, size: 10 };
+
+    function changeIntakeCataloguePage(delta) {
+        intakePaging.page = Math.max(1, intakePaging.page + delta);
+        renderIntakeForms();
+        document.getElementById('intakeFormCount')?.focus();
+    }
+
+    function resetIntakeCataloguePage() {
+        intakePaging.page = 1;
+        renderIntakeForms();
+    }
+
     function renderIntakeForms() {
         const list = document.getElementById('intakeFormList');
         if (!list) return;
@@ -267,18 +285,43 @@
             const matchesText = !query || [item.code, item.title].some(value => String(value || '').toLocaleLowerCase().includes(query));
             return matchesText && (!stateFilter || String(item.state) === stateFilter);
         });
+        const sort = document.getElementById('intakeFormSort')?.value || 'recent';
+        const byTitle = (a, b) => String(a.title || '').localeCompare(String(b.title || ''), bangla ? 'bn-BD' : 'en-BD');
+        visible.sort((a, b) => {
+            if (sort === 'title') return byTitle(a, b) || Number(a.id) - Number(b.id);
+            if (sort === 'opening') return String(a.opensAt || '').localeCompare(String(b.opensAt || '')) || byTitle(a, b);
+            return Number(b.id) - Number(a.id);
+        });
+        const pageSize = Number(document.getElementById('intakeFormPageSize')?.value || 10);
+        intakePaging.size = [10, 20, 50].includes(pageSize) ? pageSize : 10;
+        const totalPages = Math.max(1, Math.ceil(visible.length / intakePaging.size));
+        intakePaging.page = Math.min(Math.max(1, intakePaging.page), totalPages);
+        const offset = (intakePaging.page - 1) * intakePaging.size;
+        const pageItems = visible.slice(offset, offset + intakePaging.size);
         const count = document.getElementById('intakeFormCount');
-        if (count) count.textContent = intakeText(
-            `${visible.length} of ${state.intakeForms.length} admission forms`,
-            `মোট ${state.intakeForms.length}টি ফরমের মধ্যে ${visible.length}টি দেখানো হচ্ছে`
+        if (count) {
+            count.tabIndex = -1;
+            count.textContent = intakeText(
+                `Showing ${pageItems.length ? offset + 1 : 0}–${Math.min(offset + pageItems.length, visible.length)} of ${visible.length} matching forms (${state.intakeForms.length} total)`,
+                `মোট ${state.intakeForms.length}টি ফরমের মধ্যে ${visible.length}টি মিলেছে; দেখানো হচ্ছে ${pageItems.length ? offset + 1 : 0}–${Math.min(offset + pageItems.length, visible.length)}`
+            );
+        }
+        const pageStatus = document.getElementById('intakePageStatus');
+        if (pageStatus) pageStatus.textContent = intakeText(
+            `Page ${intakePaging.page} of ${totalPages}`,
+            `পৃষ্ঠা ${intakePaging.page} / ${totalPages}`
         );
+        const previous = document.getElementById('intakePreviousPage');
+        const next = document.getElementById('intakeNextPage');
+        if (previous) previous.disabled = intakePaging.page <= 1 || !visible.length;
+        if (next) next.disabled = intakePaging.page >= totalPages || !visible.length;
         if (!visible.length) {
             list.replaceChildren(statusMessage(state.intakeForms.length
                 ? intakeText('No forms match these filters.', 'এই অনুসন্ধানে কোনো ফরম পাওয়া যায়নি।')
                 : intakeText('No admission forms yet. Create a draft to begin.', 'এখনো কোনো ভর্তি ফরম নেই। শুরু করতে নতুন খসড়া তৈরি করুন।')));
             return;
         }
-        list.replaceChildren(...visible.map(item => {
+        list.replaceChildren(...pageItems.map(item => {
             const card = document.createElement('article');
             card.className = 'intake-form-card';
             const summary = document.createElement('div');

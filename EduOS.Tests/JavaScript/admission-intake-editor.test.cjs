@@ -57,3 +57,17 @@ test('required multi-select validation and invalid datetime values are safe befo
  assert.match(js, /missingChoices\.length/);
  assert.match(js, /Number\.isFinite\(parsed\.valueOf\(\)\) \? parsed\.toISOString\(\) : ''/);
 });
+
+test('intake catalogue provides bilingual sorting, bounded paging and accessible navigation', () => {
+  for (const id of ['intakeFormSort', 'intakeFormPageSize', 'intakePreviousPage', 'intakeNextPage', 'intakePageStatus'])
+    assert.ok(view.includes('id="' + id + '"'), id + ' control is missing');
+  assert.match(view, /id="intakePageStatus"[^>]*role="status"[^>]*aria-live="polite"/);
+  assert.match(js, /const intakePaging = \{ page: 1, size: 10 \}/);
+  assert.match(js, /\[10, 20, 50\]\.includes\(pageSize\)/);
+  assert.match(js, /Math\.min\(Math\.max\(1, intakePaging\.page\), totalPages\)/);
+  assert.match(js, /visible\.slice\(offset, offset \+ intakePaging\.size\)/);
+  assert.match(js, /pageItems\.map\(item =>/);
+  assert.match(js, /intakeFormSearch'\)\?\.addEventListener\('input', resetIntakeCataloguePage\)/);
+  assert.match(js, /intakePreviousPage'\)\?\.addEventListener\('click'/);
+  assert.match(js, /intakeNextPage'\)\?\.addEventListener\('click'/);
+});

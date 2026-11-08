@@ -107,7 +107,30 @@
                 </select>
             </div>
         </div>
+        <div class="row g-2 align-items-end mb-2">
+            <div class="col-sm-6">
+                <label for="intakeFormSort" class="form-label">@(bn ? "সাজানোর ক্রম" : "Sort forms")</label>
+                <select id="intakeFormSort" class="form-select">
+                    <option value="recent">@(bn ? "সর্বশেষ ফরম আগে" : "Newest forms first")</option>
+                    <option value="title">@(bn ? "নাম অনুযায়ী" : "By title")</option>
+                    <option value="opening">@(bn ? "শুরুর সময় অনুযায়ী" : "By opening date")</option>
+                </select>
+            </div>
+            <div class="col-sm-6">
+                <label for="intakeFormPageSize" class="form-label">@(bn ? "প্রতি পাতায়" : "Forms per page")</label>
+                <select id="intakeFormPageSize" class="form-select">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+        </div>
         <p id="intakeFormCount" class="small text-muted" role="status" aria-live="polite"></p>
+        <nav class="d-flex flex-wrap gap-2 align-items-center mb-2" aria-label="@(bn ? "ভর্তি ফরমের পৃষ্ঠা" : "Admission form pages")">
+            <button id="intakePreviousPage" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগের পাতা" : "Previous")</button>
+            <span id="intakePageStatus" role="status" aria-live="polite" class="small text-muted"></span>
+            <button id="intakeNextPage" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরের পাতা" : "Next")</button>
+        </nav>
         <div id="intakeFormList" class="intake-form-list" aria-live="polite" aria-busy="true"></div>
     </section>
 
