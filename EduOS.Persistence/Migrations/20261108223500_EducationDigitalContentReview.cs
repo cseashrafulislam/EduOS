@@ -34,15 +34,21 @@ public partial class EducationDigitalContentReview : Migration
             new[] { "TenantId", "ContentSubjectId" });
         migrationBuilder.CreateIndex("IX_Documents_TenantId_ContentCurriculumId_ContentSubjectId_IsActive", "Documents",
             new[] { "TenantId", "ContentCurriculumId", "ContentSubjectId", "IsActive" });
-        migrationBuilder.AddForeignKey("FK_Documents_AcademicCurriculums_TenantId_ContentCurriculumId", "Documents",
-            new[] { "TenantId", "ContentCurriculumId" }, "AcademicCurriculums",
-            new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
-        migrationBuilder.AddForeignKey("FK_Documents_AcademicLevels_TenantId_ContentLevelId", "Documents",
-            new[] { "TenantId", "ContentLevelId" }, "AcademicLevels",
-            new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
-        migrationBuilder.AddForeignKey("FK_Documents_Subjects_TenantId_ContentSubjectId", "Documents",
-            new[] { "TenantId", "ContentSubjectId" }, "Subjects",
-            new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
+        migrationBuilder.AddForeignKey(
+            name: "FK_Documents_AcademicCurriculums_TenantId_ContentCurriculumId",
+            table: "Documents", columns: new[] { "TenantId", "ContentCurriculumId" },
+            principalTable: "AcademicCurriculums", principalColumns: new[] { "TenantId", "Id" },
+            onDelete: ReferentialAction.Restrict);
+        migrationBuilder.AddForeignKey(
+            name: "FK_Documents_AcademicLevels_TenantId_ContentLevelId",
+            table: "Documents", columns: new[] { "TenantId", "ContentLevelId" },
+            principalTable: "AcademicLevels", principalColumns: new[] { "TenantId", "Id" },
+            onDelete: ReferentialAction.Restrict);
+        migrationBuilder.AddForeignKey(
+            name: "FK_Documents_Subjects_TenantId_ContentSubjectId",
+            table: "Documents", columns: new[] { "TenantId", "ContentSubjectId" },
+            principalTable: "Subjects", principalColumns: new[] { "TenantId", "Id" },
+            onDelete: ReferentialAction.Restrict);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
