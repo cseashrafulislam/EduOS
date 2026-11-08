@@ -144,7 +144,8 @@ public sealed class SqlServerScholarshipDisbursementIntegrationTests
         var posted = await checker.ReviewAsync(applicationRef, review);
         Assert.True(posted.Success, posted.Message);
         Assert.Equal("Posted", posted.Data!.State);
-        Assert.True((await checker.ReviewAsync(applicationRef, review)).Success);
+        var postedReplay = await checker.ReviewAsync(applicationRef, review);
+        Assert.True(postedReplay.Success, postedReplay.Message);
         db.ChangeTracker.Clear();
         var journal = Assert.Single(await db.Journals.Where(x => x.SourceType == "ScholarshipDisbursement").ToListAsync());
         var lines = await db.JournalLines.Where(x => x.JournalId == journal.Id).OrderBy(x => x.LineNo).ToArrayAsync();
