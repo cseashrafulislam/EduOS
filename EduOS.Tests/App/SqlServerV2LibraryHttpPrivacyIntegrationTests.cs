@@ -176,7 +176,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             (foreign.Reference, "Student", first.TenantId, first.UserId, HttpStatusCode.NotFound),
             (own.Reference, "Student", second.TenantId, second.UserId, HttpStatusCode.NotFound),
             (Guid.NewGuid(), "Student", first.TenantId, first.UserId, HttpStatusCode.NotFound),
-            (own.Reference, "Guardian", first.TenantId, first.UserId, HttpStatusCode.Forbidden)
+            (own.Reference, "Guardian", first.TenantId, first.UserId, HttpStatusCode.NotFound)
         })
         {
             using var denied = await PrivateGetAsync(client, id, role, tenant, user);

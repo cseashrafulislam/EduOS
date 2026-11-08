@@ -134,10 +134,12 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             Assert.Equal(HttpStatusCode.NotFound, guessed.StatusCode);
             AssertPrivateCache(guessed);
         }
+        // Guardian has a permitted route but no verified link to this student;
+        // the resource remains concealed by the service ownership boundary.
         using (var wrongRole = await PrivateGetAsync(client, cohort[0].Reference,
             "Guardian", cohort[0].Tenant.TenantId, sharedUserId))
         {
-            Assert.Equal(HttpStatusCode.Forbidden, wrongRole.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, wrongRole.StatusCode);
             AssertPrivateCache(wrongRole);
         }
 
