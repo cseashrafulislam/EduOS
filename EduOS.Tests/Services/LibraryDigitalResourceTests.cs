@@ -803,7 +803,7 @@ public sealed class LibraryDigitalResourceTests
         (await admin.ReplaceAsync(originalId, new LibraryDigitalReplaceRequestDto
         {
             RequestId = Guid.NewGuid(), RowVersion = request.RowVersion,
-            Title = "Unsafe second replacement"
+            Title = "Unsafe second replacement", Rights = Rights()
         }, Upload())).StatusCode.Should().Be(409);
     }
 }
