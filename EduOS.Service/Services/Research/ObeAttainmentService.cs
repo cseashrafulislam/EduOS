@@ -45,7 +45,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
         if (!Coordinator(await access.RolesAsync(ct)) || !await ProgramScopeAsync(campusId, programId, ct))
             return Denied<List<ObeCurriculumCourseDto>>();
         var rows = await (from cs in db.CurriculumSubjects.AsNoTracking()
-            join curriculum in db.AcademicCurricula.AsNoTracking() on cs.AcademicCurriculumId equals curriculum.Id
+            join curriculum in db.AcademicCurriculums.AsNoTracking() on cs.AcademicCurriculumId equals curriculum.Id
             join subject in db.Subjects.AsNoTracking() on cs.SubjectId equals subject.Id
             where cs.TenantId == access.TenantId && curriculum.TenantId == access.TenantId &&
                 subject.TenantId == access.TenantId && curriculum.AcademicProgramId == programId &&
@@ -151,7 +151,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             return Denied<ObePolicyDetailDto>();
         var courseIds = courses.Select(c => c.CurriculumSubjectId).ToArray();
         var validCourses = await (from cs in db.CurriculumSubjects.AsNoTracking()
-            join cur in db.AcademicCurricula.AsNoTracking() on cs.AcademicCurriculumId equals cur.Id
+            join cur in db.AcademicCurriculums.AsNoTracking() on cs.AcademicCurriculumId equals cur.Id
             where cs.TenantId == access.TenantId && cur.TenantId == access.TenantId &&
                 cur.AcademicProgramId == input.AcademicProgramId && cs.IsActive && !cs.IsDeleted &&
                 cur.IsActive && !cur.IsDeleted && courseIds.Contains(cs.Id)
@@ -185,7 +185,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
                 }
                 // Revalidate policy ownership inside the serializable transaction.
                 var courseCount = await (from cs in db.CurriculumSubjects.AsNoTracking()
-                    join cur in db.AcademicCurricula.AsNoTracking() on cs.AcademicCurriculumId equals cur.Id
+                    join cur in db.AcademicCurriculums.AsNoTracking() on cs.AcademicCurriculumId equals cur.Id
                     where cs.TenantId == access.TenantId && cur.TenantId == access.TenantId &&
                         cur.AcademicProgramId == input.AcademicProgramId && cs.IsActive && !cs.IsDeleted &&
                         cur.IsActive && !cur.IsDeleted && courseIds.Contains(cs.Id)
@@ -497,6 +497,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             input.Decision is not ("Approve" or "Reject") ||
             (input.Reason?.Trim().Length ?? 0) is < 10 or > 500)
             return Invalid<ObeReportDto>("Decision and independent review reason are required.");
+        var reason = input.Reason?.Trim() ?? "";
         if (!Coordinator(await access.RolesAsync(ct))) return Denied<ObeReportDto>();
         try
         {
@@ -510,7 +511,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
                     return row.ReviewRequestId == input.ClientRequestId &&
                         row.ReviewedByUserId == access.UserId &&
                         row.StateCode == (input.Decision == "Approve" ? "Approved" : "Rejected") &&
-                        row.ReviewReason == input.Reason.Trim()
+                        row.ReviewReason == reason
                         ? await ReportAsync(reference, token) : Conflict<ObeReportDto>();
                 if (MapReport(row) == null)
                     return ApiResponse<ObeReportDto>.ErrorResponse("Report integrity check failed.", 409);
@@ -529,7 +530,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
                 var changed = await db.Database.ExecuteSqlInterpolatedAsync($"""
                     UPDATE dbo.ObeAttainmentReports SET StateCode = {next}, ReviewedByUserId = {access.UserId},
                         ReviewedAtUtc = {Now}, ReviewRequestId = {input.ClientRequestId},
-                        ReviewReason = {input.Reason.Trim()}
+                        ReviewReason = {reason}
                     WHERE TenantId = {access.TenantId} AND Reference = {reference}
                         AND StateCode = {"Submitted"} AND SubmittedByUserId <> {access.UserId}
                     """, token);
