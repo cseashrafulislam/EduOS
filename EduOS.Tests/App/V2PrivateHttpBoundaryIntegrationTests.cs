@@ -165,7 +165,7 @@ public sealed class V2PrivateHttpBoundaryIntegrationTests
 
     [Theory]
     [InlineData(null, true, HttpStatusCode.Unauthorized)]
-    [InlineData("Guardian", true, HttpStatusCode.Forbidden)]
+    [InlineData("Guest", true, HttpStatusCode.Forbidden)]
     [InlineData("Student", false, HttpStatusCode.Forbidden)]
     public async Task Library_private_bytes_never_reach_service_when_http_auth_or_module_denies(
         string? role, bool moduleEnabled, HttpStatusCode expected)

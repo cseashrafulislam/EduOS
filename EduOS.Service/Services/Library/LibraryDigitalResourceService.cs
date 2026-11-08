@@ -550,7 +550,9 @@ public sealed class LibraryDigitalResourceService(
                 x.DocumentTypeCode == TypeCode && x.EntityType == EntityType)
             .Select(x => x.Id).FirstOrDefaultAsync(ct);
         if (documentId == 0) return ApiResponse<bool>.SuccessResponse(false);
-        var existing = await db.StudyBookmarks.FirstOrDefaultAsync(x =>
+        // The global soft-delete filter would otherwise hide a tombstone and make
+        // re-bookmarking collide with the unique (tenant, user, document) index.
+        var existing = await db.StudyBookmarks.IgnoreQueryFilters().FirstOrDefaultAsync(x =>
             x.TenantId == Tenant && x.UserId == user.UserId && x.DocumentId == documentId, ct);
         if (existing == null && !bookmarked)
             return ApiResponse<bool>.SuccessResponse(false);

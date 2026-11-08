@@ -233,7 +233,12 @@ public sealed class LibraryDigitalResourceTests
         (await learner.GetStudyBookmarksAsync([reference])).Data.Should().BeEmpty();
         (await learner.SetStudyBookmarkAsync(reference, true)).StatusCode.Should().Be(404);
         (await learner.SetStudyBookmarkAsync(reference, false)).Success.Should().BeTrue();
-        (await db.StudyBookmarks.SingleAsync()).IsDeleted.Should().BeTrue();
+        (await db.StudyBookmarks.IgnoreQueryFilters().SingleAsync()).IsDeleted.Should().BeTrue();
+        document.IsActive = true;
+        await db.SaveChangesAsync();
+        (await learner.SetStudyBookmarkAsync(reference, true)).Success.Should().BeTrue();
+        (await db.StudyBookmarks.IgnoreQueryFilters().CountAsync()).Should().Be(1);
+        (await learner.GetStudyBookmarksAsync([reference])).Data.Should().ContainSingle();
     }
 
     [Fact]
