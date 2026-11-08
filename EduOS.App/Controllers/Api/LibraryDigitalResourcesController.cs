@@ -50,7 +50,8 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
     {
         if (language is not ("en-BD" or "bn-BD"))
             return BadRequest("Unsupported report language.");
-        var result = await service.ListAsync(bookReference, search, page, pageSize, includeInactive, ct);
+        var result = await service.ListAsync(bookReference, search, page, pageSize, includeInactive, ct,
+            category, author, publisher, edition);
         if (!result.Success || result.Data == null) return StatusCode(result.StatusCode, result);
         Response.Headers.CacheControl = "no-store, private";
         Response.Headers.Pragma = "no-cache";

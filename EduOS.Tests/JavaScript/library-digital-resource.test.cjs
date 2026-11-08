@@ -52,6 +52,19 @@ test('digital resource UI is interactive, bounded, bilingual and avoids browser-
     assert.doesNotMatch(ui, /innerHTML\s*=/);
 });
 
+test('catalogue CSV export uses identical authorized advanced filters as list', () => {
+    const list = api.match(/public async Task<IActionResult> List\\([\\s\\S]*?\\n    }/);
+    const exportAction = api.match(/public async Task<IActionResult> Export\\([\\s\\S]*?\\n    }/);
+    assert.ok(list && exportAction, 'list and export endpoints must exist');
+    const call = /service\\.ListAsync\\(bookReference, search, page, pageSize, includeInactive, ct,\\s*category, author, publisher, edition\\)/;
+    assert.match(list[0], call);
+    assert.match(exportAction[0], call);
+    assert.match(exportAction[0], /\\[FromQuery\\] string\\? category/);
+    assert.match(exportAction[0], /\\[FromQuery\\] string\\? author/);
+    assert.match(exportAction[0], /\\[FromQuery\\] string\\? publisher/);
+    assert.match(exportAction[0], /\\[FromQuery\\] string\\? edition/);
+});
+
 test('digital resource export never exposes storage keys or student identity', () => {
     const writer = read('EduOS.App/Controllers/Api/LibraryDigitalCsvWriter.cs');
     assert.match(api, /\[Authorize\(Roles = "TenantAdmin"\)\][\s\S]*?Export/);
