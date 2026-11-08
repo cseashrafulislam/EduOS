@@ -48,6 +48,8 @@ test('OBE component discovery is publication-version scoped and never reads edit
     assert.match(service, /ObePublishedComponentEvidence/);
     assert.match(service, /ProgramScopeAsync\(campusId, programId, ct\)/);
     assert.match(service, /CompleteForCourse/);
+    assert.equal((service.match(/ReportSelect \+ "\\n" \+ """/g) || []).length, 2,
+        'SQL report fragments must retain a delimiter before WHERE');
     assert.match(js, /refreshComponentOptions/);
     assert.match(js, /completeForCourse/);
     assert.match(view, /id="obeEvidenceNotice"/);

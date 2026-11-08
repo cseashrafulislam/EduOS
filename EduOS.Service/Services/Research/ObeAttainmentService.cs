@@ -104,7 +104,8 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             where published.TenantId == access.TenantId && batch.TenantId == access.TenantId &&
                 assessment.TenantId == access.TenantId && published.Id == publicationId &&
                 published.State == ResultPublicationState.Published && published.HasCourseGradeSnapshots &&
-                published.PublishedAt != null && !published.IsDeleted && !batch.IsDeleted &&
+                published.PublishedAt != null && published.PublishedAt <= Now &&
+                !published.IsDeleted && !batch.IsDeleted &&
                 !assessment.IsDeleted && batch.CampusId == campusId &&
                 assessment.CampusId == campusId && batch.AcademicProgramId == programId
             select published.Id).AnyAsync(ct);
@@ -122,10 +123,14 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             """, access.TenantId, publicationId).ToListAsync(ct);
         if (registers.Count == 0) return ApiResponse<ObePublishedComponentCatalogDto>.SuccessResponse(result);
         var register = registers.Single();
+        var rosterCount = await db.StudentResultSummaries.AsNoTracking().CountAsync(x =>
+            x.TenantId == access.TenantId && x.ResultPublicationId == publicationId &&
+            !x.IsDeleted && !x.IsWithheld, ct);
         var courseCounts = await db.StudentResultCourseSnapshots.AsNoTracking().Where(x =>
             x.TenantId == access.TenantId && x.ResultPublicationId == publicationId && !x.IsDeleted)
             .GroupBy(x => x.CurriculumSubjectId)
             .Select(g => new { CurriculumSubjectId = g.Key, Count = g.Count(),
+                DistinctLearners = g.Select(x => x.StudentEnrollmentId).Distinct().Count(),
                 Invalid = g.Count(x => x.IsAbsent || x.IsWithheld || x.FullMarks <= 0) })
             .Take(251).ToListAsync(ct);
         if (courseCounts.Count > 250 || courseCounts.Sum(x => x.Count) != register.CourseRowCount ||
@@ -152,6 +157,8 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             CurriculumSubjectId = row.CurriculumSubjectId, ComponentCode = row.ComponentCode,
             RecordedRowCount = row.RecordedRowCount, LearnerCount = row.LearnerCount,
             CompleteForCourse = coursesById.TryGetValue(row.CurriculumSubjectId, out var course) &&
+                rosterCount > 0 && course.Count == rosterCount &&
+                course.DistinctLearners == rosterCount &&
                 course.Invalid == 0 && row.InvalidRowCount == 0 &&
                 row.RecordedRowCount == course.Count && row.LearnerCount == course.Count
         }).ToList();
@@ -562,7 +569,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
     }
 
     private async Task<ReportRecord?> ReadReportAsync(Guid reference, CancellationToken ct) =>
-        (await db.Database.SqlQueryRaw<ReportRecord>(ReportSelect + """
+        (await db.Database.SqlQueryRaw<ReportRecord>(ReportSelect + "\n" + """
              WHERE r.TenantId = {0} AND r.Reference = {1}
              """, access.TenantId, reference).ToListAsync(ct)).SingleOrDefault();
 
@@ -587,7 +594,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
     {
         if (!Coordinator(await access.RolesAsync(ct)) || !await ProgramScopeAsync(campusId, programId, ct))
             return Denied<List<ObeReportDto>>();
-        var rows = await db.Database.SqlQueryRaw<ReportRecord>(ReportSelect + """
+        var rows = await db.Database.SqlQueryRaw<ReportRecord>(ReportSelect + "\n" + """
             WHERE r.TenantId = {0} AND p.CampusId = {1} AND p.AcademicProgramId = {2}
             ORDER BY r.SubmittedAtUtc DESC, r.Reference
             OFFSET 0 ROWS FETCH NEXT 100 ROWS ONLY
