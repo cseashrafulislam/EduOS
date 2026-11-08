@@ -33,6 +33,13 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
     private bool CanCapture => InTenant && (IsExamManager || user.IsInRole("Teacher"));
     private static ApiResponse<T> Fail<T>(string message, int status = 400) =>
         ApiResponse<T>.ErrorResponse(message, status);
+    private static bool IsSqlContention(Exception exception)
+    {
+        for (Exception? error = exception; error != null; error = error.InnerException)
+            if (error is SqlException sql && sql.Number is 1205 or 1222)
+                return true;
+        return false;
+    }
     private sealed record Scope(long SubjectId, long AssessmentId, long OfferingId, long CampusId,
         long BatchId, AssessmentState State, decimal SubjectMarks, decimal ComponentMarks);
 
@@ -300,6 +307,11 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             logger.LogWarning(ex, "OMR capture database contention tenant {Tenant}", tenant);
             return Fail<OmrSheetDto>("OMR capture was busy; reload and retry with the same request ID.", 409);
         }
+        catch (InvalidOperationException ex) when (IsSqlContention(ex))
+        {
+            logger.LogWarning(ex, "OMR capture database contention tenant {Tenant}", tenant);
+            return Fail<OmrSheetDto>("OMR capture was busy; reload and retry with the same request ID.", 409);
+        }
     }
 
     public async Task<ApiResponse<OmrSheetDto>> GetAsync(Guid reference, CancellationToken ct = default)
@@ -436,6 +448,11 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             logger.LogWarning(ex, "OMR review database contention tenant {Tenant}", user.TenantId);
             return Fail<OmrSheetDto>("OMR review was busy; reload and retry with the same request ID.", 409);
         }
+        catch (InvalidOperationException ex) when (IsSqlContention(ex))
+        {
+            logger.LogWarning(ex, "OMR review database contention tenant {Tenant}", user.TenantId);
+            return Fail<OmrSheetDto>("OMR review was busy; reload and retry with the same request ID.", 409);
+        }
     }
 
     /// <summary>Posts an independently reviewed sheet through the canonical subject and component
@@ -548,6 +565,11 @@ public sealed partial class OmrWorkflowService(EduOSDbContext db, ICurrentUserSe
             return Fail<OmrSheetDto>("Marks posting conflicted; reload and retry.", 409);
         }
         catch (SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            logger.LogWarning(ex, "OMR posting database contention tenant {Tenant}", user.TenantId);
+            return Fail<OmrSheetDto>("Marks posting was busy; reload and retry with the same request ID.", 409);
+        }
+        catch (InvalidOperationException ex) when (IsSqlContention(ex))
         {
             logger.LogWarning(ex, "OMR posting database contention tenant {Tenant}", user.TenantId);
             return Fail<OmrSheetDto>("Marks posting was busy; reload and retry with the same request ID.", 409);
