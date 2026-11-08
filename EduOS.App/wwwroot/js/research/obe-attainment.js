@@ -82,7 +82,9 @@
             .forEach(x => hr.appendChild(create('th', '', x)));
         header.appendChild(hr); table.appendChild(header);
         const body = create('tbody');
-        preview.courseOutcomes.forEach(c => rowText(body, ['CLO', c.courseOutcomeCode, Number(c.attainmentPercent).toFixed(2)]));
+        preview.courseOutcomes.forEach(c => rowText(body, ['CLO',
+            c.courseOutcomeCode + (c.componentCode ? ' · ' + c.componentCode : ' · ' + t('course grade', 'কোর্স গ্রেড')),
+            Number(c.attainmentPercent).toFixed(2)]));
         preview.outcomes.forEach(p => rowText(body, ['PLO', p.programOutcomeCode, Number(p.attainmentPercent).toFixed(2)]));
         table.appendChild(body); target.appendChild(create('div', 'table-responsive')).appendChild(table);
         target.appendChild(create('p', 'small text-muted', t('Evidence digest: ', 'প্রমাণের হ্যাশ: ') + preview.evidenceSha256));
@@ -103,13 +105,17 @@
         courses.forEach(c => option(course, c.curriculumSubjectId, c.subjectCode + ' · ' + c.subjectName));
         const code = create('input', 'form-control mb-2'); code.dataset.role = 'code';
         code.required = true; code.maxLength = 40; code.placeholder = t('CLO code, e.g. CLO1', 'CLO কোড, যেমন CLO1');
+        const component = create('input', 'form-control mb-2'); component.dataset.role = 'component';
+        component.maxLength = 50;
+        component.placeholder = t('Published assessment component code (optional; blank = course-grade proxy)',
+            'প্রকাশিত মূল্যায়ন কম্পোনেন্ট কোড (ঐচ্ছিক; খালি = কোর্স গ্রেড)');
         const statement = create('textarea', 'form-control mb-2'); statement.dataset.role = 'statement';
         statement.required = true; statement.minLength = 10; statement.maxLength = 1000; statement.rows = 2;
         statement.placeholder = t('Measurable course learning outcome', 'পরিমাপযোগ্য কোর্স শিক্ষণফল');
         const remove = create('button', 'btn btn-sm btn-outline-danger', t('Remove', 'সরান')); remove.type = 'button';
         remove.addEventListener('click', () => { box.remove(); refreshCloOptions(); policyRetry = null; });
         code.addEventListener('input', refreshCloOptions);
-        box.append(course, code, statement, remove); get('obeCloRows').appendChild(box);
+        box.append(course, code, component, statement, remove); get('obeCloRows').appendChild(box);
         policyRetry = null;
     }
     function addLink() {
@@ -214,6 +220,7 @@
             const courseOutcomes = [...get('obeCloRows').children].map(row => ({
                 curriculumSubjectId: Number(row.querySelector('[data-role="course"]').value),
                 code: row.querySelector('[data-role="code"]').value.trim().toUpperCase(),
+                componentCode: row.querySelector('[data-role="component"]').value.trim().toUpperCase() || null,
                 statement: row.querySelector('[data-role="statement"]').value.trim()
             }));
             const contributions = [...get('obeLinkRows').children].map(row => ({

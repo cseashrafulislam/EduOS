@@ -1,6 +1,8 @@
 using EduOS.App.Authorization;
 using EduOS.App.Controllers.Api;
+using EduOS.Core.DTOs.Research;
 using EduOS.Service.Services.AssessmentAdministration;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;
 
@@ -37,6 +39,70 @@ public sealed class ObeAttainmentWorkflowContractTests
         Assert.Contains("TR_ObeAttainmentReports_Freeze", migration);
         Assert.Contains("TR_ObePolicies_Immutable", migration);
         Assert.Contains("SubmittedByUserId", migration);
+    }
+
+    [Fact]
+    public void Frozen_rubric_migration_and_canonical_publication_capture_prevent_live_mark_reinterpretation()
+    {
+        var migration = Read("EduOS.Persistence", "Migrations",
+            "20261108093000_ObePublishedComponentEvidence.cs");
+        Assert.Contains("ObePublishedComponentRegisters", migration);
+        Assert.Contains("ObePublishedComponentEvidence", migration);
+        Assert.Contains("TR_ObePublishedComponentEvidence_Immutable", migration);
+        Assert.Contains("TR_ObePublishedComponentRegisters_Immutable", migration);
+        Assert.Contains("UX_ObeCourseOutcomes_CourseComponent", migration);
+        Assert.Contains("FK_ObePublishedComponentEvidence_Publication", migration);
+        Assert.Contains("decimal(18,2)", migration);
+        var capture = Read("EduOS.Service", "Services", "Assessment",
+            "AssessmentAdministrationService.CourseGradeSnapshots.cs");
+        Assert.Contains("CapturePublishedObeComponentsAsync", capture);
+        Assert.Contains("StudentResultCourseSnapshots AS grade", capture);
+        Assert.Contains("StudentAssessmentComponentMarks AS detail", capture);
+        Assert.Contains("actual != expected", capture);
+        var publish = Read("EduOS.Service", "Services", "Assessment",
+            "AssessmentAdministrationService.cs");
+        var correction = Read("EduOS.Service", "Services", "Assessment",
+            "AssessmentAdministrationService.ResultCorrections.cs");
+        Assert.Contains("CapturePublishedObeComponentsAsync(publication, now, token)", publish);
+        Assert.Contains("CapturePublishedObeComponentsAsync(replacement, now, token)", correction);
+        var service = Read("EduOS.Service", "Services", "Research", "ObeAttainmentService.cs");
+        Assert.Contains("ObePublishedComponentRegisters", service);
+        Assert.Contains("ObePublishedComponentEvidence", service);
+        Assert.Contains("legacyCourseOnly ? courseByClo", service);
+        Assert.Contains("x.CourseOutcomeId,", service);
+        Assert.DoesNotContain("db.StudentAssessmentComponentMarks.AsNoTracking()", service);
+    }
+
+    [Fact]
+    public void Two_distinct_component_clos_in_one_course_keep_separate_evidence_and_precise_plo_weight()
+    {
+        // The published calculator keys rows by the immutable CLO ID, not by
+        // curriculum course ID: two rubric components must remain distinguishable.
+        var evidence = new[]
+        {
+            Row(1, 501, 90), Row(1, 502, 40),
+            Row(2, 501, 70), Row(2, 502, 80)
+        };
+        var mapped = new[]
+        {
+            new PublishedOutcomeAttainmentPolicy.Mapping(600, 501, 25),
+            new PublishedOutcomeAttainmentPolicy.Mapping(600, 502, 75)
+        };
+        var outcome = PublishedOutcomeAttainmentPolicy.CalculateCompleteCohortForRoster(
+            evidence, mapped, [1, 2]).Single();
+        Assert.Equal(65m, outcome.AttainmentPercent);
+        Assert.Throws<ArgumentException>(() => PublishedOutcomeAttainmentPolicy.CalculateCompleteCohortForRoster(
+            evidence[..3], mapped, [1, 2]));
+    }
+
+    [Fact]
+    public void Legacy_course_proxy_create_request_digest_excludes_new_optional_null_component_code()
+    {
+        var row = new ObeCourseOutcomeInputDto
+        { CurriculumSubjectId = 7, Code = "CLO1", Statement = "Read academic literature" };
+        Assert.Equal(
+            "{\"CurriculumSubjectId\":7,\"Code\":\"CLO1\",\"Statement\":\"Read academic literature\"}",
+            JsonSerializer.Serialize(row));
     }
 
     [Fact]

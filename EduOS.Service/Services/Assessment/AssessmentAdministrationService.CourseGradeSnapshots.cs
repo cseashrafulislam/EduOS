@@ -43,6 +43,78 @@ public sealed partial class AssessmentAdministrationService
         }
     }
 
+    // This read-only OBE extension is captured in the SAME academic publication/correction
+    // transaction, after canonical course rows have been persisted. During an additive
+    // mixed-version deployment the table may not yet exist: the result still publishes
+    // normally, while rubric attainment fails closed for that version (no register).
+    private async Task CapturePublishedObeComponentsAsync(ResultPublication publication,
+        DateTime now, CancellationToken ct)
+    {
+        if (_obeDb == null || _courseSnapshots == null || !publication.HasCourseGradeSnapshots) return;
+        var installed = await _obeDb.Database.SqlQueryRaw<int>("""
+            SELECT CASE WHEN OBJECT_ID(N'dbo.ObePublishedComponentRegisters', N'U') IS NOT NULL
+                AND OBJECT_ID(N'dbo.ObePublishedComponentEvidence', N'U') IS NOT NULL
+                THEN 1 ELSE 0 END AS Value
+            """).SingleAsync(ct);
+        if (installed == 0) return;
+        var tenant = _user.TenantId;
+        var courses = await _courseSnapshots.GetQueryable().AsNoTracking().CountAsync(x =>
+            x.TenantId == tenant && x.ResultPublicationId == publication.Id && !x.IsDeleted, ct);
+        if (courses == 0) return;
+        var expected = await _obeDb.Database.SqlQueryRaw<long>("""
+            SELECT COUNT_BIG(*) AS Value
+            FROM dbo.StudentResultCourseSnapshots AS grade
+            JOIN dbo.AssessmentComponents AS component
+              ON component.TenantId = grade.TenantId
+             AND component.AssessmentSubjectId = grade.AssessmentSubjectId
+             AND component.IsDeleted = 0
+            WHERE grade.TenantId = {0} AND grade.ResultPublicationId = {1}
+              AND grade.IsDeleted = 0
+            """, tenant, publication.Id).SingleAsync(ct);
+        // OBE is optional reporting evidence, never a reason to block a large
+        // valid academic publication. The absence of a register forbids rubric use.
+        if (expected > 75000)
+        {
+            _logger.LogWarning("OBE component capture exceeded 75K rows for tenant {TenantId}, publication {PublicationId}",
+                tenant, publication.Id);
+            return;
+        }
+        await _obeDb.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO dbo.ObePublishedComponentEvidence
+              (TenantId, ResultPublicationId, StudentEnrollmentId, CurriculumSubjectId,
+               AssessmentComponentId, ComponentCode, FullMarks, ObtainedMarks, IsAbsent, IsWithheld)
+            SELECT grade.TenantId, grade.ResultPublicationId, grade.StudentEnrollmentId,
+                grade.CurriculumSubjectId, component.Id, component.Code, component.FullMarks,
+                detail.ObtainedMarks, detail.IsAbsent, detail.IsWithheld
+            FROM dbo.StudentResultCourseSnapshots AS grade
+            JOIN dbo.AssessmentComponents AS component
+              ON component.TenantId = grade.TenantId
+             AND component.AssessmentSubjectId = grade.AssessmentSubjectId
+             AND component.IsDeleted = 0
+            JOIN dbo.StudentAssessmentMarks AS master
+              ON master.TenantId = grade.TenantId
+             AND master.AssessmentSubjectId = grade.AssessmentSubjectId
+             AND master.StudentSubjectRegistrationId = grade.StudentSubjectRegistrationId
+             AND master.IsDeleted = 0
+            JOIN dbo.StudentAssessmentComponentMarks AS detail
+              ON detail.TenantId = grade.TenantId AND detail.AssessmentComponentId = component.Id
+             AND detail.StudentAssessmentMarkId = master.Id AND detail.IsDeleted = 0
+            WHERE grade.TenantId = {tenant} AND grade.ResultPublicationId = {publication.Id}
+              AND grade.IsDeleted = 0
+            """, ct);
+        var actual = await _obeDb.Database.SqlQueryRaw<long>("""
+            SELECT COUNT_BIG(*) AS Value FROM dbo.ObePublishedComponentEvidence
+            WHERE TenantId = {0} AND ResultPublicationId = {1}
+            """, tenant, publication.Id).SingleAsync(ct);
+        if (actual != expected)
+            throw new InvalidOperationException("Published component evidence is incomplete; academic transaction rolled back.");
+        await _obeDb.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO dbo.ObePublishedComponentRegisters
+              (TenantId, ResultPublicationId, CourseRowCount, ComponentRowCount, CapturedAtUtc)
+            VALUES ({tenant}, {publication.Id}, {courses}, {(int)actual}, {now})
+            """, ct);
+    }
+
     // Check the complete published version, not merely the requested page. A deleted,
     // missing, duplicate or cross-publication course must fail the same integrity
     // gate as a damaged summary. Old publications without course evidence are

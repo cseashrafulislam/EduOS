@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace EduOS.Core.DTOs.Research;
 
@@ -15,6 +16,10 @@ public sealed class ObePolicyCreateDto
 public sealed class ObeCourseOutcomeInputDto
 {
     public long CurriculumSubjectId { get; set; }
+    // Omit null in the policy request digest so pre-upgrade course-proxy
+    // idempotency keys remain replay-compatible after this additive extension.
+    [StringLength(50), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ComponentCode { get; set; }
     [Required, StringLength(40, MinimumLength = 2)] public string Code { get; set; } = "";
     [Required, StringLength(1000, MinimumLength = 10)] public string Statement { get; set; } = "";
 }
@@ -39,6 +44,7 @@ public sealed class ObeCourseOutcomeDto
 {
     public long Id { get; set; }
     public long CurriculumSubjectId { get; set; }
+    public string? ComponentCode { get; set; }
     public string Code { get; set; } = "";
     public string Statement { get; set; } = "";
 }
@@ -87,6 +93,7 @@ public sealed class ObeCloAttainmentDto
     public long CourseOutcomeId { get; set; }
     public string CourseOutcomeCode { get; set; } = "";
     public long CurriculumSubjectId { get; set; }
+    public string? ComponentCode { get; set; }
     public decimal AttainmentPercent { get; set; }
 }
 

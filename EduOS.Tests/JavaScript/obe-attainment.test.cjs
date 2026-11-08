@@ -36,5 +36,6 @@ test('OBE UI provides bilingual mapping, review, privacy-aware export and page h
     assert.match(api, /StateCode != "Approved"/);
     assert.match(api, /Download.*CSV|ApprovedCsv/);
     assert.match(help, /'\/accreditation\/obe\/index':/);
-    assert.match(help, /course-grade CLO proxies/);
+    assert.match(help, /Component CLOs require the exact immutable component register/);
+    assert.match(js, /componentCode: row\.querySelector/);
 });

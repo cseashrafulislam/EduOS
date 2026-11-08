@@ -15,9 +15,8 @@ using Microsoft.Extensions.Logging;
 namespace EduOS.Service.Services.Research;
 
 /// <summary>
-/// OBE is a versioned interpretation of canonical published course-grade evidence,
-/// never a second result engine. This release uses course-grade CLO proxies;
-/// assessment-component rubric attainment must not be inferred from editable marks.
+/// OBE interprets only canonical published course-grade and frozen component evidence,
+/// never live assessment marks or a second result engine.
 /// </summary>
 public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAccess access,
     TimeProvider clock, ILogger<ObeAttainmentService> logger) : IObeAttainmentService
@@ -98,7 +97,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             """, access.TenantId, id).ToListAsync(ct)).SingleOrDefault();
         if (policy == null) return null;
         var courses = await db.Database.SqlQueryRaw<ObeCourseOutcomeDto>("""
-            SELECT Id, CurriculumSubjectId, Code, Statement FROM dbo.ObeCourseOutcomes
+            SELECT Id, CurriculumSubjectId, ComponentCode, Code, Statement FROM dbo.ObeCourseOutcomes
             WHERE TenantId = {0} AND PolicyId = {1} ORDER BY Code
             """, access.TenantId, id).ToListAsync(ct);
         var contributions = await db.Database.SqlQueryRaw<ObePloContributionDto>("""
@@ -133,14 +132,16 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             return Invalid<ObePolicyDetailDto>("Invalid course outcome or mapping row.");
         var courses = input.CourseOutcomes.Select(c => new ObeCourseOutcomeInputDto
         { CurriculumSubjectId = c.CurriculumSubjectId, Code = (c.Code ?? "").Trim().ToUpperInvariant(),
+            ComponentCode = string.IsNullOrWhiteSpace(c.ComponentCode) ? null : c.ComponentCode.Trim().ToUpperInvariant(),
             Statement = (c.Statement ?? "").Trim() }).OrderBy(c => c.Code).ToList();
         var links = input.Contributions.Select(c => new ObePloContributionInputDto
         { CourseOutcomeCode = (c.CourseOutcomeCode ?? "").Trim().ToUpperInvariant(),
             ProgramOutcomeId = c.ProgramOutcomeId, WeightPercent = c.WeightPercent })
             .OrderBy(c => c.ProgramOutcomeId).ThenBy(c => c.CourseOutcomeCode).ToList();
-        if (courses.Any(c => c.CurriculumSubjectId <= 0 || !Code(c.Code) || c.Statement.Length is < 10 or > 1000) ||
+        if (courses.Any(c => c.CurriculumSubjectId <= 0 || !Code(c.Code) || c.Statement.Length is < 10 or > 1000 ||
+                (c.ComponentCode != null && (c.ComponentCode.Length > 50 || c.ComponentCode.Any(char.IsControl)))) ||
             courses.Select(c => c.Code).Distinct().Count() != courses.Count ||
-            courses.Select(c => c.CurriculumSubjectId).Distinct().Count() != courses.Count ||
+            courses.Select(c => (c.CurriculumSubjectId, c.ComponentCode)).Distinct().Count() != courses.Count ||
             links.Any(x => !courses.Any(c => c.Code == x.CourseOutcomeCode) || x.ProgramOutcomeId <= 0 ||
                 x.WeightPercent <= 0 || x.WeightPercent > 100 || decimal.Round(x.WeightPercent, 4) != x.WeightPercent) ||
             links.Select(x => (x.ProgramOutcomeId, x.CourseOutcomeCode)).Distinct().Count() != links.Count ||
@@ -160,7 +161,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             SELECT Id, AcademicProgramId, Code, VersionNo, Statement FROM dbo.AccreditationProgramOutcomes
             WHERE TenantId = {0} AND AcademicProgramId = {1}
             """, access.TenantId, input.AcademicProgramId).ToListAsync(ct);
-        if (validCourses != courses.Count || links.Select(x => x.ProgramOutcomeId).Distinct()
+        if (validCourses != courseIds.Distinct().Count() || links.Select(x => x.ProgramOutcomeId).Distinct()
             .Any(id => !validOutcomes.Any(o => o.Id == id)) ||
             validOutcomes.Where(o => links.Any(x => x.ProgramOutcomeId == o.Id))
                 .GroupBy(o => o.Code).Any(g => g.Count() > 1)) return Denied<ObePolicyDetailDto>();
@@ -194,7 +195,7 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
                     SELECT Id, AcademicProgramId, Code, VersionNo, Statement FROM dbo.AccreditationProgramOutcomes
                     WHERE TenantId = {0} AND AcademicProgramId = {1}
                     """, access.TenantId, input.AcademicProgramId).ToListAsync(token);
-                if (courseCount != courses.Count || links.Any(x => !allowedOutcomes.Any(o => o.Id == x.ProgramOutcomeId)) ||
+                if (courseCount != courseIds.Distinct().Count() || links.Any(x => !allowedOutcomes.Any(o => o.Id == x.ProgramOutcomeId)) ||
                     allowedOutcomes.Where(o => links.Any(x => x.ProgramOutcomeId == o.Id))
                         .GroupBy(o => o.Code).Any(g => g.Count() > 1))
                     return Denied<ObePolicyDetailDto>();
@@ -212,12 +213,14 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
                 foreach (var course in courses)
                 {
                     await db.Database.ExecuteSqlInterpolatedAsync($"""
-                        INSERT INTO dbo.ObeCourseOutcomes (TenantId, PolicyId, CurriculumSubjectId, Code, Statement)
-                        VALUES ({access.TenantId}, {id}, {course.CurriculumSubjectId}, {course.Code}, {course.Statement})
+                        INSERT INTO dbo.ObeCourseOutcomes
+                            (TenantId, PolicyId, CurriculumSubjectId, ComponentCode, Code, Statement)
+                        VALUES ({access.TenantId}, {id}, {course.CurriculumSubjectId},
+                            {course.ComponentCode}, {course.Code}, {course.Statement})
                         """, token);
                 }
                 var saved = await db.Database.SqlQueryRaw<ObeCourseOutcomeDto>("""
-                    SELECT Id, CurriculumSubjectId, Code, Statement FROM dbo.ObeCourseOutcomes
+                    SELECT Id, CurriculumSubjectId, ComponentCode, Code, Statement FROM dbo.ObeCourseOutcomes
                     WHERE TenantId = {0} AND PolicyId = {1}
                     """, access.TenantId, id).ToListAsync(token);
                 foreach (var c in saved) newIds[c.Code] = c.Id;
@@ -308,21 +311,79 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
             select grade.Id).CountAsync(ct);
         if (validCourseProvenance != rows.Count)
             return ApiResponse<ObePreviewDto>.ErrorResponse("Course evidence does not match the enrolled curriculum.", 422);
+        var requiresComponents = policy.CourseOutcomes.Any(x => x.ComponentCode != null);
+        var components = new List<ObeFrozenComponentRow>();
+        if (requiresComponents)
+        {
+            var registers = await db.Database.SqlQueryRaw<ObeFrozenRegisterRow>("""
+                SELECT CourseRowCount, ComponentRowCount
+                FROM dbo.ObePublishedComponentRegisters
+                WHERE TenantId = {0} AND ResultPublicationId = {1}
+                """, access.TenantId, publicationId).ToListAsync(ct);
+            if (registers.Count != 1 || registers[0].CourseRowCount != snapshotCounts.Sum(x => x.Count) ||
+                registers[0].ComponentRowCount > 75000)
+                return ApiResponse<ObePreviewDto>.ErrorResponse(
+                    "This publication has no complete immutable assessment-component register.", 422);
+            components = await db.Database.SqlQueryRaw<ObeFrozenComponentRow>("""
+                SELECT TOP(75001) StudentEnrollmentId, CurriculumSubjectId, ComponentCode,
+                    FullMarks, ObtainedMarks, IsAbsent, IsWithheld
+                FROM dbo.ObePublishedComponentEvidence
+                WHERE TenantId = {0} AND ResultPublicationId = {1}
+                ORDER BY StudentEnrollmentId, AssessmentComponentId
+                """, access.TenantId, publicationId).ToListAsync(ct);
+            if (components.Count != registers[0].ComponentRowCount ||
+                components.Any(x => x.FullMarks <= 0 || x.ObtainedMarks < 0 ||
+                    x.ObtainedMarks > x.FullMarks || x.IsAbsent && x.ObtainedMarks != 0))
+                return ApiResponse<ObePreviewDto>.ErrorResponse(
+                    "Published assessment-component evidence reconciliation failed.", 422);
+        }
+        var legacyCourseOnly = !requiresComponents;
         var courseByClo = policy.CourseOutcomes.ToDictionary(x => x.Id, x => x.CurriculumSubjectId);
+        // Legacy policies must retain their original evidence digest and
+        // idempotent pending report review semantics after the additive upgrade.
         var mapping = policy.Contributions.Select(x => new PublishedOutcomeAttainmentPolicy.Mapping(
-            x.ProgramOutcomeId, courseByClo[x.CourseOutcomeId], x.WeightPercent)).ToList();
-        var evidence = rows.Select(x => new PublishedOutcomeAttainmentPolicy.Evidence(
-            publicationId, scope.VersionNo, x.StudentEnrollmentId, x.CurriculumSubjectId,
-            x.FullMarks, x.ObtainedMarks, x.IsAbsent, x.IsWithheld, true, true)).ToList();
+            x.ProgramOutcomeId, legacyCourseOnly ? courseByClo[x.CourseOutcomeId] : x.CourseOutcomeId,
+            x.WeightPercent)).ToList();
+        var evidence = legacyCourseOnly
+            ? rows.Select(x => new PublishedOutcomeAttainmentPolicy.Evidence(
+                publicationId, scope.VersionNo, x.StudentEnrollmentId, x.CurriculumSubjectId,
+                x.FullMarks, x.ObtainedMarks, x.IsAbsent, x.IsWithheld, true, true)).ToList()
+            : new List<PublishedOutcomeAttainmentPolicy.Evidence>();
+        // Mixed/component policies key evidence by immutable CLO ID: multiple
+        // measured components from one course must never collapse into a grade.
+        foreach (var clo in legacyCourseOnly ? Array.Empty<ObeCourseOutcomeDto>() : policy.CourseOutcomes)
+        {
+            if (clo.ComponentCode == null)
+                evidence.AddRange(rows.Where(x => x.CurriculumSubjectId == clo.CurriculumSubjectId)
+                    .Select(x => new PublishedOutcomeAttainmentPolicy.Evidence(
+                        publicationId, scope.VersionNo, x.StudentEnrollmentId, clo.Id,
+                        x.FullMarks, x.ObtainedMarks, x.IsAbsent, x.IsWithheld, true, true)));
+            else
+                evidence.AddRange(components.Where(x => x.CurriculumSubjectId == clo.CurriculumSubjectId &&
+                        string.Equals(x.ComponentCode, clo.ComponentCode, StringComparison.OrdinalIgnoreCase))
+                    .Select(x => new PublishedOutcomeAttainmentPolicy.Evidence(
+                        publicationId, scope.VersionNo, x.StudentEnrollmentId, clo.Id,
+                        x.FullMarks, x.ObtainedMarks, x.IsAbsent, x.IsWithheld, true, true)));
+        }
+        if (evidence.Count is 0 or > 50000)
+            return ApiResponse<ObePreviewDto>.ErrorResponse(
+                "Mapped rubric evidence exceeds the interactive calculation limit.", 422);
         try
         {
             var roster = summaries.Select(x => x.StudentEnrollmentId).ToArray();
             var outcomes = PublishedOutcomeAttainmentPolicy.CalculateCompleteCohortForRoster(
                 evidence, mapping, roster);
-            var digest = Hash(JsonSerializer.Serialize(new { publicationId, scope.VersionNo,
-                PolicyId = policy.Policy.Id, Evidence = evidence.OrderBy(x => x.EnrollmentId)
-                    .ThenBy(x => x.CurriculumSubjectId).ToArray(),
-                Mappings = mapping.OrderBy(x => x.OutcomeId).ThenBy(x => x.CurriculumSubjectId).ToArray() }));
+            var stableEvidence = evidence.OrderBy(x => x.EnrollmentId)
+                .ThenBy(x => x.CurriculumSubjectId).ToArray();
+            var stableMapping = mapping.OrderBy(x => x.OutcomeId).ThenBy(x => x.CurriculumSubjectId).ToArray();
+            var digest = legacyCourseOnly
+                ? Hash(JsonSerializer.Serialize(new { publicationId, scope.VersionNo,
+                    PolicyId = policy.Policy.Id, Evidence = stableEvidence, Mappings = stableMapping }))
+                : Hash(JsonSerializer.Serialize(new { publicationId, scope.VersionNo,
+                    PolicyId = policy.Policy.Id, Evidence = stableEvidence,
+                    Modes = policy.CourseOutcomes.OrderBy(x => x.Id)
+                        .Select(x => new { x.Id, x.CurriculumSubjectId, x.ComponentCode }).ToArray(),
+                    Mappings = stableMapping }));
             return ApiResponse<ObePreviewDto>.SuccessResponse(new ObePreviewDto
             {
                 PolicyId = policy.Policy.Id, ResultPublicationId = publicationId,
@@ -332,7 +393,9 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
                 {
                     CourseOutcomeId = clo.Id, CourseOutcomeCode = clo.Code,
                     CurriculumSubjectId = clo.CurriculumSubjectId,
-                    AttainmentPercent = decimal.Round(rows.Where(x => x.CurriculumSubjectId == clo.CurriculumSubjectId)
+                    ComponentCode = clo.ComponentCode,
+                    AttainmentPercent = decimal.Round(evidence.Where(x =>
+                            x.CurriculumSubjectId == (legacyCourseOnly ? clo.CurriculumSubjectId : clo.Id))
                         .Average(x => x.ObtainedMarks / x.FullMarks * 100m), 2, MidpointRounding.AwayFromZero)
                 }).ToList(),
                 Outcomes = outcomes.Select(x => new ObeOutcomeAttainmentDto
@@ -343,6 +406,23 @@ public sealed class ObeAttainmentService(EduOSDbContext db, ResearchWorkflowAcce
         }
         catch (ArgumentException ex)
         { return ApiResponse<ObePreviewDto>.ErrorResponse(ex.Message, 422); }
+    }
+
+    private sealed class ObeFrozenRegisterRow
+    {
+        public int CourseRowCount { get; set; }
+        public int ComponentRowCount { get; set; }
+    }
+
+    private sealed class ObeFrozenComponentRow
+    {
+        public long StudentEnrollmentId { get; set; }
+        public long CurriculumSubjectId { get; set; }
+        public string ComponentCode { get; set; } = "";
+        public decimal FullMarks { get; set; }
+        public decimal ObtainedMarks { get; set; }
+        public bool IsAbsent { get; set; }
+        public bool IsWithheld { get; set; }
     }
 
     public async Task<ApiResponse<ObePreviewDto>> PreviewAsync(long policyId, long publicationId,

@@ -57,6 +57,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<TranscriptIssue> _transcripts;
     private readonly IGenericRepository<AuditLog> _auditLogs;
     private readonly IUnitOfWork _uow;
+    private readonly EduOS.Persistence.Context.EduOSDbContext? _obeDb;
     private readonly ICurrentUserService _user;
     private readonly TimeProvider _clock;
     private readonly ILogger<AssessmentAdministrationService> _logger;
@@ -91,7 +92,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IDataProtectionProvider? transcriptProtection = null,
         IGenericRepository<Tenant>? issuingTenants = null,
         IGenericRepository<AssessmentAttemptRegistration>? attemptRegistrations = null,
-        IGenericRepository<AcademicTrack>? academicTracks = null)
+        IGenericRepository<AcademicTrack>? academicTracks = null,
+        EduOS.Persistence.Context.EduOSDbContext? obeDb = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
         _rescrutinyEvents = rescrutinyEvents;
@@ -110,6 +112,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         _componentMarks = componentMarks; _templates = templates;
         _certificates = certificates; _transcripts = transcripts; _auditLogs = auditLogs;
         _uow = uow; _user = user; _clock = clock; _logger = logger;
+        _obeDb = obeDb;
         _transcriptProtector = transcriptProtection?.CreateProtector(TranscriptSnapshotIntegrity.Purpose);
         _certificateProtector = transcriptProtection?.CreateProtector(CertificateSnapshotIntegrity.Purpose);
         _issuingTenants = issuingTenants;
@@ -581,6 +584,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
                 await CaptureCourseSnapshotsAsync(publication, calculated.Sheet,
                     enrolled.ToDictionary(x => x.Key, x => x.Value.Id), now, token);
                 await _uow.SaveChangesAsync(token);
+                await CapturePublishedObeComponentsAsync(publication, now, token);
                 return ApiResponse<ResultPublicationDto>.SuccessResponse(
                     MapPublication(publication, exam.PublicId, scope.Value.Batch.Name), "Results published.");
             }, ct);

@@ -82,7 +82,7 @@ public sealed class ObeAttainmentApiController(IObeAttainmentService service) : 
         if (!response.Success || response.Data == null) return Reply(response);
         var report = response.Data;
         if (report.StateCode != "Approved") return NotFound();
-        var csv = new StringBuilder("ReportReference,PolicyId,PublicationId,PublicationVersion,Type,Outcome,AttainmentPercent,EvidenceCount\r\n");
+        var csv = new StringBuilder("ReportReference,PolicyId,PublicationId,PublicationVersion,Type,Outcome,EvidenceSource,AttainmentPercent,EvidenceCount\r\n");
         static string Safe(string value)
         {
             var clean = value.Replace('"', ' ').Replace('\r', ' ').Replace('\n', ' ');
@@ -93,12 +93,14 @@ public sealed class ObeAttainmentApiController(IObeAttainmentService service) : 
             csv.Append(report.Reference).Append(',').Append(report.PolicyId).Append(',')
                 .Append(report.ResultPublicationId).Append(',').Append(report.PublicationVersionNo)
                 .Append(",CLO,").Append(Safe(clo.CourseOutcomeCode)).Append(',')
+                .Append(Safe(clo.ComponentCode ?? "CourseGradeProxy")).Append(',')
                 .Append(clo.AttainmentPercent.ToString("0.00", CultureInfo.InvariantCulture)).Append(',')
                 .Append(report.Snapshot.LearnerCount).Append("\r\n");
         foreach (var plo in report.Snapshot.Outcomes)
             csv.Append(report.Reference).Append(',').Append(report.PolicyId).Append(',')
                 .Append(report.ResultPublicationId).Append(',').Append(report.PublicationVersionNo)
                 .Append(",PLO,").Append(Safe(plo.ProgramOutcomeCode)).Append(',')
+                .Append(Safe("WeightedPublishedEvidence")).Append(',')
                 .Append(plo.AttainmentPercent.ToString("0.00", CultureInfo.InvariantCulture)).Append(',')
                 .Append(plo.EvidenceCount).Append("\r\n");
         Response.Headers["X-Content-Type-Options"] = "nosniff";

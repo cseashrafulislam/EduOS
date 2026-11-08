@@ -418,6 +418,7 @@ public sealed partial class AssessmentAdministrationService
                 await RecordAuditAsync("Correct", "ResultPublication", oldPublication.Id,
                     $"Re-scrutiny {caseReference:D}; replacement version {version}; {request.Reason.Trim()}", now);
                 await _uow.SaveChangesAsync(token);
+                await CapturePublishedObeComponentsAsync(replacement, now, token);
                 return ApiResponse<ResultCorrectionDto>.SuccessResponse(MapCorrection(correction),
                     "Result corrected; previous immutable version retained.");
             }, ct);
