@@ -21,7 +21,6 @@ namespace EduOS.Persistence.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-            AddStudentSupportSnapshot(modelBuilder);
 
             modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicBatch", b =>
                 {
@@ -31516,6 +31515,8 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
+            // Compose additive student-support mappings after all principal entities exist.
+            AddStudentSupportSnapshot(modelBuilder);
 #pragma warning restore 612, 618
         }
     }
