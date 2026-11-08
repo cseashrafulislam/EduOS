@@ -2735,7 +2735,6 @@ namespace EduOS.Persistence.Migrations
                     b.HasKey("Id");
                     b.HasAlternateKey("TenantId", "Id");
                     b.HasIndex("ReviewedByUserId");
-                    b.HasIndex("PublicId").IsUnique();
                     b.HasIndex("SubmittedByUserId");
                     b.HasIndex("TenantId", "AccountId", "EffectiveFromDate").IsUnique()
                         .HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
@@ -17491,6 +17490,7 @@ namespace EduOS.Persistence.Migrations
                     b.HasKey("Id");
                     b.HasAlternateKey("TenantId", "Id");
                     b.HasIndex("ReviewedByUserId");
+                    b.HasIndex("PublicId").IsUnique();
                     b.HasIndex("TenantId", "AcademicLevelId");
                     b.HasIndex("TenantId", "FileAssetId").IsUnique();
                     b.HasIndex("TenantId", "LessonPlanId");
