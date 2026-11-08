@@ -433,6 +433,7 @@ public class EduOSDbContext :
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<LessonProgress> LessonProgresses => Set<LessonProgress>();
     public DbSet<LessonResource> LessonResources => Set<LessonResource>();
+    public DbSet<TeacherResource> TeacherResources => Set<TeacherResource>();
     public DbSet<LmsLessonRevision> LmsLessonRevisions => Set<LmsLessonRevision>();
     public DbSet<LiveClass> LiveClasses => Set<LiveClass>();
     public DbSet<Quiz> Quizzes => Set<Quiz>();
@@ -1241,6 +1242,14 @@ public class EduOSDbContext :
         TenantReference<CourseSection, Course>(modelBuilder, nameof(CourseSection.CourseId));
         TenantReference<Lesson, Course>(modelBuilder, nameof(Lesson.CourseId));
         TenantReference<Lesson, CourseSection>(modelBuilder, nameof(Lesson.CourseSectionId));
+        TenantReference<TeacherResource, Employee>(modelBuilder, nameof(TeacherResource.AuthorEmployeeId));
+        TenantReference<TeacherResource, Campus>(modelBuilder, nameof(TeacherResource.CampusId));
+        TenantReference<TeacherResource, FileAsset>(modelBuilder, nameof(TeacherResource.FileAssetId));
+        TenantReference<TeacherResource, LessonPlan>(modelBuilder, nameof(TeacherResource.LessonPlanId));
+        TenantReference<TeacherResource, AcademicLevel>(modelBuilder, nameof(TeacherResource.AcademicLevelId));
+        TenantReference<TeacherResource, Subject>(modelBuilder, nameof(TeacherResource.SubjectId));
+        TenantReference<TeacherResource, TeacherResource>(modelBuilder, nameof(TeacherResource.SupersedesResourceId));
+        Reference<TeacherResource, ApplicationUser>(modelBuilder, nameof(TeacherResource.ReviewedByUserId));
         TenantReference<LessonProgress, CourseEnrollment>(modelBuilder, nameof(LessonProgress.CourseEnrollmentId));
         TenantReference<LessonProgress, Lesson>(modelBuilder, nameof(LessonProgress.LessonId));
         TenantReference<Assignment, Course>(modelBuilder, nameof(Assignment.CourseId));
@@ -2092,6 +2101,22 @@ public class EduOSDbContext :
 
         // LMS
         UniqueTenant<Course>(modelBuilder, nameof(Course.Code));
+        UniqueTenant<TeacherResource>(modelBuilder, nameof(TeacherResource.PublicId));
+        UniqueTenant<TeacherResource>(modelBuilder, nameof(TeacherResource.FileAssetId));
+        modelBuilder.Entity<TeacherResource>()
+            .HasIndex(x => new { x.TenantId, x.SupersedesResourceId })
+            .IsUnique().HasFilter("[SupersedesResourceId] IS NOT NULL AND [IsDeleted] = 0");
+        modelBuilder.Entity<TeacherResource>()
+            .HasIndex(x => new { x.TenantId, x.CampusId, x.StateCode, x.CreatedAt });
+        modelBuilder.Entity<TeacherResource>()
+            .HasIndex(x => new { x.TenantId, x.AuthorEmployeeId, x.CreatedAt });
+        modelBuilder.Entity<TeacherResource>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_TeacherResources_Version", "[VersionNo] >= 1");
+            t.HasCheckConstraint("CK_TeacherResources_State", "[StateCode] IN (N'Draft', N'Submitted', N'Approved', N'Rejected', N'Withdrawn')");
+            t.HasCheckConstraint("CK_TeacherResources_Scope", "[ScopeCode] IN (N'Private', N'Campus', N'Institution')");
+            t.HasCheckConstraint("CK_TeacherResources_Kind", "[KindCode] IN (N'LessonPlan', N'Slide', N'Worksheet', N'Assessment', N'Exemplar', N'Other')");
+        });
         UniqueTenant<CourseEnrollment>(modelBuilder, nameof(CourseEnrollment.ClientRequestId));
         UniqueTenant<LmsCompletionCertificate>(modelBuilder, nameof(LmsCompletionCertificate.ClientRequestId));
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseEnrollmentId, x.Revision }).IsUnique();
@@ -3457,8 +3482,7 @@ public class EduOSDbContext :
 
     private static bool SuppressAuditPayload(object entity)
     {
-        return entity is OmrSheetEvent
-            or FacilityVisitorVisit
+        return entity is FacilityVisitorVisit
             or ScholarshipApplication
             or ScholarshipApplicationEvent
             or ScholarshipDisbursement
@@ -3466,6 +3490,7 @@ public class EduOSDbContext :
             or CounselingCaseEvent
             or CounselingPolicyChange
             or FacilityVisitorEvent
+            or OmrSheetEvent
             or FacilityVisitorPolicyChange
             or ApplicationUser
             or TenantSetting

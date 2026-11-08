@@ -1,0 +1,69 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    var teacher = User.IsInRole("Teacher");
+    var admin = User.IsInRole("TenantAdmin");
+    ViewData["Title"] = bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio";
+}
+<section id="teacherStudio" class="container-fluid py-3" data-can-author="@teacher.ToString().ToLowerInvariant()" data-can-review="@admin.ToString().ToLowerInvariant()">
+    <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+        <h2 class="h4 mb-0">@(bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</h2>
+        <details class="position-relative">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পৃষ্ঠা সহায়তা" : "Page help")">ⓘ</summary>
+            <div class="card card-body shadow-sm position-absolute end-0" style="width:min(22rem,85vw);z-index:10">
+                <h3 class="h6">@(bn ? "ব্যবহার নির্দেশিকা" : "Page manual")</h3>
+                <ol class="small mb-2">
+                    <li>@(bn ? "নিজের ক্যাম্পাস ও রিসোর্সের বিবরণ বেছে ফাইল আপলোড করুন।" : "Choose your assigned campus, material details and upload a file.")</li>
+                    <li>@(bn ? "Draft যাচাই করে Submit করুন।" : "Verify the draft and submit it for moderation.")</li>
+                    <li>@(bn ? "প্রশাসক ফাইল পরীক্ষা করে অনুমোদন বা প্রত্যাখ্যান করবেন।" : "An administrator must inspect the file before approving or rejecting.")</li>
+                    <li>@(bn ? "নতুন সংস্করণ দিলে পুরোনো অনুমোদিত ফাইলটি নতুন অনুমোদন পর্যন্ত প্রকাশিত থাকবে।" : "A revised version leaves the prior approved version available until the revision is approved.")</li>
+                </ol>
+                <p class="small mb-1">@(bn ? "লগআউট/প্রতিষ্ঠান পরিবর্তনের পর নতুন করে খুলুন। অন্য প্রতিষ্ঠানে ফাইল শেয়ার হয় না।" : "Reload after logout or institution switch. Files are never shared across institutions.")</p>
+                <a href="/AcademicInstruction/Index" class="small">@(bn ? "পাঠ পরিকল্পনায় যান" : "Open lesson plans")</a>
+            </div>
+        </details>
+    </header>
+    <div id="studioAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
+    <form id="studioFilter" class="card card-body mb-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-lg-6"><label class="form-label" for="studioSearch">@(bn ? "শিরোনাম/বিষয় খুঁজুন" : "Search title/topic")</label><input id="studioSearch" class="form-control" maxlength="100" /></div>
+            <div class="col-lg-3"><label class="form-label" for="studioState">@(bn ? "অবস্থা" : "State")</label><select id="studioState" class="form-select"><option value="">@(bn ? "সব" : "All")</option><option>Draft</option><option>Submitted</option><option>Approved</option><option>Rejected</option><option>Withdrawn</option></select></div>
+            <div class="col-lg-3"><button class="btn btn-primary w-100" type="submit">@(bn ? "লোড করুন" : "Load resources")</button></div>
+        </div>
+    </form>
+    @if (teacher)
+    {
+        <section class="card mb-3" aria-labelledby="studioFormTitle">
+            <div class="card-header"><h3 id="studioFormTitle" class="h6 mb-0">@(bn ? "নতুন শিক্ষাসামগ্রী" : "Create teacher resource")</h3></div>
+            <form id="studioUpload" class="card-body">
+                @Html.AntiForgeryToken()
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label" for="studioTitle">@(bn ? "শিরোনাম" : "Title")</label><input id="studioTitle" class="form-control" maxlength="250" required /></div>
+                    <div class="col-md-3"><label class="form-label" for="studioCampus">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="studioCampus" class="form-select" required disabled></select></div>
+                    <div class="col-md-3"><label class="form-label" for="studioKind">@(bn ? "রিসোর্সের ধরন" : "Resource type")</label><select id="studioKind" class="form-select"><option value="LessonPlan">Lesson plan</option><option value="Slide">Slides</option><option value="Worksheet" selected>Worksheet</option><option value="Assessment">Assessment</option><option value="Exemplar">Exemplar</option><option value="Other">Other</option></select></div>
+                    <div class="col-md-4"><label class="form-label" for="studioScope">@(bn ? "প্রকাশের সীমা" : "Sharing scope")</label><select id="studioScope" class="form-select"><option value="Private">@(bn ? "শুধু লেখক" : "Author only")</option><option value="Campus">@(bn ? "ক্যাম্পাস শিক্ষক" : "Campus teachers")</option><option value="Institution">@(bn ? "প্রতিষ্ঠানের শিক্ষক" : "Institution teachers")</option></select></div>
+                    <div class="col-md-4"><label class="form-label" for="studioLevel">@(bn ? "শ্রেণি (ঐচ্ছিক)" : "Class/level (optional)")</label><select id="studioLevel" class="form-select"></select></div>
+                    <div class="col-md-4"><label class="form-label" for="studioSubject">@(bn ? "বিষয় (ঐচ্ছিক)" : "Subject (optional)")</label><select id="studioSubject" class="form-select"></select></div>
+                    <div class="col-md-6"><label class="form-label" for="studioPlan">@(bn ? "নিজের পাঠ পরিকল্পনা (ঐচ্ছিক)" : "Own lesson plan (optional)")</label><select id="studioPlan" class="form-select"></select></div>
+                    <div class="col-md-3"><label class="form-label" for="studioTopic">@(bn ? "টপিক" : "Topic")</label><input id="studioTopic" class="form-control" maxlength="150" /></div>
+                    <div class="col-md-3"><label class="form-label" for="studioLanguage">@(bn ? "ভাষা" : "Language")</label><select id="studioLanguage" class="form-select"><option value="bn-BD">বাংলা</option><option value="en-BD">English</option></select></div>
+                    <div class="col-md-6"><label class="form-label" for="studioSource">@(bn ? "উৎসের HTTPS লিংক (ঐচ্ছিক)" : "Original HTTPS source (optional)")</label><input id="studioSource" type="url" class="form-control" maxlength="1000" pattern="https://.*" /></div>
+                    <div class="col-md-3"><label class="form-label" for="studioRights">@(bn ? "স্বত্বাধিকারী" : "Rights holder")</label><input id="studioRights" class="form-control" maxlength="200" required /></div>
+                    <div class="col-md-3"><label class="form-label" for="studioLicence">@(bn ? "লাইসেন্স" : "Licence")</label><select id="studioLicence" class="form-select"><option value="InstitutionOwned">Institution-owned</option><option value="PermissionGranted">Permission granted</option><option value="CreativeCommons">Creative Commons</option><option value="PublicDomain">Public domain</option></select></div>
+                    <div class="col-md-8"><label class="form-label" for="studioEvidence">@(bn ? "লাইসেন্সের প্রমাণ" : "Licence evidence")</label><input id="studioEvidence" class="form-control" maxlength="500" required /></div>
+                    <div class="col-md-4"><label class="form-label" for="studioFile">@(bn ? "ফাইল (সর্বোচ্চ ১০ এমবি)" : "File (maximum 10 MB)")</label><input id="studioFile" type="file" class="form-control" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" required /></div>
+                    <div class="col-12"><button id="studioSave" type="submit" class="btn btn-primary" disabled>@(bn ? "Draft সংরক্ষণ" : "Save draft")</button><button id="studioCancelRevision" type="button" class="btn btn-outline-secondary ms-2 d-none">@(bn ? "সংস্করণ বাতিল" : "Cancel revision")</button></div>
+                </div>
+            </form>
+        </section>
+    }
+    else
+    {
+        @Html.AntiForgeryToken()
+    }
+    <section class="card" aria-labelledby="studioListTitle">
+        <div class="card-header"><h3 id="studioListTitle" class="h6 mb-0">@(bn ? "শিক্ষাসামগ্রীর তালিকা" : "Teacher resources")</h3></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>@(bn ? "শিরোনাম" : "Title")</th><th>@(bn ? "ধরন" : "Type")</th><th>@(bn ? "সংস্করণ" : "Version")</th><th>@(bn ? "অবস্থা" : "State")</th><th>@(bn ? "কর্ম" : "Action")</th></tr></thead><tbody id="studioRows"><tr><td colspan="5" class="text-muted p-3">@(bn ? "লোড হচ্ছে…" : "Loading…")</td></tr></tbody></table></div>
+        <div class="card-footer d-flex justify-content-end align-items-center gap-2"><button type="button" id="studioPrev" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগে" : "Previous")</button><span id="studioPage" aria-live="polite"></span><button type="button" id="studioNext" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরে" : "Next")</button></div>
+    </section>
+</section>
+@section Scripts { <script src="~/js/lms/teacher-studio.js" asp-append-version="true"></script> }
