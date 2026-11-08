@@ -109,9 +109,10 @@ public sealed partial class FeeBillingService
                 (!award.EffectiveTo.HasValue || award.EffectiveTo >= request.InvoiceDate) &&
                 (!rule.EffectiveFrom.HasValue || rule.EffectiveFrom <= request.InvoiceDate) &&
                 (!rule.EffectiveTo.HasValue || rule.EffectiveTo >= request.InvoiceDate)
-            select new { award.StudentEnrollmentId, Rule = rule }).ToListAsync(ct);
+            select new { award.StudentEnrollmentId, AssignmentId = award.Id, Rule = rule }).ToListAsync(ct);
         var rules = discounts.GroupBy(x => x.StudentEnrollmentId)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.Rule).ToList());
+            .ToDictionary(g => g.Key, g => g.Select(x =>
+                new AppliedDiscount(x.AssignmentId, x.Rule)).ToList());
         var amounts = lines.Select(x => (HeadId: x.FeeHeadId, x.Amount)).ToArray();
         var subtotal = amounts.Sum(x => x.Amount);
         var rows = new List<InvoiceBatchPreflightRowDto>(enrollments.Count);
@@ -125,7 +126,7 @@ public sealed partial class FeeBillingService
                 old[0].DueDate == request.DueDate &&
                 old[0].State != InvoiceState.Cancelled;
             rules.TryGetValue(student.EnrollmentId, out var applied);
-            var discount = CalculateLineDiscounts(amounts, applied ?? new()).Sum();
+            var discount = CalculateLineDiscounts(amounts, applied ?? new()).LineTotals.Sum();
             rows.Add(new InvoiceBatchPreflightRowDto
             {
                 StudentCode = student.StudentCode,

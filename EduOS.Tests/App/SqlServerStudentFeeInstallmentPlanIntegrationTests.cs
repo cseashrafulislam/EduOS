@@ -215,9 +215,40 @@ public sealed class SqlServerStudentFeeInstallmentPlanIntegrationTests
         Assert.Equal(100m, audit.Data.VerifiedInvoiceNet);
         Assert.Equal(403, (await Service(db, tenantId + 1, checkerId)
             .GetInstallmentBillingAuditAsync(draft.Data.Reference)).StatusCode);
+        // The next approved month must persist exact award/line provenance while
+        // leaving February's already-issued invoice and its history untouched.
+        var feeHeadId = await db.FeeHeads.Select(x => x.Id).SingleAsync();
+        var enrollmentId = await db.StudentEnrollments.Select(x => x.Id).SingleAsync();
+        var marchRule = new DiscountRule { TenantId = tenantId, Name = "March tuition aid",
+            FeeHeadId = feeHeadId, IsPercentage = true, Value = 15m, IsActive = true,
+            EffectiveFrom = new DateOnly(2026, 3, 1) };
+        db.DiscountRules.Add(marchRule);
+        await db.SaveChangesAsync();
+        var marchAward = new StudentDiscount { TenantId = tenantId,
+            StudentEnrollmentId = enrollmentId, DiscountRuleId = marchRule.Id,
+            EffectiveFrom = new DateOnly(2026, 3, 1), ApprovedByUserId = checkerId,
+            IsActive = true };
+        db.StudentDiscounts.Add(marchAward);
+        await db.SaveChangesAsync();
         issue.MonthStart = new DateOnly(2026, 3, 1);
         var march = await checkerService.IssueInstallmentMonthAsync(draft.Data.Reference, issue);
         Assert.True(march.Success, march.Message);
+        Assert.Equal(15m, march.Data!.DiscountAmount);
+        var marchInvoiceId = await db.StudentInvoices.Where(x =>
+            x.InvoiceDate == new DateOnly(2026, 3, 1)).Select(x => x.Id).SingleAsync();
+        var marchLine = await db.StudentInvoiceLines.SingleAsync(x =>
+            x.StudentInvoiceId == marchInvoiceId);
+        var creditProof = await db.StudentInvoiceDiscountAttributions.SingleAsync();
+        Assert.Equal(marchLine.Id, creditProof.StudentInvoiceLineId);
+        Assert.Equal(marchAward.Id, creditProof.StudentDiscountId);
+        Assert.Equal(marchRule.Id, creditProof.DiscountRuleId);
+        Assert.Equal(15m, creditProof.Amount);
+        Assert.Equal(15m, creditProof.RuleValueSnapshot);
+        Assert.Equal(0m, (await db.StudentInvoices.SingleAsync(x =>
+            x.InvoiceDate == new DateOnly(2026, 2, 1))).DiscountAmount);
+        marchRule.Value = 1m;
+        await db.SaveChangesAsync();
+        Assert.Equal(15m, (await db.StudentInvoiceDiscountAttributions.SingleAsync()).Amount);
         Assert.Equal(2, await db.StudentInvoices.CountAsync());
         Assert.Equal(2, await db.StudentInvoiceLines.CountAsync());
         var twoMonths = await checkerService.GetInstallmentBillingAuditAsync(draft.Data.Reference);

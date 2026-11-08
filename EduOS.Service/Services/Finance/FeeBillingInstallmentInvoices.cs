@@ -102,7 +102,7 @@ public sealed partial class FeeBillingService
                     db, plan, request.MonthStart, token);
                 var discounts = CalculateLineDiscounts(lines.Select(x =>
                     (HeadId: x.FeeHeadId, Amount: x.GrossAmount)).ToArray(), awards);
-                var totalDiscount = discounts.Sum();
+                var totalDiscount = discounts.LineTotals.Sum();
                 var now = _clock.GetUtcNow().UtcDateTime;
                 var publicId = Guid.NewGuid();
                 var invoice = new StudentInvoice {
@@ -121,14 +121,26 @@ public sealed partial class FeeBillingService
                 for (var i = 0; i < lines.Count; i++)
                 {
                     var line = lines[i];
-                    db.StudentInvoiceLines.Add(new StudentInvoiceLine {
+                    var invoiceLine = new StudentInvoiceLine {
                         TenantId = tenant, StudentInvoiceId = invoice.Id, FeeHeadId = line.FeeHeadId,
                         FeeHeadCodeSnapshot = line.FeeHeadCodeSnapshot,
                         FeeHeadNameSnapshot = line.FeeHeadNameSnapshot,
                         Description = line.FeeHeadNameSnapshot, Amount = line.GrossAmount,
-                        DiscountAmount = discounts[i], NetAmount = line.GrossAmount - discounts[i],
+                        DiscountAmount = discounts.LineTotals[i],
+                        NetAmount = line.GrossAmount - discounts.LineTotals[i],
                         FineAmount = 0m, CreatedAt = now, CreatedBy = _user.UserId
-                    });
+                    };
+                    db.StudentInvoiceLines.Add(invoiceLine);
+                    foreach (var portion in discounts.Portions.Where(x => x.LineIndex == i))
+                        db.StudentInvoiceDiscountAttributions.Add(new StudentInvoiceDiscountAttribution {
+                            TenantId = tenant, StudentInvoiceLine = invoiceLine,
+                            StudentDiscountId = portion.Assignment.AssignmentId,
+                            DiscountRuleId = portion.Assignment.Rule.Id, Amount = portion.Amount,
+                            RuleValueSnapshot = portion.Assignment.Rule.Value,
+                            IsPercentageSnapshot = portion.Assignment.Rule.IsPercentage,
+                            RuleFeeHeadIdSnapshot = portion.Assignment.Rule.FeeHeadId,
+                            CreatedAt = now, CreatedBy = _user.UserId
+                        });
                 }
                 // Shared tenant rowversion gate coordinates with existing monthly
                 // billing and agreement creation without changing their contracts.

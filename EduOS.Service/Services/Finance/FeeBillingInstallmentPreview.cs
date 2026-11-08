@@ -11,11 +11,11 @@ public sealed partial class FeeBillingService
 {
     // Same effective award selection as actual invoice issuance. This preview is
     // not a reservation: issuance rechecks all state under its serializable write.
-    private async Task<List<DiscountRule>> GetActiveInstallmentDiscountRulesAsync(
+    private async Task<List<AppliedDiscount>> GetActiveInstallmentDiscountRulesAsync(
         EduOSDbContext db, StudentFeeInstallmentPlan plan, DateOnly month, CancellationToken ct)
     {
         var tenant = _user.TenantId;
-        return await (from award in db.StudentDiscounts.AsNoTracking()
+        var selected = await (from award in db.StudentDiscounts.AsNoTracking()
             join rule in db.DiscountRules.AsNoTracking()
                 on new { award.TenantId, Id = award.DiscountRuleId }
                 equals new { rule.TenantId, rule.Id }
@@ -25,7 +25,8 @@ public sealed partial class FeeBillingService
                 (!award.EffectiveTo.HasValue || award.EffectiveTo >= month) &&
                 (!rule.EffectiveFrom.HasValue || rule.EffectiveFrom <= month) &&
                 (!rule.EffectiveTo.HasValue || rule.EffectiveTo >= month)
-            select rule).ToListAsync(ct);
+            select new { AssignmentId = award.Id, Rule = rule }).ToListAsync(ct);
+        return selected.Select(x => new AppliedDiscount(x.AssignmentId, x.Rule)).ToList();
     }
 
     public async Task<ApiResponse<StudentFeeInstallmentMonthPreviewDto>> PreviewInstallmentMonthAsync(
@@ -80,7 +81,7 @@ public sealed partial class FeeBillingService
         var discounts = CalculateLineDiscounts(lines.Select(x =>
             (HeadId: x.FeeHeadId, Amount: x.GrossAmount)).ToArray(), awards);
         var gross = lines.Sum(x => x.GrossAmount);
-        var discount = discounts.Sum();
+        var discount = discounts.LineTotals.Sum();
         return ApiResponse<StudentFeeInstallmentMonthPreviewDto>.SuccessResponse(
             new StudentFeeInstallmentMonthPreviewDto {
                 PlanReference = plan.PublicId, MonthStart = request.MonthStart,
@@ -89,8 +90,8 @@ public sealed partial class FeeBillingService
                 Lines = lines.Select((line, i) => new StudentFeeInstallmentMonthPreviewLineDto {
                     FeeHeadId = line.FeeHeadId, FeeHeadCode = line.FeeHeadCodeSnapshot,
                     FeeHeadName = line.FeeHeadNameSnapshot, DueDate = line.DueDate,
-                    GrossAmount = line.GrossAmount, DiscountAmount = discounts[i],
-                    NetAmount = line.GrossAmount - discounts[i]
+                    GrossAmount = line.GrossAmount, DiscountAmount = discounts.LineTotals[i],
+                    NetAmount = line.GrossAmount - discounts.LineTotals[i]
                 }).ToArray()
             }, "Read-only estimate; issuance revalidates the agreement and current awards.");
     }

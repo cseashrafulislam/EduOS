@@ -459,6 +459,18 @@ public sealed class StudentFeeInstallmentPlanTests
         (await service.PreviewInstallmentMonthAsync(plan.PublicId, request))
             .StatusCode.Should().Be(409);
         (await db.StudentInvoices.CountAsync()).Should().Be(1);
+        var issuedLine = await db.StudentInvoiceLines.SingleAsync();
+        var attribution = await db.StudentInvoiceDiscountAttributions.SingleAsync();
+        attribution.StudentInvoiceLineId.Should().Be(issuedLine.Id);
+        attribution.StudentDiscountId.Should().Be((await db.StudentDiscounts.SingleAsync()).Id);
+        attribution.DiscountRuleId.Should().Be(rule.Id);
+        attribution.Amount.Should().Be(20m);
+        attribution.RuleValueSnapshot.Should().Be(20m);
+        rule.Value = 5m;
+        await db.SaveChangesAsync();
+        (await db.StudentInvoiceDiscountAttributions.SingleAsync()).Amount.Should().Be(20m);
+        (await service.IssueInstallmentMonthAsync(plan.PublicId, request)).Data!.Existing.Should().BeTrue();
+        (await db.StudentInvoiceDiscountAttributions.CountAsync()).Should().Be(1);
     }
 
     [Fact]
