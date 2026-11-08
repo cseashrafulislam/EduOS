@@ -1,5 +1,6 @@
 using System.Reflection;
 using EduOS.Core.Entities.System;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,15 @@ public sealed class TenantCustomFieldPersistenceTests
         var method = typeof(EduOSDbContext).GetMethod("SuppressAuditPayload", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
         Assert.True((bool)method!.Invoke(null, new object[] { new CustomFieldValue() })!);
+    }
+
+    [Fact]
+    public void Audit_suppresses_raw_omr_answer_history()
+    {
+        var method = typeof(EduOSDbContext).GetMethod("SuppressAuditPayload", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        Assert.True((bool)method!.Invoke(null, new object[]
+        { new OmrSheetEvent { BeforeAnswers = "ABCD", AfterAnswers = "ABCE" } })!);
     }
 
     private static EduOSDbContext Db()

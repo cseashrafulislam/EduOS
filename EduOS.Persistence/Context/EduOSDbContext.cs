@@ -137,8 +137,8 @@ public class EduOSDbContext :
     public long CurrentTenantId => TenantId ?? 0;
     private long? UserId { get { ResolveContext(); return _userId; } }
     private string UserName { get { ResolveContext(); return _userName ?? "System"; } }
-    private string IpAddress => _httpContextAccessor?.HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "System";
-    private string Endpoint => _httpContextAccessor?.HttpContext?.Request.Path.ToString() ?? "System";
+    private string IpAddress => _httpContextAccessor?.HttpContext?.Connection?.RemoteIpAddress?.ToString() ?? "System";
+    private string Endpoint => _httpContextAccessor?.HttpContext?.Request?.Path.ToString() ?? "System";
     private string? RequestId => _httpContextAccessor?.HttpContext?.TraceIdentifier;
     private string? CorrelationId => Activity.Current?.TraceId.ToString();
 
@@ -3457,7 +3457,8 @@ public class EduOSDbContext :
 
     private static bool SuppressAuditPayload(object entity)
     {
-        return entity is FacilityVisitorVisit
+        return entity is OmrSheetEvent
+            or FacilityVisitorVisit
             or ScholarshipApplication
             or ScholarshipApplicationEvent
             or ScholarshipDisbursement
