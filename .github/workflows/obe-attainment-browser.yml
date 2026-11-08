@@ -1,0 +1,31 @@
+name: OBE Attainment Browser Acceptance
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/Accreditation/Obe.cshtml'
+      - 'EduOS.App/wwwroot/js/research/obe-attainment.js'
+      - 'tests/browser/obe-attainment-lifecycle.cjs'
+      - '.github/workflows/obe-attainment-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: obe-attainment-browser-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chromium-obe-attainment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise bilingual OBE publication, reviewer approval, rollup and tenant switch
+        run: node tests/browser/obe-attainment-lifecycle.cjs
