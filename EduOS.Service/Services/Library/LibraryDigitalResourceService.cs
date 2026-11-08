@@ -200,6 +200,12 @@ public sealed class LibraryDigitalResourceService(
         SourceUrl = document.ContentSourceUrl, RightsHolder = document.ContentRightsHolder,
         LicenceCode = document.ContentLicenceCode,
         LicenceEvidence = document.ContentLicenceEvidence,
+        ExamCode = document.ContentExamCode, BoardCode = document.ContentBoardCode,
+        SyllabusYear = document.ContentSyllabusYear,
+        SyllabusVersion = document.ContentSyllabusVersion,
+        SyllabusSourceUrl = document.ContentSyllabusSourceUrl,
+        PreviousPaperYear = document.ContentPreviousPaperYear,
+        StudyExplanation = document.ContentStudyExplanation,
         ReviewStatus = document.VerificationStatusCode
     };
 
@@ -215,6 +221,13 @@ public sealed class LibraryDigitalResourceService(
         document.ContentRightsHolder = rights.RightsHolder.Trim();
         document.ContentLicenceCode = rights.LicenceCode.Trim();
         document.ContentLicenceEvidence = rights.LicenceEvidence.Trim();
+        document.ContentExamCode = rights.ExamCode;
+        document.ContentBoardCode = rights.BoardCode?.Trim();
+        document.ContentSyllabusYear = rights.SyllabusYear;
+        document.ContentSyllabusVersion = rights.SyllabusVersion?.Trim();
+        document.ContentSyllabusSourceUrl = rights.SyllabusSourceUrl?.Trim();
+        document.ContentPreviousPaperYear = rights.PreviousPaperYear;
+        document.ContentStudyExplanation = rights.StudyExplanation?.Trim();
     }
 
     private static bool RightsMatch(Document document, LibraryDigitalRightsRequestDto rights) =>
@@ -226,7 +239,14 @@ public sealed class LibraryDigitalResourceService(
         document.ContentSourceUrl == rights.SourceUrl?.Trim() &&
         document.ContentRightsHolder == rights.RightsHolder.Trim() &&
         document.ContentLicenceCode == rights.LicenceCode.Trim() &&
-        document.ContentLicenceEvidence == rights.LicenceEvidence.Trim();
+        document.ContentLicenceEvidence == rights.LicenceEvidence.Trim() &&
+        document.ContentExamCode == rights.ExamCode &&
+        document.ContentBoardCode == rights.BoardCode?.Trim() &&
+        document.ContentSyllabusYear == rights.SyllabusYear &&
+        document.ContentSyllabusVersion == rights.SyllabusVersion?.Trim() &&
+        document.ContentSyllabusSourceUrl == rights.SyllabusSourceUrl?.Trim() &&
+        document.ContentPreviousPaperYear == rights.PreviousPaperYear &&
+        document.ContentStudyExplanation == rights.StudyExplanation?.Trim();
 
     private static bool ValidRights(LibraryDigitalRightsRequestDto? rights)
     {
@@ -243,6 +263,28 @@ public sealed class LibraryDigitalResourceService(
             if (!Uri.TryCreate(rights.SourceUrl, UriKind.Absolute, out var source) ||
                 source.Scheme != Uri.UriSchemeHttps || !string.IsNullOrEmpty(source.UserInfo))
                 return false;
+        }
+        if (rights.ExamCode == null)
+        {
+            if (rights.BoardCode != null || rights.SyllabusYear != null ||
+                rights.SyllabusVersion != null || rights.SyllabusSourceUrl != null ||
+                rights.PreviousPaperYear != null || rights.StudyExplanation != null) return false;
+        }
+        else
+        {
+            if (rights.ExamCode is not ("SSC" or "HSC" or "UniversityAdmission" or "NTRCAStudy") ||
+                rights.SyllabusYear is < 2000 or > 2100 ||
+                string.IsNullOrWhiteSpace(rights.SyllabusVersion) || rights.SyllabusVersion.Length > 50 ||
+                rights.SyllabusVersion.Any(char.IsControl) ||
+                rights.BoardCode?.Length > 40 ||
+                (rights.BoardCode != null && (string.IsNullOrWhiteSpace(rights.BoardCode) ||
+                    rights.BoardCode.Any(c => !char.IsLetterOrDigit(c) && c != '-'))) ||
+                rights.PreviousPaperYear is < 1990 or > 2100 ||
+                rights.StudyExplanation?.Length > 2000 ||
+                (rights.StudyExplanation?.Any(char.IsControl) ?? false) ||
+                !Uri.TryCreate(rights.SyllabusSourceUrl, UriKind.Absolute, out var syllabusSource) ||
+                syllabusSource.Scheme != Uri.UriSchemeHttps ||
+                !string.IsNullOrEmpty(syllabusSource.UserInfo)) return false;
         }
         var selected = rights.CurriculumId.HasValue || rights.LevelId.HasValue || rights.SubjectId.HasValue;
         return !selected || (rights.CurriculumId > 0 && rights.LevelId > 0 && rights.SubjectId > 0);
@@ -295,6 +337,17 @@ public sealed class LibraryDigitalResourceService(
             campuses.Contains(x.Document.LibraryCampusId.Value));
     }
 
+    private IQueryable<LibraryDigitalRow> PublishedResources()
+    {
+        var activeCampuses = ActiveCampusIds();
+        return ResourceQuery().Where(x => x.Document.IsActive && x.Book.IsActive &&
+            (x.Document.VerificationStatusCode == "Approved" ||
+             x.Document.VerificationStatusCode == "NotRequired") &&
+            (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now) &&
+            (!x.Document.LibraryCampusId.HasValue ||
+                activeCampuses.Contains(x.Document.LibraryCampusId.Value)));
+    }
+
     private sealed class LibraryDigitalRow
     {
         public Document Document { get; set; } = null!;
@@ -312,7 +365,9 @@ public sealed class LibraryDigitalResourceService(
         Guid? bookReference, string? search, int page, int pageSize, bool includeInactive,
         CancellationToken ct = default, string? category = null, string? author = null,
         string? publisher = null, string? edition = null, long? curriculumId = null,
-        long? subjectId = null, string? chapter = null, string? language = null)
+        long? subjectId = null, string? chapter = null, string? language = null,
+        string? examCode = null, string? boardCode = null, int? syllabusYear = null,
+        int? previousPaperYear = null, bool studyOnly = false)
     {
         if (!await CanReadAsync(ct)) return Fail<PagedResult<LibraryDigitalResourceDto>>("Library access denied.", 403);
         if (page < 1 || pageSize is < 1 or > 50 || ((long)page - 1) * pageSize > int.MaxValue ||
@@ -321,6 +376,9 @@ public sealed class LibraryDigitalResourceService(
             !ValidCatalogueFilter(publisher) || !ValidCatalogueFilter(edition) ||
             !ValidCatalogueFilter(chapter) ||
             (language != null && language is not ("bn-BD" or "en-BD")) ||
+            (examCode != null && examCode is not ("SSC" or "HSC" or "UniversityAdmission" or "NTRCAStudy")) ||
+            !ValidCatalogueFilter(boardCode) || syllabusYear is < 2000 or > 2100 ||
+            previousPaperYear is < 1990 or > 2100 ||
             curriculumId is <= 0 || subjectId is <= 0 ||
             (search != null && (string.IsNullOrWhiteSpace(search) ||
                 search.Any(c => char.IsControl(c) ||
@@ -328,18 +386,7 @@ public sealed class LibraryDigitalResourceService(
             return Fail<PagedResult<LibraryDigitalResourceDto>>("Invalid digital library filters.");
         var query = ResourceQuery();
         if (!CanPublish || !includeInactive)
-        {
-            // Active discovery must never advertise a campus licence whose campus
-            // has been deactivated. Admins retain historical inspection through
-            // includeInactive, but downloads remain denied by live campus checks.
-            var activeCampuses = ActiveCampusIds();
-            query = query.Where(x => x.Document.IsActive && x.Book.IsActive &&
-                (x.Document.VerificationStatusCode == "Approved" ||
-                 x.Document.VerificationStatusCode == "NotRequired") &&
-                (!x.Document.ExpiresAt.HasValue || x.Document.ExpiresAt > Now) &&
-                (!x.Document.LibraryCampusId.HasValue ||
-                    activeCampuses.Contains(x.Document.LibraryCampusId.Value)));
-        }
+            query = PublishedResources();
         if (bookReference.HasValue)
             query = query.Where(x => x.Book.PublicId == bookReference.Value);
         if (!string.IsNullOrWhiteSpace(search))
@@ -372,6 +419,16 @@ public sealed class LibraryDigitalResourceService(
         }
         if (language != null)
             query = query.Where(x => x.Document.ContentLanguageCode == language);
+        if (examCode != null)
+            query = query.Where(x => x.Document.ContentExamCode == examCode);
+        if (studyOnly)
+            query = query.Where(x => x.Document.ContentExamCode != null);
+        if (boardCode != null)
+            query = query.Where(x => x.Document.ContentBoardCode == boardCode);
+        if (syllabusYear.HasValue)
+            query = query.Where(x => x.Document.ContentSyllabusYear == syllabusYear);
+        if (previousPaperYear.HasValue)
+            query = query.Where(x => x.Document.ContentPreviousPaperYear == previousPaperYear);
         // All facets compose on the same authorized query before counting and paging.
         // Category is resolved from the existing tenant-owned BookCategory, not a shadow index.
         if (category != null)
@@ -409,6 +466,10 @@ public sealed class LibraryDigitalResourceService(
                 x.Document.ContentChapter, x.Document.ContentTopic, x.Document.ContentLanguageCode,
                 x.Document.ContentSourceUrl, x.Document.ContentRightsHolder,
                 x.Document.ContentLicenceCode, x.Document.ContentLicenceEvidence,
+                x.Document.ContentExamCode, x.Document.ContentBoardCode,
+                x.Document.ContentSyllabusYear, x.Document.ContentSyllabusVersion,
+                x.Document.ContentSyllabusSourceUrl, x.Document.ContentPreviousPaperYear,
+                x.Document.ContentStudyExplanation,
                 BookReference = x.Book.PublicId,
                 BookTitle = x.Book.Title, BookAuthor = x.Book.Author,
                 BookPublisher = x.Book.Publisher, BookEdition = x.Book.Edition,
@@ -434,6 +495,11 @@ public sealed class LibraryDigitalResourceService(
                     LanguageCode = x.ContentLanguageCode, SourceUrl = x.ContentSourceUrl,
                     RightsHolder = x.ContentRightsHolder, LicenceCode = x.ContentLicenceCode,
                     LicenceEvidence = CanPublish ? x.ContentLicenceEvidence : null,
+                    ExamCode = x.ContentExamCode, BoardCode = x.ContentBoardCode,
+                    SyllabusYear = x.ContentSyllabusYear, SyllabusVersion = x.ContentSyllabusVersion,
+                    SyllabusSourceUrl = x.ContentSyllabusSourceUrl,
+                    PreviousPaperYear = x.ContentPreviousPaperYear,
+                    StudyExplanation = x.ContentStudyExplanation,
                     ReviewStatus = x.VerificationStatusCode,
                     Title = x.Title ?? string.Empty,
                     FileName = x.OriginalFileName, ContentType = x.ContentType,
@@ -444,6 +510,72 @@ public sealed class LibraryDigitalResourceService(
                 }).ToList(),
                 TotalCount = total, Page = page, PageSize = pageSize
             });
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<Guid>>> GetStudyBookmarksAsync(
+        IReadOnlyList<Guid> references, CancellationToken ct = default)
+    {
+        if (!await CanReadAsync(ct)) return Fail<IReadOnlyList<Guid>>("Library access denied.", 403);
+        if (references == null || references.Count > 50 || references.Any(x => x == Guid.Empty))
+            return Fail<IReadOnlyList<Guid>>("At most 50 valid resource references are allowed.");
+        if (references.Count == 0)
+            return ApiResponse<IReadOnlyList<Guid>>.SuccessResponse(Array.Empty<Guid>());
+        var visible = PublishedResources().Where(x =>
+            x.Document.ContentExamCode != null && references.Contains(x.Document.PublicId))
+            .Select(x => x.Document.Id);
+        var saved = await (from bookmark in db.StudyBookmarks.AsNoTracking()
+            join document in db.Documents.AsNoTracking()
+                on new { bookmark.TenantId, Id = bookmark.DocumentId }
+                equals new { document.TenantId, document.Id }
+            where bookmark.TenantId == Tenant && bookmark.UserId == user.UserId &&
+                !bookmark.IsDeleted && visible.Contains(bookmark.DocumentId)
+            select document.PublicId).Distinct().ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<Guid>>.SuccessResponse(saved);
+    }
+
+    public async Task<ApiResponse<bool>> SetStudyBookmarkAsync(
+        Guid reference, bool bookmarked, CancellationToken ct = default)
+    {
+        if (!await CanReadAsync(ct)) return Fail<bool>("Library access denied.", 403);
+        if (reference == Guid.Empty) return Fail<bool>("A resource reference is required.");
+        var readableId = await PublishedResources().Where(x =>
+            x.Document.ContentExamCode != null && x.Document.PublicId == reference)
+            .Select(x => x.Document.Id).FirstOrDefaultAsync(ct);
+        if (bookmarked && readableId == 0)
+            return Fail<bool>("Study resource is unavailable.", 404);
+        // Removing an old bookmark is allowed after a source is withdrawn, without
+        // leaking resource metadata or requiring the expired file to be readable.
+        var documentId = readableId != 0 ? readableId : await db.Documents.AsNoTracking()
+            .Where(x => x.TenantId == Tenant && x.PublicId == reference &&
+                x.DocumentTypeCode == TypeCode && x.EntityType == EntityType)
+            .Select(x => x.Id).FirstOrDefaultAsync(ct);
+        if (documentId == 0) return ApiResponse<bool>.SuccessResponse(false);
+        var existing = await db.StudyBookmarks.FirstOrDefaultAsync(x =>
+            x.TenantId == Tenant && x.UserId == user.UserId && x.DocumentId == documentId, ct);
+        if (existing == null && !bookmarked)
+            return ApiResponse<bool>.SuccessResponse(false);
+        if (existing != null && existing.IsDeleted == !bookmarked)
+            return ApiResponse<bool>.SuccessResponse(bookmarked);
+        if (existing == null)
+            db.StudyBookmarks.Add(new EduOS.Core.Entities.Library.StudyBookmark
+            { TenantId = Tenant, UserId = user.UserId, DocumentId = documentId,
+                CreatedBy = user.UserId, CreatedAt = Now });
+        else
+        {
+            existing.IsDeleted = !bookmarked;
+            existing.UpdatedBy = user.UserId;
+            existing.UpdatedAt = Now;
+        }
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return ApiResponse<bool>.SuccessResponse(bookmarked);
+        }
+        catch (DbUpdateException ex)
+        {
+            logger.LogWarning(ex, "Concurrent study bookmark for tenant {TenantId}", Tenant);
+            return Fail<bool>("Bookmark changed concurrently; reload and retry.", 409);
+        }
     }
 
     // Metadata-only lineage investigation. Never permit historical bytes to be downloaded:
@@ -983,7 +1115,13 @@ public sealed class LibraryDigitalResourceService(
                         Topic = row.ContentTopic, LanguageCode = row.ContentLanguageCode ?? "",
                         SourceUrl = row.ContentSourceUrl ?? "", RightsHolder = row.ContentRightsHolder ?? "",
                         LicenceCode = row.ContentLicenceCode ?? "",
-                        LicenceEvidence = row.ContentLicenceEvidence ?? ""
+                        LicenceEvidence = row.ContentLicenceEvidence ?? "",
+                        ExamCode = row.ContentExamCode, BoardCode = row.ContentBoardCode,
+                        SyllabusYear = row.ContentSyllabusYear,
+                        SyllabusVersion = row.ContentSyllabusVersion,
+                        SyllabusSourceUrl = row.ContentSyllabusSourceUrl,
+                        PreviousPaperYear = row.ContentPreviousPaperYear,
+                        StudyExplanation = row.ContentStudyExplanation
                     };
                     if (!ValidRights(rights) || !await ValidCurriculumAsync(rights, token) ||
                         !await ValidCampusScopeAsync(row.LibraryCampusId, token))

@@ -9310,12 +9310,20 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("ContentBoardCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.Property<string>("ContentChapter")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
                     b.Property<long?>("ContentCurriculumId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("ContentExamCode")
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
 
                     b.Property<string>("ContentLanguageCode")
                         .HasMaxLength(10)
@@ -9332,6 +9340,9 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<int?>("ContentPreviousPaperYear")
+                        .HasColumnType("int");
+
                     b.Property<string>("ContentRightsHolder")
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
@@ -9340,8 +9351,23 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<string>("ContentStudyExplanation")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<long?>("ContentSubjectId")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("ContentSyllabusSourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ContentSyllabusVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("ContentSyllabusYear")
+                        .HasColumnType("int");
 
                     b.Property<string>("ContentTopic")
                         .HasMaxLength(150)
@@ -9430,6 +9456,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "ContentCurriculumId", "ContentSubjectId", "IsActive");
 
+                    b.HasIndex("TenantId", "ContentExamCode", "ContentBoardCode", "ContentSyllabusYear", "IsActive");
+
                     b.HasIndex("TenantId", "DocumentTypeCode");
 
                     b.HasIndex("TenantId", "FileAssetId")
@@ -9444,6 +9472,64 @@ namespace EduOS.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_Documents_VerificationStatus", "[VerificationStatusCode] IN (N'NotRequired', N'Pending', N'Approved', N'Rejected')");
                         });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyBookmark", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("DocumentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "DocumentId");
+
+                    b.HasIndex("TenantId", "UserId", "DocumentId")
+                        .IsUnique();
+
+                    b.ToTable("StudyBookmarks");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Files.DocumentTemplate", b =>
@@ -27243,6 +27329,30 @@ namespace EduOS.Persistence.Migrations
                         .HasForeignKey("TenantId", "SupersedesDocumentId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyBookmark", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Files.Document", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Tenant");
                 });

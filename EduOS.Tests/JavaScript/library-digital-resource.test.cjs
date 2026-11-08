@@ -61,6 +61,30 @@ test('guardian reading is link-scoped and external source links are isolated', (
     assert.match(ui, /source\.setAttribute\('aria-label'/);
 });
 
+test('Bangladesh study collections reuse reviewed Documents and keep bookmarks tenant-user scoped', () => {
+    const study = read('EduOS.App/wwwroot/js/library/study.js');
+    const model = read('EduOS.Core/Entities/Files/FileEntities.cs');
+    const context = read('EduOS.Persistence/Context/EduOSDbContext.cs');
+    const studyView = read('EduOS.App/Views/Library/Study.cshtml');
+    for (const field of ['ContentExamCode', 'ContentBoardCode', 'ContentSyllabusYear',
+        'ContentSyllabusVersion', 'ContentSyllabusSourceUrl', 'ContentPreviousPaperYear'])
+        assert.match(model, new RegExp(field));
+    assert.match(service, /studyOnly/);
+    assert.match(service, /GetStudyBookmarksAsync/);
+    assert.match(service, /SetStudyBookmarkAsync/);
+    assert.match(service, /x\.TenantId == Tenant && x\.UserId == user\.UserId/);
+    assert.match(context, /TenantReference<StudyBookmark, Document>/);
+    assert.match(studyView, /id="studyFilters"/);
+    assert.match(studyView, /CurrentUICulture/);
+    assert.match(study, /dataset\.authSessionReference/);
+    assert.match(study, /dataset\.authTenantId/);
+    assert.match(study, /new AbortController\(\)/);
+    assert.match(study, /credentials: 'same-origin'/);
+    assert.match(study, /source\.rel = 'noopener noreferrer'/);
+    assert.doesNotMatch(study, /innerHTML\s*=/);
+    assert.doesNotMatch(study, /localStorage|sessionStorage|indexedDB|caches\./);
+});
+
 test('catalogue CSV export uses identical authorized advanced filters as list', () => {
     const list = api.match(/public async Task<IActionResult> List\([\s\S]*?\n    }/);
     const exportAction = api.match(/public async Task<IActionResult> Export\([\s\S]*?\n    }/);

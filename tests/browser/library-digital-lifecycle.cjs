@@ -22,7 +22,9 @@ function fixture(admin, language) {
         '<input id="digitalCurriculumSearch"><button id="digitalCurriculumFind" type="button">Find</button>',
         '<select id="digitalCurriculum"></select>',
         ...['Chapter', 'Topic', 'Language', 'SourceUrl', 'RightsHolder',
-            'LicenceCode', 'LicenceEvidence'].map(name => '<input id="digital' + name + '">'),
+            'LicenceCode', 'LicenceEvidence', 'ExamCode', 'BoardCode', 'SyllabusYear',
+            'SyllabusVersion', 'SyllabusSourceUrl', 'PreviousPaperYear', 'StudyExplanation']
+            .map(name => '<input id="digital' + name + '">'),
         '<input id="digitalTitle" required><input id="digitalFile" type="file" required>',
         '<input id="digitalExpiresOn" type="date"><select id="digitalCampus" disabled></select>',
         '<button id="digitalPublish" type="submit">Publish</button></form>',
@@ -43,7 +45,9 @@ function fixture(admin, language) {
         '<dialog id="digitalReplaceDialog"><form id="digitalReplaceForm">',
         '<input id="digitalReplaceTitle" required><input id="digitalReplaceExpiry" type="date">',
         ...['Chapter', 'Topic', 'Language', 'SourceUrl', 'RightsHolder',
-            'LicenceCode', 'LicenceEvidence'].map(name => '<input id="digitalReplace' + name + '">'),
+            'LicenceCode', 'LicenceEvidence', 'ExamCode', 'BoardCode', 'SyllabusYear',
+            'SyllabusVersion', 'SyllabusSourceUrl', 'PreviousPaperYear', 'StudyExplanation']
+            .map(name => '<input id="digitalReplace' + name + '">'),
         '<input id="digitalReplaceFile" type="file" required>',
         '<button id="digitalReplaceSave" type="submit">Publish version</button>',
         '<button id="digitalReplaceCancel" type="button">Cancel</button></form></dialog>',

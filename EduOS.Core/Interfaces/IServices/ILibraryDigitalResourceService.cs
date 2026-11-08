@@ -14,7 +14,13 @@ public interface ILibraryDigitalResourceService
         Guid? bookReference, string? search, int page, int pageSize, bool includeInactive,
         CancellationToken ct = default, string? category = null, string? author = null,
         string? publisher = null, string? edition = null, long? curriculumId = null,
-        long? subjectId = null, string? chapter = null, string? language = null);
+        long? subjectId = null, string? chapter = null, string? language = null,
+        string? examCode = null, string? boardCode = null, int? syllabusYear = null,
+        int? previousPaperYear = null, bool studyOnly = false);
+    Task<ApiResponse<IReadOnlyList<Guid>>> GetStudyBookmarksAsync(
+        IReadOnlyList<Guid> references, CancellationToken ct = default);
+    Task<ApiResponse<bool>> SetStudyBookmarkAsync(
+        Guid reference, bool bookmarked, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<LibraryDigitalVersionDto>>> GetVersionHistoryAsync(
         Guid reference, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<PagedResult<LibraryDigitalAuditDto>>> GetAuditTrailAsync(

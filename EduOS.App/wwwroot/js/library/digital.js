@@ -93,7 +93,8 @@
             form.append('Rights.SubjectId', entry.subjectId);
         }
         for (const field of ['Chapter', 'Topic', 'Language', 'SourceUrl', 'RightsHolder',
-            'LicenceCode', 'LicenceEvidence']) {
+            'LicenceCode', 'LicenceEvidence', 'ExamCode', 'BoardCode', 'SyllabusYear',
+            'SyllabusVersion', 'SyllabusSourceUrl', 'PreviousPaperYear', 'StudyExplanation']) {
             const value = el(prefix + field)?.value?.trim() || '';
             if (value) form.append('Rights.' + (field === 'Language' ? 'LanguageCode' : field), value);
         }
@@ -225,7 +226,10 @@
         for (const [field, key] of [['Chapter', 'chapter'], ['Topic', 'topic'],
             ['Language', 'languageCode'], ['SourceUrl', 'sourceUrl'],
             ['RightsHolder', 'rightsHolder'], ['LicenceCode', 'licenceCode'],
-            ['LicenceEvidence', 'licenceEvidence']])
+            ['LicenceEvidence', 'licenceEvidence'], ['ExamCode', 'examCode'],
+            ['BoardCode', 'boardCode'], ['SyllabusYear', 'syllabusYear'],
+            ['SyllabusVersion', 'syllabusVersion'], ['SyllabusSourceUrl', 'syllabusSourceUrl'],
+            ['PreviousPaperYear', 'previousPaperYear'], ['StudyExplanation', 'studyExplanation']])
             el('digitalReplace' + field).value = resource[key] || (field === 'Language' ? 'bn-BD' : '');
         el('digitalReplaceDialog').showModal();
     }
@@ -634,7 +638,9 @@
         ['digitalFile', 'digitalTitle', 'digitalBook', 'digitalExpiresOn', 'digitalCampus',
             'digitalCurriculum', 'digitalChapter', 'digitalTopic', 'digitalLanguage',
             'digitalSourceUrl', 'digitalRightsHolder', 'digitalLicenceCode',
-            'digitalLicenceEvidence'].forEach(id =>
+            'digitalLicenceEvidence', 'digitalExamCode', 'digitalBoardCode',
+            'digitalSyllabusYear', 'digitalSyllabusVersion', 'digitalSyllabusSourceUrl',
+            'digitalPreviousPaperYear', 'digitalStudyExplanation'].forEach(id =>
             el(id).addEventListener('change', () => { uploadRequestId = null; }));
         el('digitalExport').addEventListener('click', exportPage);
         el('digitalEditForm').addEventListener('submit', saveEdit);

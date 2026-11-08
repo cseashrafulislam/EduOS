@@ -40,6 +40,15 @@ public class Document : BaseTenantEntity
     [MaxLength(200)] public string? ContentRightsHolder { get; set; }
     [MaxLength(32)] public string? ContentLicenceCode { get; set; }
     [MaxLength(500)] public string? ContentLicenceEvidence { get; set; }
+    // Optional Bangladesh study classification; each edition remains a reviewed Document.
+    // No separate QuestionBank, book store or editable syllabus-copy record is created.
+    [MaxLength(24)] public string? ContentExamCode { get; set; }
+    [MaxLength(40)] public string? ContentBoardCode { get; set; }
+    public int? ContentSyllabusYear { get; set; }
+    [MaxLength(50)] public string? ContentSyllabusVersion { get; set; }
+    [MaxLength(1000)] public string? ContentSyllabusSourceUrl { get; set; }
+    public int? ContentPreviousPaperYear { get; set; }
+    [MaxLength(2000)] public string? ContentStudyExplanation { get; set; }
     [MaxLength(100)] public string? EntityType { get; set; }
     public long? EntityId { get; set; }
     [MaxLength(250)] public string? Title { get; set; }

@@ -188,6 +188,55 @@ public sealed class LibraryDigitalResourceTests
     }
 
     [Fact]
+    public async Task Study_metadata_is_reviewed_and_bookmarks_follow_live_access()
+    {
+        await using var db = Context();
+        var reference = Guid.NewGuid();
+        var seed = await SeedAsync(db, reference);
+        db.DocumentTypeDefinitions.Add(new DocumentTypeDefinition
+        { TenantId = 101, Code = "LIBRARY_DIGITAL", Name = "Digital", IsActive = true });
+        var document = new Document
+        {
+            TenantId = 101, PublicId = reference, FileAssetId = seed.Asset.Id,
+            DocumentTypeCode = "LIBRARY_DIGITAL", EntityType = "LibraryBook",
+            EntityId = seed.Book.Id, Title = "SSC practice", IsActive = false,
+            VerificationStatusCode = "Pending", RowVersion = [1, 2, 3],
+            ContentLanguageCode = "bn-BD", ContentRightsHolder = "Institute",
+            ContentLicenceCode = "InstitutionOwned", ContentLicenceEvidence = "Owned and recorded",
+            ContentExamCode = "SSC", ContentBoardCode = "DHAKA",
+            ContentSyllabusYear = 2026, ContentSyllabusVersion = "2026-1",
+            ContentSyllabusSourceUrl = "https://example.org/syllabus/ssc",
+            ContentPreviousPaperYear = 2025, ContentStudyExplanation = "Worked example"
+        };
+        db.Documents.Add(document);
+        await db.SaveChangesAsync();
+        var learner = Service(db, "Student");
+        var admin = Service(db, "TenantAdmin");
+        (await learner.ListAsync(null, null, 1, 20, false, examCode: "SSC", studyOnly: true))
+            .Data!.Items.Should().BeEmpty();
+        (await learner.SetStudyBookmarkAsync(reference, true)).StatusCode.Should().Be(404);
+        var reviewed = await admin.ReviewAsync(reference, new LibraryDigitalReviewRequestDto
+        { RowVersion = Convert.ToBase64String(document.RowVersion), Note = "Syllabus and licence verified" }, true);
+        reviewed.Success.Should().BeTrue(reviewed.Message);
+        var study = await learner.ListAsync(null, null, 1, 20, false,
+            examCode: "SSC", boardCode: "DHAKA", syllabusYear: 2026, studyOnly: true);
+        study.Data!.Items.Should().ContainSingle(x => x.Reference == reference &&
+            x.PreviousPaperYear == 2025 && x.StudyExplanation == "Worked example");
+        (await learner.ListAsync(null, null, 1, 20, false, examCode: "HSC", studyOnly: true))
+            .Data!.Items.Should().BeEmpty();
+        (await learner.SetStudyBookmarkAsync(reference, true)).Success.Should().BeTrue();
+        (await learner.SetStudyBookmarkAsync(reference, true)).Success.Should().BeTrue();
+        (await db.StudyBookmarks.CountAsync()).Should().Be(1);
+        (await learner.GetStudyBookmarksAsync([reference])).Data.Should().ContainSingle().Which.Should().Be(reference);
+        document.IsActive = false;
+        await db.SaveChangesAsync();
+        (await learner.GetStudyBookmarksAsync([reference])).Data.Should().BeEmpty();
+        (await learner.SetStudyBookmarkAsync(reference, true)).StatusCode.Should().Be(404);
+        (await learner.SetStudyBookmarkAsync(reference, false)).Success.Should().BeTrue();
+        (await db.StudyBookmarks.SingleAsync()).IsDeleted.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Upload_requires_provenance_before_private_file_is_registered()
     {
         await using var db = Context();

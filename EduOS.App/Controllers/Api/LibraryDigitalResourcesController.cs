@@ -11,7 +11,7 @@ namespace EduOS.App.Controllers.Api;
 
 [ApiController]
 [Route("api/library/digital")]
-[Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff")]
+[Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent")]
 [RequireModule("LIBRARY")]
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
@@ -30,6 +30,37 @@ public sealed class LibraryDigitalResourcesController(ILibraryDigitalResourceSer
     {
         var result = await service.ListAsync(bookReference, search, page, pageSize, includeInactive, ct,
             category, author, publisher, edition, curriculumId, subjectId, chapter, language);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("study")]
+    public async Task<IActionResult> Study([FromQuery] string? examCode = null,
+        [FromQuery] string? boardCode = null, [FromQuery] int? syllabusYear = null,
+        [FromQuery] int? previousPaperYear = null, [FromQuery] string? search = null,
+        [FromQuery] long? subjectId = null, [FromQuery] string? chapter = null,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var result = await service.ListAsync(null, search, page, pageSize, false, ct,
+            subjectId: subjectId, chapter: chapter, examCode: examCode,
+            boardCode: boardCode, syllabusYear: syllabusYear,
+            previousPaperYear: previousPaperYear, studyOnly: true);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("study/bookmarks")]
+    public async Task<IActionResult> StudyBookmarks([FromQuery] Guid[] references, CancellationToken ct)
+    {
+        var result = await service.GetStudyBookmarksAsync(references, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPut("study/bookmarks/{reference:guid}")]
+    public async Task<IActionResult> StudyBookmark(Guid reference,
+        [FromBody] LibraryStudyBookmarkRequestDto request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid || request == null) return ValidationProblem(ModelState);
+        var result = await service.SetStudyBookmarkAsync(reference, request.Bookmarked, ct);
         return StatusCode(result.StatusCode, result);
     }
 

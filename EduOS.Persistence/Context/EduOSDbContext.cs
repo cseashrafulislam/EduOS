@@ -382,6 +382,7 @@ public class EduOSDbContext :
 
     // Library
     public DbSet<Book> Books => Set<Book>();
+    public DbSet<StudyBookmark> StudyBookmarks => Set<StudyBookmark>();
     public DbSet<BookCategory> BookCategories => Set<BookCategory>();
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
     public DbSet<BookIssue> BookIssues => Set<BookIssue>();
@@ -1298,6 +1299,8 @@ public class EduOSDbContext :
         TenantReference<Document, AcademicCurriculum>(modelBuilder, nameof(Document.ContentCurriculumId));
         TenantReference<Document, AcademicLevel>(modelBuilder, nameof(Document.ContentLevelId));
         TenantReference<Document, Subject>(modelBuilder, nameof(Document.ContentSubjectId));
+        TenantReference<StudyBookmark, Document>(modelBuilder, nameof(StudyBookmark.DocumentId));
+        Reference<StudyBookmark, ApplicationUser>(modelBuilder, nameof(StudyBookmark.UserId));
         // System / Integration
         TenantReference<CustomFieldOption, CustomFieldDefinition>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId));
         TenantReference<CustomFieldValue, CustomFieldDefinition>(modelBuilder, nameof(CustomFieldValue.CustomFieldDefinitionId));
@@ -2142,6 +2145,9 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[IsDeleted] = 0");
         modelBuilder.Entity<Document>().HasIndex(x => new
             { x.TenantId, x.ContentCurriculumId, x.ContentSubjectId, x.IsActive });
+        modelBuilder.Entity<Document>().HasIndex(x => new
+            { x.TenantId, x.ContentExamCode, x.ContentBoardCode, x.ContentSyllabusYear, x.IsActive });
+        UniqueTenant<StudyBookmark>(modelBuilder, nameof(StudyBookmark.UserId), nameof(StudyBookmark.DocumentId));
         UniqueTenant<DocumentTemplate>(modelBuilder, nameof(DocumentTemplate.Code));
         UniqueTenant<CustomFieldDefinition>(modelBuilder, nameof(CustomFieldDefinition.EntityType), nameof(CustomFieldDefinition.FieldKey));
         UniqueTenant<CustomFieldOption>(modelBuilder, nameof(CustomFieldOption.CustomFieldDefinitionId), nameof(CustomFieldOption.Value));

@@ -1,0 +1,39 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "বাংলাদেশ অধ্যয়ন সংগ্রহ" : "Bangladesh study collections";
+}
+<section class="admission-page" aria-labelledby="studyHeading">
+    <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div>
+            <h2 id="studyHeading" class="h4 mb-1">@(bn ? "বাংলাদেশ অধ্যয়ন সংগ্রহ" : "Bangladesh study collections")</h2>
+            <p class="small text-muted mb-0">@(bn ? "প্রাতিষ্ঠানিকভাবে অনুমোদিত SSC, HSC, বিশ্ববিদ্যালয় ভর্তি ও NTRCA অধ্যয়ন উপকরণ। চাকরি/নিয়োগ সেবা নয়।" : "Reviewed SSC, HSC, admission and NTRCA study-only resources; not recruitment services.")</p>
+        </div>
+        <a asp-controller="Library" asp-action="Digital" class="btn btn-sm btn-outline-secondary">@(bn ? "ডিজিটাল লাইব্রেরি" : "Digital library")</a>
+    </header>
+    <div id="studyAlert" class="d-none" role="alert" tabindex="-1"></div>
+    <form id="studyFilters" class="content-card row g-2 mt-3" autocomplete="off">
+        @Html.AntiForgeryToken()
+        <div class="col-sm-6 col-lg-3"><label for="studyExam" class="form-label">@(bn ? "পরীক্ষা" : "Exam")</label><select id="studyExam" class="form-select"><option value="">@(bn ? "সব" : "All")</option><option value="SSC">SSC</option><option value="HSC">HSC</option><option value="UniversityAdmission">@(bn ? "বিশ্ববিদ্যালয় ভর্তি" : "University admission")</option><option value="NTRCAStudy">@(bn ? "শুধু NTRCA অধ্যয়ন" : "NTRCA study only")</option></select></div>
+        <div class="col-sm-6 col-lg-3"><label for="studyBoard" class="form-label">@(bn ? "বোর্ড/প্রতিষ্ঠান কোড" : "Board/institution")</label><input id="studyBoard" class="form-control" maxlength="40" /></div>
+        <div class="col-sm-6 col-lg-2"><label for="studyYear" class="form-label">@(bn ? "সিলেবাস বছর" : "Syllabus year")</label><input id="studyYear" class="form-control" type="number" min="2000" max="2100" /></div>
+        <div class="col-sm-6 col-lg-2"><label for="studyPaperYear" class="form-label">@(bn ? "প্রশ্নের বছর" : "Paper year")</label><input id="studyPaperYear" class="form-control" type="number" min="1990" max="2100" /></div>
+        <div class="col-lg-6"><label for="studySearch" class="form-label">@(bn ? "বই, বিষয়, অধ্যায় বা টপিক খুঁজুন" : "Search book, subject, chapter or topic")</label><input id="studySearch" class="form-control" maxlength="100" /></div>
+        <div class="col-lg-2"><label for="studyChapter" class="form-label">@(bn ? "অধ্যায়" : "Chapter")</label><input id="studyChapter" class="form-control" maxlength="100" /></div>
+        <div class="col-lg-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">@(bn ? "খুঁজুন" : "Search")</button><button id="studyClear" type="button" class="btn btn-outline-secondary">@(bn ? "মুছুন" : "Reset")</button></div>
+    </form>
+    <div class="content-card mt-3">
+        <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
+            <h3 class="h5 mb-0">@(bn ? "অনুমোদিত অধ্যয়ন উপকরণ" : "Reviewed study resources")</h3>
+            <span id="studyCount" class="small text-muted" aria-live="polite"></span>
+        </div>
+        <div id="studyRows" class="row g-3 mt-1" aria-live="polite"></div>
+        <nav class="d-flex justify-content-end align-items-center gap-2 mt-3" aria-label="Study pagination">
+            <button id="studyPrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগে" : "Previous")</button>
+            <span id="studyPage" aria-live="polite"></span>
+            <button id="studyNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরে" : "Next")</button>
+        </nav>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/library/study.js" asp-append-version="true"></script>
+}

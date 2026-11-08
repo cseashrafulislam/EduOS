@@ -23,6 +23,13 @@ public sealed class LibraryDigitalResourceDto
     public string? RightsHolder { get; set; }
     public string? LicenceCode { get; set; }
     public string? LicenceEvidence { get; set; }
+    public string? ExamCode { get; set; }
+    public string? BoardCode { get; set; }
+    public int? SyllabusYear { get; set; }
+    public string? SyllabusVersion { get; set; }
+    public string? SyllabusSourceUrl { get; set; }
+    public int? PreviousPaperYear { get; set; }
+    public string? StudyExplanation { get; set; }
     public string ReviewStatus { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
@@ -57,6 +64,13 @@ public sealed class LibraryDigitalRightsRequestDto
     [Required, MaxLength(200)] public string RightsHolder { get; set; } = string.Empty;
     [Required, MaxLength(32)] public string LicenceCode { get; set; } = string.Empty;
     [Required, MaxLength(500)] public string LicenceEvidence { get; set; } = string.Empty;
+    [MaxLength(24)] public string? ExamCode { get; set; }
+    [MaxLength(40)] public string? BoardCode { get; set; }
+    public int? SyllabusYear { get; set; }
+    [MaxLength(50)] public string? SyllabusVersion { get; set; }
+    [MaxLength(1000)] public string? SyllabusSourceUrl { get; set; }
+    public int? PreviousPaperYear { get; set; }
+    [MaxLength(2000)] public string? StudyExplanation { get; set; }
 }
 
 public sealed class LibraryDigitalCurriculumOptionDto
@@ -96,6 +110,11 @@ public sealed class LibraryDigitalReviewRequestDto
 {
     [Required] public string RowVersion { get; set; } = string.Empty;
     [Required, MaxLength(500)] public string Note { get; set; } = string.Empty;
+}
+
+public sealed class LibraryStudyBookmarkRequestDto
+{
+    public bool Bookmarked { get; set; }
 }
 
 public sealed class LibraryDigitalVersionDto
