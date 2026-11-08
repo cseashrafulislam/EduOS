@@ -15,7 +15,8 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class ScholarshipApplicationsController(ScholarshipWorkflowService service) : ControllerBase
+public sealed class ScholarshipApplicationsController(ScholarshipWorkflowService service,
+    ScholarshipDisbursementService disbursements) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Search(int page = 1, int pageSize = 30,
@@ -98,6 +99,47 @@ public sealed class ScholarshipApplicationsController(ScholarshipWorkflowService
         int pageSize = 30, CancellationToken ct = default)
     {
         var result = await service.InvoiceCreditsAsync(reference, page, pageSize, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("{reference:guid}/cash-disbursement")]
+    public async Task<IActionResult> CashDisbursement(Guid reference, CancellationToken ct)
+    {
+        var result = await disbursements.GetAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpGet("{reference:guid}/cash-disbursement/payees")]
+    public async Task<IActionResult> CashPayees(Guid reference, CancellationToken ct)
+    {
+        var result = await disbursements.PayeesAsync(reference, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpPost("{reference:guid}/cash-disbursement")]
+    public async Task<IActionResult> PrepareCashDisbursement(Guid reference,
+        [FromBody] PrepareScholarshipDisbursementRequest request, CancellationToken ct)
+    {
+        var result = await disbursements.PrepareAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpPost("{reference:guid}/cash-disbursement/review")]
+    public async Task<IActionResult> ReviewCashDisbursement(Guid reference,
+        [FromBody] ReviewScholarshipDisbursementRequest request, CancellationToken ct)
+    {
+        var result = await disbursements.ReviewAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpPost("{reference:guid}/cash-disbursement/reversal")]
+    public async Task<IActionResult> RequestCashReversal(Guid reference,
+        [FromBody] ReverseScholarshipDisbursementRequest request, CancellationToken ct)
+    {
+        var result = await disbursements.RequestReversalAsync(reference, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+    [HttpPost("{reference:guid}/cash-disbursement/reversal/review")]
+    public async Task<IActionResult> ReviewCashReversal(Guid reference,
+        [FromBody] ReviewScholarshipReversalRequest request, CancellationToken ct)
+    {
+        var result = await disbursements.ReviewReversalAsync(reference, request, ct);
         return StatusCode(result.StatusCode, result);
     }
 }

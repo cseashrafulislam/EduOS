@@ -84,3 +84,25 @@ test('A3 financial attribution gets a real disposable SQL Server acceptance gate
     assert.match(proof, /StudentInvoiceDiscountAttributions/);
     assert.match(proof, /GetDiscountAttributionReviewAsync/);
 });
+
+test('A3 cash-grant mode is exclusive from fee credit and wired to reviewed GL reversal', () => {
+    const entity = file('EduOS.Core/Entities/Finance/ScholarshipEntities.cs');
+    const migration = file('EduOS.Persistence/Migrations/20261108140000_ScholarshipCashDisbursement.cs');
+    const workflow = file('EduOS.Service/Services/Finance/ScholarshipDisbursementService.cs');
+    const view = file('EduOS.App/Views/StudentSupport/Scholarships.cshtml');
+    const js = file('EduOS.App/wwwroot/js/students/student-scholarships.js');
+    const sql = file('.github/workflows/sqlserver-migration.yml');
+    assert.match(entity, /AwardMode.*FeeCredit/);
+    assert.match(migration, /CK_ScholarshipApplications_Benefit/);
+    assert.match(migration, /CK_ScholarshipDisbursements_Amount/);
+    assert.match(migration, /\[State\] <> N'Rejected'/);
+    assert.match(workflow, /CentralPrivilegedAccess\.HasRoleAsync/);
+    assert.match(workflow, /IsolationLevel\.Serializable/);
+    assert.match(workflow, /ReversalOfJournalId = original\.Id/);
+    assert.match(workflow, /SourceType = "ScholarshipDisbursement"/);
+    assert.match(workflow, /SourceType = "ScholarshipDisbursementReversal"/);
+    assert.match(view, /id="aidCashPanel"/);
+    assert.match(view, /id="aidMode"/);
+    assert.match(js, /cashReversalReview\(true\)/);
+    assert.match(sql, /FullyQualifiedName~SqlServerScholarshipDisbursementIntegrationTests/);
+});

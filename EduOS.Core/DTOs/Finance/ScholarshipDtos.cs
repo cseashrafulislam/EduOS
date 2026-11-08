@@ -5,6 +5,8 @@ public sealed class SubmitScholarshipRequest
     public Guid RequestId { get; set; }
     public Guid EnrollmentReference { get; set; }
     public long DiscountRuleId { get; set; }
+    public string AwardMode { get; set; } = "FeeCredit";
+    public decimal? CashAmount { get; set; }
     public Guid? EvidenceFileReference { get; set; }
     public Guid? RenewalOfReference { get; set; }
     public DateOnly EffectiveFrom { get; set; }
@@ -32,7 +34,9 @@ public sealed class ScholarshipRow
     public Guid Reference { get; set; }
     public Guid EnrollmentReference { get; set; }
     public long CampusId { get; set; }
-    public long DiscountRuleId { get; set; }
+    public long? DiscountRuleId { get; set; }
+    public string AwardMode { get; set; } = "FeeCredit";
+    public decimal? CashAmount { get; set; }
     public string State { get; set; } = "";
     public string EligibilityStatement { get; set; } = "";
     public DateOnly EffectiveFrom { get; set; }
@@ -44,6 +48,69 @@ public sealed class ScholarshipRow
     public long? StudentDiscountId { get; set; }
     public bool HasEvidence { get; set; }
     public string RowVersion { get; set; } = "";
+}
+
+public sealed class PrepareScholarshipDisbursementRequest
+{
+    public Guid RequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public string Method { get; set; } = "Cash";
+    public Guid? GuardianReference { get; set; }
+    public long ExpenseAccountId { get; set; }
+    public long PaymentAccountId { get; set; }
+    public long? BankAccountId { get; set; }
+    public long AccountingPeriodId { get; set; }
+    public DateOnly PaymentDate { get; set; }
+    public string ExternalPaymentReference { get; set; } = "";
+}
+
+public sealed class ReviewScholarshipDisbursementRequest
+{
+    public Guid RequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public bool ConfirmPaid { get; set; }
+    public string Reason { get; set; } = "";
+}
+
+public sealed class ReverseScholarshipDisbursementRequest
+{
+    public Guid RequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public long AccountingPeriodId { get; set; }
+    public DateOnly ReversalDate { get; set; }
+    public string ExternalReversalReference { get; set; } = "";
+    public string Reason { get; set; } = "";
+}
+
+public sealed class ReviewScholarshipReversalRequest
+{
+    public Guid RequestId { get; set; }
+    public string RowVersion { get; set; } = "";
+    public bool ConfirmReversed { get; set; }
+    public string Reason { get; set; } = "";
+}
+
+public sealed class ScholarshipDisbursementRow
+{
+    public Guid Reference { get; set; }
+    public Guid ApplicationReference { get; set; }
+    public string State { get; set; } = "";
+    public decimal Amount { get; set; }
+    public string Method { get; set; } = "";
+    public string BeneficiaryType { get; set; } = "";
+    public string BeneficiaryName { get; set; } = "";
+    public DateOnly PaymentDate { get; set; }
+    public string ExternalPaymentReference { get; set; } = "";
+    public Guid? JournalReference { get; set; }
+    public Guid? ReversalJournalReference { get; set; }
+    public string RowVersion { get; set; } = "";
+}
+
+public sealed class ScholarshipDisbursementPayee
+{
+    public Guid? GuardianReference { get; set; }
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "Student";
 }
 
 public sealed class ScholarshipPage

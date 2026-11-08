@@ -338,6 +338,7 @@ public class EduOSDbContext :
     public DbSet<StudentDiscount> StudentDiscounts => Set<StudentDiscount>();
     public DbSet<ScholarshipApplication> ScholarshipApplications => Set<ScholarshipApplication>();
     public DbSet<ScholarshipApplicationEvent> ScholarshipApplicationEvents => Set<ScholarshipApplicationEvent>();
+    public DbSet<ScholarshipDisbursement> ScholarshipDisbursements => Set<ScholarshipDisbursement>();
     public DbSet<CounselingCase> CounselingCases => Set<CounselingCase>();
     public DbSet<CounselingCaseEvent> CounselingCaseEvents => Set<CounselingCaseEvent>();
     public DbSet<StudentFine> StudentFines => Set<StudentFine>();
@@ -1028,6 +1029,54 @@ public class EduOSDbContext :
         TenantReference<StudentDiscount, StudentEnrollment>(modelBuilder, nameof(StudentDiscount.StudentEnrollmentId));
         TenantReference<StudentDiscount, DiscountRule>(modelBuilder, nameof(StudentDiscount.DiscountRuleId));
         Reference<StudentDiscount, ApplicationUser>(modelBuilder, nameof(StudentDiscount.ApprovedByUserId));
+        TenantReference<ScholarshipApplication, StudentEnrollment>(modelBuilder, nameof(ScholarshipApplication.StudentEnrollmentId));
+        TenantReference<ScholarshipApplication, DiscountRule>(modelBuilder, nameof(ScholarshipApplication.DiscountRuleId));
+        TenantReference<ScholarshipApplication, StudentDiscount>(modelBuilder, nameof(ScholarshipApplication.StudentDiscountId));
+        TenantReference<ScholarshipApplication, FileAsset>(modelBuilder, nameof(ScholarshipApplication.EvidenceFileAssetId));
+        TenantReference<ScholarshipApplication, ScholarshipApplication>(modelBuilder, nameof(ScholarshipApplication.RenewalOfApplicationId));
+        Reference<ScholarshipApplication, ApplicationUser>(modelBuilder, nameof(ScholarshipApplication.SubmittedByUserId));
+        Reference<ScholarshipApplication, ApplicationUser>(modelBuilder, nameof(ScholarshipApplication.ReviewedByUserId));
+        TenantReference<ScholarshipApplicationEvent, ScholarshipApplication>(modelBuilder, nameof(ScholarshipApplicationEvent.ScholarshipApplicationId));
+        Reference<ScholarshipApplicationEvent, ApplicationUser>(modelBuilder, nameof(ScholarshipApplicationEvent.ActorUserId));
+        TenantReference<ScholarshipDisbursement, ScholarshipApplication>(modelBuilder, nameof(ScholarshipDisbursement.ScholarshipApplicationId));
+        TenantReference<ScholarshipDisbursement, Guardian>(modelBuilder, nameof(ScholarshipDisbursement.GuardianId));
+        TenantReference<ScholarshipDisbursement, Account>(modelBuilder, nameof(ScholarshipDisbursement.ExpenseAccountId));
+        TenantReference<ScholarshipDisbursement, Account>(modelBuilder, nameof(ScholarshipDisbursement.PaymentAccountId));
+        TenantReference<ScholarshipDisbursement, BankAccount>(modelBuilder, nameof(ScholarshipDisbursement.BankAccountId));
+        TenantReference<ScholarshipDisbursement, AccountingPeriod>(modelBuilder, nameof(ScholarshipDisbursement.AccountingPeriodId));
+        TenantReference<ScholarshipDisbursement, AccountingPeriod>(modelBuilder, nameof(ScholarshipDisbursement.ReversalAccountingPeriodId));
+        TenantReference<ScholarshipDisbursement, Journal>(modelBuilder, nameof(ScholarshipDisbursement.JournalId));
+        TenantReference<ScholarshipDisbursement, Journal>(modelBuilder, nameof(ScholarshipDisbursement.ReversalJournalId));
+        Reference<ScholarshipDisbursement, ApplicationUser>(modelBuilder, nameof(ScholarshipDisbursement.PreparedByUserId));
+        Reference<ScholarshipDisbursement, ApplicationUser>(modelBuilder, nameof(ScholarshipDisbursement.ReviewedByUserId));
+        Reference<ScholarshipDisbursement, ApplicationUser>(modelBuilder, nameof(ScholarshipDisbursement.ReversedByUserId));
+        Reference<ScholarshipDisbursement, ApplicationUser>(modelBuilder, nameof(ScholarshipDisbursement.ReversalRequestedByUserId));
+        modelBuilder.Entity<ScholarshipDisbursement>().HasIndex(x => new { x.TenantId, x.ScholarshipApplicationId })
+            .IsUnique().HasFilter("[State] <> N'Rejected' AND [IsDeleted] = 0");
+        modelBuilder.Entity<ScholarshipDisbursement>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<ScholarshipDisbursement>().HasIndex(x => new { x.TenantId, x.Method,
+            x.PaymentAccountId, x.ExternalPaymentReference }).IsUnique();
+        modelBuilder.Entity<ScholarshipDisbursement>().HasIndex(x => new { x.TenantId, x.ReviewRequestId })
+            .IsUnique().HasFilter("[ReviewRequestId] IS NOT NULL");
+        modelBuilder.Entity<ScholarshipApplication>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_ScholarshipApplications_State",
+                "[State] IN ('Submitted','Approved','Rejected','Awarded','Cancelled')");
+            t.HasCheckConstraint("CK_ScholarshipApplications_Benefit",
+                "([AwardMode]='FeeCredit' AND [DiscountRuleId] IS NOT NULL AND [CashAmount] IS NULL) OR " +
+                "([AwardMode]='CashGrant' AND [DiscountRuleId] IS NULL AND [CashAmount]>0 AND [StudentDiscountId] IS NULL)");
+        });
+        modelBuilder.Entity<ScholarshipDisbursement>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_ScholarshipDisbursements_State",
+                "[State] IN ('Submitted','Posted','Rejected','ReversalRequested','Reversed')");
+            t.HasCheckConstraint("CK_ScholarshipDisbursements_Amount", "[Amount] > 0 AND [Amount] <= 99999999");
+            t.HasCheckConstraint("CK_ScholarshipDisbursements_Method",
+                "([Method]='Cash' AND [BankAccountId] IS NULL) OR ([Method]='Bank' AND [BankAccountId] IS NOT NULL)");
+            t.HasCheckConstraint("CK_ScholarshipDisbursements_Beneficiary",
+                "([BeneficiaryType]='Student' AND [GuardianId] IS NULL) OR " +
+                "([BeneficiaryType]='Guardian' AND [GuardianId] IS NOT NULL)");
+        });
         TenantReference<FineRule, FeeHead>(modelBuilder, nameof(FineRule.FeeHeadId));
         TenantReference<StudentFine, StudentEnrollment>(modelBuilder, nameof(StudentFine.StudentEnrollmentId));
         TenantReference<StudentFine, FineRule>(modelBuilder, nameof(StudentFine.FineRuleId));
@@ -3257,6 +3306,7 @@ public class EduOSDbContext :
         return entity is AuditLog
             or LearnerIdentityAccessLog
             or ScholarshipApplicationEvent
+            or ScholarshipDisbursement
             or CounselingCaseEvent
             or StudentPromotionRecord
             or StudentExitRecord
@@ -3396,6 +3446,7 @@ public class EduOSDbContext :
         return entity is FacilityVisitorVisit
             or ScholarshipApplication
             or ScholarshipApplicationEvent
+            or ScholarshipDisbursement
             or CounselingCase
             or CounselingCaseEvent
             or FacilityVisitorEvent

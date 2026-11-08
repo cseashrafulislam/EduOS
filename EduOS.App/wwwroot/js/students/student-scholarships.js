@@ -13,7 +13,9 @@
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
     const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null, evidenceUploadId: null,
-        reconcilePage: 1, reconcileTotal: 0, creditPage: 1, creditTotal: 0 };
+        reconcilePage: 1, reconcileTotal: 0, creditPage: 1, creditTotal: 0,
+        cash: null, cashPrepareId: null, cashReviewId: null, cashReversalId: null, cashReversalReviewId: null,
+        cashFinanceLoaded: false };
     const guid = () => crypto.randomUUID();
     const val = id => $(id)?.value?.trim() || '';
     const date = value => value ? String(value).slice(0, 10) : '';
@@ -43,7 +45,14 @@
     }
     function refreshControls() {
         if (state.locked) return;
-        $('aidSubmit').disabled = state.busy || !state.enrollment || !val('aidRule') ||
+        const cashMode = val('aidMode') === 'CashGrant';
+        $('aidRuleGroup').classList.toggle('d-none', cashMode);
+        $('aidCashGroup').classList.toggle('d-none', !cashMode);
+        $('aidRule').required = !cashMode;
+        $('aidCashAmount').required = cashMode;
+        $('aidSubmit').disabled = state.busy || !state.enrollment ||
+            (cashMode ? !Number.isFinite(Number(val('aidCashAmount'))) ||
+                Number(val('aidCashAmount')) <= 0 || Number(val('aidCashAmount')) > 99999999 : !val('aidRule')) ||
             !val('aidFrom') || !val('aidStatement') ||
             ($('aidEvidenceFile').files?.length > 0 && !val('aidEvidence'));
         $('aidEvidenceUpload').disabled = state.busy || !state.enrollment ||
@@ -54,7 +63,8 @@
         if (!review) return;
         $('aidApprove').disabled = state.busy || state.selected?.state !== 'Submitted';
         $('aidReject').disabled = $('aidApprove').disabled;
-        $('aidAward').disabled = state.busy || state.selected?.state !== 'Approved';
+        $('aidAward').disabled = state.busy || state.selected?.state !== 'Approved' ||
+            state.selected?.awardMode !== 'FeeCredit';
         $('aidCancel').disabled = state.busy ||
             !['Submitted', 'Approved', 'Awarded'].includes(state.selected?.state);
         $('aidEvidenceDownload').disabled = state.busy || !state.selected?.hasEvidence;
@@ -64,6 +74,17 @@
         $('aidReconcile').disabled = state.busy;
         $('aidReconcilePrev').disabled = state.busy || state.reconcilePage <= 1;
         $('aidReconcileNext').disabled = state.busy || state.reconcilePage * 30 >= state.reconcileTotal;
+        const selectedCash = state.selected?.awardMode === 'CashGrant';
+        $('aidCashPanel').classList.toggle('d-none', !selectedCash);
+        $('aidCashBank').disabled = state.busy || val('aidCashMethod') !== 'Bank';
+        $('aidCashLedger').disabled = state.busy || val('aidCashMethod') !== 'Cash';
+        $('aidCashPrepare').disabled = state.busy || !selectedCash || state.selected?.state !== 'Approved' ||
+            (state.cash && state.cash.state !== 'Rejected');
+        $('aidCashConfirm').disabled = $('aidCashReject').disabled = state.busy || !state.cash ||
+            state.cash.state !== 'Submitted';
+        $('aidCashReverseRequest').disabled = state.busy || !state.cash || state.cash.state !== 'Posted';
+        $('aidCashReverseConfirm').disabled = $('aidCashReverseReject').disabled = state.busy ||
+            !state.cash || state.cash.state !== 'ReversalRequested';
     }
     async function api(path, method = 'GET', payload) {
         if (!checkSession()) throw Error(T('Institution session changed. Reload.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'));
@@ -133,9 +154,12 @@
         $('aidCreditReport').classList.add('d-none');
         state.creditPage = 1; state.creditTotal = 0;
         $('aidSelected').textContent = state.selected ? state.selected.reference + ' · ' +
-            state.selected.state + ' · ' + state.selected.eligibilityStatement :
+            state.selected.state + ' · ' + state.selected.awardMode + ' · ' +
+            (state.selected.cashAmount ? Number(state.selected.cashAmount).toFixed(2) + ' BDT · ' : '') +
+            state.selected.eligibilityStatement :
             T('Choose an application above.', 'উপরের তালিকা থেকে আবেদন বাছুন।');
         refreshControls();
+        if (state.selected?.awardMode === 'CashGrant') loadCash();
     }
     async function list() {
         await run(async () => {
@@ -152,7 +176,7 @@
                 const button = make('button', T('View', 'দেখুন'), 'btn btn-outline-primary btn-sm');
                 button.type = 'button';
                 button.addEventListener('click', () => {
-                    state.selected = row; renderSelected();
+                    state.selected = row; state.cash = null; renderSelected();
                     notice(row.reference + ' · ' + row.state + ' · ' + row.eligibilityStatement);
                 });
                 td.append(button); tr.append(td); tbody.append(tr);
@@ -175,7 +199,9 @@
         await run(async () => {
             const payload = {
                 requestId: state.requestId || (state.requestId = guid()),
-                enrollmentReference: state.enrollment, discountRuleId: Number(val('aidRule')),
+                enrollmentReference: state.enrollment, awardMode: val('aidMode'),
+                discountRuleId: val('aidMode') === 'CashGrant' ? 0 : Number(val('aidRule')),
+                cashAmount: val('aidMode') === 'CashGrant' ? Number(val('aidCashAmount')) : null,
                 effectiveFrom: val('aidFrom'), effectiveTo: val('aidTo') || null,
                 eligibilityStatement: val('aidStatement'),
                 evidenceFileReference: val('aidEvidence') || null,
@@ -183,6 +209,7 @@
             };
             const result = await api('/api/student-scholarships', 'POST', payload);
             state.requestId = null; $('aidStatement').value = ''; $('aidEvidence').value = '';
+            $('aidCashAmount').value = '';
             $('aidRenewal').value = ''; notice(T('Submitted for review: ', 'পর্যালোচনার জন্য জমা: ') + result.reference);
             state.page = 1; await listWithoutBusy();
         });
@@ -226,7 +253,7 @@
             const td = document.createElement('td');
             const btn = make('button', T('View', 'দেখুন'), 'btn btn-sm btn-outline-primary');
             btn.type = 'button'; btn.addEventListener('click', () => {
-                state.selected = row; renderSelected(); notice(row.reference + ' · ' + row.state + ' · ' + row.eligibilityStatement);
+                state.selected = row; state.cash = null; renderSelected(); notice(row.reference + ' · ' + row.state + ' · ' + row.eligibilityStatement);
             }); td.append(btn); tr.append(td); tbody.append(tr);
         }
         if (!data?.items?.length) {
@@ -249,6 +276,141 @@
             state.selected = data; $('aidReason').value = ''; renderSelected();
             notice(T('Saved state: ', 'সংরক্ষিত অবস্থা: ') + data.state);
             await listWithoutBusy();
+        });
+    }
+    const cashBase = () => '/api/student-scholarships/' + encodeURIComponent(state.selected.reference) + '/cash-disbursement';
+    const option = (value, label) => new Option(label, String(value));
+    async function cashFinanceOptions() {
+        if (state.cashFinanceLoaded) return;
+        const [first, periods, banks] = await Promise.all([
+            api('/api/finance/accounting/setup/accounts?pageSize=100'),
+            api('/api/finance/accounting/setup/periods'),
+            api('/api/finance/accounting/setup/banks')
+        ]);
+        const accounts = [...(first.items || [])];
+        const total = Number(first.totalCount || 0);
+        for (let page = 2; (page - 1) * 100 < total && page <= 20; page++) {
+            const more = await api('/api/finance/accounting/setup/accounts?' +
+                new URLSearchParams({ page: String(page), pageSize: '100' }));
+            accounts.push(...(more.items || []));
+        }
+        if (accounts.length < total) throw Error(T('Account directory too large; use Finance setup to narrow the list.',
+            'হিসাবের তালিকা অনেক বড়; ফাইন্যান্স সেটআপে প্রয়োজনীয় হিসাব খুঁজুন।'));
+        $('aidCashExpense').replaceChildren(option('', T('Select expense GL', 'ব্যয় লেজার বাছুন')));
+        $('aidCashLedger').replaceChildren(option('', T('Select cash ledger', 'ক্যাশ লেজার বাছুন')));
+        for (const account of accounts.filter(a => a.isActive && !a.isGroup)) {
+            const label = account.code + ' · ' + account.name;
+            if (String(account.accountType) === '5' || account.accountType === 'Expense')
+                $('aidCashExpense').add(option(account.id, label));
+            if (account.isCashInHand && (String(account.accountType) === '1' || account.accountType === 'Asset'))
+                $('aidCashLedger').add(option(account.id, label));
+        }
+        $('aidCashBank').replaceChildren(option('', T('Select bank', 'ব্যাংক বাছুন')));
+        for (const bank of banks || []) if (bank.isActive && bank.currencyCode === 'BDT')
+            $('aidCashBank').add(option(bank.id, bank.bankName + ' · ' + bank.accountName + ' · ' + bank.accountNumber));
+        for (const id of ['aidCashPeriod', 'aidCashReversePeriod']) {
+            $(id).replaceChildren(option('', T('Select open period', 'খোলা হিসাবকাল বাছুন')));
+            for (const period of periods || []) if (!period.isClosed)
+                $(id).add(option(period.id, period.name + ' · ' + date(period.startDate) + ' – ' + date(period.endDate)));
+        }
+        state.bankAccounts = banks || [];
+        state.cashFinanceLoaded = true;
+    }
+    async function loadCash() {
+        const selected = state.selected?.reference;
+        if (!selected || state.selected?.awardMode !== 'CashGrant') return;
+        try {
+            await cashFinanceOptions();
+            const payees = await api('/api/student-scholarships/' + encodeURIComponent(selected) + '/cash-disbursement/payees');
+            if (state.selected?.reference !== selected) return;
+            $('aidCashPayee').replaceChildren();
+            for (const payee of payees || []) $('aidCashPayee').add(option(payee.guardianReference || '',
+                payee.type + ' · ' + payee.name));
+            const response = await fetch('/api/student-scholarships/' + encodeURIComponent(selected) +
+                '/cash-disbursement', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+            const result = await response.json().catch(() => null);
+            if (!checkSession() || state.selected?.reference !== selected) return;
+            if (response.status === 404) state.cash = null;
+            else if (response.ok && result?.success) state.cash = result.data;
+            else throw Error(result?.message || T('Cash register unavailable.', 'নগদ অনুদানের রেজিস্টার পাওয়া যায়নি।'));
+            $('aidCashStatus').textContent = state.cash ?
+                state.cash.state + ' · ' + Number(state.cash.amount).toFixed(2) + ' BDT · ' +
+                state.cash.method + ' · ' + state.cash.beneficiaryName + ' · ' +
+                (state.cash.journalReference || T('Not posted', 'পোস্ট হয়নি')) :
+                T('No cash instruction yet. Only an approved grant may be prepared.',
+                    'এখনো কোনো পেমেন্ট নির্দেশ নেই। শুধু অনুমোদিত অনুদানের নির্দেশ তৈরি করা যাবে।');
+            refreshControls();
+        } catch (error) { notice(error.message, true); }
+    }
+    async function prepareCash(event) {
+        event.preventDefault();
+        if (!state.selected || !val('aidCashExpense') || !val('aidCashPeriod') || !val('aidCashDate') ||
+            !val('aidCashRef') || (val('aidCashMethod') === 'Bank' ? !val('aidCashBank') : !val('aidCashLedger')))
+            return notice(T('Complete the Finance payment details.', 'ফাইন্যান্স পেমেন্টের তথ্য পূরণ করুন।'), true);
+        await run(async () => {
+            const bankId = Number(val('aidCashBank'));
+            const bank = state.bankAccounts?.find(x => x.id === bankId);
+            const payload = {
+                requestId: state.cashPrepareId || (state.cashPrepareId = guid()),
+                rowVersion: state.selected.rowVersion, method: val('aidCashMethod'),
+                guardianReference: val('aidCashPayee') || null,
+                expenseAccountId: Number(val('aidCashExpense')),
+                paymentAccountId: val('aidCashMethod') === 'Bank' ? (bank?.accountId || 0) : Number(val('aidCashLedger')),
+                bankAccountId: val('aidCashMethod') === 'Bank' ? bankId : null,
+                accountingPeriodId: Number(val('aidCashPeriod')),
+                paymentDate: val('aidCashDate'), externalPaymentReference: val('aidCashRef')
+            };
+            state.cash = await api(cashBase(), 'POST', payload);
+            state.cashPrepareId = null;
+            notice(T('Instruction saved. A different Finance administrator must verify payment.',
+                'নির্দেশ সংরক্ষিত। অন্য ফাইন্যান্স প্রশাসককে পেমেন্ট যাচাই করতে হবে।'));
+            await loadCash();
+        });
+    }
+    async function cashReview(confirmPaid) {
+        if (!state.cash || !val('aidCashReason'))
+            return notice(T('Review reason required.', 'পর্যালোচনার কারণ প্রয়োজন।'), true);
+        await run(async () => {
+            state.cash = await api(cashBase() + '/review', 'POST', {
+                requestId: state.cashReviewId || (state.cashReviewId = guid()),
+                rowVersion: state.cash.rowVersion, confirmPaid, reason: val('aidCashReason')
+            });
+            state.cashReviewId = null;
+            $('aidCashReason').value = '';
+            state.selected = await api('/api/student-scholarships/' + encodeURIComponent(state.selected.reference));
+            notice(T('Cash review saved: ', 'নগদ অনুদান যাচাই সংরক্ষিত: ') + state.cash.state);
+            await loadCash(); await listWithoutBusy();
+        });
+    }
+    async function cashReversalRequest() {
+        if (!state.cash || !val('aidCashReason') || !val('aidCashReverseDate') ||
+            !val('aidCashReverseRef') || !val('aidCashReversePeriod'))
+            return notice(T('Repayment evidence, date, period and reason required.',
+                'ফেরতের প্রমাণ, তারিখ, হিসাবকাল ও কারণ প্রয়োজন।'), true);
+        await run(async () => {
+            state.cash = await api(cashBase() + '/reversal', 'POST', {
+                requestId: state.cashReversalId || (state.cashReversalId = guid()),
+                rowVersion: state.cash.rowVersion, accountingPeriodId: Number(val('aidCashReversePeriod')),
+                reversalDate: val('aidCashReverseDate'),
+                externalReversalReference: val('aidCashReverseRef'), reason: val('aidCashReason')
+            });
+            state.cashReversalId = null;
+            notice(T('Reversal pending independent confirmation.', 'রিভার্সাল স্বাধীন নিশ্চিতকরণের অপেক্ষায়।'));
+            await loadCash();
+        });
+    }
+    async function cashReversalReview(confirmReversed) {
+        if (!state.cash || !val('aidCashReason'))
+            return notice(T('Document review reason first.', 'আগে যাচাইয়ের কারণ লিখুন।'), true);
+        await run(async () => {
+            state.cash = await api(cashBase() + '/reversal/review', 'POST', {
+                requestId: state.cashReversalReviewId || (state.cashReversalReviewId = guid()),
+                rowVersion: state.cash.rowVersion, confirmReversed, reason: val('aidCashReason')
+            });
+            state.cashReversalReviewId = null; $('aidCashReason').value = '';
+            state.selected = await api('/api/student-scholarships/' + encodeURIComponent(state.selected.reference));
+            notice(T('Reversal review saved: ', 'রিভার্সাল যাচাই সংরক্ষিত: ') + state.cash.state);
+            await loadCash(); await listWithoutBusy();
         });
     }
     async function evidence() {
@@ -338,11 +500,18 @@
             'নির্বাচিত প্রমাণ এখনো আপলোড হয়নি।');
         refreshControls();
     });
-    for (const id of ['aidRule', 'aidFrom', 'aidStatement']) $(id).addEventListener('input', refreshControls);
+    for (const id of ['aidMode', 'aidRule', 'aidCashAmount', 'aidFrom', 'aidStatement', 'aidCashMethod'])
+        $(id).addEventListener('input', refreshControls);
     $('aidRefresh').addEventListener('click', () => list());
     $('aidPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; list(); } });
     $('aidNext').addEventListener('click', () => { if (state.page * state.pageSize < state.total) { state.page++; list(); } });
     if (review) {
+        $('aidCashPrepareForm').addEventListener('submit', prepareCash);
+        $('aidCashConfirm').addEventListener('click', () => cashReview(true));
+        $('aidCashReject').addEventListener('click', () => cashReview(false));
+        $('aidCashReverseRequest').addEventListener('click', cashReversalRequest);
+        $('aidCashReverseConfirm').addEventListener('click', () => cashReversalReview(true));
+        $('aidCashReverseReject').addEventListener('click', () => cashReversalReview(false));
         for (const [id, kind] of [['aidApprove', 'approve'], ['aidReject', 'reject'],
             ['aidAward', 'award'], ['aidCancel', 'cancel']]) $(id).addEventListener('click', () => act(kind));
         $('aidEvidenceDownload').addEventListener('click', evidence);
@@ -355,6 +524,10 @@
     }
     const today = new Date();
     $('aidFrom').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (review) {
+        $('aidCashDate').value = $('aidFrom').value;
+        $('aidCashReverseDate').value = $('aidFrom').value;
+    }
     window.addEventListener('focus', checkSession);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSession(); });
     (async () => { await rules(); await searchStudent(); await list(); })();

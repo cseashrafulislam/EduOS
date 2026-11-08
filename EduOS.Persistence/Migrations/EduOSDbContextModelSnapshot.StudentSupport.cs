@@ -15,7 +15,9 @@ partial class EduOSDbContextModelSnapshot
             b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
             b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
             b.Property<long>("StudentEnrollmentId").HasColumnType("bigint");
-            b.Property<long>("DiscountRuleId").HasColumnType("bigint");
+            b.Property<long?>("DiscountRuleId").HasColumnType("bigint");
+            b.Property<string>("AwardMode").IsRequired().HasMaxLength(12).HasColumnType("nvarchar(12)");
+            b.Property<decimal?>("CashAmount").HasColumnType("decimal(18,2)");
             b.Property<long?>("EvidenceFileAssetId").HasColumnType("bigint");
             b.Property<long?>("RenewalOfApplicationId").HasColumnType("bigint");
             b.Property<DateOnly>("EffectiveFrom").HasColumnType("date");
@@ -51,9 +53,14 @@ partial class EduOSDbContextModelSnapshot
             b.HasIndex("TenantId", "EvidenceFileAssetId");
             b.HasIndex("TenantId", "RenewalOfApplicationId");
             b.HasIndex("TenantId", "StudentDiscountId");
-            b.ToTable("ScholarshipApplications", t => t.HasCheckConstraint(
-                "CK_ScholarshipApplications_State",
-                "[State] IN ('Submitted','Approved','Rejected','Awarded','Cancelled')"));
+            b.ToTable("ScholarshipApplications", t =>
+            {
+                t.HasCheckConstraint("CK_ScholarshipApplications_State",
+                    "[State] IN ('Submitted','Approved','Rejected','Awarded','Cancelled')");
+                t.HasCheckConstraint("CK_ScholarshipApplications_Benefit",
+                    "([AwardMode]='FeeCredit' AND [DiscountRuleId] IS NOT NULL AND [CashAmount] IS NULL) OR " +
+                    "([AwardMode]='CashGrant' AND [DiscountRuleId] IS NULL AND [CashAmount]>0 AND [StudentDiscountId] IS NULL)");
+            });
         });
         modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipApplicationEvent", b =>
         {
@@ -81,6 +88,79 @@ partial class EduOSDbContextModelSnapshot
             b.HasIndex("TenantId", "ClientRequestId").IsUnique();
             b.HasIndex("TenantId", "ScholarshipApplicationId", "Id");
             b.ToTable("ScholarshipApplicationEvents");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipDisbursement", b =>
+        {
+            b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+            b.Property<long>("TenantId").HasColumnType("bigint");
+            b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
+            b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
+            b.Property<Guid?>("ReviewRequestId").HasColumnType("uniqueidentifier");
+            b.Property<long>("ScholarshipApplicationId").HasColumnType("bigint");
+            b.Property<decimal>("Amount").HasColumnType("decimal(18,2)");
+            b.Property<string>("Method").IsRequired().HasMaxLength(8).HasColumnType("nvarchar(8)");
+            b.Property<string>("BeneficiaryType").IsRequired().HasMaxLength(8).HasColumnType("nvarchar(8)");
+            b.Property<long?>("GuardianId").HasColumnType("bigint");
+            b.Property<string>("BeneficiaryNameSnapshot").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
+            b.Property<long>("ExpenseAccountId").HasColumnType("bigint");
+            b.Property<long>("PaymentAccountId").HasColumnType("bigint");
+            b.Property<long?>("BankAccountId").HasColumnType("bigint");
+            b.Property<long>("AccountingPeriodId").HasColumnType("bigint");
+            b.Property<DateOnly>("PaymentDate").HasColumnType("date");
+            b.Property<string>("ExternalPaymentReference").IsRequired().HasMaxLength(100).HasColumnType("nvarchar(100)");
+            b.Property<string>("State").IsRequired().HasMaxLength(16).HasColumnType("nvarchar(16)");
+            b.Property<long>("PreparedByUserId").HasColumnType("bigint");
+            b.Property<DateTime>("SubmittedAtUtc").HasColumnType("datetime2");
+            b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
+            b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
+            b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+            b.Property<long?>("JournalId").HasColumnType("bigint");
+            b.Property<long?>("ReversalJournalId").HasColumnType("bigint");
+            b.Property<Guid?>("ReversalRequestId").HasColumnType("uniqueidentifier");
+            b.Property<Guid?>("ReversalReviewRequestId").HasColumnType("uniqueidentifier");
+            b.Property<long?>("ReversalRequestedByUserId").HasColumnType("bigint");
+            b.Property<DateTime?>("ReversalRequestedAtUtc").HasColumnType("datetime2");
+            b.Property<long?>("ReversalAccountingPeriodId").HasColumnType("bigint");
+            b.Property<DateOnly?>("ReversalDate").HasColumnType("date");
+            b.Property<string>("ExternalReversalReference").HasMaxLength(100).HasColumnType("nvarchar(100)");
+            b.Property<string>("ReversalReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
+            b.Property<long?>("ReversedByUserId").HasColumnType("bigint");
+            b.Property<DateTime?>("ReversedAtUtc").HasColumnType("datetime2");
+            b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+            b.Property<long?>("CreatedBy").HasColumnType("bigint");
+            b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+            b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+            b.Property<bool>("IsDeleted").HasColumnType("bit");
+            b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+            b.Property<long?>("DeletedBy").HasColumnType("bigint");
+            b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+            b.HasKey("Id");
+            b.HasAlternateKey("TenantId", "Id");
+            b.HasIndex("PublicId").IsUnique();
+            b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+            b.HasIndex("TenantId", "ReviewRequestId").IsUnique()
+                .HasFilter("[ReviewRequestId] IS NOT NULL");
+            b.HasIndex("TenantId", "ScholarshipApplicationId").IsUnique()
+                .HasFilter("[State] <> N'Rejected' AND [IsDeleted] = 0");
+            b.HasIndex("TenantId", "Method", "PaymentAccountId", "ExternalPaymentReference").IsUnique();
+            foreach (var column in new[] { "GuardianId", "ExpenseAccountId", "PaymentAccountId",
+                "BankAccountId", "AccountingPeriodId", "ReversalAccountingPeriodId", "JournalId", "ReversalJournalId" })
+                b.HasIndex("TenantId", column);
+            foreach (var column in new[] { "PreparedByUserId", "ReviewedByUserId", "ReversalRequestedByUserId", "ReversedByUserId" })
+                b.HasIndex(column);
+            b.ToTable("ScholarshipDisbursements", t =>
+            {
+                t.HasCheckConstraint("CK_ScholarshipDisbursements_State",
+                    "[State] IN ('Submitted','Posted','Rejected','ReversalRequested','Reversed')");
+                t.HasCheckConstraint("CK_ScholarshipDisbursements_Amount", "[Amount] > 0 AND [Amount] <= 99999999");
+                t.HasCheckConstraint("CK_ScholarshipDisbursements_Method",
+                    "([Method]='Cash' AND [BankAccountId] IS NULL) OR ([Method]='Bank' AND [BankAccountId] IS NOT NULL)");
+                t.HasCheckConstraint("CK_ScholarshipDisbursements_Beneficiary",
+                    "([BeneficiaryType]='Student' AND [GuardianId] IS NULL) OR " +
+                    "([BeneficiaryType]='Guardian' AND [GuardianId] IS NOT NULL)");
+            });
         });
         modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCase", b =>
         {
@@ -167,7 +247,7 @@ partial class EduOSDbContextModelSnapshot
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
             b.HasOne("EduOS.Core.Entities.Finance.DiscountRule", null).WithMany()
                 .HasForeignKey("TenantId", "DiscountRuleId")
-                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
             b.HasOne("EduOS.Core.Entities.Files.FileAsset", null).WithMany()
                 .HasForeignKey("TenantId", "EvidenceFileAssetId")
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
@@ -188,6 +268,27 @@ partial class EduOSDbContextModelSnapshot
             b.HasOne("EduOS.Core.Entities.Finance.ScholarshipApplication", null).WithMany()
                 .HasForeignKey("TenantId", "ScholarshipApplicationId")
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.Navigation("Tenant");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipDisbursement", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()
+                .HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+            foreach (var fk in new[] { ("EduOS.Core.Entities.Finance.ScholarshipApplication", "ScholarshipApplicationId"),
+                ("EduOS.Core.Entities.Students.Guardian", "GuardianId"),
+                ("EduOS.Core.Entities.Accounting.Account", "ExpenseAccountId"),
+                ("EduOS.Core.Entities.Accounting.Account", "PaymentAccountId"),
+                ("EduOS.Core.Entities.Accounting.BankAccount", "BankAccountId"),
+                ("EduOS.Core.Entities.Accounting.AccountingPeriod", "AccountingPeriodId"),
+                ("EduOS.Core.Entities.Accounting.AccountingPeriod", "ReversalAccountingPeriodId"),
+                ("EduOS.Core.Entities.Accounting.Journal", "JournalId"),
+                ("EduOS.Core.Entities.Accounting.Journal", "ReversalJournalId") })
+                b.HasOne(fk.Item1, null).WithMany().HasForeignKey("TenantId", fk.Item2)
+                    .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
+            foreach (var column in new[] { "PreparedByUserId", "ReviewedByUserId",
+                "ReversalRequestedByUserId", "ReversedByUserId" })
+                b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null).WithMany()
+                    .HasForeignKey(column).OnDelete(DeleteBehavior.Restrict);
             b.Navigation("Tenant");
         });
         modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCase", b =>

@@ -18,6 +18,7 @@ public sealed class StudentSupportA3A4ContractsTests
     [Theory]
     [InlineData(typeof(ScholarshipApplication))]
     [InlineData(typeof(ScholarshipApplicationEvent))]
+    [InlineData(typeof(ScholarshipDisbursement))]
     [InlineData(typeof(StudentInvoiceDiscountAttribution))]
     [InlineData(typeof(CounselingCase))]
     [InlineData(typeof(CounselingCaseEvent))]
@@ -61,6 +62,10 @@ public sealed class StudentSupportA3A4ContractsTests
     [InlineData(nameof(ScholarshipApplicationsController.Decide))]
     [InlineData(nameof(ScholarshipApplicationsController.Award))]
     [InlineData(nameof(ScholarshipApplicationsController.Cancel))]
+    [InlineData(nameof(ScholarshipApplicationsController.PrepareCashDisbursement))]
+    [InlineData(nameof(ScholarshipApplicationsController.ReviewCashDisbursement))]
+    [InlineData(nameof(ScholarshipApplicationsController.RequestCashReversal))]
+    [InlineData(nameof(ScholarshipApplicationsController.ReviewCashReversal))]
     public void All_scholarship_decisions_and_financial_actions_require_post(string method)
     {
         typeof(ScholarshipApplicationsController).GetMethods().Single(x => x.Name == method)

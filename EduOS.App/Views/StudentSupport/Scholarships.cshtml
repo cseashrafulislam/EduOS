@@ -9,7 +9,7 @@
     @Html.AntiForgeryToken()
     <header class="mb-3">
         <h1 class="h4">@L("Scholarships & Fee Assistance", "বৃত্তি ও ফি সহায়তা")</h1>
-        <p class="text-muted">@L("Request aid, receive independent review and apply an approved concession to future invoices. Past invoices and payments are never edited by this workflow.", "সহায়তার আবেদন, স্বাধীন অনুমোদন ও ভবিষ্যৎ ইনভয়েসে অনুমোদিত ছাড়। পূর্বের বিল ও পেমেন্ট এই প্রক্রিয়ায় বদলানো হয় না।")</p>
+        <p class="text-muted">@L("Apply for fee credit or a one-time cash grant. Approved fee credits affect only future invoices; cash grants need separate, independently confirmed Finance posting.", "ফি ছাড় অথবা এককালীন নগদ অনুদানের আবেদন করুন। অনুমোদিত ফি ছাড় শুধু ভবিষ্যৎ বিলে প্রযোজ্য; নগদ অনুদানে আলাদা স্বাধীন ফাইন্যান্স অনুমোদন লাগে।")</p>
         <a href="/FeeDiscountRules/Index" class="small">@L("Manage existing fee policies (administrator)", "বিদ্যমান ফি-ছাড় নীতিমালা (প্রশাসক)")</a>
     </header>
     <div id="aidNotice" class="alert alert-info" role="status" aria-live="polite">@L("Select a student and current enrollment.", "শিক্ষার্থী ও বর্তমান ভর্তি নির্বাচন করুন।")</div>
@@ -24,7 +24,9 @@
                 <div id="aidStudents" class="list-group mb-3" aria-live="polite"></div>
                 <form id="aidSubmitForm" class="row g-3">
                     <div class="col-12"><label for="aidEnrollment" class="form-label">@L("Current enrollment", "বর্তমান ভর্তি")</label><input id="aidEnrollment" class="form-control" readonly required placeholder="@L("Choose from search", "অনুসন্ধান থেকে নির্বাচন করুন")" /></div>
-                    <div class="col-12"><label for="aidRule" class="form-label">@L("Fee assistance policy", "ফি সহায়তার নীতি")</label><select id="aidRule" class="form-select" required><option value="">@L("Loading policies…", "নীতি লোড হচ্ছে…")</option></select></div>
+                    <div class="col-12"><label for="aidMode" class="form-label">@L("Assistance type", "সহায়তার ধরন")</label><select id="aidMode" class="form-select"><option value="FeeCredit">@L("Fee credit – future invoices only", "ফি ছাড় – শুধু ভবিষ্যৎ বিল")</option><option value="CashGrant">@L("Cash grant – one-time external payment", "নগদ অনুদান – এককালীন বহিরাগত পেমেন্ট")</option></select></div>
+                    <div class="col-12" id="aidRuleGroup"><label for="aidRule" class="form-label">@L("Fee assistance policy", "ফি সহায়তার নীতি")</label><select id="aidRule" class="form-select" required><option value="">@L("Loading policies…", "নীতি লোড হচ্ছে…")</option></select></div>
+                    <div class="col-12 d-none" id="aidCashGroup"><label for="aidCashAmount" class="form-label">@L("Requested cash grant (BDT)", "আবেদিত নগদ অনুদান (টাকা)")</label><input id="aidCashAmount" class="form-control" inputmode="decimal" type="number" min="0.01" max="99999999" step="0.01" /></div>
                     <div class="col-sm-6"><label for="aidFrom" class="form-label">@L("From", "শুরু")</label><input id="aidFrom" class="form-control" type="date" required /></div>
                     <div class="col-sm-6"><label for="aidTo" class="form-label">@L("To (optional)", "শেষ (ঐচ্ছিক)")</label><input id="aidTo" class="form-control" type="date" /></div>
                     <div class="col-12"><label for="aidStatement" class="form-label">@L("Eligibility statement", "যোগ্যতার বিবরণ")</label><textarea id="aidStatement" class="form-control" rows="3" maxlength="700" required></textarea></div>
@@ -64,9 +66,39 @@
                     </div>
                     <p class="small text-muted mt-2 mb-0">@L("Approver must differ from the applicant. Rejected or issued invoices are never overwritten.", "অনুমোদনকারী আবেদনকারীর থেকে আলাদা হতে হবে। প্রত্যাখ্যাত বা ইস্যুকৃত বিল কখনো বদলানো হবে না।")</p>
                 </div></section>
+                <section id="aidCashPanel" class="card mt-3 d-none"><div class="card-body">
+                    <h2 class="h6">@L("Cash grant · Finance confirmation", "নগদ অনুদান · ফাইন্যান্স নিশ্চিতকরণ")</h2>
+                    <p id="aidCashStatus" class="small text-muted" aria-live="polite"></p>
+                    <form id="aidCashPrepareForm" class="row g-2 mb-3">
+                        <div class="col-md-6"><label for="aidCashPayee" class="form-label">@L("Verified student / financial guardian", "যাচাইকৃত শিক্ষার্থী / আর্থিক অভিভাবক")</label><select id="aidCashPayee" class="form-select" required></select></div>
+                        <div class="col-md-6"><label for="aidCashMethod" class="form-label">@L("Paid externally by", "বাইরে পেমেন্ট পদ্ধতি")</label><select id="aidCashMethod" class="form-select"><option value="Cash">@L("Cash", "নগদ")</option><option value="Bank">@L("Bank transfer", "ব্যাংক ট্রান্সফার")</option></select></div>
+                        <div class="col-md-6"><label for="aidCashExpense" class="form-label">@L("Scholarship expense GL", "বৃত্তি ব্যয় লেজার")</label><select id="aidCashExpense" class="form-select" required></select></div>
+                        <div class="col-md-6"><label for="aidCashBank" class="form-label">@L("Bank account (bank transfer only)", "ব্যাংক হিসাব (শুধু ব্যাংক পেমেন্ট)")</label><select id="aidCashBank" class="form-select"></select></div>
+                        <div class="col-md-6"><label for="aidCashLedger" class="form-label">@L("Cash-in-hand GL (cash only)", "নগদ ক্যাশ লেজার (শুধু নগদ)")</label><select id="aidCashLedger" class="form-select"></select></div>
+                        <div class="col-md-6"><label for="aidCashPeriod" class="form-label">@L("Open accounting period", "খোলা হিসাবকাল")</label><select id="aidCashPeriod" class="form-select" required></select></div>
+                        <div class="col-md-6"><label for="aidCashDate" class="form-label">@L("Actual payment date", "প্রকৃত পেমেন্ট তারিখ")</label><input id="aidCashDate" type="date" class="form-control" required /></div>
+                        <div class="col-md-6"><label for="aidCashRef" class="form-label">@L("Unique cash voucher / bank reference", "অনন্য ক্যাশ ভাউচার / ব্যাংক রেফারেন্স")</label><input id="aidCashRef" class="form-control" maxlength="100" required /></div>
+                        <div class="col-12"><button id="aidCashPrepare" class="btn btn-outline-primary" type="submit">@L("Prepare payment record", "পেমেন্ট রেকর্ড প্রস্তুত")</button></div>
+                    </form>
+                    <label for="aidCashReason" class="form-label">@L("Independent review / reversal reason", "স্বাধীন পর্যালোচনা / রিভার্সালের কারণ")</label><textarea id="aidCashReason" maxlength="500" rows="2" class="form-control mb-2"></textarea>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <button type="button" id="aidCashConfirm" class="btn btn-success">@L("Confirm external payment & post GL", "বাইরের পেমেন্ট নিশ্চিত করে GL পোস্ট")</button>
+                        <button type="button" id="aidCashReject" class="btn btn-outline-danger">@L("Reject instruction", "নির্দেশ প্রত্যাখ্যান")</button>
+                    </div>
+                    <details>
+                        <summary class="fw-semibold">@L("Controlled GL reversal", "নিয়ন্ত্রিত GL রিভার্সাল")</summary>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6"><label for="aidCashReverseDate" class="form-label">@L("Repayment date", "ফেরত তারিখ")</label><input id="aidCashReverseDate" type="date" class="form-control" /></div>
+                            <div class="col-md-6"><label for="aidCashReverseRef" class="form-label">@L("External repayment reference", "বাহিরের ফেরত রেফারেন্স")</label><input id="aidCashReverseRef" class="form-control" maxlength="100" /></div>
+                            <div class="col-md-6"><label for="aidCashReversePeriod" class="form-label">@L("Open reversal period", "খোলা রিভার্সাল হিসাবকাল")</label><select id="aidCashReversePeriod" class="form-select"></select></div>
+                            <div class="col-12 d-flex flex-wrap gap-2"><button id="aidCashReverseRequest" type="button" class="btn btn-outline-warning">@L("Request reversal", "রিভার্সাল আবেদন")</button><button id="aidCashReverseConfirm" type="button" class="btn btn-outline-danger">@L("Confirm external repayment & reverse GL", "বাইরের টাকা ফেরত নিশ্চিত করে GL রিভার্স")</button><button id="aidCashReverseReject" type="button" class="btn btn-outline-secondary">@L("Reject reversal", "রিভার্সাল প্রত্যাখ্যান")</button></div>
+                        </div>
+                    </details>
+                    <p class="small text-muted mt-2 mb-0">@L("This system does not send money. A different administrator must verify the actual cash/bank transfer and reference before GL posting; reversal also requires independent review.", "সিস্টেম নিজে টাকা পাঠায় না। GL পোস্টের আগে অন্য প্রশাসককে প্রকৃত ক্যাশ/ব্যাংক পেমেন্ট ও রেফারেন্স যাচাই করতে হবে; রিভার্সালেও স্বাধীন অনুমোদন লাগে।")</p>
+                </div></section>
                 <section class="card mt-3"><div class="card-body">
                     <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-2"><h2 class="h6 mb-0">@L("Financial award reconciliation", "আর্থিক বরাদ্দ মিল যাচাই")</h2><button id="aidReconcile" type="button" class="btn btn-outline-primary btn-sm">@L("Check award links", "বরাদ্দ মিল যাচাই")</button></div>
-                    <p class="small text-muted">@L("Compares approved applications with canonical future-fee discounts. This does not attribute historical invoice discounts to a specific scholarship.", "অনুমোদিত আবেদন ও মূল ফি-ছাড় রেকর্ডের মিল যাচাই করে। পূর্বের ইনভয়েসের ছাড় কোনো নির্দিষ্ট বৃত্তির নামে দেখায় না।")</p>
+                    <p class="small text-muted">@L("Reconciles canonical fee credits and independently posted cash grants; historic fee credits are attributed only when an invoice-time snapshot exists.", "মূল ফি ছাড় ও স্বাধীনভাবে পোস্ট করা নগদ অনুদানের মিল দেখায়; ইনভয়েস তৈরির সময় সংরক্ষিত তথ্য থাকলেই পুরোনো ছাড়ের উৎস শনাক্ত হয়।")</p>
                     <div id="aidReconciliationRows" class="list-group mb-2" aria-live="polite"></div>
                     <div class="d-flex gap-2 align-items-center"><button id="aidReconcilePrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>@L("Previous", "আগে")</button><span id="aidReconcilePage" class="small text-muted"></span><button id="aidReconcileNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@L("Next", "পরে")</button></div>
                 </div></section>

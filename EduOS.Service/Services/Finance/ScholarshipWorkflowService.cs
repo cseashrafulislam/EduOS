@@ -54,7 +54,8 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
         new()
         {
             Reference = x.PublicId, EnrollmentReference = enrollmentReference, CampusId = campusId,
-            DiscountRuleId = x.DiscountRuleId, State = x.State,
+            DiscountRuleId = x.DiscountRuleId, AwardMode = x.AwardMode,
+            CashAmount = x.CashAmount, State = x.State,
             EligibilityStatement = x.EligibilityStatement,
             EffectiveFrom = x.EffectiveFrom, EffectiveTo = x.EffectiveTo,
             SubmittedByUserId = x.SubmittedByUserId, SubmittedAtUtc = x.SubmittedAtUtc,
@@ -103,7 +104,12 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
     {
         if (!Scoped) return Fail<ScholarshipRow>("Authentication required.", 403);
         if (request == null || request.RequestId == Guid.Empty ||
-            request.EnrollmentReference == Guid.Empty || request.DiscountRuleId <= 0 ||
+            request.EnrollmentReference == Guid.Empty ||
+            request.AwardMode is not ("FeeCredit" or "CashGrant") ||
+            (request.AwardMode == "FeeCredit" && (request.DiscountRuleId <= 0 || request.CashAmount.HasValue)) ||
+            (request.AwardMode == "CashGrant" && (request.DiscountRuleId != 0 ||
+                !request.CashAmount.HasValue || request.CashAmount <= 0m ||
+                request.CashAmount > 99999999m || decimal.Round(request.CashAmount.Value, 2) != request.CashAmount)) ||
             request.EffectiveFrom == default || request.EffectiveTo < request.EffectiveFrom ||
             string.IsNullOrWhiteSpace(request.EligibilityStatement) ||
             request.EligibilityStatement.Trim().Length > 700 ||
@@ -132,20 +138,24 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
                         x.PublicId == request.RenewalOfReference.Value, ct);
             return sameEvidence && sameRenewal && previous.SubmittedByUserId == user.UserId &&
                 previous.StudentEnrollmentId == enrollment.Id &&
-                previous.DiscountRuleId == request.DiscountRuleId &&
+                previous.DiscountRuleId == (request.AwardMode == "FeeCredit" ? (long?)request.DiscountRuleId : null) &&
+                previous.AwardMode == request.AwardMode && previous.CashAmount == request.CashAmount &&
                 previous.EffectiveFrom == request.EffectiveFrom &&
                 previous.EffectiveTo == request.EffectiveTo &&
                 previous.EligibilityStatement == request.EligibilityStatement.Trim()
                 ? ApiResponse<ScholarshipRow>.SuccessResponse(Map(previous, enrollment.PublicId, enrollment.CampusId))
                 : Fail<ScholarshipRow>("Request ID already used.", 409);
         }
-        var rule = await db.DiscountRules.AsNoTracking().FirstOrDefaultAsync(x =>
-            x.TenantId == user.TenantId && x.Id == request.DiscountRuleId &&
-            x.IsActive && !x.IsDeleted, ct);
-        if (rule == null || (rule.EffectiveFrom.HasValue && request.EffectiveFrom < rule.EffectiveFrom.Value) ||
-            (rule.EffectiveTo.HasValue && (!request.EffectiveTo.HasValue ||
-                request.EffectiveTo.Value > rule.EffectiveTo.Value)))
-            return Fail<ScholarshipRow>("Aid rule is unavailable for the requested dates.", 409);
+        if (request.AwardMode == "FeeCredit")
+        {
+            var rule = await db.DiscountRules.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == user.TenantId && x.Id == request.DiscountRuleId &&
+                x.IsActive && !x.IsDeleted, ct);
+            if (rule == null || (rule.EffectiveFrom.HasValue && request.EffectiveFrom < rule.EffectiveFrom.Value) ||
+                (rule.EffectiveTo.HasValue && (!request.EffectiveTo.HasValue ||
+                    request.EffectiveTo.Value > rule.EffectiveTo.Value)))
+                return Fail<ScholarshipRow>("Aid rule is unavailable for the requested dates.", 409);
+        }
         long? fileId = null;
         if (request.EvidenceFileReference.HasValue)
         {
@@ -179,7 +189,8 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
             return await db.ExecuteInTransactionAsync(async token =>
             {
                 if (await Applications.AnyAsync(x => x.StudentEnrollmentId == enrollment.Id &&
-                    x.DiscountRuleId == request.DiscountRuleId &&
+                    x.AwardMode == request.AwardMode &&
+                    x.DiscountRuleId == (request.AwardMode == "FeeCredit" ? (long?)request.DiscountRuleId : null) &&
                     (x.State == "Submitted" || x.State == "Approved" || x.State == "Awarded") &&
                     (!x.EffectiveTo.HasValue || x.EffectiveTo >= request.EffectiveFrom) &&
                     (!request.EffectiveTo.HasValue || x.EffectiveFrom <= request.EffectiveTo), token))
@@ -188,7 +199,9 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
                 var row = new ScholarshipApplication
                 {
                     TenantId = user.TenantId, ClientRequestId = request.RequestId,
-                    StudentEnrollmentId = enrollment.Id, DiscountRuleId = request.DiscountRuleId,
+                    StudentEnrollmentId = enrollment.Id,
+                    DiscountRuleId = request.AwardMode == "FeeCredit" ? request.DiscountRuleId : null,
+                    AwardMode = request.AwardMode, CashAmount = request.CashAmount,
                     EvidenceFileAssetId = fileId, RenewalOfApplicationId = renewal,
                     EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo,
                     EligibilityStatement = request.EligibilityStatement.Trim(),
@@ -260,6 +273,8 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
             return replay == null ? Fail<ScholarshipRow>("Application unavailable.", 404) :
                 ApiResponse<ScholarshipRow>.SuccessResponse(replay);
         }
+        if (row.AwardMode != "FeeCredit" || !row.DiscountRuleId.HasValue || row.CashAmount.HasValue)
+            return Fail<ScholarshipRow>("Cash grants require an independently reviewed disbursement, not a fee credit.", 409);
         if (row.State != "Approved" || row.ReviewedByUserId == null ||
             row.ReviewedByUserId == row.SubmittedByUserId)
             return Fail<ScholarshipRow>("Independent approved aid is required.", 409);
@@ -270,7 +285,7 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
         var assignment = await finance.AssignDiscountAsync(new AssignStudentDiscountRequestDto
         {
             ClientRequestId = row.PublicId, StudentEnrollmentReference = enrollment.PublicId,
-            DiscountRuleId = row.DiscountRuleId, EffectiveFrom = row.EffectiveFrom,
+            DiscountRuleId = row.DiscountRuleId.Value, EffectiveFrom = row.EffectiveFrom,
             EffectiveTo = row.EffectiveTo, Reason = "Approved scholarship " + row.PublicId
         }, ct);
         if (!assignment.Success)
@@ -362,6 +377,13 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
         if (row.State is not ("Submitted" or "Approved" or "Awarded" or "Cancelled") ||
             (row.State != "Cancelled" && !Version(row.RowVersion, request.RowVersion)))
             return Fail<ScholarshipRow>("Only a submitted, approved or linked award may be cancelled.", 409);
+        if (row.AwardMode == "CashGrant")
+        {
+            if (await db.ScholarshipDisbursements.AsNoTracking().AnyAsync(x =>
+                x.TenantId == user.TenantId && x.ScholarshipApplicationId == row.Id &&
+                x.State is "Submitted" or "Posted", ct))
+                return Fail<ScholarshipRow>("Cash payment must be rejected or reversed before cancellation.", 409);
+        }
         // AwardAsync commits the canonical financial assignment before it links the
         // scholarship row. Reconcile by the stable award key, not just the nullable FK.
         var candidates = await db.StudentDiscounts.AsNoTracking().Where(x =>
@@ -610,7 +632,8 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
             .ThenByDescending(x => x.application.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new
             {
-                x.application.PublicId, x.application.State, x.application.StudentDiscountId,
+                x.application.Id, x.application.PublicId, x.application.State,
+                x.application.AwardMode, x.application.CashAmount, x.application.StudentDiscountId,
                 x.application.StudentEnrollmentId, x.application.DiscountRuleId,
                 x.application.EffectiveFrom, x.application.EffectiveTo,
                 EnrollmentReference = x.PublicId
@@ -623,8 +646,43 @@ public sealed class ScholarshipWorkflowService(EduOSDbContext db, ICurrentUserSe
                 x.Id, x.ClientRequestId, x.StudentEnrollmentId, x.DiscountRuleId,
                 x.EffectiveFrom, x.EffectiveTo, x.IsActive
             }).ToListAsync(ct);
+        var cashIds = pageRows.Where(x => x.AwardMode == "CashGrant").Select(x => x.Id).ToArray();
+        var cash = await db.ScholarshipDisbursements.AsNoTracking().Where(x =>
+            x.TenantId == user.TenantId && cashIds.Contains(x.ScholarshipApplicationId) && !x.IsDeleted)
+            .OrderByDescending(x => x.Id).Select(x => new { x.Id, x.ScholarshipApplicationId,
+                x.State, x.Amount, x.JournalId, x.ReversalJournalId }).ToArrayAsync(ct);
+        var journalIds = cash.SelectMany(x => new[] { x.JournalId, x.ReversalJournalId })
+            .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+        var posted = await db.Journals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
+            journalIds.Contains(x.Id) && x.State == EduOS.Core.Enums.Domain.JournalState.Posted &&
+            !x.IsDeleted).Select(x => new { x.Id, x.SourceType, x.SourceId, x.ReversalOfJournalId })
+            .ToArrayAsync(ct);
         var rows = pageRows.Select(row =>
         {
+            if (row.AwardMode == "CashGrant")
+            {
+                var payment = cash.FirstOrDefault(x => x.ScholarshipApplicationId == row.Id && x.State != "Rejected") ??
+                    cash.FirstOrDefault(x => x.ScholarshipApplicationId == row.Id);
+                var original = payment == null ? null : posted.FirstOrDefault(x => x.Id == payment.JournalId);
+                var reversal = payment == null ? null : posted.FirstOrDefault(x => x.Id == payment.ReversalJournalId);
+                var validOriginal = payment != null && original != null &&
+                    original.SourceType == "ScholarshipDisbursement" && original.SourceId == payment.Id;
+                var validReversal = payment != null && reversal != null && validOriginal &&
+                    reversal.SourceType == "ScholarshipDisbursementReversal" &&
+                    reversal.SourceId == payment.Id && reversal.ReversalOfJournalId == original!.Id;
+                var cashStatus = payment == null ? row.State == "Cancelled" ? "CancelledWithoutAward" : "AwaitingCashInstruction" :
+                    payment.Amount != row.CashAmount || row.StudentDiscountId.HasValue ? "BrokenCashLineage" :
+                    payment.State == "Submitted" ? "AwaitingExternalConfirmation" :
+                    payment.State == "Rejected" ? "CashInstructionRejected" :
+                    payment.State == "Posted" && validOriginal && !validReversal ? "PostedCashGrant" :
+                    payment.State == "ReversalRequested" && validOriginal ? "CashReversalPending" :
+                    payment.State == "Reversed" && validReversal ? "ReversedCashGrant" : "BrokenCashLineage";
+                return new ScholarshipReconciliationRow
+                {
+                    ApplicationReference = row.PublicId, EnrollmentReference = row.EnrollmentReference,
+                    ApplicationState = row.State, LineageStatus = cashStatus
+                };
+            }
             var matches = canonical.Where(x => x.ClientRequestId == row.PublicId).ToList();
             var award = matches.Count == 1 ? matches[0] : null;
             var valid = award != null && award.StudentEnrollmentId == row.StudentEnrollmentId &&
