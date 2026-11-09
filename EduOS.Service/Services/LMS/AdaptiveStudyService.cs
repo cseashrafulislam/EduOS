@@ -281,13 +281,13 @@ public sealed class AdaptiveStudyService(EduOSDbContext db, ICurrentUserService 
         var usage = await attemptQuery.GroupBy(x => x.QuizId)
             .Select(g => new { QuizId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.QuizId, x => x.Count, ct);
-        var lastGraded = await attemptQuery.Where(x => x.State == QuizAttemptState.Graded &&
+        var gradedEvidence = await attemptQuery.Where(x => x.State == QuizAttemptState.Graded &&
                 x.SubmittedAt.HasValue && x.ObtainedMarks.HasValue)
             .GroupBy(x => x.QuizId)
-            .Select(g => new { QuizId = g.Key,
+            .Select(g => new { QuizId = g.Key, Count = g.Count(),
                 Marks = g.OrderByDescending(x => x.SubmittedAt).ThenByDescending(x => x.Id)
                     .Select(x => x.ObtainedMarks).FirstOrDefault() })
-            .ToDictionaryAsync(x => x.QuizId, x => x.Marks, ct);
+            .ToDictionaryAsync(x => x.QuizId, x => new { x.Count, x.Marks }, ct);
         var goals = await db.AdaptiveStudyGoals.AsNoTracking().Where(x => x.TenantId == user.TenantId &&
             x.CourseId == course.Id && x.StudentId == enrollment.StudentId && !x.IsDeleted)
             .Select(x => new { x.CourseSectionId, x.SkillCode, x.TargetPercent, x.TeacherNote }).ToListAsync(ct);
@@ -304,10 +304,10 @@ public sealed class AdaptiveStudyService(EduOSDbContext db, ICurrentUserService 
             Guid? suggested = null;
             foreach (var quiz in group.OrderBy(x => x.PracticeDifficulty).ThenBy(x => x.Id))
             {
-                if (lastGraded.TryGetValue(quiz.Id, out var latestMarks) && latestMarks.HasValue &&
+                if (gradedEvidence.TryGetValue(quiz.Id, out var evidence) && evidence.Marks.HasValue &&
                     totals.TryGetValue(quiz.Id, out var full) && full > 0 &&
-                    latestMarks.Value >= 0 && latestMarks.Value <= full)
-                { earned += latestMarks.Value; possible += full; gradedCount++; }
+                    evidence.Marks.Value >= 0 && evidence.Marks.Value <= full)
+                { earned += evidence.Marks.Value; possible += full; gradedCount += evidence.Count; }
                 var available = Math.Max(0, quiz.MaxAttempts - usage.GetValueOrDefault(quiz.Id));
                 if (enrollment.State != CourseEnrollmentState.Active) available = 0;
                 if (quiz.OpensAt > now || quiz.ClosesAt < now) available = 0;
