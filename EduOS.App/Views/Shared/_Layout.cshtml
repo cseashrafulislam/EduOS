@@ -1097,14 +1097,20 @@
                                 aria-label="@(currentCulture == "bn-BD" ? "সহকারী বন্ধ করুন" : "Close assistant")">×</button>
                     </div>
                     <p class="small text-muted mb-3">@(currentCulture == "bn-BD"
-                        ? "মেনুর নাম অথবা পেজের ঘরের লেবেল লিখুন। যেমন: 'নাম'। কোন ঘরে যাবেন তা যাচাই করে নিশ্চিত করুন। বর্তমানে ভয়েস/AI provider সক্রিয় নয়; তথ্য নিজে পূরণ ও জমা দিতে হবে।"
-                        : "Type a visible menu or field label, for example 'Applicant name'. Review the match before navigating or focusing. Speech/AI provider is not enabled; you must enter and submit data yourself.")</p>
+                        ? "মেনু বা ঘরের নাম লিখুন, অথবা ডিভাইসে আগে থেকেই ভয়েস সুবিধা থাকলে ব্যবহার করুন। ফলাফল যাচাই করে নিশ্চিত করুন। তথ্য পূরণ বা জমা স্বয়ংক্রিয়ভাবে হবে না।"
+                        : "Type a menu or field label, or use speech if an on-device language pack is already installed. Review the match before continuing. No form is automatically filled or submitted.")</p>
                     <label class="form-label fw-semibold" for="pageAssistantQuery">@(currentCulture == "bn-BD" ? "পেজ বা ঘরের নাম" : "Page or field label")</label>
-                    <div class="d-flex gap-2">
+                    <div class="page-assistant-controls">
                         <input class="form-control" id="pageAssistantQuery" type="search" maxlength="120"
                                autocomplete="off" placeholder="@(currentCulture == "bn-BD" ? "যেমন: অভিভাবকের নাম" : "e.g. Guardian name")" />
                         <button type="button" class="btn btn-primary" id="pageAssistantFind">@(currentCulture == "bn-BD" ? "খুঁজুন" : "Find")</button>
+                        <button type="button" class="btn btn-outline-primary page-assistant-voice" id="pageAssistantVoice"
+                                aria-pressed="false" aria-label="@(currentCulture == "bn-BD" ? "শুধু ডিভাইসে ভয়েস ইনপুট চালু বা বন্ধ করুন" : "Start or stop on-device voice input")">
+                            <svg class="edu-icon" aria-hidden="true"><use href="/images/eduos-icons.svg#microphone" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "ভয়েস" : "Voice")</span>
+                        </button>
                     </div>
+                    <p id="pageAssistantVoiceStatus" class="page-assistant-voice-status" role="status" aria-live="polite"></p>
                     <div id="pageAssistantResult" class="page-assistant-result" role="status" aria-live="polite"></div>
                 </dialog>
                 <dialog class="feature-search-dialog" id="featureSearchDialog" aria-labelledby="featureSearchTitle">

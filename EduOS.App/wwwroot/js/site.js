@@ -43,10 +43,15 @@
     const sidebarToggle = document.querySelector('[data-sidebar-toggle], #btnSidebarToggle');
     const sidebarClosers = document.querySelectorAll('[data-sidebar-close]');
     const desktopMedia = window.matchMedia('(min-width: 992px)');
+    const mainArea = document.querySelector('.main-area');
     let lastFocusedElement = null;
+    let mainAreaWasInert = false;
+    let drawerInertApplied = false;
 
     function setSidebarOpen(isOpen) {
         if (!sidebar || !sidebarToggle) return;
+
+        isOpen = Boolean(isOpen && !desktopMedia.matches);
 
         sidebar.classList.toggle('show', isOpen);
         document.body.classList.toggle('sidebar-open', isOpen);
@@ -54,9 +59,23 @@
 
         if (isOpen) {
             lastFocusedElement = document.activeElement;
+            mainAreaWasInert = mainArea?.inert === true;
+            if (mainArea) {
+                mainArea.inert = true;
+                drawerInertApplied = !mainAreaWasInert;
+            }
+            sidebar.setAttribute('role', 'dialog');
+            sidebar.setAttribute('aria-modal', 'true');
             sidebar.querySelector('a, button')?.focus();
-        } else if (lastFocusedElement instanceof HTMLElement) {
-            lastFocusedElement.focus();
+        } else {
+            sidebar.removeAttribute('role');
+            sidebar.removeAttribute('aria-modal');
+            // Another security flow may have made the background inert while
+            // the drawer was open; never override a pending session shield.
+            if (mainArea && drawerInertApplied && !window.EduOSSessionTransitionPending?.())
+                mainArea.inert = false;
+            drawerInertApplied = false;
+            if (lastFocusedElement instanceof HTMLElement) lastFocusedElement.focus();
         }
     }
 
@@ -75,6 +94,21 @@
     });
 
     document.addEventListener('keydown', event => {
+        if (event.key === 'Tab' && sidebar?.classList.contains('show') && !desktopMedia.matches) {
+            const focusable = [...sidebar.querySelectorAll(
+                'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),' +
+                'textarea:not([disabled]),summary,[tabindex]:not([tabindex="-1"])')]
+                .filter(element => element.getClientRects().length > 0 &&
+                    !element.closest('[hidden], [inert], [aria-hidden="true"]'));
+            if (focusable.length) {
+                const first = focusable[0], last = focusable[focusable.length - 1];
+                if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+                    event.preventDefault(); last.focus();
+                } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+                    event.preventDefault(); first.focus();
+                }
+            }
+        }
         if (event.key === 'Escape' && sidebar?.classList.contains('show')) {
             setSidebarOpen(false);
         }

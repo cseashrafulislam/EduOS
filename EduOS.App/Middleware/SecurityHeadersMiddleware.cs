@@ -55,6 +55,16 @@ namespace EduOS.App.Middleware
                     context.Response.Headers.CacheControl = "no-store";
                     context.Response.Headers.Pragma = "no-cache";
                 }
+                // On-device speech is opt-in and available only on authenticated
+                // application HTML. Anonymous pages, APIs, downloads and static
+                // resources retain the default-deny microphone policy.
+                if (!isApi && context.User.Identity?.IsAuthenticated == true &&
+                    context.Response.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    context.Response.Headers["Permissions-Policy"] =
+                        "camera=(), microphone=(self), on-device-speech-recognition=(self), " +
+                        "geolocation=(), payment=(), usb=()";
+                }
                 return Task.CompletedTask;
             });
 

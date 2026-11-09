@@ -2230,6 +2230,12 @@ select,
         linear-gradient(135deg, #1d4ed8 0%, #0f172a 78%);
     box-shadow: 0 1.2rem 2.8rem rgba(15, 23, 42, .14);
 }
+.dashboard-hero--ready {
+    grid-template-columns: minmax(0, 1fr);
+    padding: clamp(1rem, 2vw, 1.55rem) clamp(1rem, 2.5vw, 2rem);
+}
+.dashboard-hero--ready .dashboard-hero-copy > p:not(.dashboard-eyebrow) { margin-bottom: .65rem; }
+.dashboard-hero--ready .dashboard-hero-copy h2 { font-size: clamp(1.6rem, 3vw, 2rem); }
 
 .dashboard-hero-copy {
     min-width: 0;
@@ -3641,6 +3647,21 @@ select,
 
 /* Private dashboard panel arrangement; account status, alerts and overview are never optional. */
 .dashboard-account-status { margin-top: 1rem; }
+.dashboard-account-disclosure > summary {
+    display: flex; align-items: center; flex-wrap: wrap; gap: .5rem 1rem;
+    min-height: 2.6rem; list-style: none; cursor: pointer;
+    font-weight: 750; font-size: 1.05rem;
+}
+.dashboard-account-disclosure > summary::-webkit-details-marker { display: none; }
+.dashboard-account-disclosure > summary::after {
+    content: ''; flex: 0 0 .45rem; width: .45rem; height: .45rem;
+    margin-left: auto; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+}
+.dashboard-account-disclosure[open] > summary::after { transform: rotate(225deg); }
+.dashboard-account-disclosure > summary:focus-visible { outline: 2px solid var(--edu-primary); outline-offset: 2px; }
+.dashboard-account-summary-state { font-size: .8rem; font-weight: 650; color: #047857; }
+.dashboard-account-disclosure .dashboard-status-list { margin-top: .6rem; }
 .dashboard-custom-panels {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 1rem;
@@ -3808,6 +3829,12 @@ select,
 .page-assistant-dialog::backdrop { background: #0f172aa8; }
 .page-assistant-heading { display: flex; align-items: start; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
 .page-assistant-heading h2 { font-size: 1.2rem; font-weight: 750; margin: 0; }
+.page-assistant-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+.page-assistant-controls .form-control { flex: 1 1 15rem; min-width: 0; }
+.page-assistant-voice { display: inline-flex; align-items: center; gap: .35rem; }
+.page-assistant-voice[aria-pressed="true"] { border-color: #0e7490; background: #cffafe; color: #164e63; }
+.page-assistant-voice:focus-visible { outline: 2px solid #0284c7; outline-offset: 2px; }
+.page-assistant-voice-status { margin: .5rem 0 0; min-height: 1.2rem; font-size: .8rem; color: var(--edu-muted, #64748b); }
 .page-assistant-result { min-height: 3rem; padding-top: 1rem; }
 .page-assistant-result p { margin-bottom: .65rem; overflow-wrap: anywhere; }
 :root[data-workspace-theme="dark"] .page-assistant-dialog,

@@ -1,5 +1,6 @@
-/* Safe, local-only global page navigation/field locator. No speech provider, AI
- * requests, values, transaction calls, persistence or implicit form submission. */
+/* Safe global page locator. Opt-in speech is on-device only when the browser
+ * confirms an already installed local pack. No provider/AI network requests,
+ * ERP field writes, transaction calls, persistence or implicit submissions. */
 (function (root, factory) {
     const api = factory();
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -44,13 +45,45 @@
             }).filter(entry => entry.labels.length > 0);
     }
 
+    // A section folded by sidebar-navigation.js is presentation state, not a
+    // loss of server authorization. Hidden leaves/other hidden ancestors are
+    // still excluded; only the known section nav may be collapsed.
+    function isAvailableNavigationLink(link) {
+        const hidden = link?.closest?.('[hidden], [inert]');
+        if (!hidden) return true;
+        return hidden.matches?.('nav[data-sidebar-section]') === true &&
+            ['academics', 'management'].includes(hidden.dataset.sidebarSection) &&
+            !hidden.parentElement?.closest?.('[hidden], [inert]');
+    }
+
     function linksInSidebar(doc) {
         const sidebar = doc.getElementById('sidebarMenu');
         if (!sidebar) return [];
         return [...sidebar.querySelectorAll('nav a.nav-link[href]')].filter(link => {
             const href = link.getAttribute('href') || '';
-            return href.startsWith('/') && !href.startsWith('//') && !link.closest('[hidden], [inert]');
+            return href.startsWith('/') && !href.startsWith('//') && isAvailableNavigationLink(link);
         }).map(link => ({ node: link, labels: [link.textContent || ''] }));
+    }
+
+    // Never fall back to browser/cloud speech recognition. Some browsers offer
+    // the old remote Web Speech path; only the on-device API with an installed
+    // language pack is eligible, and no pack downloads are triggered here.
+    async function createOnDeviceRecognizer(hostWindow, language) {
+        const Speech = hostWindow?.SpeechRecognition || hostWindow?.webkitSpeechRecognition;
+        if (typeof Speech !== 'function' || typeof Speech.available !== 'function') return null;
+        try {
+            const status = await Speech.available({ langs: [language], processLocally: true });
+            if (status !== 'available') return null;
+            const recognition = new Speech();
+            if (!('processLocally' in recognition)) return null;
+            recognition.processLocally = true;
+            if (recognition.processLocally !== true) return null;
+            recognition.lang = language;
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            return recognition;
+        } catch { return null; }
     }
 
     function mount(doc, hostWindow) {
@@ -60,6 +93,8 @@
         const query = doc.getElementById('pageAssistantQuery');
         const find = doc.getElementById('pageAssistantFind');
         const result = doc.getElementById('pageAssistantResult');
+        const voice = doc.getElementById('pageAssistantVoice');
+        const voiceStatus = doc.getElementById('pageAssistantVoiceStatus');
         if (!dialog || !open || !close || !query || !find || !result) return;
         const bn = (doc.documentElement.lang || '').toLowerCase().startsWith('bn');
         const t = (en, bd) => bn ? bd : en;
@@ -68,6 +103,21 @@
         const currentContext = () => (doc.body?.dataset.authTenantId || '') === tenant &&
             (doc.body?.dataset.authSessionReference || '') === session;
         let pending = null;
+        let recognizer = null;
+        let speechRequest = 0;
+        function voiceMessage(value) { if (voiceStatus) voiceStatus.textContent = value; }
+        function stopSpeech() {
+            speechRequest++;
+            if (recognizer) {
+                const old = recognizer;
+                recognizer = null;
+                old.onresult = null;
+                old.onerror = null;
+                old.onend = null;
+                try { old.abort(); } catch { /* A closed mic is already stopped. */ }
+            }
+            if (voice) { voice.disabled = false; voice.setAttribute('aria-pressed', 'false'); }
+        }
         function reset() { pending = null; result.replaceChildren(); }
         function message(value) { const p = doc.createElement('p'); p.textContent = value; result.append(p); }
         function action(label, handler) {
@@ -79,6 +129,7 @@
             result.append(button);
         }
         function lookup() {
+            stopSpeech();
             reset();
             if (!currentContext()) { message(t('Your session changed. Reload the page.', 'সেশন পরিবর্তিত হয়েছে। পেজটি রিফ্রেশ করুন।')); return; }
             const requested = query.value.trim();
@@ -122,18 +173,73 @@
             message(t('No unique visible field or authorized menu matched. Try its full label.',
                 'একটি নির্দিষ্ট ঘর বা অনুমোদিত মেনু পাওয়া যায়নি। সম্পূর্ণ নাম লিখুন।'));
         }
+        if (voice && voiceStatus) voice.addEventListener('click', async () => {
+            if (recognizer) { stopSpeech(); voiceMessage(t('Listening stopped.', 'শোনা বন্ধ হয়েছে।')); return; }
+            if (!currentContext() || !dialog.open) return;
+            const request = ++speechRequest;
+            voice.disabled = true;
+            voiceMessage(t('Checking installed on-device speech support…', 'ডিভাইসে থাকা ভয়েস সুবিধা যাচাই হচ্ছে…'));
+            const language = bn ? 'bn-BD' : 'en-BD';
+            const next = await createOnDeviceRecognizer(hostWindow, language);
+            if (request !== speechRequest || !currentContext() || !dialog.open) {
+                try { next?.abort(); } catch { /* Nothing was started. */ }
+                voice.disabled = false;
+                return;
+            }
+            voice.disabled = false;
+            if (!next) {
+                voiceMessage(t('Local speech is unavailable or its language pack is not installed. Type instead.',
+                    'ডিভাইসে এই ভাষার ভয়েস সুবিধা নেই। লিখে ব্যবহার করুন।'));
+                return;
+            }
+            recognizer = next;
+            voice.setAttribute('aria-pressed', 'true');
+            next.onresult = event => {
+                if (recognizer !== next || !currentContext() || !dialog.open) { stopSpeech(); return; }
+                const transcript = String(event?.results?.[event.resultIndex || 0]?.[0]?.transcript || '').trim();
+                if (transcript.length < 2 || transcript.length > 120) {
+                    voiceMessage(t('Speech was not recognized clearly. Try typing.', 'কথা স্পষ্ট বোঝা যায়নি। লিখে চেষ্টা করুন।'));
+                    return;
+                }
+                query.value = transcript;
+                reset();
+                voiceMessage(t('Review the transcript, then choose Find. No action was performed.',
+                    'লেখাটি যাচাই করে খুঁজুন চাপুন। কোনো কাজ স্বয়ংক্রিয়ভাবে হয়নি।'));
+            };
+            next.onerror = () => {
+                stopSpeech();
+                voiceMessage(t('On-device recognition stopped. Type instead.', 'ডিভাইসের ভয়েস বন্ধ হয়েছে। লিখে ব্যবহার করুন।'));
+            };
+            next.onend = () => {
+                if (recognizer !== next) return;
+                recognizer = null;
+                voice.setAttribute('aria-pressed', 'false');
+            };
+            try {
+                next.start();
+                voiceMessage(t('Listening on this device… select Stop to cancel.',
+                    'ডিভাইসে শোনা হচ্ছে… বন্ধ করতে Stop চাপুন।'));
+            } catch {
+                stopSpeech();
+                voiceMessage(t('Microphone is unavailable. Type instead.', 'মাইক্রোফোন চালু হয়নি। লিখে ব্যবহার করুন।'));
+            }
+        });
         open.addEventListener('click', () => {
             if (!currentContext()) return;
-            reset(); query.value = '';
+            stopSpeech(); reset(); query.value = '';
+            voiceMessage('');
             dialog.showModal(); query.focus();
         });
-        close.addEventListener('click', () => dialog.close());
-        dialog.addEventListener('close', () => { reset(); open.focus(); });
+        close.addEventListener('click', () => { stopSpeech(); dialog.close(); });
+        dialog.addEventListener('close', () => { stopSpeech(); reset(); open.focus(); });
         find.addEventListener('click', lookup);
         query.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); lookup(); } });
         query.addEventListener('input', reset);
-        hostWindow.addEventListener('pageshow', () => { if (!currentContext() && dialog.open) dialog.close(); });
+        hostWindow.addEventListener('pageshow', () => {
+            if (!currentContext() && dialog.open) { stopSpeech(); dialog.close(); }
+        });
+        hostWindow.addEventListener('pagehide', stopSpeech);
     }
 
-    return { normalizeLabel, matchLabel, isAvailableField, mount };
+    return { normalizeLabel, matchLabel, isAvailableField, isAvailableNavigationLink, createOnDeviceRecognizer, mount };
 });

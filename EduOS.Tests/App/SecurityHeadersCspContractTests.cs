@@ -72,4 +72,38 @@ public sealed class SecurityHeadersCspContractTests
         if (noStore) Assert.Contains("no-store", cache, StringComparison.OrdinalIgnoreCase);
         else Assert.DoesNotContain("no-store", cache, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Theory]
+    [InlineData("/Dashboard/Index", true, "text/html; charset=utf-8", true)]
+    [InlineData("/Account/Login", false, "text/html; charset=utf-8", false)]
+    [InlineData("/api/attendance", true, "application/json", false)]
+    [InlineData("/finance/export.csv", true, "text/csv", false)]
+    public async Task Microphone_permission_is_limited_to_authenticated_application_html(
+        string path, bool authenticated, string contentType, bool permitted)
+    {
+        using var server = new TestServer(new WebHostBuilder().Configure(app =>
+        {
+            app.UseSecurityHeaders();
+            app.Run(async context =>
+            {
+                if (context.Request.Headers["X-Test-Authenticated"] == "1")
+                    context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                        [new Claim(ClaimTypes.NameIdentifier, "51")], "Test"));
+                context.Response.ContentType = contentType;
+                await context.Response.WriteAsync("test response");
+            });
+        }));
+        using var client = server.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        if (authenticated) request.Headers.Add("X-Test-Authenticated", "1");
+        using var response = await client.SendAsync(request);
+        var policy = response.Headers.GetValues("Permissions-Policy").Single();
+        if (permitted)
+        {
+            Assert.Contains("microphone=(self)", policy, StringComparison.Ordinal);
+            Assert.Contains("on-device-speech-recognition=(self)", policy, StringComparison.Ordinal);
+        }
+        else
+            Assert.Contains("microphone=()", policy, StringComparison.Ordinal);
+    }
 }
