@@ -18,8 +18,8 @@ async function runMutation(work, success, fallback) {
  try {
   const result = await work(reference);
   if (!currentReference(reference)) return;
-  await refresh();
-  if (currentReference(reference)) notice(success(result));
+  const updated = await refresh();
+  if (updated && currentReference(reference)) notice(success(result));
  } catch(error) {
   if (currentReference(reference)) {
    notice(error.message || fallback, true);
@@ -75,8 +75,14 @@ document.addEventListener('DOMContentLoaded', () => {
     [['offerIssueButton', issue], ['offerAcceptButton', accept], ['offerEnrollButton', enroll]].forEach(
         ([id, handler]) => el(id).addEventListener('click', handler));
     el('offerRefreshButton').addEventListener('click', async () => {
-        try { await refresh(); notice(say('Current status refreshed.','বর্তমান অবস্থা হালনাগাদ হয়েছে।')); }
-        catch (error) { notice(error.message || 'Refresh failed.', true); }
+        const reference = ctx.reference;
+        try {
+            if (await refresh() && currentReference(reference))
+                notice(say('Current status and evidence refreshed.','বর্তমান অবস্থা ও নথি হালনাগাদ হয়েছে।'));
+        } catch (error) {
+            if (currentReference(reference))
+                notice(error.message || say('Refresh failed. Retry without resubmitting.','হালনাগাদ হয়নি। পুনরায় জমা না দিয়ে আবার চেষ্টা করুন।'), true);
+        }
     });
     ['offerEvidence', 'offerIdentityChecked', 'offerBatch'].forEach(id =>
         el(id).addEventListener('change', render));

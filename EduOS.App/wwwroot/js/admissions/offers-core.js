@@ -5,6 +5,8 @@ export const ctx = { reference: '', applicant: null, decision: null, requestId: 
 const bn = () => el('offerLocale')?.value === 'bn-BD';
 const localized = (en, bd) => bn() ? bd : en;
 let loadSequence = 0;
+let refreshSequence = 0;
+let pendingRefresh = false;
 let busy = false;
 export const currentReference = reference => !!reference && ctx.reference === reference;
 export function setBusy(value) {
@@ -43,10 +45,10 @@ export function render() {
     const state = Number(ctx.decision?.state || 0), qualified = Number(ctx.applicant?.state) === 6;
     const expired = state === 2 && (!ctx.decision?.expiresAt || Date.parse(ctx.decision.expiresAt) <= Date.now());
     el('offerBatch').disabled = !qualified || state === 2 || state === 3;
-    el('offerIssueButton').disabled = busy || !qualified || state !== 0;
-    el('offerAcceptButton').disabled = busy || !qualified || state !== 2 || expired ||
+    el('offerIssueButton').disabled = busy || pendingRefresh || !qualified || state !== 0;
+    el('offerAcceptButton').disabled = busy || pendingRefresh || !qualified || state !== 2 || expired ||
         !num(val('offerEvidence')) || !el('offerIdentityChecked').checked || !ctx.decision?.rowVersion;
-    el('offerEnrollButton').disabled = busy || !qualified || state !== 3 || !ctx.applicant?.rowVersion;
+    el('offerEnrollButton').disabled = busy || pendingRefresh || !qualified || state !== 3 || !ctx.applicant?.rowVersion;
     const stage = Number(ctx.applicant?.state) === 8 ? 'complete' : !qualified ? 'review' : state === 3 ? 'enroll' : expired ? 'expired' : state === 2 ? 'accept' : state === 0 ? 'issue' : 'review';
     const captions = {
         review: localized('Application review required', 'আবেদন পর্যালোচনা প্রয়োজন'),
@@ -83,34 +85,49 @@ export function render() {
         enroll: localized('Enter the roll and optional track to create the student record.', 'শিক্ষার্থী রেকর্ড তৈরির জন্য রোল ও প্রয়োজনে বিভাগ নির্বাচন করুন।')
     })[stage];
 }
+// Commit a complete server snapshot only after all three reads succeed. A slower
+// response for the same applicant must never overwrite a newer refresh.
 export async function refresh() {
-    if (!ctx.reference) return;
-    el('offerAcceptButton').disabled = el('offerEnrollButton').disabled = true;
+    if (!ctx.reference) return false;
     const reference = ctx.reference;
-    const [applicant, decision] = await Promise.all([api('/api/admission-applications/' + encodeURIComponent(reference)), api('/api/admission-applications/' + encodeURIComponent(reference) + '/offer')]);
-    if (!currentReference(reference)) return;
-    ctx.applicant = applicant; ctx.decision = decision;
-    if (!ctx.applicant?.rowVersion) throw Error('Current applicant version unavailable.');
-    el('offerApplicantName').textContent = ctx.applicant.applicantName || ctx.applicant.applicationNumber || ctx.reference;
-    if (ctx.decision?.offeredAcademicBatchId) el('offerBatch').value = String(ctx.decision.offeredAcademicBatchId);
-    const docs = await api('/api/admission-intake/applications/' + encodeURIComponent(reference) + '/documents');
-    if (!currentReference(reference)) return;
-    const verified = window.EduOSAdmissionOffers?.eligibleEvidence(
-        docs, ctx.decision?.offeredAt) || [];
-    const selected = val('offerEvidence');
-    fill('offerEvidence', verified.map(x => ({ id: x.id, name: 'Verified document #' + x.id + ' (v' + x.versionNo + ')' })),
-        'Select verified signed evidence');
-    if (verified.some(x => String(x.id) === selected)) el('offerEvidence').value = selected;
-    else if (verified.length === 1) el('offerEvidence').value = String(verified[0].id);
-    render();
+    const sequence = ++refreshSequence;
+    pendingRefresh = true;
+    el('offerAcceptButton').disabled = el('offerEnrollButton').disabled = true;
+    try {
+        const [applicant, decision, docs] = await Promise.all([
+            api('/api/admission-applications/' + encodeURIComponent(reference)),
+            api('/api/admission-applications/' + encodeURIComponent(reference) + '/offer'),
+            api('/api/admission-intake/applications/' + encodeURIComponent(reference) + '/documents')
+        ]);
+        if (sequence !== refreshSequence || !currentReference(reference)) return false;
+        if (!applicant?.rowVersion) throw Error(localized('Current applicant version unavailable. Refresh and retry.', 'আবেদনকারীর বর্তমান সংস্করণ পাওয়া যায়নি। আবার লোড করুন।'));
+        const verified = window.EduOSAdmissionOffers?.eligibleEvidence(docs, decision?.offeredAt) || [];
+        const selected = val('offerEvidence');
+        ctx.applicant = applicant;
+        ctx.decision = decision;
+        el('offerApplicantName').textContent = applicant.applicantName || applicant.applicationNumber || reference;
+        if (decision?.offeredAcademicBatchId) el('offerBatch').value = String(decision.offeredAcademicBatchId);
+        fill('offerEvidence', verified.map(x => ({ id: x.id, name: localized('Verified document #', 'যাচাইকৃত নথি #') + x.id + ' (v' + x.versionNo + ')' })),
+            localized('Select verified signed evidence', 'যাচাইকৃত স্বাক্ষরিত নথি নির্বাচন করুন'));
+        if (verified.some(x => String(x.id) === selected)) el('offerEvidence').value = selected;
+        else if (verified.length === 1) el('offerEvidence').value = String(verified[0].id);
+        return true;
+    } finally {
+        if (sequence === refreshSequence) {
+            pendingRefresh = false;
+            render();
+        }
+    }
 }
 export async function load(event) {
     event.preventDefault();
     const sequence = ++loadSequence;
+    ++refreshSequence; // invalidate any older refresh, including the same reference
     const id = val('offerApplicantReference');
     if (!/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)) return notice(localized('Invalid applicant reference.', 'আবেদনের রেফারেন্স সঠিক নয়।'), true);
     ctx.reference = id; ctx.applicant = ctx.decision = null; ctx.requestId = ctx.fingerprint = '';
     el('offerWorkspace').hidden = true;
+    el('offerLookupButton').disabled = true;
     try {
         const data = await api(base() + '/enrollment-options');
         if (sequence !== loadSequence) return;
@@ -119,9 +136,10 @@ export async function load(event) {
         const future = new Date(Date.now() + 7 * 86400000);
         el('offerExpiry').value = new Date(future - future.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         el('offerIdentityChecked').checked = false;
-        await refresh();
-        if (sequence !== loadSequence) return;
+        const loaded = await refresh();
+        if (sequence !== loadSequence || !loaded) return;
         el('offerWorkspace').hidden = false;
         notice(localized('Applicant, offer and verified documents loaded.', 'আবেদনকারী, অফার ও যাচাইকৃত নথি লোড হয়েছে।'));
-    } catch (error) { if (sequence === loadSequence) notice(error.message, true); }
+    } catch (error) { if (sequence === loadSequence) notice(error.message || localized('Unable to load applicant. Retry lookup.', 'আবেদনকারী লোড হয়নি। আবার চেষ্টা করুন।'), true); }
+    finally { if (sequence === loadSequence) el('offerLookupButton').disabled = false; }
 }
