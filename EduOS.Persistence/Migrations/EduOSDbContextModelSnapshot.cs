@@ -17349,8 +17349,6 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "CourseId", "IssuedAt");
 
-                    b.HasIndex("TenantId", "EmployeeId");
-
                     b.HasIndex("TenantId", "EmployeeId", "IssuedAt");
 
                     b.HasIndex("TenantId", "StudentId", "IssuedAt");
@@ -29603,12 +29601,6 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "EmployeeId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Tenant");
                 });
 
@@ -29784,6 +29776,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
                         .WithMany()

@@ -30,7 +30,6 @@ public sealed class TeacherCpdCanonicalEnrollment : Migration
         migrationBuilder.CreateIndex("IX_CourseEnrollments_TenantId_EmployeeId", "CourseEnrollments", new[] { "TenantId", "EmployeeId" });
         migrationBuilder.CreateIndex("IX_CourseEnrollments_TenantId_StudentId", "CourseEnrollments", new[] { "TenantId", "StudentId" });
         migrationBuilder.CreateIndex("IX_LmsCompletionCertificates_TenantId_StudentId_IssuedAt", "LmsCompletionCertificates", new[] { "TenantId", "StudentId", "IssuedAt" });
-        migrationBuilder.CreateIndex("IX_LmsCompletionCertificates_TenantId_EmployeeId", "LmsCompletionCertificates", new[] { "TenantId", "EmployeeId" });
         migrationBuilder.AddForeignKey(name: "FK_CourseEnrollments_Employees_TenantId_EmployeeId", table: "CourseEnrollments",
             columns: new[] { "TenantId", "EmployeeId" }, principalTable: "Employees", principalColumns: new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
         migrationBuilder.AddForeignKey(name: "FK_LmsCompletionCertificates_Employees_TenantId_EmployeeId", table: "LmsCompletionCertificates",
@@ -60,7 +59,6 @@ public sealed class TeacherCpdCanonicalEnrollment : Migration
         migrationBuilder.DropForeignKey("FK_LmsCompletionCertificates_Students_TenantId_StudentId", "LmsCompletionCertificates");
         migrationBuilder.DropIndex("IX_CourseEnrollments_TenantId_CourseId_EmployeeId", "CourseEnrollments");
         migrationBuilder.DropIndex("IX_CourseEnrollments_TenantId_EmployeeId", "CourseEnrollments");
-        migrationBuilder.DropIndex("IX_LmsCompletionCertificates_TenantId_EmployeeId", "LmsCompletionCertificates");
         migrationBuilder.DropIndex("IX_LmsCompletionCertificates_TenantId_EmployeeId_IssuedAt", "LmsCompletionCertificates");
         migrationBuilder.DropIndex("IX_CourseEnrollments_TenantId_CourseId_StudentId", "CourseEnrollments");
         migrationBuilder.DropIndex("IX_CourseEnrollments_TenantId_StudentId", "CourseEnrollments");
