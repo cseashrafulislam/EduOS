@@ -40,7 +40,7 @@ public sealed class LmsCertificateGuardianService(
 
     private IQueryable<LmsCompletionCertificate> OwnedCertificates() =>
         from certificate in db.LmsCompletionCertificates
-        join learner in db.Students on certificate.StudentId equals learner.Id
+        join learner in db.Students on certificate.StudentId equals (long?)learner.Id
         where certificate.TenantId == user.TenantId && learner.TenantId == user.TenantId &&
             learner.UserId == user.UserId && !learner.IsDeleted && !certificate.IsDeleted &&
             !certificate.IsRevoked
@@ -63,8 +63,8 @@ public sealed class LmsCertificateGuardianService(
         if (!Student) return Deny<IReadOnlyList<LmsGuardianChoiceDto>>();
         var certificate = await OwnedCertificates().AsNoTracking()
             .Where(x => x.PublicId == reference).Select(x => new { x.StudentId }).FirstOrDefaultAsync(ct);
-        if (certificate == null) return Deny<IReadOnlyList<LmsGuardianChoiceDto>>();
-        var rows = await Eligible(certificate.StudentId).OrderBy(x => x.GuardianName)
+        if (certificate?.StudentId == null) return Deny<IReadOnlyList<LmsGuardianChoiceDto>>();
+        var rows = await Eligible(certificate.StudentId.Value).OrderBy(x => x.GuardianName)
             .ThenBy(x => x.GuardianLinkId).Take(25).ToListAsync(ct);
         return ApiResponse<IReadOnlyList<LmsGuardianChoiceDto>>.SuccessResponse(rows);
     }
@@ -107,7 +107,8 @@ public sealed class LmsCertificateGuardianService(
                 var certificate = await OwnedCertificates().FirstOrDefaultAsync(x =>
                     x.PublicId == request.CertificateReference, token);
                 if (certificate == null) return Deny<LmsCertificateGuardianGrantDto>();
-                var guardian = await Eligible(certificate.StudentId)
+                if (!certificate.StudentId.HasValue) return Deny<LmsCertificateGuardianGrantDto>();
+                var guardian = await Eligible(certificate.StudentId.Value)
                     .FirstOrDefaultAsync(x => x.GuardianLinkId == request.GuardianLinkId, token);
                 if (guardian == null) return Deny<LmsCertificateGuardianGrantDto>();
                 var previous = await db.LmsCertificateGuardianGrants.FirstOrDefaultAsync(x =>
@@ -181,7 +182,7 @@ public sealed class LmsCertificateGuardianService(
                     return Deny<LmsCertificateGuardianGrantDto>();
                 var guardian = await Eligible((await db.LmsCompletionCertificates.AsNoTracking()
                     .Where(x => x.TenantId == user.TenantId && x.Id == grant.CertificateId)
-                    .Select(x => x.StudentId).SingleAsync(token)))
+                    .Select(x => x.StudentId).SingleAsync(token)).GetValueOrDefault())
                     .FirstOrDefaultAsync(x => x.GuardianLinkId == grant.StudentGuardianId, token);
                 if (guardian == null) return Deny<LmsCertificateGuardianGrantDto>();
                 if (grant.RevokedAt.HasValue)
@@ -223,7 +224,7 @@ public sealed class LmsCertificateGuardianService(
         join certificate in db.LmsCompletionCertificates.AsNoTracking() on grant.CertificateId equals certificate.Id
         join link in db.StudentGuardians.AsNoTracking() on grant.StudentGuardianId equals link.Id
         join guardian in db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id
-        join learner in db.Students.AsNoTracking() on certificate.StudentId equals learner.Id
+        join learner in db.Students.AsNoTracking() on certificate.StudentId equals (long?)learner.Id
         join course in db.Courses.AsNoTracking() on certificate.CourseId equals course.Id
         where grant.TenantId == user.TenantId && certificate.TenantId == user.TenantId &&
             link.TenantId == user.TenantId && guardian.TenantId == user.TenantId &&

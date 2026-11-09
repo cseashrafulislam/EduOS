@@ -229,7 +229,7 @@ public sealed partial class LmsWorkflowService
         var row = await (from assignment in _assignments.GetQueryable().AsNoTracking()
             join course in _courses.GetQueryable().AsNoTracking() on assignment.CourseId equals course.Id
             join enrollment in _enrollments.GetQueryable().AsNoTracking() on course.Id equals enrollment.CourseId
-            join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+            join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals (long?)student.Id
             where assignment.TenantId == tenant && course.TenantId == tenant && enrollment.TenantId == tenant &&
                 student.TenantId == tenant && assignment.PublicId == assignmentReference &&
                 enrollment.Id == courseEnrollmentId && assignment.IsPublished && !assignment.IsDeleted &&
@@ -275,7 +275,7 @@ public sealed partial class LmsWorkflowService
             var submittingUserId = await (from submission in _submissions.GetQueryable().AsNoTracking()
                 join enrollment in _enrollments.GetQueryable().AsNoTracking()
                     on submission.CourseEnrollmentId equals enrollment.Id
-                join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals (long?)student.Id
                 where submission.TenantId == _user.TenantId && enrollment.TenantId == _user.TenantId &&
                     student.TenantId == _user.TenantId && submission.Id == submissionId &&
                     !submission.IsDeleted && !enrollment.IsDeleted && !student.IsDeleted

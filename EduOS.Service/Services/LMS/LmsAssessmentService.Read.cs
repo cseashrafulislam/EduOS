@@ -39,10 +39,7 @@ public sealed partial class LmsAssessmentService
         if (quiz == null) return Fail<QuizCandidateDto>("Published quiz not found.", 404);
         var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.Id == quiz.CourseId && x.IsActive && !x.IsDeleted, ct);
-        var studentId = await StudentIdAsync(ct);
-        if (course == null || studentId == 0 || !await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == studentId &&
-            !x.IsDeleted && x.State == CourseEnrollmentState.Active, ct))
+        if (course == null || await ActiveOwnEnrollmentAsync(course, ct) == null)
             return Fail<QuizCandidateDto>("Course enrollment required.", 403);
         if ((quiz.OpensAt.HasValue && Now < quiz.OpensAt) ||
             (quiz.ClosesAt.HasValue && Now > quiz.ClosesAt))
@@ -73,10 +70,7 @@ public sealed partial class LmsAssessmentService
         if (!Learner) return Fail<IReadOnlyList<QuizCandidateDto>>("Student permission required.", 403);
         var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.PublicId == courseReference && x.IsActive && !x.IsDeleted, ct);
-        var studentId = await StudentIdAsync(ct);
-        if (course == null || studentId == 0 || !await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
-            x.TenantId == _user.TenantId && x.CourseId == course.Id && x.StudentId == studentId &&
-            !x.IsDeleted && x.State == CourseEnrollmentState.Active, ct))
+        if (course == null || await ActiveOwnEnrollmentAsync(course, ct) == null)
             return Fail<IReadOnlyList<QuizCandidateDto>>("Course enrollment required.", 403);
         var now = Now;
         var rows = await _quizzes.GetQueryable().AsNoTracking().Where(x =>

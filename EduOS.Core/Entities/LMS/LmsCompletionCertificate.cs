@@ -13,10 +13,13 @@ public sealed class LmsCompletionCertificate : BaseTenantEntity
     public Guid ClientRequestId { get; set; }
     public long CourseEnrollmentId { get; set; }
     public long CourseId { get; set; }
-    public long StudentId { get; set; }
+    public long? StudentId { get; set; }
+    public long? EmployeeId { get; set; }
     public int Revision { get; set; } = 1;
     [Required, MaxLength(200)] public string CourseTitleSnapshot { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string CourseCodeSnapshot { get; set; } = string.Empty;
+    // Legacy JSON/column names are retained for issued student certificates. For CPD,
+    // these immutable snapshot columns hold the employee's issue-time name/code.
     [Required, MaxLength(200)] public string StudentNameSnapshot { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string StudentCodeSnapshot { get; set; } = string.Empty;
     public DateTime CompletedAtSnapshot { get; set; }

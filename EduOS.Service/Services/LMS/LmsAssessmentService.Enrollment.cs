@@ -13,6 +13,17 @@ public sealed partial class LmsAssessmentService
         if (courseReference == Guid.Empty) return Fail<QuizAttemptEligibilityDto>("Course reference required.");
         var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.PublicId == courseReference && !x.IsDeleted, ct);
+        if (course?.IsTeacherCpd == true)
+        {
+            var activeCpd = await ActiveOwnEnrollmentAsync(course, ct);
+            return activeCpd != null && course.IsActive
+                ? ApiResponse<QuizAttemptEligibilityDto>.SuccessResponse(new QuizAttemptEligibilityDto
+                {
+                    CourseReference = courseReference, CanAttempt = true,
+                    CourseEnrollmentId = activeCpd.Id, Reason = "Active teacher CPD enrollment."
+                })
+                : Fail<QuizAttemptEligibilityDto>("Active CPD enrollment required.", 403);
+        }
         var studentId = await StudentIdAsync(ct);
         if (course == null || studentId == 0)
             return Fail<QuizAttemptEligibilityDto>("Course enrollment required.", 403);
@@ -52,6 +63,14 @@ public sealed partial class LmsAssessmentService
         var courseId = await _courses.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && x.PublicId == courseReference && x.IsActive && !x.IsDeleted)
             .Select(x => x.Id).FirstOrDefaultAsync(ct);
+        var cpdCourse = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.Id == courseId && x.IsTeacherCpd, ct);
+        if (cpdCourse != null)
+        {
+            var cpdEnrollment = await ActiveOwnEnrollmentAsync(cpdCourse, ct);
+            return cpdEnrollment == null ? Fail<long>("Active CPD enrollment required.", 403) :
+                ApiResponse<long>.SuccessResponse(cpdEnrollment.Id);
+        }
         var studentId = await StudentIdAsync(ct);
         if (courseId == 0 || studentId == 0) return Fail<long>("Course enrollment required.", 403);
         var enrollmentId = await _enrollments.GetQueryable().AsNoTracking().Where(x =>

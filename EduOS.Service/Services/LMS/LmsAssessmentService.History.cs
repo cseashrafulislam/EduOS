@@ -76,6 +76,16 @@ public sealed partial class LmsAssessmentService
             x.TenantId == _user.TenantId && x.Id == courseId && !x.IsDeleted, ct);
         if (course == null) return false;
         if (course.IsActive) return true;
+        if (course.IsTeacherCpd && _user.IsInRole("Teacher"))
+        {
+            var teacherId = await _employees.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.UserId == _user.UserId && x.CanTeach &&
+                !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
+            return teacherId > 0 && await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == _user.TenantId && x.Id == enrollmentId && x.CourseId == courseId &&
+                x.EmployeeId == teacherId && !x.IsDeleted &&
+                x.State == CourseEnrollmentState.Completed && x.CompletedAt.HasValue, ct);
+        }
         var studentId = await StudentIdAsync(ct);
         return (await HistoricalEnrollmentIdsAsync(courseId, studentId, ct)).Contains(enrollmentId);
     }
@@ -89,6 +99,39 @@ public sealed partial class LmsAssessmentService
             return Fail<PagedResult<QuizHistoryRowDto>>("Invalid history search.");
         var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.PublicId == courseReference && !x.IsDeleted, cancellationToken);
+        if (course?.IsTeacherCpd == true && _user.IsInRole("Teacher"))
+        {
+            var teacherId = await _employees.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.UserId == _user.UserId && x.CanTeach &&
+                !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(cancellationToken);
+            if (teacherId == 0) return Fail<PagedResult<QuizHistoryRowDto>>("Teacher not found.", 404);
+            var cpdIds = await _enrollments.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.CourseId == course.Id && x.EmployeeId == teacherId &&
+                !x.IsDeleted && (x.State == CourseEnrollmentState.Active ||
+                    x.State == CourseEnrollmentState.Completed)).Select(x => x.Id).ToArrayAsync(cancellationToken);
+            if (cpdIds.Length == 0) return Fail<PagedResult<QuizHistoryRowDto>>("CPD history not found.", 404);
+            var cpdQuery = from attempt in _attempts.GetQueryable().AsNoTracking()
+                join quiz in _quizzes.GetQueryable().AsNoTracking() on attempt.QuizId equals quiz.Id
+                where attempt.TenantId == _user.TenantId && quiz.TenantId == _user.TenantId &&
+                    quiz.CourseId == course.Id && cpdIds.Contains(attempt.CourseEnrollmentId) &&
+                    !attempt.IsDeleted && !quiz.IsDeleted && attempt.SubmittedAt.HasValue &&
+                    (attempt.State == QuizAttemptState.Graded || attempt.State == QuizAttemptState.Submitted)
+                select new { attempt, quiz };
+            var cpdCount = await cpdQuery.CountAsync(cancellationToken);
+            var cpdHistory = await cpdQuery.OrderByDescending(x => x.attempt.SubmittedAt)
+                .ThenByDescending(x => x.attempt.Id).Skip((page - 1) * pageSize).Take(pageSize)
+                .Select(x => new QuizHistoryRowDto
+                {
+                    AttemptId = x.attempt.Id, QuizReference = x.quiz.PublicId, QuizTitle = x.quiz.Title,
+                    AttemptNo = x.attempt.AttemptNo, State = x.attempt.State,
+                    SubmittedAt = x.attempt.SubmittedAt, ObtainedMarks = x.attempt.ObtainedMarks,
+                    PassMarks = x.quiz.PassMarks, Passed = x.attempt.ObtainedMarks.HasValue
+                        ? x.attempt.ObtainedMarks.Value >= x.quiz.PassMarks : null,
+                    IsArchived = !course.IsActive
+                }).ToListAsync(cancellationToken);
+            return ApiResponse<PagedResult<QuizHistoryRowDto>>.SuccessResponse(new PagedResult<QuizHistoryRowDto>
+            { Items = cpdHistory, TotalCount = cpdCount, Page = page, PageSize = pageSize });
+        }
         var studentId = await StudentIdAsync(cancellationToken);
         if (course == null || studentId == 0)
             return Fail<PagedResult<QuizHistoryRowDto>>("Course history not found.", 404);

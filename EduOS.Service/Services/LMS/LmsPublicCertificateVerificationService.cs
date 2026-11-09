@@ -30,7 +30,7 @@ public sealed class LmsPublicCertificateVerificationService(
 
     private IQueryable<LmsCompletionCertificate> Owned() =>
         from certificate in db.LmsCompletionCertificates
-        join student in db.Students on certificate.StudentId equals student.Id
+        join student in db.Students on certificate.StudentId equals (long?)student.Id
         where certificate.TenantId == user.TenantId && student.TenantId == user.TenantId &&
             student.UserId == user.UserId && !certificate.IsDeleted && !student.IsDeleted &&
             !certificate.IsRevoked

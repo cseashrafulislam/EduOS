@@ -34,7 +34,7 @@ public sealed partial class LmsWorkflowService
 
         var tenant = _user.TenantId;
         var allowed = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
-            join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+            join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals (long?)student.Id
             where enrollment.TenantId == tenant && student.TenantId == tenant &&
                   enrollment.Id == enrollmentId && enrollment.CourseId == course.Id &&
                   !enrollment.IsDeleted && !student.IsDeleted &&

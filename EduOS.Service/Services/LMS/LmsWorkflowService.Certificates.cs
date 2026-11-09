@@ -64,10 +64,18 @@ public sealed partial class LmsWorkflowService
                     enrollment.CompletedAt.Value < enrollment.EnrolledAt ||
                     enrollment.CompletedAt.Value > _clock.GetUtcNow().UtcDateTime)
                     return Error<LmsCertificateDto>("A verified completed course enrollment is required.", 409);
-                var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == enrollment.StudentId && !x.IsDeleted, token);
-                if (student == null) return Error<LmsCertificateDto>("Student not found.", 404);
-                if (enrollment.StudentEnrollmentId.HasValue && !await _academicEnrollments.GetQueryable()
+                var student = enrollment.StudentId.HasValue
+                    ? await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == enrollment.StudentId.Value && !x.IsDeleted, token)
+                    : null;
+                var employee = enrollment.EmployeeId.HasValue && course.IsTeacherCpd
+                    ? await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == enrollment.EmployeeId.Value && !x.IsDeleted, token)
+                    : null;
+                if (student == null && employee == null) return Error<LmsCertificateDto>("Participant not found.", 404);
+                if (employee != null && !IsManager())
+                    return Error<LmsCertificateDto>("CPD certificate issuance requires institution administration.", 403);
+                if (enrollment.StudentEnrollmentId.HasValue && student != null && !await _academicEnrollments.GetQueryable()
                     .AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                         x.Id == enrollment.StudentEnrollmentId.Value && x.StudentId == student.Id &&
                         (!course.AcademicProgramId.HasValue || x.AcademicProgramId == course.AcademicProgramId.Value) &&
@@ -110,12 +118,13 @@ public sealed partial class LmsWorkflowService
                 var certificate = new LmsCompletionCertificate
                 {
                     TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = request.ClientRequestId,
-                    CourseEnrollmentId = enrollment.Id, CourseId = course.Id, StudentId = student.Id,
+                    CourseEnrollmentId = enrollment.Id, CourseId = course.Id,
+                    StudentId = student?.Id, EmployeeId = employee?.Id,
                     Revision = (latest?.Revision ?? 0) + 1,
                     CourseTitleSnapshot = latest?.CourseTitleSnapshot ?? course.Title,
                     CourseCodeSnapshot = latest?.CourseCodeSnapshot ?? course.Code,
-                    StudentNameSnapshot = latest?.StudentNameSnapshot ?? student.FullName,
-                    StudentCodeSnapshot = latest?.StudentCodeSnapshot ?? student.StudentCode,
+                    StudentNameSnapshot = latest?.StudentNameSnapshot ?? (student?.FullName ?? employee!.FullName),
+                    StudentCodeSnapshot = latest?.StudentCodeSnapshot ?? (student?.StudentCode ?? employee!.EmployeeCode),
                     CompletedAtSnapshot = latest?.CompletedAtSnapshot ?? enrollment.CompletedAt.Value,
                     RequiredLessonsSnapshot = evidence.RequiredLessons,
                     CompletedLessonsSnapshot = evidence.CompletedLessons,
@@ -327,6 +336,10 @@ public sealed partial class LmsWorkflowService
         LmsCompletionCertificate certificate, Course course, CancellationToken ct)
     {
         if (await CanEditAsync(course, ct)) return true;
+        if (course.IsTeacherCpd && certificate.EmployeeId.HasValue && _user.IsInRole("Teacher"))
+            return await _employees.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == _user.TenantId && x.Id == certificate.EmployeeId.Value &&
+                x.UserId == _user.UserId && x.CanTeach && !x.IsDeleted, ct);
         if (!_user.IsInRole("Student")) return false;
         return await _students.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == _user.TenantId && x.Id == certificate.StudentId &&

@@ -141,6 +141,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ILibraryLiabilityService, LibraryLiabilityService>();
             s.AddScoped<ILibraryDigitalResourceService, LibraryDigitalResourceService>();
             s.AddScoped<ITeacherResourceService, TeacherResourceService>();
+            s.AddScoped<TeacherCpdService>();
             s.AddScoped<ILibraryOverdueNoticeService, LibraryOverdueNoticeService>();
             s.AddScoped<ITransportService, TransportService>();
             s.AddScoped<ITransportFamilyScheduleService, TransportFamilyScheduleService>();

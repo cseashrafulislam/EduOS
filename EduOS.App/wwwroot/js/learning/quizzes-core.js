@@ -1,6 +1,6 @@
 (()=>{'use strict';const root=document.getElementById('quizApp');if(!root)return;
 const $=id=>document.getElementById(id),el=(tag,value)=>{const x=document.createElement(tag);if(value!==undefined)x.textContent=value;return x;};
-const state={author:root.dataset.author==='true',learner:root.dataset.learner==='true',
+const state={author:root.dataset.author==='true',learner:root.dataset.learner==='true',cpdRefs:new Set(),
 quizzes:[],editing:null,candidate:null,attempt:null,enrollment:0,canAttempt:false,requestId:null,epoch:0};
 function msg(type,message){const n=$('quizAlert');n.className='alert alert-'+type;n.textContent=message;n.focus();}
 function select(id,rows,placeholder){const n=$(id),old=n.value;n.replaceChildren(new Option(placeholder,''));
@@ -13,7 +13,7 @@ select('quizList',[],'Choose quiz');$('quizAnswerForm')?.classList.add('d-none')
 if($('quizStart'))$('quizStart').disabled=true;
 if(!course){learnerStatus('Choose an active course to check quiz availability.');return;}
 try{
-if(state.learner){
+if(state.learner&&(!state.author||state.cpdRefs.has(course))){
 learnerStatus('Checking enrollment eligibility...');
 const access=await window.EduQuizApi('/api/lms/quizzes/course/'+encodeURIComponent(course)+'/eligibility');
 if(k!==state.epoch)return;
@@ -21,14 +21,19 @@ if(!access?.canAttempt){learnerStatus((access?.reason||'New attempts are unavail
 state.enrollment=Number(access.courseEnrollmentId)||0;state.canAttempt=state.enrollment>0;
 if(!state.canAttempt){learnerStatus('No eligible active enrollment. See graded quiz history below.');return;}
 }
-const rows=await window.EduQuizApi('/api/lms/quizzes/course/'+encodeURIComponent(course)+'/'+(state.author?'author':'available'));
+const rows=await window.EduQuizApi('/api/lms/quizzes/course/'+encodeURIComponent(course)+'/'+(state.author&&!state.cpdRefs.has(course)?'author':'available'));
 if(k!==state.epoch)return;state.quizzes=rows||[];select('quizList',state.quizzes,'Choose quiz');
-if(state.learner)learnerStatus(state.quizzes.length?'Select a quiz to start a new attempt.':'No quizzes are currently available. Historical results remain below.');
+if(state.learner)learnerStatus(state.canAttempt?(state.quizzes.length?'Select a quiz to start a new attempt.':'No quizzes are currently available.'):'Course authoring mode. CPD attempts require your own active enrollment.');
 }catch(e){if(k!==state.epoch)return;state.enrollment=0;state.canAttempt=false;
 learnerStatus('New attempts are unavailable. Historical results remain below.');
 msg(e.message==='Course enrollment required.'?'warning':'danger',e.message);}}
 window.EduQuiz={$,el,state,msg,api:window.EduQuizApi,select,refresh};
 $('quizCourse').onchange=refresh;$('quizRefresh').onclick=refresh;
-window.EduQuizApi('/api/lms/courses?page=1&pageSize=100').then(x=>{
-select('quizCourse',x?.items||[],'Choose course');refresh();}).catch(e=>msg('danger',e.message));
+Promise.all([window.EduQuizApi('/api/lms/courses?page=1&pageSize=100'),
+ state.learner?window.EduQuizApi('/api/lms/teacher-cpd/courses?page=1&pageSize=25').catch(()=>null):Promise.resolve(null)])
+ .then(([regular,cpd])=>{
+ const rows=regular?.items||[];
+ for(const course of cpd?.items||[]){state.cpdRefs.add(course.reference);
+  if(course.enrollmentId&&!rows.some(x=>x.reference===course.reference))rows.push(course);}
+ select('quizCourse',rows,'Choose course');refresh();}).catch(e=>msg('danger',e.message));
 })();

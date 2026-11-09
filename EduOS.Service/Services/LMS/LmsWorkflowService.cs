@@ -109,6 +109,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
             string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
             request.Description?.Length > 4000 || request.ThumbnailUrl?.Length > 500 ||
             request.AcademicProgramId is <= 0 || request.SubjectId is <= 0 ||
+            (request.IsTeacherCpd && (request.AcademicProgramId.HasValue || request.SubjectId.HasValue)) ||
             (courseReference.HasValue && courseReference.Value == Guid.Empty))
             return Error<CourseDto>("Invalid course title, code, program, subject or reference.");
         var tenant = _user.TenantId;
@@ -146,6 +147,13 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 if (row != null && await CourseCompletionPublicationGuard.IsLockedAsync(
                     _enrollments, tenant, row.Id, token))
                     return Error<CourseDto>(CourseCompletionPublicationGuard.Message, 409);
+                if (row != null && row.IsTeacherCpd != request.IsTeacherCpd &&
+                    await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.CourseId == row.Id && !x.IsDeleted, token))
+                    return Error<CourseDto>("Course audience cannot change after enrollment.", 409);
+                if (request.IsTeacherCpd && row != null && await _assignments.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.CourseId == row.Id && !x.IsDeleted, token))
+                    return Error<CourseDto>("Use graded LMS quizzes for CPD; this course has student assignments.", 409);
                 var code = request.Code.Trim();
                 if (await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
                     x.TenantId == tenant && x.Code == code && !x.IsDeleted && (row == null || x.Id != row.Id), token))
@@ -169,6 +177,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                 row.AcademicProgramId = request.AcademicProgramId; row.SubjectId = request.SubjectId;
                 row.PrimaryInstructorEmployeeId = teacher?.Id;
                 row.IsSelfPaced = request.IsSelfPaced; row.IsActive = request.IsActive;
+                row.IsTeacherCpd = request.IsTeacherCpd;
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<CourseDto>.SuccessResponse(await MapCourseAsync(row, token), "Course saved.");
             }, IsolationLevel.Serializable, ct);
@@ -245,6 +254,8 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
             return Error<AssignmentDto>("Invalid assignment fields or date range.");
         var course = await EditableCourseAsync(request.CourseReference, ct);
         if (course == null) return Error<AssignmentDto>("Course not found or instructor access denied.", 403);
+        if (course.IsTeacherCpd)
+            return Error<AssignmentDto>("Teacher CPD uses the canonical graded quiz assessment workflow.", 409);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
@@ -316,6 +327,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.PublicId == request.CourseReference && x.IsActive && !x.IsDeleted, ct);
         if (course == null) return Error<CourseEnrollmentDto>("Course not found.", 404);
+        if (course.IsTeacherCpd) return Error<CourseEnrollmentDto>("Teachers must use CPD enrollment.", 409);
         StudentEnrollment? academic = null;
         if (request.StudentEnrollmentReference.HasValue)
         {
@@ -635,7 +647,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                     join enrollment in _enrollments.GetQueryable().AsNoTracking()
                         on submission.CourseEnrollmentId equals enrollment.Id
                     join learner in _students.GetQueryable().AsNoTracking()
-                        on enrollment.StudentId equals learner.Id
+                        on enrollment.StudentId equals (long?)learner.Id
                     where submission.TenantId == tenant && submission.AssignmentId == assignment.Id &&
                         !submission.IsDeleted && submission.State != LearningSubmissionState.Draft &&
                         enrollment.TenantId == tenant && !enrollment.IsDeleted &&
@@ -876,7 +888,7 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
             AcademicProgramName = programName, SubjectId = row.SubjectId, SubjectName = subjectName,
             PrimaryInstructorReference = instructor?.PublicId, PrimaryInstructorName = instructor?.FullName,
             Title = row.Title, Code = row.Code, Description = row.Description, ThumbnailUrl = row.ThumbnailUrl,
-            IsSelfPaced = row.IsSelfPaced, IsActive = row.IsActive,
+            IsSelfPaced = row.IsSelfPaced, IsActive = row.IsActive, IsTeacherCpd = row.IsTeacherCpd,
             RowVersion = Convert.ToBase64String(row.RowVersion)
         };
     }

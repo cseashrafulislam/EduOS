@@ -16,6 +16,7 @@ public class CourseDto
     public string? ThumbnailUrl { get; set; }
     public bool IsSelfPaced { get; set; }
     public bool IsActive { get; set; }
+    public bool IsTeacherCpd { get; set; }
     public string RowVersion { get; set; } = string.Empty;
 }
 
@@ -30,6 +31,7 @@ public class SaveCourseRequestDto
     [MaxLength(500)] public string? ThumbnailUrl { get; set; }
     public bool IsSelfPaced { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsTeacherCpd { get; set; }
     public string? RowVersion { get; set; }
 }
 

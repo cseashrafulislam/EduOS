@@ -33,7 +33,7 @@ public sealed class LmsProgressGuardianService(
 
     private IQueryable<CourseEnrollment> Owned() =>
         from enrollment in db.CourseEnrollments
-        join learner in db.Students on enrollment.StudentId equals learner.Id
+        join learner in db.Students on enrollment.StudentId equals (long?)learner.Id
         join course in db.Courses on enrollment.CourseId equals course.Id
         where enrollment.TenantId == user.TenantId && learner.TenantId == user.TenantId &&
             course.TenantId == user.TenantId && learner.UserId == user.UserId &&
@@ -59,7 +59,7 @@ public sealed class LmsProgressGuardianService(
         var studentId = await Owned().AsNoTracking().Where(x => x.Id == enrollmentId)
             .Select(x => x.StudentId).FirstOrDefaultAsync(ct);
         if (studentId == 0) return Deny<IReadOnlyList<LmsGuardianChoiceDto>>();
-        var rows = await EligibleLinks(studentId).OrderBy(x => x.GuardianName)
+        var rows = await EligibleLinks(studentId.Value).OrderBy(x => x.GuardianName)
             .ThenBy(x => x.GuardianLinkId).Take(25).ToListAsync(ct);
         return ApiResponse<IReadOnlyList<LmsGuardianChoiceDto>>.SuccessResponse(rows);
     }
@@ -99,7 +99,8 @@ public sealed class LmsProgressGuardianService(
             {
                 var enrollment = await Owned().FirstOrDefaultAsync(x => x.Id == request.CourseEnrollmentId, token);
                 if (enrollment == null) return Deny<LmsProgressGuardianGrantDto>();
-                var guardian = await EligibleLinks(enrollment.StudentId)
+                if (!enrollment.StudentId.HasValue) return Deny<LmsProgressGuardianGrantDto>();
+                var guardian = await EligibleLinks(enrollment.StudentId.Value)
                     .FirstOrDefaultAsync(x => x.GuardianLinkId == request.GuardianLinkId, token);
                 if (guardian == null) return Deny<LmsProgressGuardianGrantDto>();
                 var previous = await db.LmsProgressGuardianGrants.FirstOrDefaultAsync(x =>
@@ -160,7 +161,8 @@ public sealed class LmsProgressGuardianService(
                 var enrollment = await Owned().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.Id == grant.CourseEnrollmentId, token);
                 if (enrollment == null) return Deny<LmsProgressGuardianGrantDto>();
-                var guardian = await EligibleLinks(enrollment.StudentId)
+                if (!enrollment.StudentId.HasValue) return Deny<LmsProgressGuardianGrantDto>();
+                var guardian = await EligibleLinks(enrollment.StudentId.Value)
                     .FirstOrDefaultAsync(x => x.GuardianLinkId == grant.StudentGuardianId, token);
                 if (guardian == null) return Deny<LmsProgressGuardianGrantDto>();
                 if (grant.RevokedAt.HasValue)
@@ -191,7 +193,7 @@ public sealed class LmsProgressGuardianService(
         (from grant in db.LmsProgressGuardianGrants.AsNoTracking()
          join enrollment in db.CourseEnrollments.AsNoTracking() on grant.CourseEnrollmentId equals enrollment.Id
          join course in db.Courses.AsNoTracking() on enrollment.CourseId equals course.Id
-         join learner in db.Students.AsNoTracking() on enrollment.StudentId equals learner.Id
+         join learner in db.Students.AsNoTracking() on enrollment.StudentId equals (long?)learner.Id
          join link in db.StudentGuardians.AsNoTracking() on grant.StudentGuardianId equals link.Id
          join guardian in db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id
          where grant.TenantId == user.TenantId && enrollment.TenantId == user.TenantId &&
@@ -235,7 +237,7 @@ public sealed class LmsProgressGuardianService(
         var count = await query.CountAsync(ct);
         var selected = await query.OrderByDescending(x => x.EnrolledAt).ThenByDescending(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(x => new { x.Id, x.CourseId, x.StudentId, x.State }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.CourseId, StudentId = x.StudentId!.Value, x.State }).ToListAsync(ct);
         var courseIds = selected.Select(x => x.CourseId).Distinct().ToArray();
         var enrollmentIds = selected.Select(x => x.Id).ToArray();
         var studentIds = selected.Select(x => x.StudentId).Distinct().ToArray();

@@ -14,13 +14,16 @@ public class Course : BaseTenantEntity
     [MaxLength(500)] public string? ThumbnailUrl { get; set; }
     public bool IsSelfPaced { get; set; }
     public bool IsActive { get; set; } = true;
+    // Existing courses remain academic. CPD uses the same LMS lessons, quiz and completion evidence.
+    public bool IsTeacherCpd { get; set; }
 }
 
 public class CourseEnrollment : BaseTenantEntity
 {
     public Guid ClientRequestId { get; set; }
     public long CourseId { get; set; }
-    public long StudentId { get; set; }
+    public long? StudentId { get; set; }
+    public long? EmployeeId { get; set; }
     public long? StudentEnrollmentId { get; set; }
     public CourseEnrollmentState State { get; set; } = CourseEnrollmentState.Active;
     public DateTime EnrolledAt { get; set; } = DateTime.UtcNow;

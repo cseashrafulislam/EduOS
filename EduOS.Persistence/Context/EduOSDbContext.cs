@@ -1235,10 +1235,12 @@ public class EduOSDbContext :
         TenantReference<Course, Employee>(modelBuilder, nameof(Course.PrimaryInstructorEmployeeId));
         TenantReference<CourseEnrollment, Course>(modelBuilder, nameof(CourseEnrollment.CourseId));
         TenantReference<CourseEnrollment, Student>(modelBuilder, nameof(CourseEnrollment.StudentId));
+        TenantReference<CourseEnrollment, Employee>(modelBuilder, nameof(CourseEnrollment.EmployeeId));
         TenantReference<CourseEnrollment, StudentEnrollment>(modelBuilder, nameof(CourseEnrollment.StudentEnrollmentId));
         TenantReference<LmsCompletionCertificate, CourseEnrollment>(modelBuilder, nameof(LmsCompletionCertificate.CourseEnrollmentId));
         TenantReference<LmsCompletionCertificate, Course>(modelBuilder, nameof(LmsCompletionCertificate.CourseId));
         TenantReference<LmsCompletionCertificate, Student>(modelBuilder, nameof(LmsCompletionCertificate.StudentId));
+        TenantReference<LmsCompletionCertificate, Employee>(modelBuilder, nameof(LmsCompletionCertificate.EmployeeId));
         TenantReference<CourseSection, Course>(modelBuilder, nameof(CourseSection.CourseId));
         TenantReference<Lesson, Course>(modelBuilder, nameof(Lesson.CourseId));
         TenantReference<Lesson, CourseSection>(modelBuilder, nameof(Lesson.CourseSectionId));
@@ -2122,16 +2124,24 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_TeacherResources_Kind", "[KindCode] IN (N'LessonPlan', N'Slide', N'Worksheet', N'Assessment', N'Exemplar', N'Other')");
         });
         UniqueTenant<CourseEnrollment>(modelBuilder, nameof(CourseEnrollment.ClientRequestId));
+        modelBuilder.Entity<CourseEnrollment>()
+            .HasIndex(x => new { x.TenantId, x.CourseId, x.EmployeeId })
+            .IsUnique().HasFilter("[EmployeeId] IS NOT NULL AND [IsDeleted] = 0");
+        modelBuilder.Entity<CourseEnrollment>().ToTable(t => t.HasCheckConstraint(
+            "CK_CourseEnrollments_Participant", "([StudentId] IS NOT NULL AND [EmployeeId] IS NULL) OR ([StudentId] IS NULL AND [EmployeeId] IS NOT NULL AND [StudentEnrollmentId] IS NULL)"));
         UniqueTenant<LmsCompletionCertificate>(modelBuilder, nameof(LmsCompletionCertificate.ClientRequestId));
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseEnrollmentId, x.Revision }).IsUnique();
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseEnrollmentId })
             .IsUnique().HasFilter("[IsRevoked] = 0 AND [IsDeleted] = 0");
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.CourseId, x.IssuedAt });
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.StudentId, x.IssuedAt });
+        modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => new { x.TenantId, x.EmployeeId, x.IssuedAt });
         modelBuilder.Entity<LmsCompletionCertificate>().HasIndex(x => x.VerificationTokenHash)
             .IsUnique().HasFilter("[VerificationTokenHash] IS NOT NULL");
         modelBuilder.Entity<LmsCompletionCertificate>().ToTable(t =>
         {
+            t.HasCheckConstraint("CK_LmsCompletionCertificates_Participant",
+                "([StudentId] IS NOT NULL AND [EmployeeId] IS NULL) OR ([StudentId] IS NULL AND [EmployeeId] IS NOT NULL)");
             t.HasCheckConstraint("CK_LmsCompletionCertificates_Revision", "[Revision] >= 1");
             t.HasCheckConstraint("CK_LmsCompletionCertificates_VerificationPair",
                 "([VerificationTokenHash] IS NULL AND [VerificationExpiresAt] IS NULL) OR ([VerificationTokenHash] IS NOT NULL AND [VerificationExpiresAt] IS NOT NULL AND [VerificationExpiresAt] > [IssuedAt])");
@@ -2141,7 +2151,7 @@ public class EduOSDbContext :
         modelBuilder.Entity<CourseEnrollment>().HasIndex(x => new { x.TenantId, x.CourseId, x.StudentEnrollmentId })
             .IsUnique().HasFilter("[StudentEnrollmentId] IS NOT NULL AND [IsDeleted] = 0");
         modelBuilder.Entity<CourseEnrollment>().HasIndex(x => new { x.TenantId, x.CourseId, x.StudentId })
-            .IsUnique().HasFilter("[StudentEnrollmentId] IS NULL AND [IsDeleted] = 0");
+            .IsUnique().HasFilter("[StudentEnrollmentId] IS NULL AND [StudentId] IS NOT NULL AND [IsDeleted] = 0");
         UniqueTenant<LessonProgress>(modelBuilder, nameof(LessonProgress.CourseEnrollmentId), nameof(LessonProgress.LessonId));
         UniqueTenant<AssignmentRubricCriterion>(modelBuilder,
             [nameof(AssignmentRubricCriterion.AssignmentId), nameof(AssignmentRubricCriterion.DisplayOrder)], "[IsDeleted] = 0");

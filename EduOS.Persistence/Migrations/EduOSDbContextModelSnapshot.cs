@@ -16615,6 +16615,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<bool>("IsSelfPaced")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsTeacherCpd")
+                        .HasColumnType("bit");
+
                     b.Property<long?>("PrimaryInstructorEmployeeId")
                         .HasColumnType("bigint");
 
@@ -16697,6 +16700,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<DateTime>("EnrolledAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<long?>("EmployeeId")
+                        .HasColumnType("bigint");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -16712,7 +16718,7 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("StudentEnrollmentId")
                         .HasColumnType("bigint");
 
-                    b.Property<long>("StudentId")
+                    b.Property<long?>("StudentId")
                         .HasColumnType("bigint");
 
                     b.Property<long>("TenantId")
@@ -16729,6 +16735,8 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "ClientRequestId")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "EmployeeId");
+
                     b.HasIndex("TenantId", "StudentEnrollmentId");
 
                     b.HasIndex("TenantId", "StudentId");
@@ -16739,9 +16747,16 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "CourseId", "StudentId")
                         .IsUnique()
-                        .HasFilter("[StudentEnrollmentId] IS NULL AND [IsDeleted] = 0");
+                        .HasFilter("[StudentEnrollmentId] IS NULL AND [StudentId] IS NOT NULL AND [IsDeleted] = 0");
 
-                    b.ToTable("CourseEnrollments");
+                    b.HasIndex("TenantId", "CourseId", "EmployeeId")
+                        .IsUnique()
+                        .HasFilter("[EmployeeId] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.ToTable("CourseEnrollments", t =>
+                        {
+                            t.HasCheckConstraint("CK_CourseEnrollments_Participant", "([StudentId] IS NOT NULL AND [EmployeeId] IS NULL) OR ([StudentId] IS NULL AND [EmployeeId] IS NOT NULL AND [StudentEnrollmentId] IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.LMS.CourseSection", b =>
@@ -17235,6 +17250,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<int>("GradedAssignmentsSnapshot")
                         .HasColumnType("int");
 
+                    b.Property<long?>("EmployeeId")
+                        .HasColumnType("bigint");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -17286,7 +17304,7 @@ namespace EduOS.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<long>("StudentId")
+                    b.Property<long?>("StudentId")
                         .HasColumnType("bigint");
 
                     b.Property<string>("StudentNameSnapshot")
@@ -17331,10 +17349,16 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "CourseId", "IssuedAt");
 
+                    b.HasIndex("TenantId", "EmployeeId");
+
+                    b.HasIndex("TenantId", "EmployeeId", "IssuedAt");
+
                     b.HasIndex("TenantId", "StudentId", "IssuedAt");
 
                     b.ToTable("LmsCompletionCertificates", t =>
                         {
+                            t.HasCheckConstraint("CK_LmsCompletionCertificates_Participant", "([StudentId] IS NOT NULL AND [EmployeeId] IS NULL) OR ([StudentId] IS NULL AND [EmployeeId] IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_LmsCompletionCertificates_Revision", "[Revision] >= 1");
 
                             t.HasCheckConstraint("CK_LmsCompletionCertificates_Revocation", "([IsRevoked] = 0 AND [RevokedAt] IS NULL AND [RevokedByUserId] IS NULL AND [RevocationReason] IS NULL) OR ([IsRevoked] = 1 AND [RevokedAt] IS NOT NULL AND [RevokedByUserId] IS NOT NULL AND [RevocationReason] IS NOT NULL)");
@@ -29579,6 +29603,12 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Tenant");
                 });
 
@@ -29765,8 +29795,7 @@ namespace EduOS.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "StudentId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Tenant");
                 });
@@ -29934,12 +29963,17 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Students.Student", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "StudentId")
                         .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Tenant");
                 });

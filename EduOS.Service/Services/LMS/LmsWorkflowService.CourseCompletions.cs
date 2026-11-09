@@ -50,7 +50,7 @@ public sealed partial class LmsWorkflowService
             return Error<PagedResult<CourseCompletionRegisterRowDto>>("Quiz completion repositories are unavailable.", 503);
         var tenant = _user.TenantId;
         var query = from enrollment in _enrollments.GetQueryable().AsNoTracking()
-                    join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
+                    join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals (long?)student.Id
                     where enrollment.TenantId == tenant && student.TenantId == tenant &&
                           enrollment.CourseId == course.Id && !enrollment.IsDeleted && !student.IsDeleted
                     select new { Enrollment = enrollment, Student = student };
@@ -118,14 +118,29 @@ public sealed partial class LmsWorkflowService
                 if (enrollment == null) return Error<CourseCompletionRegisterRowDto>("Course enrollment not found.", 404);
                 var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == enrollment.CourseId && !x.IsDeleted, token);
-                if (course == null || !await CanEditAsync(course, token))
+                if (course == null) return Error<CourseCompletionRegisterRowDto>("Course not found.", 404);
+                var mayComplete = await CanEditAsync(course, token);
+                if (!mayComplete && course.IsTeacherCpd && enrollment.EmployeeId.HasValue &&
+                    enrollment.EmployeeId.Value == await OwnTeacherIdAsync(token)) mayComplete = true;
+                if (!mayComplete)
                     return Error<CourseCompletionRegisterRowDto>("Course not found or instructor access denied.", 404);
-                var student = await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == enrollment.StudentId && !x.IsDeleted, token);
-                if (student == null) return Error<CourseCompletionRegisterRowDto>("Student not found.", 404);
+                var student = enrollment.StudentId.HasValue
+                    ? await _students.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == enrollment.StudentId.Value && !x.IsDeleted, token)
+                    : null;
+                var employee = enrollment.EmployeeId.HasValue && course.IsTeacherCpd
+                    ? await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == enrollment.EmployeeId.Value &&
+                        x.CanTeach && x.State == EmployeeState.Active && !x.IsDeleted, token)
+                    : null;
+                if (student == null && employee == null)
+                    return Error<CourseCompletionRegisterRowDto>("Participant not found.", 404);
+                var participantReference = student?.PublicId ?? employee!.PublicId;
+                var participantCode = student?.StudentCode ?? employee!.EmployeeCode;
+                var participantName = student?.FullName ?? employee!.FullName;
                 if (enrollment.State == CourseEnrollmentState.Completed)
                     return ApiResponse<CourseCompletionRegisterRowDto>.SuccessResponse(
-                        MapCourseCompletion(enrollment, student.PublicId, student.StudentCode, student.FullName,
+                        MapCourseCompletion(enrollment, participantReference, participantCode, participantName,
                             new CourseCompletionEligibilityDto { Ready = true }), "Course already completed.");
                 if (enrollment.State != CourseEnrollmentState.Active)
                     return Error<CourseCompletionRegisterRowDto>("Only active course enrollments can be completed.", 409);
@@ -144,7 +159,7 @@ public sealed partial class LmsWorkflowService
                 _enrollments.Update(enrollment);
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<CourseCompletionRegisterRowDto>.SuccessResponse(
-                    MapCourseCompletion(enrollment, student.PublicId, student.StudentCode, student.FullName,
+                    MapCourseCompletion(enrollment, participantReference, participantCode, participantName,
                         eligibility), "Course completion recorded.");
             }, IsolationLevel.Serializable, ct);
         }

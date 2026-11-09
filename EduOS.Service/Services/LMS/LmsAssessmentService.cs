@@ -63,7 +63,7 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
     private bool Authenticated => _user.IsAuthenticated && _user.TenantId > 0;
     private bool Manager => _user.IsTenantAdmin || _user.IsInRole("Principal");
     private bool Author => Authenticated && (Manager || _user.IsInRole("Teacher"));
-    private bool Learner => Authenticated && _user.IsInRole("Student");
+    private bool Learner => Authenticated && (_user.IsInRole("Student") || _user.IsInRole("Teacher"));
     private DateTime Now => _clock.GetUtcNow().UtcDateTime;
     private static ApiResponse<T> Fail<T>(string message, int status = 400) =>
         ApiResponse<T>.ErrorResponse(message, status);
@@ -94,7 +94,7 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
 
     private async Task<long> StudentIdAsync(CancellationToken ct)
     {
-        if (!Learner) return 0;
+        if (!_user.IsInRole("Student")) return 0;
         return await _students.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && x.UserId == _user.UserId &&
             x.StatusCode == "Active" && !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
@@ -102,12 +102,48 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
 
     private async Task<CourseEnrollment?> EnrollmentAsync(long courseId, long enrollmentId, CancellationToken ct)
     {
+        var course = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == _user.TenantId && x.Id == courseId && !x.IsDeleted, ct);
+        if (course == null) return null;
+        if (course.IsTeacherCpd)
+        {
+            if (!_user.IsInRole("Teacher")) return null;
+            var employeeId = await _employees.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.UserId == _user.UserId && x.CanTeach &&
+                x.State == EmployeeState.Active && !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
+            if (employeeId == 0) return null;
+            return await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == _user.TenantId && x.Id == enrollmentId && x.CourseId == courseId &&
+                x.EmployeeId == employeeId && x.StudentId == null && !x.IsDeleted &&
+                (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed), ct);
+        }
         var studentId = await StudentIdAsync(ct);
         if (studentId == 0) return null;
         return await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == _user.TenantId && x.Id == enrollmentId && x.CourseId == courseId &&
             x.StudentId == studentId && !x.IsDeleted &&
             (x.State == CourseEnrollmentState.Active || x.State == CourseEnrollmentState.Completed), ct);
+    }
+
+    private async Task<CourseEnrollment?> ActiveOwnEnrollmentAsync(Course course, CancellationToken ct)
+    {
+        if (course.IsTeacherCpd)
+        {
+            if (!_user.IsInRole("Teacher")) return null;
+            var employeeId = await _employees.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.UserId == _user.UserId && x.CanTeach &&
+                x.State == EmployeeState.Active && !x.IsDeleted).Select(x => x.Id).FirstOrDefaultAsync(ct);
+            if (employeeId == 0) return null;
+            return await _enrollments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == _user.TenantId && x.CourseId == course.Id &&
+                x.EmployeeId == employeeId && x.State == CourseEnrollmentState.Active && !x.IsDeleted, ct);
+        }
+        var studentId = await StudentIdAsync(ct);
+        if (studentId == 0) return null;
+        return await _enrollments.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == _user.TenantId && x.CourseId == course.Id &&
+            x.StudentId == studentId && x.State == CourseEnrollmentState.Active && !x.IsDeleted)
+            .OrderByDescending(x => x.Id).FirstOrDefaultAsync(ct);
     }
 
     private async Task<QuizDto> MapQuizAsync(Quiz quiz, CancellationToken ct)

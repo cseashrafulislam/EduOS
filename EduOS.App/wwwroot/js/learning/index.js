@@ -121,7 +121,7 @@ function editCourse(){
   node.value=x.primaryInstructorReference||'';
  }
  $('learningCode').value=x.code;$('learningTitle').value=x.title;$('learningDescription').value=x.description||'';
- $('learningSelfPaced').checked=!!x.isSelfPaced;$('learningCourseActive').checked=!!x.isActive;$('learningTitle').focus();
+ $('learningSelfPaced').checked=!!x.isSelfPaced;$('learningCourseActive').checked=!!x.isActive;$('learningTeacherCpd').checked=!!x.isTeacherCpd;$('learningTitle').focus();
 }
 async function saveCourse(e){
  e.preventDefault();if(!e.currentTarget.reportValidity())return;
@@ -130,7 +130,8 @@ async function saveCourse(e){
  const body={academicProgramId:Number($('learningProgram').value)||null,subjectId:Number($('learningSubject').value)||null,
   primaryInstructorReference:manager?$('learningInstructor').value||null:null,code:$('learningCode').value.trim(),
   title:$('learningTitle').value.trim(),description:$('learningDescription').value.trim()||null,
-  isSelfPaced:$('learningSelfPaced').checked,isActive:$('learningCourseActive').checked,rowVersion:x?.rowVersion||null};
+  isSelfPaced:$('learningSelfPaced').checked,isActive:$('learningCourseActive').checked,
+  isTeacherCpd:$('learningTeacherCpd').checked,rowVersion:x?.rowVersion||null};
  $('learningSaveCourse').disabled=true;
  try{const result=await api('/api/lms/courses'+(x?'/'+encodeURIComponent(x.reference):''),x?'PUT':'POST',body);
   resetCourse();state.page=1;await courses();
@@ -544,6 +545,9 @@ function exportContent(kind){
 $('learningLessonExport').addEventListener('click',()=>exportContent('lessons'));
 $('learningAssignmentExport').addEventListener('click',()=>exportContent('assignments'));
 if(author){
+ $('learningTeacherCpd').addEventListener('change',()=>{
+  if($('learningTeacherCpd').checked){$('learningProgram').value='';$('learningSubject').value='';}
+ });
  $('learningCourseForm').addEventListener('submit',saveCourse);$('learningEditCourse').addEventListener('click',editCourse);
  $('learningResetCourse').addEventListener('click',resetCourse);
  $('learningLessonForm').addEventListener('submit',saveLesson);$('learningResetLesson').addEventListener('click',resetLesson);

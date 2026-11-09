@@ -1,0 +1,34 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "প্রশিক্ষণ সনদ যাচাই" : "CPD Certificate Review";
+}
+<section id="cpdReview" class="container-fluid py-3" data-lang="@(bn ? "bn" : "en")">
+    <header class="content-header-card d-flex justify-content-between gap-2 align-items-center mb-3 flex-wrap">
+        <h2 class="h4 mb-0">@(bn ? "শিক্ষক প্রশিক্ষণ ও সনদ যাচাই" : "Teacher CPD completion register")</h2>
+        <details class="position-relative"><summary class="btn btn-outline-secondary btn-sm" aria-label="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
+            <div class="card card-body position-absolute end-0 shadow-sm" style="width:min(23rem,85vw);z-index:10">
+                <h3 class="h6">@(bn ? "প্রশাসকের নির্দেশিকা" : "Administrator guide")</h3>
+                <ol class="small mb-0">
+                    <li>@(bn ? "প্রশিক্ষণ কোর্স নির্বাচন করুন।" : "Choose a teacher CPD course.")</li>
+                    <li>@(bn ? "প্রশিক্ষকের সম্পন্নের অবস্থা যাচাই করুন।" : "Review employee completion status.")</li>
+                    <li>@(bn ? "শুধু Completed অবস্থায় সনদ ইস্যু করুন; সার্ভার প্রমাণ যাচাই করবে।" : "Issue only on Completed records; the server verifies canonical LMS evidence.")</li>
+                    <li>@(bn ? "ভুল সনদ হলে LMS Certificates থেকে audit সহ revoke করুন।" : "Use the LMS certificate revocation workflow if evidence needs correction.")</li>
+                </ol>
+            </div>
+        </details>
+    </header>
+    <div id="cpdReviewAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+    <form id="cpdReviewSearch" class="card card-body mb-3 row g-2">
+        <label class="form-label" for="cpdReviewTerm">@(bn ? "কোর্স খুঁজুন" : "Search CPD course")</label>
+        <div class="d-flex gap-2"><input id="cpdReviewTerm" maxlength="100" class="form-control" /><button class="btn btn-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+        <div class="d-flex gap-2 align-items-center justify-content-end"><button id="cpdCoursePrev" class="btn btn-sm btn-outline-secondary" type="button">@(bn ? "আগে" : "Previous")</button><span id="cpdCoursePage"></span><button id="cpdCourseNext" class="btn btn-sm btn-outline-secondary" type="button">@(bn ? "পরে" : "Next")</button></div>
+        <label class="form-label" for="cpdCourseSelect">@(bn ? "প্রশিক্ষণ কোর্স" : "Training course")</label>
+        <select id="cpdCourseSelect" class="form-select"><option value="">@(bn ? "কোর্স নির্বাচন করুন" : "Choose course")</option></select>
+    </form>
+    <section class="card" aria-labelledby="cpdReviewTitle">
+        <div class="card-header"><h3 class="h6 mb-0" id="cpdReviewTitle">@(bn ? "প্রশিক্ষণার্থীদের তালিকা" : "Teacher participants")</h3></div>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>@(bn ? "প্রশিক্ষক" : "Employee")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "সম্পন্ন" : "Completed")</th><th>@(bn ? "সনদ" : "Certificate")</th></tr></thead><tbody id="cpdParticipantRows"></tbody></table></div>
+        <div class="card-footer d-flex gap-2 justify-content-end align-items-center"><button id="cpdParticipantPrev" class="btn btn-sm btn-outline-secondary" type="button">@(bn ? "আগে" : "Previous")</button><span id="cpdParticipantPage"></span><button id="cpdParticipantNext" class="btn btn-sm btn-outline-secondary" type="button">@(bn ? "পরে" : "Next")</button></div>
+    </section>
+</section>
+@section Scripts { <script src="~/js/lms/teacher-cpd-admin.js" asp-append-version="true"></script> }
