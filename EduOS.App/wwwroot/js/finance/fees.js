@@ -9,7 +9,10 @@ const bn=(document.documentElement.lang||'').toLowerCase().startsWith('bn');
 const t=(en,bd)=>bn?bd:en;
 const pageLabel=(p,n)=>t('Page ','পৃষ্ঠা ')+p+t(' of ',' / ')+n;
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
-const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1,auditInvoice:null,auditPage:1,auditPages:1,auditData:null,savingStructure:false,structureRefreshFailed:false,billingBusy:false,paymentBusy:false,registerRequest:0,editorRequest:0};
+const state={options:null,student:null,invoice:null,invoicePage:1,receiptPage:1,invoicePages:1,receiptPages:1,createKey:null,createId:null,generateKey:null,generateId:null,paymentKey:null,paymentId:null,editingStructure:null,structurePage:1,structurePages:1,auditInvoice:null,auditPage:1,auditPages:1,auditData:null,savingStructure:false,structureRefreshFailed:false,billingBusy:false,paymentBusy:false,registerRequest:0,editorRequest:0,closureRequest:0};
+const structureGuard=e('feeStructureForm')&&globalThis.EduOSFormGuard?.create(e('feeStructureForm'));
+const closureGuard=e('feeStructureCloseForm')&&globalThis.EduOSFormGuard?.create(e('feeStructureCloseForm'));
+const paymentGuard=e('feePaymentForm')&&globalThis.EduOSFormGuard?.create(e('feePaymentForm'));
 // Read-only finance responses are scoped to the currently selected student and page.
 // Abort is an optimization; generation checks remain mandatory if a response races abort.
 const readSlots={search:null,ledger:null,invoice:null,receipt:null,audit:null};
@@ -22,6 +25,7 @@ function resetLedgerView(){
  state.invoicePages=1;state.receiptPages=1;state.auditInvoice=null;state.auditData=null;
  state.auditPage=1;state.auditPages=1;clear('payment');
  e('feePaymentPanel').classList.add('d-none');
+ paymentGuard?.markClean();
  e('feeLedgerSummary').textContent=t('No ledger loaded.','কোনো লেজার লোড হয়নি।');
  empty('feeInvoices',7,t('Select a student.','একজন শিক্ষার্থী বাছুন।'));
  empty('feeReceipts',6,t('Select a student.','একজন শিক্ষার্থী বাছুন।'));
@@ -117,7 +121,7 @@ async function save(ev){
  if(state.editingStructure)body.rowVersion=state.editingStructure.rowVersion;
  body.clientRequestId=stable('create',JSON.stringify(body));
  if(!confirm(state.editingStructure?t('Amend this unbilled fee structure?','এই বিল না হওয়া ফি কাঠামো সংশোধন করবেন?'):t('Create this fee structure?','এই ফি কাঠামো তৈরি করবেন?')))return;
- state.savingStructure=true;e('feeSaveStructure').disabled=true;
+ state.savingStructure=true;e('feeSaveStructure').disabled=true;e('feeStructureForm').inert=true;
  try{
  const id=state.editingStructure?.id,method=id?'PUT':'POST',url=id?'/structures/'+id:'/structures';
  await api(url,method,body);clear('create');state.editingStructure=null;
@@ -129,13 +133,14 @@ async function save(ev){
  }
  alert('success',id?t('Fee structure amended.','ফি কাঠামো সংশোধিত হয়েছে।'):t('Fee structure created.','ফি কাঠামো তৈরি হয়েছে।'));
  }catch(err){alert('danger',err.message+t(' Existing billed structures cannot be amended; reload before retrying.',' ইতিমধ্যে বিল হওয়া কাঠামো সংশোধন করা যায় না; আবার চেষ্টা করার আগে রিলোড করুন।'));}
- finally{state.savingStructure=false;e('feeSaveStructure').disabled=state.structureRefreshFailed;}
+ finally{state.savingStructure=false;e('feeSaveStructure').disabled=state.structureRefreshFailed;e('feeStructureForm').inert=false;}
 }
 function resetStructureForm(){
  ++state.editorRequest;
  state.editingStructure=null;clear('create');e('feeStructureForm').reset();e('feeStructureMode').textContent=t('Creating a new fee structure.','নতুন ফি কাঠামো তৈরি হচ্ছে।');
  e('feeEffectiveFrom').value=today();e('feeEffectiveTo').value='';e('feeStructureActive').checked=true;
  e('feeLineRows').replaceChildren();line();batches();
+ structureGuard?.markClean();
 }
 async function register(){
  if(!e('feeStructureRegister'))return;
@@ -164,18 +169,29 @@ async function register(){
  if(!e('feeRegisterRows').children.length)empty('feeRegisterRows',6,t('No fee structures.','কোনো ফি কাঠামো পাওয়া যায়নি।'));
 }
 async function selectClosure(id){
+ if(state.closingStructure||closureGuard&&!closureGuard.confirmDiscard())return;
+ const request=++state.closureRequest;
+ const draft=globalThis.EduOSFormGuard?.fingerprint(e('feeStructureCloseForm'));
  const x=await api('/structures/'+encodeURIComponent(id));
+ if(request!==state.closureRequest||state.closingStructure)return;
+ if(draft!==globalThis.EduOSFormGuard?.fingerprint(e('feeStructureCloseForm'))&&
+    closureGuard&&!closureGuard.confirmDiscard())return;
  if(!x.isActive)throw Error(t('Only active fee structures can be closed.','শুধু সক্রিয় ফি কাঠামো বন্ধ করা যায়।'));
  e('feeCloseId').value=String(x.id);e('feeCloseVersion').value=x.rowVersion;
  e('feeCloseName').value=x.name+t(' — Campus ',' — ক্যাম্পাস ')+x.campusId;
  e('feeCloseDate').value='';
  e('feeStructureCloseForm').classList.remove('d-none');
+ closureGuard?.markClean();
  e('feeCloseDate').focus();
 }
 async function loadStructure(id,mode){
+ if(state.savingStructure||state.structureRefreshFailed||structureGuard&&!structureGuard.confirmDiscard())return;
+ const previousDraft=globalThis.EduOSFormGuard?.fingerprint(e('feeStructureForm'));
  const request=++state.editorRequest;
  const x=await api('/structures/'+encodeURIComponent(id));
- if(request!==state.editorRequest)return;
+ if(request!==state.editorRequest||state.savingStructure)return;
+ if(previousDraft!==globalThis.EduOSFormGuard?.fingerprint(e('feeStructureForm'))&&
+    structureGuard&&!structureGuard.confirmDiscard())return;
  if(!x.lines?.length)throw Error(t('Structure has no active fee lines.','এই কাঠামোয় কোনো সক্রিয় ফি খাত নেই।'));
  state.editingStructure=mode==='edit'?x:null;clear('create');
  e('feeCampus').value=String(x.campusId);e('feeYear').value=String(x.academicYearId);
@@ -187,6 +203,7 @@ async function loadStructure(id,mode){
  e('feeStructureActive').checked=mode==='copy'?true:x.isActive;
  e('feeLineRows').replaceChildren();for(const row of x.lines)line(mode==='copy'?{...row,id:null,rowVersion:null}:row);
  e('feeStructureMode').textContent=mode==='copy'?t('New version template: enter a new effective date. Existing overlapping scopes are rejected.','নতুন সংস্করণ: নতুন কার্যকর তারিখ দিন। একই সময়ের পরিসর গ্রহণযোগ্য নয়।'):t('Editing unbilled structure #','বিল না হওয়া কাঠামো #')+x.id+t('; issued invoices block amendments.','; ইস্যু করা ইনভয়েস থাকলে সংশোধন করা যাবে না।');
+ structureGuard?.markClean();
  e('feeStructureForm').scrollIntoView({behavior:'smooth',block:'start'});
 }
 let invoicePreviewRevision = 0, invoicePreviewRequest = 0;
@@ -254,13 +271,13 @@ async function generate(ev){
  if(!state.invoicePreview?.canGenerate||state.invoicePreviewKey!==JSON.stringify(body))
   return alert('warning',t('Run billing preview again after changing inputs.','তথ্য পরিবর্তনের পর আবার বিলিং পূর্বদর্শন চালান।'));
  if(!confirm(t('Generate monthly invoices for the previewed batch?','পূর্বদর্শনে থাকা ব্যাচের মাসিক ইনভয়েস তৈরি করবেন?')))return;
- state.billingBusy=true;e('feeGenerate').disabled=true;
+ state.billingBusy=true;e('feeGenerate').disabled=true;e('feeInvoiceForm').inert=true;
  try{const r=await api('/invoices/generate','POST',body);clear('generate');
   invalidateInvoicePreview();
   e('feeGenerationInfo').textContent=t('Generated: ','তৈরি: ')+r.generated+t('; existing: ','; বিদ্যমান: ')+r.existing+t('; failed: ','; ব্যর্থ: ')+r.failed;
   alert('success',t('Invoices generated.','ইনভয়েস তৈরি হয়েছে।'));}
  catch(err){alert('danger',err.message+t(' Reload preview before retrying with the same request ID.',' একই অনুরোধ আইডি দিয়ে আবার চেষ্টা করার আগে পূর্বদর্শন রিলোড করুন।'));invalidateInvoicePreview();}
- finally{state.billingBusy=false;}
+ finally{state.billingBusy=false;e('feeInvoiceForm').inert=false;}
 }
 async function findStudent(){
  const s=e('feeStudentSearch').value.trim();
@@ -283,9 +300,11 @@ async function invoices(){
  state.invoicePages=Math.max(1,Math.ceil(r.totalCount/25));pager('invoice');e('feeInvoices').replaceChildren();
  for(const x of r.items||[]){const tr=document.createElement('tr'),action=document.createElement('td');
  if(Number(x.dueAmount)>0&&(x.state===2||x.state===3)){const b=document.createElement('button');b.type='button';b.className='btn btn-sm btn-outline-primary';b.textContent=t('Collect cash','নগদ গ্রহণ');b.onclick=()=>{
-  if(state.student!==student||e('feeStudent').value!==student)return;
+  if(state.paymentBusy||state.student!==student||e('feeStudent').value!==student||
+     paymentGuard&&!paymentGuard.confirmDiscard())return;
   state.invoice=x;clear('payment');e('feePaymentPanel').classList.remove('d-none');
   e('feePaymentInvoice').value=x.invoiceNumber;e('feePaymentAmount').value=amount(x.dueAmount);e('feePaymentAmount').max=x.dueAmount;
+  paymentGuard?.markClean();
  };action.append(b);}
  if(e('feeAllocationAudit')){const audit=document.createElement('button');audit.type='button';audit.className='btn btn-sm btn-outline-secondary ms-1';audit.textContent=t('Receipt audit','রসিদ নিরীক্ষা');audit.onclick=()=>openAudit(x.reference).catch(err=>{if(err.name!=='AbortError'&&state.student===student)alert('danger',err.message);});action.append(audit);}
  const view=document.createElement('a');view.className='btn btn-sm btn-outline-secondary ms-1';view.textContent=t('View / Print','দেখুন / প্রিন্ট');view.href='/FeeDocuments/Invoice?studentReference='+encodeURIComponent(student)+'&documentReference='+encodeURIComponent(x.reference);action.append(view);
@@ -365,6 +384,8 @@ async function collect(ev){
  const body={paymentDate,paymentMethod:1,amount:Number(raw),bankAccountId:null,externalReference:null,allocations:[{invoiceReference:invoice.reference,amount:Number(raw)}]};
  body.clientRequestId=stable('payment',JSON.stringify(body));
  state.paymentBusy=true;e('feeCollect').disabled=true;
+ e('feePaymentForm').inert=true;
+ for(const id of ['feeStudentSearch','feeStudent','feeFindStudent','feeLoadLedger'])e(id).disabled=true;
  try{
  // Read-only preflight provides current, authorized balances; the write
  // revalidates independently in its own transaction.
@@ -381,32 +402,44 @@ async function collect(ev){
      amount(preview.amount)+t(' BDT for ',' টাকা, ইনভয়েস ')+preview.invoices[0].invoiceNumber+
      t('? Current remaining due: ','? বর্তমান অবশিষ্ট বকেয়া: ')+amount(preview.invoices[0].dueAfter)+' BDT.'))return;
  if(state.student!==student||e('feeStudent').value!==student||state.invoice!==invoice)return;
- try{const r=await api('/payments','POST',body);if(state.student!==student||e('feeStudent').value!==student)return;clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');await ledger();if(state.student===student)alert('success',t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+r.receiptNumber);}
+ try{const r=await api('/payments','POST',body);if(state.student!==student||e('feeStudent').value!==student)return;clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');paymentGuard?.markClean();await ledger();if(state.student===student)alert('success',t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+r.receiptNumber);}
  catch(err){alert('danger',err.message+t(' Keep values unchanged for a safe retry.',' নিরাপদে আবার চেষ্টা করতে তথ্য অপরিবর্তিত রাখুন।'));}
- }finally{state.paymentBusy=false;e('feeCollect').disabled=false;}
+ }finally{
+  state.paymentBusy=false;e('feeCollect').disabled=false;e('feePaymentForm').inert=false;
+  for(const id of ['feeStudentSearch','feeStudent','feeFindStudent','feeLoadLedger'])e(id).disabled=false;
+ }
 }
 function page(kind,delta){const next=state[kind+'Page']+delta;if(!state.student||next<1||next>state[kind+'Pages'])return;state[kind+'Page']=next;(kind==='invoice'?invoices():receipts()).catch(err=>{if(err.name!=='AbortError'&&state.student===e('feeStudent').value)alert('danger',err.message);});}
 if(e('feeStructureCloseForm')){
- e('feeCloseCancel').addEventListener('click',()=>e('feeStructureCloseForm').classList.add('d-none'));
+ e('feeCloseCancel').addEventListener('click',()=>{
+  if(state.closingStructure||closureGuard&&!closureGuard.confirmDiscard())return;
+  ++state.closureRequest;
+  e('feeStructureCloseForm').classList.add('d-none');closureGuard?.markClean();
+ });
  e('feeStructureCloseForm').addEventListener('submit',ev=>{ev.preventDefault();(async()=>{
+  if(state.closingStructure||!ev.currentTarget.reportValidity())return;
   const id=e('feeCloseId').value,date=e('feeCloseDate').value,version=e('feeCloseVersion').value;
   if(!/^\d+$/.test(id)||!version||!/^\d{4}-\d{2}-\d{2}$/.test(date))throw Error(t('Select a structure and valid month-end date.','কাঠামো ও মাসের শেষের সঠিক তারিখ বাছুন।'));
   const parts=date.split('-').map(Number);
   if(parts[2]!==new Date(parts[0],parts[1],0).getDate())throw Error(t('Closure must be on the last day of a month.','বন্ধের তারিখ অবশ্যই মাসের শেষ দিন হতে হবে।'));
   if(!confirm(t('Close future billing for ','ভবিষ্যৎ বিলিং বন্ধ করবেন: ')+e('feeCloseName').value+t(' through ',' পর্যন্ত ')+date+t('? Issued invoices remain unchanged. This cannot be extended or reopened.','? ইস্যু করা ইনভয়েস অপরিবর্তিত থাকবে। এটি বাড়ানো বা আবার খোলা যাবে না।')))return;
-  e('feeCloseSubmit').disabled=true;
+  state.closingStructure=true;e('feeCloseSubmit').disabled=true;e('feeStructureCloseForm').inert=true;
   try{
    await api('/structures/'+encodeURIComponent(id)+'/close','POST',{effectiveTo:date,rowVersion:version});
    e('feeStructureCloseForm').classList.add('d-none');
-   await options();alert('success',t('Future billing closed. Existing invoices and fee lines are unchanged.','ভবিষ্যৎ বিলিং বন্ধ হয়েছে। বিদ্যমান ইনভয়েস ও ফি খাত অপরিবর্তিত।'));
-  }finally{e('feeCloseSubmit').disabled=false;}
+   closureGuard?.markClean();
+   await register();alert('success',t('Future billing closed. Existing invoices and fee lines are unchanged.','ভবিষ্যৎ বিলিং বন্ধ হয়েছে। বিদ্যমান ইনভয়েস ও ফি খাত অপরিবর্তিত।'));
+  }finally{state.closingStructure=false;e('feeCloseSubmit').disabled=false;e('feeStructureCloseForm').inert=false;}
  })().catch(err=>alert('danger',err.message));});
 }
 // One scoped entry view owns one workflow. The legacy ledger route remains
 // valid, but never mounts or initializes unrelated billing/structure editors.
 if(activeFeature==='structures' && e('feeStructureForm')){
  e('feeAddLine').addEventListener('click',()=>line());
- e('feeStructureReset').addEventListener('click',resetStructureForm);
+ e('feeStructureReset').addEventListener('click',()=>{
+  if(state.savingStructure||state.structureRefreshFailed||structureGuard&&!structureGuard.confirmDiscard())return;
+  resetStructureForm();
+ });
  e('feeStructureForm').addEventListener('submit',save);
  for(const id of ['feeCampus','feeYear','feeLevel'])e(id).addEventListener('change',batches);
  if(e('feeStructureRegister')){
@@ -414,15 +447,17 @@ if(activeFeature==='structures' && e('feeStructureForm')){
   for(const [id,delta] of [['feeRegisterPrev',-1],['feeRegisterNext',1]])
    e(id).addEventListener('click',()=>{const p=state.structurePage+delta;if(p<1||p>state.structurePages)return;state.structurePage=p;register().catch(err=>alert('danger',err.message));});
  }
- e('feeEffectiveFrom').value=today();
- options().catch(err=>alert('danger',err.message));
+ e('feeEffectiveFrom').value=today();e('feeStructureForm').inert=true;
+ options().then(()=>{structureGuard?.markClean();e('feeStructureForm').inert=false;})
+  .catch(err=>alert('danger',err.message));
 }
 if(activeFeature==='billing' && e('feeInvoiceForm')){
  e('feeInvoiceForm').addEventListener('submit',generate);
  for(const id of ['feeBatch','feeMonth','feeBillingYear'])e(id).addEventListener('change',structures);
  const now=new Date();e('feeMonth').value=String(now.getMonth()+1);
  e('feeBillingYear').value=String(now.getFullYear());
- options().catch(err=>alert('danger',err.message));
+ e('feeInvoiceForm').inert=true;
+ options().then(()=>{e('feeInvoiceForm').inert=false;}).catch(err=>alert('danger',err.message));
  // A preview is advisory and becomes invalid on every invoice-scope edit.
  for(const id of ['feeBatch','feeInvoiceStructure','feeMonth','feeBillingYear','feeDueDate']){
   const field=e(id);field.addEventListener('change',invalidateInvoicePreview);
@@ -432,13 +467,27 @@ if(activeFeature==='billing' && e('feeInvoiceForm')){
  e('feePreviewCsv').addEventListener('click',invoicePreviewCsv);
 }
 if(activeFeature==='ledger' && e('feeStudent')){
+ let lastSearchValue=e('feeStudentSearch').value;
  e('feeStudentSearch').addEventListener('input',()=>{
+  if(state.paymentBusy||paymentGuard?.isDirty()&&!paymentGuard.confirmDiscard()){
+   e('feeStudentSearch').value=lastSearchValue;return;
+  }
+  lastSearchValue=e('feeStudentSearch').value;
   cancelRead('search');fill('feeStudent',[],'Choose student');resetLedgerView();
  });
- e('feeStudent').addEventListener('change',resetLedgerView);
+ e('feeStudent').addEventListener('change',()=>{
+  if(state.paymentBusy||paymentGuard?.isDirty()&&!paymentGuard.confirmDiscard()){
+   e('feeStudent').value=state.student||'';return;
+  }
+  resetLedgerView();
+ });
  e('feeFindStudent').addEventListener('click',findStudent);
  e('feeLoadLedger').addEventListener('click',ledger);
  e('feePaymentForm').addEventListener('submit',collect);
+ e('feePaymentCancel')?.addEventListener('click',()=>{
+  if(state.paymentBusy||paymentGuard&&!paymentGuard.confirmDiscard())return;
+  state.invoice=null;clear('payment');e('feePaymentPanel').classList.add('d-none');paymentGuard?.markClean();
+ });
  if(e('feeAllocationAudit')){
   e('feeAuditClose').addEventListener('click',()=>{cancelRead('audit');state.auditInvoice=null;state.auditData=null;e('feeAuditCsv').disabled=true;e('feeAllocationAudit').classList.add('d-none');});
   e('feeAuditCsv').addEventListener('click',exportAudit);
@@ -452,5 +501,6 @@ if(activeFeature==='ledger' && e('feeStudent')){
  e('feeReceiptPrev').addEventListener('click',()=>page('receipt',-1));
  e('feeReceiptNext').addEventListener('click',()=>page('receipt',1));
  e('feePaymentDate').value=today();
+ paymentGuard?.markClean();
 }
 })();

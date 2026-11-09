@@ -11,7 +11,7 @@ test('student ledger and receipt audit GETs are abortable and response scoped',(
  assert.match(source,/state\.auditPage!==page/);
  assert.match(source,/state\.invoicePage!==page/);
  assert.match(source,/state\.receiptPage!==page/);
- assert.match(source,/e\('feeStudent'\)\.addEventListener\('change',resetLedgerView\)/);
+ assert.match(source,/e\('feeStudent'\)\.addEventListener\('change',[\s\S]*paymentGuard\.confirmDiscard\(\)/);
  assert.match(source,/state\.invoice!==invoice\)return/);
  assert.match(source,/if\(state\.student!==student\|\|e\('feeStudent'\)\.value!==student\)return;clear\('payment'\)/);
  assert.match(source,/RequestVerificationToken=token/);

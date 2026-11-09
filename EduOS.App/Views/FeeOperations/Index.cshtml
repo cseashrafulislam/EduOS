@@ -131,7 +131,7 @@
             <div class="col-md-3"><label for="feePaymentDate" class="form-label">Payment date</label><input id="feePaymentDate" type="date" class="form-control" required /></div>
             <div class="col-md-6"><label for="feePaymentInvoice" class="form-label">Selected invoice</label><input id="feePaymentInvoice" class="form-control" readonly /></div>
             <div class="col-md-3"><label for="feePaymentAmount" class="form-label">Cash amount</label><input id="feePaymentAmount" min=".01" step=".01" type="number" class="form-control" required /></div>
-            <div class="col-md-3"><button id="feeCollect" type="submit" class="btn btn-primary w-100">Record cash receipt</button></div>
+            <div class="col-md-3 d-flex gap-2"><button id="feeCollect" type="submit" class="btn btn-primary flex-grow-1">Record cash receipt</button><button id="feePaymentCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button></div>
         </form>
     </section>
     <section class="card mb-3"><div class="card-header"><h3 class="h6 m-0">Receipt history</h3></div>
@@ -142,5 +142,6 @@
 </section>
 @section Scripts {
     <script src="~/js/platform/task-workspace-locales.js" asp-append-version="true"></script>
+    <script src="~/js/platform/form-guard.js" asp-append-version="true"></script>
     <script src="~/js/finance/fees.js" asp-append-version="true"></script>
 }
