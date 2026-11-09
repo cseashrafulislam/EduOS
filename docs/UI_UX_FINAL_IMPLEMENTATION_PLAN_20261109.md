@@ -221,6 +221,13 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - Intake POST/PUT, application POST, review transition and enrollment POST lock their respective form while awaiting the canonical API. Acknowledged writes clear their draft and permit modal close; rejected/uncertain writes retain the entered values. The review-to-enrollment transition prompts if it would discard an unsaved decision note. Financial/academic posting, approval rules, APIs and database schema remain unchanged.
 - Added executable modal-guard tests for clean/dirty/refused/accepted/busy states, plus focused admission workflow contract checks. This closes a cohesive Admission **UX-03 implementation tranche**, not the entire UX-03 route matrix. Automated .NET, SQL, authenticated browser, responsive/tenant-role checks and independent Task E review remain required before package-wide sign-off.
 
+### 4.22. UX-03 source/destination student-transfer handoff drafts (2026-11-10)
+
+- Source handoff now guards the entered reason/destination before switching students. A new student selection resets the prior student's draft and retry identifier only after a confirmed discard; Refresh of the same student retains the draft. Out-of-order search, transfer-history and eligibility results can no longer display a previous student's eligibility under the current selection.
+- The existing canonical transfer-request idempotency key is bound to the full immutable request body at submission rather than reset on each keystroke. An uncertain identical retry retains the key; a changed payload receives a new one. Source submission locks all editable controls during the POST and clears the draft only after the server confirms success.
+- Destination enrollment linking preserves typed student/enrollment references if the operator refuses to discard them when switching handoffs. Linking is single-flight with an inert editor; confirmed completion clears the form and refreshes the inbox after the busy state ends. Older inbox responses cannot repaint an in-progress review/link/confirmation.
+- Added source contract checks and an executable concurrent-selection test that deliberately resolves an old student's request after the new student's eligibility. Server-side student/tenant authorization, source/destination approval, enrollment-linked confirmation and transfer completion semantics are unchanged. This is a further **UX-03 vertical tranche**, not the required final role/device/tenant/SQL acceptance of every form.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:
