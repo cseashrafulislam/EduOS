@@ -11,15 +11,18 @@
     </header>
     @Html.AntiForgeryToken()
     <input id="offerLocale" type="hidden" value="@(bn ? "bn-BD" : "en-BD")" />
-    <p id="offerJourneyStage" class="small text-muted" role="status" aria-live="polite"></p>
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <span id="offerJourneyStage" class="small fw-semibold" role="status" aria-live="polite"></span>
+        <span id="offerBusy" class="small text-muted" role="status" aria-live="polite" hidden>@(bn ? "অনুরোধ প্রক্রিয়াধীন…" : "Processing request…")</span>
+    </div>
     <div id="offerNotice" class="alert alert-info" role="status" aria-live="polite">@(bn ? "আবেদনকারী খুঁজুন অথবা সঠিক আবেদন রেফারেন্স দিন।" : "Search for an applicant or enter an exact reference.")</div>
     <form id="offerSearchForm" class="row g-2 mb-3" role="search">
-        <div class="col-md-9"><label class="form-label" for="offerSearchTerm">Find applicant by name or application number</label>
+        <div class="col-md-9"><label class="form-label" for="offerSearchTerm">@(bn ? "নাম বা আবেদন নম্বর দিয়ে খুঁজুন" : "Find applicant by name or application number")</label>
             <input id="offerSearchTerm" class="form-control" type="search" minlength="2" maxlength="100" autocomplete="off" required /></div>
         <div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary w-100" type="submit">@(bn ? "আবেদনকারী খুঁজুন" : "Search applicants")</button></div>
     </form>
     <div id="offerSearchResults" aria-live="polite"></div>
-    <nav class="d-flex align-items-center gap-2 mb-3 mt-2" aria-label="Applicant search pages">
+    <nav class="d-flex align-items-center gap-2 mb-3 mt-2" aria-label="@(bn ? "আবেদনকারী অনুসন্ধানের পৃষ্ঠা" : "Applicant search pages")">
         <button id="offerSearchPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "পূর্ববর্তী" : "Previous")</button>
         <span id="offerSearchPage" class="small text-muted" aria-live="polite"></span>
         <button id="offerSearchNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "পরবর্তী" : "Next")</button>
@@ -27,7 +30,8 @@
     <form id="offerLookupForm" class="row g-2 mb-3">
         <div class="col-md-9">
             <label class="form-label" for="offerApplicantReference">Applicant reference / আবেদন নম্বর (GUID)</label>
-            <input class="form-control" id="offerApplicantReference" type="text" maxlength="36" autocomplete="off" required />
+            <input class="form-control" id="offerApplicantReference" type="text" maxlength="36" autocomplete="off" aria-describedby="offerReferenceHelp" required />
+            <div id="offerReferenceHelp" class="form-text">@(bn ? "অনুসন্ধান ফলাফল থেকে আবেদন নির্বাচন করুন অথবা ৩৬ অক্ষরের রেফারেন্স দিন।" : "Choose a search result or enter the 36-character application reference.")</div>
         </div>
         <div class="col-md-3 d-flex align-items-end">
             <button id="offerLookupButton" type="submit" class="btn btn-primary w-100">Load / খুঁজুন</button>
@@ -48,7 +52,7 @@
                 <input id="offerExpiry" type="datetime-local" class="form-control" required />
             </div>
             <div class="col-12">
-                <button id="offerIssueButton" type="button" class="btn btn-outline-primary">Issue offer / অফার দিন</button>
+                <button id="offerIssueButton" type="button" class="btn btn-outline-primary" aria-describedby="offerJourneyStage">Issue offer / অফার দিন</button>
             </div>
             <div class="col-12"><hr /><h4 class="h6">Verified signed acceptance / যাচাইকৃত স্বাক্ষর</h4>
                 <p class="small text-muted">Upload a signed OFFER_ACCEPTANCE document from the public application and verify it in the private application document review first.</p>
@@ -69,7 +73,7 @@
                     I independently verified the signer identity against the applicant/guardian record and the signed document.</label>
             </div>
             <div class="col-12 d-flex gap-2 flex-wrap">
-                <button id="offerAcceptButton" type="button" class="btn btn-success" disabled>Record verified acceptance</button>
+                <button id="offerAcceptButton" type="button" class="btn btn-success" aria-describedby="offerJourneyStage" disabled>Record verified acceptance</button>
                 <button id="offerRefreshButton" type="button" class="btn btn-outline-secondary">Refresh status &amp; evidence</button>
             </div>
             <div class="col-12"><hr /><h4 class="h6">Canonical student conversion / শিক্ষার্থী ভর্তি</h4></div>
@@ -82,7 +86,7 @@
                 <select id="offerTrack" class="form-select"></select>
             </div>
             <div class="col-12">
-                <button id="offerEnrollButton" type="button" class="btn btn-primary" disabled>Convert to student &amp; enroll</button>
+                <button id="offerEnrollButton" type="button" class="btn btn-primary" aria-describedby="offerJourneyStage" disabled>Convert to student &amp; enroll</button>
             </div>
         </div>
     </div>
