@@ -23,7 +23,7 @@
             ['career', 'Career & Placement', 'ক্যারিয়ার ও কর্মসংস্থান', ['/CareerEmployers', '/CareerOpportunities', '/CareerPlacements']],
             ['research', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন', ['/ResearchProposals', '/ResearchGrants']],
             ['accreditation', 'Accreditation & Quality', 'স্বীকৃতি ও মান', ['/Accreditation']],
-            ['learning', 'Learning & Courses', 'শিক্ষা ও কোর্স', ['/Learning']],
+            ['learning', 'Learning & Courses', 'শিক্ষা ও কোর্স', ['/Learning', '/TeacherStudio']],
             ['assessments', 'Exams & Results', 'পরীক্ষা ও ফলাফল', ['/AssessmentAdministration']],
             ['operations', 'Classes & Attendance', 'ক্লাস ও উপস্থিতি', ['/AcademicRoutines', '/AcademicInstruction', '/AcademicCalendar', '/StudentLeaves', '/Attendance']]
         ],
@@ -32,7 +32,7 @@
             ['finance', 'Fees & Accounting', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']],
             ['inventory', 'Inventory & Assets', 'ইনভেন্টরি ও সম্পদ', ['/InventoryCatalog', '/InventoryMovements', '/AssetLifecycle']],
             ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights', '/FacilityWorkOrders', '/FacilitySpaces']],
-            ['library', 'Library', 'গ্রন্থাগার', ['/Library']],
+            ['library', 'Library', 'গ্রন্থাগার', ['/Library', '/offline-study.html']],
             ['communication', 'Communication & Documents', 'যোগাযোগ ও ডকুমেন্ট', ['/CommunicationWorkspace', '/CommunicationAdministration', '/CustomFields', '/DocumentAdministration']],
             ['governance', 'Audit & Reporting', 'অডিট ও রিপোর্ট', ['/AuditLogs', '/ImportHistory']]
         ]
@@ -71,7 +71,7 @@
         ],
         'academics:learning': [
             ['settings', 'Settings', 'সেটিংস', ['/Learning/CourseContent']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/Learning/Index', '/Learning/Quizzes', '/Learning/LiveClasses', '/Learning/AssignmentFiles', '/Learning/MySubmissions']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Learning/Index', '/Learning/Quizzes', '/Learning/LiveClasses', '/Learning/AssignmentFiles', '/Learning/MySubmissions', '/Learning/StudyPlan', '/TeacherStudio']],
             ['reports', 'Reports', 'রিপোর্ট', ['/Learning/CourseCompletions', '/Learning/Certificates']]
         ],
         'management:finance': [
@@ -101,7 +101,7 @@
         ],
         'management:library': [
             ['settings', 'Settings', 'সেটিংস', ['/Library/Branches']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/Library/Index', '/Library/Circulation', '/Library/Reservations', '/Library/Digital', '/Library/Conditions']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Library/Index', '/Library/Circulation', '/Library/Reservations', '/Library/Digital', '/Library/Conditions', '/Library/Study', '/Library/StudyAssistant', '/offline-study.html']],
             ['reports', 'Reports', 'রিপোর্ট', ['/Library/Overdue', '/Library/Integrity', '/Library/Liabilities']]
         ],
         'management:communication': [

@@ -45,6 +45,9 @@ const routeEntries = [
 const routeSet = new Set(routeEntries);
 function resolve(route) {
     const clean = route.split(/[?#]/)[0].replace(/\/+$/, '');
+    // Public offline reader is a reviewed static entry point, not an MVC action.
+    if (/^\/[a-z0-9-]+\.html$/i.test(clean) &&
+        fs.existsSync(path.join(root, 'EduOS.App/wwwroot', clean.slice(1)))) return true;
     const attr = clean.slice(1).toLowerCase();
     if (sources.some(x => [...x.source.matchAll(/\[(?:HttpGet|Route)\s*\(\s*"([^"]+)"/g)]
         .some(m => m[1].toLowerCase() === attr))) return true;
@@ -87,6 +90,48 @@ test('dynamic sidebar task groups include career and facilities without duplicat
     }
     assert.equal([...routeSet].filter(x => x === '/FacilitySpaces/Index').length, 1);
     assert.equal([...routeSet].filter(x => x === '/CareerPlacements/Index').length, 1);
+});
+
+test('new academic, teacher and Bangladesh study pages have one discoverable sidebar destination', () => {
+    const { groupFor, categoryFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+    const expected = [
+        ['/Accreditation/Obe', 'academics', 'accreditation', 'operations'],
+        ['/Learning/StudyPlan', 'academics', 'learning', 'operations'],
+        ['/TeacherStudio/Public', 'academics', 'learning', 'operations'],
+        ['/TeacherStudio/AdaptiveGoals', 'academics', 'learning', 'operations'],
+        ['/TeacherStudio/Cpd', 'academics', 'learning', 'operations'],
+        ['/TeacherStudio/CpdReview', 'academics', 'learning', 'operations'],
+        ['/Library/Study', 'management', 'library', 'operations'],
+        ['/Library/StudyAssistant', 'management', 'library', 'operations'],
+        ['/offline-study.html', 'management', 'library', 'operations']
+    ];
+    for (const [route, section, group, category] of expected) {
+        assert.equal(routeEntries.filter(x => x === route).length, 1, route);
+        assert.equal(groupFor(section, route), group, route);
+        assert.equal(categoryFor(section, group, route), category, route);
+    }
+});
+
+test('new sidebar links remain inside module and action role gates', () => {
+    function precedingGuard(route) {
+        const anchor = sidebar.indexOf('href="' + route + '"');
+        assert.ok(anchor > 0, route + ' is absent');
+        const start = sidebar.lastIndexOf('@if (', anchor);
+        return sidebar.slice(start, anchor);
+    }
+    assert.match(precedingGuard('/Learning/StudyPlan'), /IsInRole\("Student"\)/);
+    assert.match(precedingGuard('/TeacherStudio/Cpd'), /IsInRole\("Teacher"\)/);
+    assert.doesNotMatch(precedingGuard('/TeacherStudio/Cpd'), /IsInRole\("Principal"\)/);
+    assert.match(precedingGuard('/TeacherStudio/CpdReview'), /IsInRole\("TenantAdmin"\)/);
+    assert.match(precedingGuard('/TeacherStudio/CpdReview'), /IsInRole\("Principal"\)/);
+    assert.doesNotMatch(precedingGuard('/TeacherStudio/CpdReview'), /IsInRole\("Teacher"\)/);
+    assert.match(precedingGuard('/Library/StudyAssistant'), /IsInRole\("Student"\)/);
+    assert.doesNotMatch(precedingGuard('/Library/StudyAssistant'), /IsInRole\("Librarian"\)/);
+    assert.match(precedingGuard('/Library/Study'), /IsInRole\("Librarian"\)/);
+    assert.match(precedingGuard('/Library/Study'), /IsInRole\("Guardian"\)/);
+    assert.match(precedingGuard('/Accreditation/Obe'), /IsInRole\("AccreditationOfficer"\)/);
+    assert.match(sidebar, /@if \(showLms[\s\S]*?href="\/Learning\/StudyPlan"/);
+    assert.match(sidebar, /@if \(showLibrary\)[\s\S]*?href="\/Library\/StudyAssistant"/);
 });
 
 

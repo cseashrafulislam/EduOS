@@ -28,7 +28,9 @@
         : userName[..1].ToUpper(CultureInfo.CurrentCulture);
     var currentPath = Context.Request.Path.Value ?? string.Empty;
     string ActiveFor(string routePrefix) =>
-        currentPath.StartsWith(routePrefix, StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
+        currentPath.Equals(routePrefix, StringComparison.OrdinalIgnoreCase) ||
+        currentPath.StartsWith(routePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)
+            ? "active" : string.Empty;
     var requestVerificationToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
     var sessionClaim = User?.FindFirst(EduOS.App.Security.AuthSessionRegistry.ClaimType)?.Value;
     var sessionReference = string.IsNullOrWhiteSpace(sessionClaim) ? "" : EduOS.App.Security.AuthSessionRegistry.ToPublicReference(sessionClaim);
@@ -377,6 +379,10 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                         <span>@(currentCulture.StartsWith("bn", StringComparison.OrdinalIgnoreCase) ? "স্বীকৃতি ও মান নিশ্চিতকরণ" : "Accreditation & Quality Assurance")</span>
                     </a>
+                    <a class="nav-link @ActiveFor("/Accreditation/Obe")" href="/Accreditation/Obe">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "ফলাফলভিত্তিক শিক্ষা (OBE)" : "Outcome-Based Education (OBE)")</span>
+                    </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("AdmissionOfficer") == true)
                 {
@@ -394,15 +400,44 @@
                 @if (showLms && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
                      User?.IsInRole("Teacher") == true || User?.IsInRole("Student") == true))
                 {
-                    <a class="nav-link @ActiveFor("/Learning") href="/Learning/Index">
+                    <a class="nav-link @ActiveFor("/Learning")" href="/Learning/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                         <span>@T["V2LearningManagement"]</span>
                     </a>
-                    @if (User?.IsInRole("Teacher") == true || User?.IsInRole("TenantAdmin") == true)
+                    @if (User?.IsInRole("Student") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/Learning/StudyPlan")" href="/Learning/StudyPlan">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "ব্যক্তিগত অধ্যয়ন পরিকল্পনা" : "Adaptive Study Plan")</span>
+                        </a>
+                    }
+                    @if (User?.IsInRole("Teacher") == true || User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
                     {
                         <a class="nav-link @ActiveFor("/TeacherStudio")" href="/TeacherStudio/Index">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                             <span>@(currentCulture == "bn-BD" ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</span>
+                        </a>
+                        <a class="nav-link @ActiveFor("/TeacherStudio/Public")" href="/TeacherStudio/Public">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "শিক্ষক রিসোর্স প্রকাশনা" : "Published Teacher Resources")</span>
+                        </a>
+                        <a class="nav-link @ActiveFor("/TeacherStudio/AdaptiveGoals")" href="/TeacherStudio/AdaptiveGoals">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর শেখার লক্ষ্য" : "Adaptive Learning Goals")</span>
+                        </a>
+                    }
+                    @if (User?.IsInRole("Teacher") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/TeacherStudio/Cpd")" href="/TeacherStudio/Cpd">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "শিক্ষক পেশাগত উন্নয়ন (CPD)" : "Teacher CPD")</span>
+                        </a>
+                    }
+                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/TeacherStudio/CpdReview")" href="/TeacherStudio/CpdReview">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "শিক্ষক উন্নয়ন যাচাই" : "CPD Review & Approval")</span>
                         </a>
                     }
                     @foreach (var lmsTask in new[] {
@@ -883,6 +918,28 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                         <span>@T["V2Library"]</span>
                     </a>
+                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                         User?.IsInRole("Librarian") == true || User?.IsInRole("Student") == true ||
+                         User?.IsInRole("Teacher") == true || User?.IsInRole("Employee") == true ||
+                         User?.IsInRole("Staff") == true || User?.IsInRole("Guardian") == true || User?.IsInRole("Parent") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/Library/Study")" href="/Library/Study">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "বাংলাদেশ অধ্যয়ন সংগ্রহ" : "Bangladesh Study Collections")</span>
+                        </a>
+                        <a class="nav-link @ActiveFor("/offline-study.html")" href="/offline-study.html">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "অফলাইন অধ্যয়ন" : "Offline Study Reader")</span>
+                        </a>
+                    }
+                    @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true ||
+                         User?.IsInRole("Student") == true || User?.IsInRole("Teacher") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/Library/StudyAssistant")" href="/Library/StudyAssistant">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "এআই অধ্যয়ন সহকারী" : "AI Study Assistant")</span>
+                        </a>
+                    }
                     @foreach (var libraryTask in new[] {
                         (Action: "Reservations", En: "Reservations", Bn: "বই সংরক্ষণ"),
                         (Action: "Branches", En: "Library Branches", Bn: "গ্রন্থাগার শাখা"),
