@@ -25,7 +25,12 @@
         previous = T["Previous"].Value,
         next = T["Next"].Value,
         page = T["Page"].Value,
-        exportFailed = T["StudentExportFailed"].Value
+        exportFailed = T["StudentExportFailed"].Value,
+        countNoun = CultureInfo.CurrentUICulture.Name == "bn-BD" ? "শিক্ষার্থী" : "students",
+        noCurrentEnrollment = CultureInfo.CurrentUICulture.Name == "bn-BD"
+            ? "বর্তমানে সক্রিয় ভর্তি নেই; আগের রোল দেখতে শিক্ষার্থীর প্রোফাইল খুলুন।"
+            : "No current active enrollment; see the student profile for historical rolls.",
+        promote = CultureInfo.CurrentUICulture.Name == "bn-BD" ? "উত্তরণ / পুনরাবৃত্তি" : "Promote / Repeat"
     };
     var pageJson = System.Text.Json.JsonSerializer.Serialize(strings);
 }
@@ -56,13 +61,20 @@
                 <option value="Dropout">@T["Dropout"]</option>
                 <option value="Archived">@T["Archived"]</option>
             </select>
+            <label class="visually-hidden" for="studentPageSize">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "প্রতি পাতায় শিক্ষার্থী" : "Students per page")</label>
+            <select class="form-select" id="studentPageSize" aria-label="@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "প্রতি পাতায় শিক্ষার্থী" : "Students per page")">
+                <option value="20">20 @(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "জন/পৃষ্ঠা" : "per page")</option>
+                <option value="50">50 @(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "জন/পৃষ্ঠা" : "per page")</option>
+                <option value="100">100 @(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "জন/পৃষ্ঠা" : "per page")</option>
+            </select>
             <button class="btn btn-outline-primary" type="submit">@T["Search"]</button>
+            <button id="studentResetFilters" class="btn btn-outline-secondary" type="button">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "ফিল্টার পরিষ্কার" : "Clear filters")</button>
             <button id="studentExportPage" class="btn btn-outline-secondary" type="button" disabled>@T["ExportPageCsv"]</button>
         </form>
         <div id="studentList" class="admission-list" aria-live="polite" aria-busy="true"></div>
         <nav class="admission-pagination" aria-label="@T["StudentPagination"]">
             <button id="studentPrevious" class="btn btn-sm btn-outline-secondary" type="button">@T["Previous"]</button>
-            <span id="studentPageStatus"></span>
+            <span id="studentPageStatus" role="status" aria-live="polite"></span>
             <button id="studentNext" class="btn btn-sm btn-outline-secondary" type="button">@T["Next"]</button>
         </nav>
     </section>
@@ -95,25 +107,25 @@
                 @if (User.IsInRole("TenantAdmin"))
                 {
                     <section class="border rounded p-3 mb-3" aria-labelledby="studentContactTitle">
-                        <h3 id="studentContactTitle" class="h6">Student contact profile</h3>
+                        <h3 id="studentContactTitle" class="h6">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "শিক্ষার্থীর যোগাযোগ তথ্য" : "Student contact profile")</h3>
                         <form id="studentContactForm" autocomplete="off">
                             @Html.AntiForgeryToken()
                             <div class="row g-2">
-                                <div class="col-md-6"><label class="form-label" for="studentContactPhone">Phone</label>
+                                <div class="col-md-6"><label class="form-label" for="studentContactPhone">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "ফোন" : "Phone")</label>
                                     <input id="studentContactPhone" class="form-control" maxlength="30" /></div>
-                                <div class="col-md-6"><label class="form-label" for="studentContactEmail">Email</label>
+                                <div class="col-md-6"><label class="form-label" for="studentContactEmail">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "ইমেইল" : "Email")</label>
                                     <input id="studentContactEmail" type="email" class="form-control" maxlength="200" /></div>
-                                <div class="col-12"><label class="form-label" for="studentContactAddress">Contact address</label>
+                                <div class="col-12"><label class="form-label" for="studentContactAddress">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "যোগাযোগের ঠিকানা" : "Contact address")</label>
                                     <textarea id="studentContactAddress" class="form-control" rows="2" maxlength="1000"></textarea></div>
-                                <div class="col-md-4"><label class="form-label" for="studentContactLanguage">Preferred language</label>
+                                <div class="col-md-4"><label class="form-label" for="studentContactLanguage">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "পছন্দের ভাষা" : "Preferred language")</label>
                                     <select id="studentContactLanguage" class="form-select">
                                         <option value="bn-BD">Bangla</option><option value="en-BD">English (Bangladesh)</option>
                                         <option value="en-US">English (US)</option>
                                     </select></div>
-                                <div class="col-md-8"><label class="form-label" for="studentContactReason">Change reason</label>
-                                    <input id="studentContactReason" class="form-control" required minlength="10" maxlength="500" placeholder="Why is the contact information changing?" /></div>
+                                <div class="col-md-8"><label class="form-label" for="studentContactReason">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "পরিবর্তনের কারণ" : "Change reason")</label>
+                                    <input id="studentContactReason" class="form-control" required minlength="10" maxlength="500" placeholder="@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "যোগাযোগ তথ্য কেন বদলাচ্ছেন?" : "Why is the contact information changing?")" /></div>
                             </div>
-                            <button id="studentContactSave" type="submit" class="btn btn-outline-primary btn-sm mt-2" disabled>Save contact profile</button>
+                            <button id="studentContactSave" type="submit" class="btn btn-outline-primary btn-sm mt-2" disabled>@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "যোগাযোগ তথ্য সংরক্ষণ" : "Save contact profile")</button>
                             <div id="studentContactStatus" role="status" aria-live="polite" class="small mt-2"></div>
                         </form>
                     </section>

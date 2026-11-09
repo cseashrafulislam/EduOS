@@ -3341,6 +3341,17 @@ select,
     margin-bottom: 1rem;
 }
 
+/* Batch 2 directory pilot: controls wrap as a single task toolbar without
+   changing the shared Admissions search layout or table/form behavior. */
+#studentFilters.admission-filters { display: flex; flex-wrap: wrap; align-items: center; }
+#studentFilters #studentSearch { flex: 2 1 15rem; min-width: 0; }
+#studentFilters #studentStatus { flex: 1 1 10rem; min-width: 0; }
+#studentFilters #studentPageSize { flex: 0 0 auto; width: auto; }
+#studentFilters .btn { white-space: nowrap; }
+@media (max-width: 575.98px) {
+    #studentFilters > :is(.form-control,.form-select,.btn) { flex: 1 1 100%; width: 100%; }
+}
+
 .admission-list {
     display: grid;
     gap: .75rem;
