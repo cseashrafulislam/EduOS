@@ -14,7 +14,8 @@ public sealed class StudentProgressionUiContractTests
         js.Should().Contain("/promotions/options");
         js.Should().Contain("sourceEnrollmentRowVersion");
         js.Should().Contain("studentRowVersion");
-        js.Should().Contain("clientRequestId: state.requestId");
+        js.Should().Contain("request.clientRequestId = state.requestId;");
+        js.Should().Contain("state.requestFingerprint = fingerprint;");
         js.Should().Contain("RequestVerificationToken");
         api.Should().Contain("[Authorize(Roles = \"TenantAdmin\")]");
         service.Should().Contain("GetOptionsAsync");

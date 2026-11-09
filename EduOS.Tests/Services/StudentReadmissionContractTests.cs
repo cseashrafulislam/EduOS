@@ -52,7 +52,8 @@ public sealed class StudentReadmissionContractTests
         view.Should().Contain("@Html.AntiForgeryToken()");
         js.Should().Contain("RequestVerificationToken");
         js.Should().Contain("credentials:'same-origin'");
-        js.Should().Contain("clientRequestId:state.requestId");
+        js.Should().Contain("request.clientRequestId=state.requestId;");
+        js.Should().Contain("state.requestFingerprint=fingerprint;");
     }
     [Fact]
     public void New_exit_after_readmission_is_not_blocked_by_an_older_exit()
