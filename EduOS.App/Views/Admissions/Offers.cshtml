@@ -41,8 +41,10 @@
         <div class="mb-3">
             <h3 class="h5" id="offerApplicantName"></h3>
             <p id="offerCurrentState" class="text-muted" aria-live="polite"></p>
+            <p id="offerStageGuidance" class="small" aria-live="polite"></p>
         </div>
         <div class="row g-3">
+            <div id="offerIssueSection" class="col-12 row g-3 m-0 p-0">
             <div class="col-md-6">
                 <label class="form-label" for="offerBatch">Academic batch / ব্যাচ *</label>
                 <select id="offerBatch" class="form-select" required></select>
@@ -54,6 +56,8 @@
             <div class="col-12">
                 <button id="offerIssueButton" type="button" class="btn btn-outline-primary" aria-describedby="offerJourneyStage">Issue offer / অফার দিন</button>
             </div>
+            </div>
+            <div id="offerAcceptanceSection" class="col-12 row g-3 m-0 p-0" hidden>
             <div class="col-12"><hr /><h4 class="h6">Verified signed acceptance / যাচাইকৃত স্বাক্ষর</h4>
                 <p class="small text-muted">Upload a signed OFFER_ACCEPTANCE document from the public application and verify it in the private application document review first.</p>
             </div>
@@ -76,6 +80,8 @@
                 <button id="offerAcceptButton" type="button" class="btn btn-success" aria-describedby="offerJourneyStage" disabled>Record verified acceptance</button>
                 <button id="offerRefreshButton" type="button" class="btn btn-outline-secondary">Refresh status &amp; evidence</button>
             </div>
+            </div>
+            <div id="offerEnrollmentSection" class="col-12 row g-3 m-0 p-0" hidden>
             <div class="col-12"><hr /><h4 class="h6">Canonical student conversion / শিক্ষার্থী ভর্তি</h4></div>
             <div class="col-md-6">
                 <label class="form-label" for="offerRoll">Roll / রোল *</label>
@@ -87,6 +93,7 @@
             </div>
             <div class="col-12">
                 <button id="offerEnrollButton" type="button" class="btn btn-primary" aria-describedby="offerJourneyStage" disabled>Convert to student &amp; enroll</button>
+            </div>
             </div>
         </div>
     </div>

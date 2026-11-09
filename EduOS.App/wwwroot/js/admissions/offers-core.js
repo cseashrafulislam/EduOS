@@ -2,6 +2,8 @@ export const el = id => document.getElementById(id);
 export const val = id => el(id).value.trim();
 export const num = x => Number.isSafeInteger(+x) && +x > 0 ? +x : null;
 export const ctx = { reference: '', applicant: null, decision: null, requestId: '', fingerprint: '' };
+const bn = () => el('offerLocale')?.value === 'bn-BD';
+const localized = (en, bd) => bn() ? bd : en;
 let loadSequence = 0;
 let busy = false;
 export const currentReference = reference => !!reference && ctx.reference === reference;
@@ -45,14 +47,33 @@ export function render() {
     el('offerAcceptButton').disabled = busy || !qualified || state !== 2 || expired ||
         !num(val('offerEvidence')) || !el('offerIdentityChecked').checked || !ctx.decision?.rowVersion;
     el('offerEnrollButton').disabled = busy || !qualified || state !== 3 || !ctx.applicant?.rowVersion;
-    el('offerCurrentState').textContent = 'Application: ' + ctx.applicant?.state + ' · Offer: ' +
-        (state === 3 ? 'Accepted' : expired ? 'Expired' : state === 2 ? 'Offered' : state ? 'Review required' : 'Not issued');
+    const stage = !qualified ? 'review' : state === 3 ? 'enroll' : expired ? 'expired' : state === 2 ? 'accept' : state === 0 ? 'issue' : 'review';
+    const captions = {
+        review: localized('Application review required', 'আবেদন পর্যালোচনা প্রয়োজন'),
+        issue: localized('Ready to issue offer', 'অফার প্রদানের জন্য প্রস্তুত'),
+        accept: localized('Awaiting verified acceptance', 'যাচাইকৃত গ্রহণের অপেক্ষায়'),
+        expired: localized('Offer expired; review required', 'অফারের মেয়াদ শেষ; পর্যালোচনা প্রয়োজন'),
+        enroll: localized('Accepted; ready for enrollment', 'গৃহীত; ভর্তির জন্য প্রস্তুত')
+    };
+    el('offerCurrentState').textContent = captions[stage];
+    for (const [id, visible] of [['offerIssueSection', stage === 'issue'], ['offerAcceptanceSection', stage === 'accept'], ['offerEnrollmentSection', stage === 'enroll']]) {
+        const section = el(id);
+        if (section) section.hidden = !visible;
+    }
+    const guidance = el('offerStageGuidance');
+    if (guidance) guidance.textContent = ({
+        review: localized('Complete the admission review before issuing an offer.', 'অফার দেওয়ার আগে আবেদন পর্যালোচনা সম্পন্ন করুন।'),
+        issue: localized('Choose a batch and future expiry to issue the offer.', 'ব্যাচ ও ভবিষ্যতের মেয়াদ নির্বাচন করে অফার দিন।'),
+        accept: localized('Verify the signed acceptance document and signer identity.', 'স্বাক্ষরিত গ্রহণপত্র ও স্বাক্ষরকারীর পরিচয় যাচাই করুন।'),
+        expired: localized('The expired offer cannot be accepted. Review the application and contact an authorized officer.', 'মেয়াদোত্তীর্ণ অফার গ্রহণ করা যাবে না। আবেদন পর্যালোচনা করে দায়িত্বপ্রাপ্ত কর্মকর্তার সঙ্গে যোগাযোগ করুন।'),
+        enroll: localized('Enter the roll and optional track to create the student record.', 'শিক্ষার্থী রেকর্ড তৈরির জন্য রোল ও প্রয়োজনে বিভাগ নির্বাচন করুন।')
+    })[stage];
 }
 export async function refresh() {
     if (!ctx.reference) return;
     el('offerAcceptButton').disabled = el('offerEnrollButton').disabled = true;
     const reference = ctx.reference;
-    const [applicant, decision] = await Promise.all([api(base()), api(base() + '/offer')]);
+    const [applicant, decision] = await Promise.all([api('/api/admission-applications/' + encodeURIComponent(reference)), api('/api/admission-applications/' + encodeURIComponent(reference) + '/offer')]);
     if (!currentReference(reference)) return;
     ctx.applicant = applicant; ctx.decision = decision;
     if (!ctx.applicant?.rowVersion) throw Error('Current applicant version unavailable.');
@@ -73,7 +94,7 @@ export async function load(event) {
     event.preventDefault();
     const sequence = ++loadSequence;
     const id = val('offerApplicantReference');
-    if (!/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)) return notice('Invalid applicant reference.', true);
+    if (!/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(id)) return notice(localized('Invalid applicant reference.', 'আবেদনের রেফারেন্স সঠিক নয়।'), true);
     ctx.reference = id; ctx.applicant = ctx.decision = null; ctx.requestId = ctx.fingerprint = '';
     el('offerWorkspace').hidden = true;
     try {
@@ -87,6 +108,6 @@ export async function load(event) {
         await refresh();
         if (sequence !== loadSequence) return;
         el('offerWorkspace').hidden = false;
-        notice('Applicant, offer and verified documents loaded.');
+        notice(localized('Applicant, offer and verified documents loaded.', 'আবেদনকারী, অফার ও যাচাইকৃত নথি লোড হয়েছে।'));
     } catch (error) { if (sequence === loadSequence) notice(error.message, true); }
 }
