@@ -428,7 +428,12 @@ if(e('feeStructureCloseForm')){
    await api('/structures/'+encodeURIComponent(id)+'/close','POST',{effectiveTo:date,rowVersion:version});
    e('feeStructureCloseForm').classList.add('d-none');
    closureGuard?.markClean();
-   await register();alert('success',t('Future billing closed. Existing invoices and fee lines are unchanged.','ভবিষ্যৎ বিলিং বন্ধ হয়েছে। বিদ্যমান ইনভয়েস ও ফি খাত অপরিবর্তিত।'));
+   try{await register();}
+   catch(refreshError){
+    alert('warning',t('Future billing was closed, but the register did not refresh. Reload before another closure. ','ভবিষ্যৎ বিলিং বন্ধ হয়েছে, কিন্তু তালিকা হালনাগাদ হয়নি। আবার বন্ধ করার আগে পৃষ্ঠা রিলোড করুন। ')+refreshError.message);
+    return;
+   }
+   alert('success',t('Future billing closed. Existing invoices and fee lines are unchanged.','ভবিষ্যৎ বিলিং বন্ধ হয়েছে। বিদ্যমান ইনভয়েস ও ফি খাত অপরিবর্তিত।'));
   }finally{state.closingStructure=false;e('feeCloseSubmit').disabled=false;e('feeStructureCloseForm').inert=false;}
  })().catch(err=>alert('danger',err.message));});
 }

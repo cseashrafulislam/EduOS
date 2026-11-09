@@ -29,6 +29,7 @@ test('closing a billing structure keeps any separate unsaved editor intact', () 
     assert.match(handler, /state\.closingStructure=true/);
     assert.match(handler, /await register\(\)/);
     assert.doesNotMatch(handler, /await options\(\)/, 'options() replaces unsaved fee-line inputs');
+    assert.match(handler, /Future billing was closed, but the register did not refresh/, 'acknowledged closure must not be reported as a failed write');
 });
 
 test('cash payment draft protects amount and invoice selection while server verifies collection', () => {
