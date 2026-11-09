@@ -5,7 +5,7 @@
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { scopes: [], roster: null, busy: false, page: 1, pageSize: 50,
-        search: '', total: 0, scopeValue: '', componentValue: '' };
+        search: '', total: 0, scopeValue: '', componentValue: '', selectionRevision: 0 };
     const option = (value, label) => new Option(label, String(value));
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     const two = n => Number.isFinite(n) && Math.abs(Math.round(n * 100) - n * 100) < 1e-7;
@@ -50,6 +50,7 @@
         el('cmNext').disabled = state.busy || !state.roster || state.page >= pages;
     }
     function clear() {
+        ++state.selectionRevision;
         state.roster = null;
         state.page = 1; state.total = 0; state.componentValue = '';
         el('cmRows').replaceChildren();
@@ -121,12 +122,16 @@
             state.search = el('cmSearch').value.trim();
             state.pageSize = Number(el('cmPageSize').value);
         }
+        const requestedScope = el('cmScope').value;
+        const revision = state.selectionRevision;
         state.busy = true; el('cmLoad').disabled = true;
+        el('cmRows').setAttribute('aria-busy', 'true');
         try {
             const q = new URLSearchParams({ assessmentId: s.assessmentId,
                 academicBatchId: s.academicBatchId, assessmentSubjectId: s.assessmentSubjectId,
                 page: String(state.page), pageSize: String(state.pageSize), search: state.search });
             const roster = await api('/api/assessment-administration/component-marks/roster?' + q);
+            if (revision !== state.selectionRevision || el('cmScope').value !== requestedScope) return;
             const old = el('cmComponent').value;
             state.roster = roster;
             state.page = roster.page; state.pageSize = roster.pageSize;
@@ -136,8 +141,14 @@
             if (roster.components?.some(x => String(x.id) === old)) el('cmComponent').value = old;
             else if (roster.components?.length) el('cmComponent').value = String(roster.components[0].id);
             notice(roster.isEditable ? 'Roster loaded.' : 'Roster is read-only until marks entry is open.', !roster.isEditable);
-        } catch (error) { clear(); notice(error.message, true); }
-        finally { state.busy = false; el('cmLoad').disabled = false; render(); }
+        } catch (error) {
+            if (revision === state.selectionRevision && el('cmScope').value === requestedScope) {
+                clear(); notice(error.message, true);
+            }
+        } finally {
+            state.busy = false; el('cmLoad').disabled = false;
+            el('cmRows').removeAttribute('aria-busy');render();
+        }
     }
     async function navigate(delta) {
         if (state.busy || !state.roster || !confirmDiscard()) return;
@@ -209,6 +220,11 @@
     }
     el('componentMarksFilters').addEventListener('submit', load);
     el('cmScope').addEventListener('change', () => {
+        if (state.busy && state.roster?.isEditable && hasUnsaved()) {
+            el('cmScope').value = state.scopeValue;
+            notice('Wait for the current marks operation before changing subjects.', true);
+            return;
+        }
         if (!confirmDiscard()) { el('cmScope').value = state.scopeValue; return; }
         clear();
     });

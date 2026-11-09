@@ -6,8 +6,9 @@
     const canPublish = root.dataset.canPublish === 'true';
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { scopes: [], scopePage: 1, scopeSize: 30, scopeTotal: 0, scopeSearch: '',
-        scopeBusy: false, roster: null, rosterPage: 1, rosterSize: 50, rosterTotal: 0,
-        sheet: null, sheetMode: null, busy: false, publishKey: null,
+        scopeBusy: false, roster: null, rosterScope: null, rosterPage: 1, rosterSize: 50, rosterTotal: 0,
+        sheet: null, sheetMode: null, sheetScope: null, busy: false, publishKey: null, publishKeyScope: null,
+        rosterRequest: 0, resultRequest: 0, readinessRequest: 0,
         readiness: null, readinessPage: 1, readinessBusy: false, readinessSize: 20,
         creditDetail: null, creditRequest: 0 };
     const option = (value, label) => new Option(label, String(value));
@@ -52,8 +53,12 @@
         if (!row) throw new Error('Choose an authorized assessment, batch and subject.');
         return row;
     }
+    const resultScopeKey = s => s ? String(s.assessmentId) + '|' + String(s.academicBatchId) : '';
+    const sameScope = s => !!s && resultScopeKey(selected()) === resultScopeKey(s);
     function resetRoster() {
-        state.roster = null; state.rosterPage = 1; state.rosterTotal = 0;
+        ++state.rosterRequest;
+        state.roster = null; state.rosterScope = null; state.rosterPage = 1; state.rosterTotal = 0;
+        el('examLoadRoster').disabled = state.busy;
         el('examSaveMarks').disabled = true;
         el('examMarksCsv').disabled = true;
         el('examRosterPrev').disabled = true;
@@ -65,7 +70,9 @@
         td.colSpan = 7; td.className = 'text-center text-muted p-4'; tr.append(td); tbody.append(tr);
     }
     function resetResults() {
-        state.sheet = null; state.sheetMode = null; state.publishKey = null;
+        ++state.resultRequest; ++state.readinessRequest;
+        state.sheet = null; state.sheetMode = null; state.sheetScope = null;
+        if (!state.busy) { state.publishKey = null; state.publishKeyScope = null; }
         state.readiness = null;
         if (!canPublish) return;
         el('examReadinessCsv').disabled = true;
@@ -295,6 +302,7 @@
             !window.confirm('Discard unsaved marks before changing the register?')) return;
         let s;
         try { s = scope(); } catch (error) { message('warning', error.message); return; }
+        const request = ++state.rosterRequest;
         el('examLoadRoster').disabled = true;
         el('examRosterPrev').disabled = true; el('examRosterNext').disabled = true;
         try {
@@ -302,9 +310,14 @@
                 academicBatchId: String(s.academicBatchId), assessmentSubjectId: String(s.assessmentSubjectId),
                 page: String(page), pageSize: String(state.rosterSize),
                 search: el('examRosterSearch').value.trim() });
-            renderRoster(await api('/api/assessment-administration/mark-roster/page?' + q));
-        } catch (error) { resetRoster(); message('danger', error.message); }
-        finally { el('examLoadRoster').disabled = false; }
+            const roster = await api('/api/assessment-administration/mark-roster/page?' + q);
+            if (request !== state.rosterRequest || !sameScope(s) ||
+                String(selected()?.assessmentSubjectId) !== String(s.assessmentSubjectId)) return;
+            renderRoster(roster);
+            state.rosterScope = s;
+        } catch (error) {
+            if (request === state.rosterRequest) { resetRoster(); message('danger', error.message); }
+        } finally { if (request === state.rosterRequest) el('examLoadRoster').disabled = false; }
     }
     function changedMarks() {
         const changed = [];
@@ -327,6 +340,18 @@
         if (changed.length > 2000) throw new Error('Save at most 2,000 changed marks at once.');
         return changed;
     }
+    function allowScopeChange(id, key) {
+        if (!state.rosterScope) return true;
+        if (state.busy || (hasUnsavedMarks() &&
+            !window.confirm('Discard unsaved marks before changing the assessment selection?'))) {
+            el(id).value = String(state.rosterScope[key]);
+            message('warning', state.busy
+                ? 'Wait for the current marks operation to finish.'
+                : 'Unsaved marks have been retained in the current register.');
+            return false;
+        }
+        return true;
+    }
     async function saveMarks() {
         if (state.busy || !state.roster || state.roster.isResultPublished || !marksOpen(selected())) return;
         let body;
@@ -343,8 +368,8 @@
             : 'Changed marks saved. The register has been refreshed.');
         if (!error) window.dispatchEvent(new Event('assessment-marks-saved'));
     }
-    function renderResults(data, mode) {
-        state.sheet = data; state.sheetMode = mode;
+    function renderResults(data, mode, s) {
+        state.sheet = data; state.sheetMode = mode; state.sheetScope = resultScopeKey(s);
         if (!canPublish) return;
         el('examResultSummary').textContent = (data.assessmentName || 'Assessment') + ' · ' +
             (data.subjectCount || 0) + ' subjects · ' + (data.results?.length || 0) + ' students · ' +
@@ -366,6 +391,7 @@
         if (!canPublish || state.busy) return;
         let s;
         try { s = scope(); } catch (error) { message('warning', error.message); return; }
+        const request = ++state.resultRequest;
         state.busy = true;
         el('examGenerate').disabled = true; el('examLoadResults').disabled = true;
         el('examPublish').disabled = true;
@@ -374,10 +400,13 @@
             const result = mode === 'published'
                 ? await api('/api/assessment-administration/results?' + new URLSearchParams(body))
                 : await api('/api/assessment-administration/results/preview', 'POST', body);
-            renderResults(result, mode);
+            if (request !== state.resultRequest || !sameScope(s)) return;
+            renderResults(result, mode, s);
             message('success', mode === 'published' ? 'Published snapshot loaded.' : 'Draft results calculated; nothing was published.');
         } catch (error) {
+            if (request !== state.resultRequest || !sameScope(s)) return;
             state.sheet = null; state.sheetMode = null;
+            state.sheetScope = null;
             el('examResults').replaceChildren();
             el('examResultSummary').textContent = 'No result sheet loaded.';
             message('danger', error.message);
@@ -390,6 +419,7 @@
         if (!canPublish || state.readinessBusy || page < 1) return;
         let s;
         try { s = scope(); } catch (error) { message('warning', error.message); return; }
+        const request = ++state.readinessRequest;
         state.readinessBusy = true;
         for (const id of ['examReadinessLoad', 'examReadinessPrev', 'examReadinessNext']) el(id).disabled = true;
         try {
@@ -397,6 +427,7 @@
                 academicBatchId: String(s.academicBatchId), page: String(page),
                 pageSize: String(state.readinessSize) });
             const data = await api('/api/assessment-administration/results/readiness?' + params);
+            if (request !== state.readinessRequest || !sameScope(s)) return;
             state.readiness = data; state.readinessPage = data.page;
             const tbody = el('examReadinessRows'); tbody.replaceChildren();
             for (const student of data.students || []) {
@@ -419,6 +450,7 @@
             el('examReadinessPrev').disabled = data.page <= 1;
             el('examReadinessNext').disabled = data.page * data.pageSize >= data.totalCount;
         } catch (error) {
+            if (request !== state.readinessRequest || !sameScope(s)) return;
             state.readiness = null; el('examReadinessCsv').disabled = true;
             el('examReadinessInfo').textContent = 'Readiness check failed';
             message('danger', error.message);
@@ -426,12 +458,16 @@
     }
     async function publish() {
         if (!canPublish || state.busy || state.sheetMode !== 'preview' ||
-            !state.sheet?.results?.length || !locked(selected())) return;
+            !state.sheet?.results?.length || !locked(selected()) ||
+            state.sheetScope !== resultScopeKey(selected())) return;
         const s = scope();
         if (!s.assessmentReference) {
             message('danger', 'Assessment reference unavailable. Reload the page before publishing.'); return;
         }
         if (window.prompt('Publication is immutable. Type PUBLISH to confirm:', '') !== 'PUBLISH') return;
+        if (state.publishKeyScope !== resultScopeKey(s)) {
+            state.publishKey = null;state.publishKeyScope = resultScopeKey(s);
+        }
         state.publishKey ||= crypto.randomUUID();
         const body = { clientRequestId: state.publishKey, assessmentReference: s.assessmentReference,
             academicBatchId: s.academicBatchId,
@@ -443,22 +479,26 @@
             await api('/api/assessment-administration/results/publish', 'POST', body);
             const snapshot = await api('/api/assessment-administration/results?' +
                 new URLSearchParams({ assessmentId: s.assessmentId, academicBatchId: s.academicBatchId }));
-            renderResults(snapshot, 'published'); state.publishKey = null;
-            message('success', 'Results published. The saved snapshot is immutable.');
+            if (sameScope(s)) renderResults(snapshot, 'published', s);
+            state.publishKey = null;state.publishKeyScope = null;
+            message('success', 'Results published. The saved snapshot is immutable.' +
+                (sameScope(s) ? '' : ' Reopen that assessment to view its published record.'));
             state.busy = false; await loadRoster(); state.busy = true;
         } catch (error) {
             // An interrupted response may follow a successful commit. Never blindly issue a new publication.
             try {
                 const snapshot = await api('/api/assessment-administration/results?' +
                     new URLSearchParams({ assessmentId: s.assessmentId, academicBatchId: s.academicBatchId }));
-                renderResults(snapshot, 'published'); state.publishKey = null;
+                if (sameScope(s)) renderResults(snapshot, 'published', s);
+                state.publishKey = null;state.publishKeyScope = null;
                 message('success', 'Publication confirmed by the saved result snapshot.');
             } catch {
                 message('danger', error.message + ' Verify publication status before retrying.');
             }
         } finally {
             state.busy = false;
-            if (state.sheetMode === 'preview' && locked(selected())) el('examPublish').disabled = false;
+            if (state.sheetMode === 'preview' && locked(selected()) &&
+                state.sheetScope === resultScopeKey(selected())) el('examPublish').disabled = false;
         }
     }
     function csv(kind) {
@@ -498,9 +538,15 @@
     el('examRosterSearchForm').addEventListener('submit', event => loadRoster(event, 1));
     el('examRosterPrev').addEventListener('click', () => loadRoster(null, state.rosterPage - 1));
     el('examRosterNext').addEventListener('click', () => loadRoster(null, state.rosterPage + 1));
-    el('examExam').addEventListener('change', examChanged);
-    el('examBatch').addEventListener('change', batchChanged);
-    el('examSubject').addEventListener('change', () => { resetRoster(); resetResults(); });
+    el('examExam').addEventListener('change', () => {
+        if (allowScopeChange('examExam', 'assessmentId')) examChanged();
+    });
+    el('examBatch').addEventListener('change', () => {
+        if (allowScopeChange('examBatch', 'academicBatchId')) batchChanged();
+    });
+    el('examSubject').addEventListener('change', () => {
+        if (allowScopeChange('examSubject', 'assessmentSubjectId')) { resetRoster(); resetResults(); }
+    });
     el('examRoster').addEventListener('change', event => {
         if (!event.target.matches('input[type="checkbox"]')) return;
         const tr = event.target.closest('tr');

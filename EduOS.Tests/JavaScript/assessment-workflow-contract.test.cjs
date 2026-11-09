@@ -38,7 +38,8 @@ test('draft preview is distinct from published snapshot and publication is idemp
     assert.match(js, /clientRequestId: state\.publishKey, assessmentReference: s\.assessmentReference/);
     assert.match(js, /state\.publishKey \|\|= crypto\.randomUUID\(\)/);
     assert.match(js, /mode !== 'preview' \|\| !locked\(selected\(\)\)/);
-    assert.match(js, /renderResults\(snapshot, 'published'\)/);
+    assert.match(js, /if \(sameScope\(s\)\) renderResults\(snapshot, 'published', s\)/);
+    assert.match(js, /state\.sheetScope !== resultScopeKey\(selected\(\)\)/);
     assert.match(view, /Preview draft/);
     assert.match(view, /View published results/);
     assert.doesNotMatch(js, /results\/generate/);

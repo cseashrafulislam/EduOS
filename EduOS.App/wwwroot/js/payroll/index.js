@@ -6,6 +6,7 @@ const token = root.querySelector('input[name="__RequestVerificationToken"]')?.va
 const el = id => document.getElementById(id);
 const state = {runPage:1, runPages:1, detailPage:1, detailPages:1, slipPage:1, slipPages:1,
     selected:null, requestId:null, requestPeriod:null, busy:false,
+    runRequest:0, detailRequest:0, slipRequest:0,
     paymentEmployee:null, paymentRequestId:null, paymentBusy:false, bankLoadToken:0,
     cancelRun:null};
 const cell = value => {const td=document.createElement('td');td.textContent=value==null?'':String(value);return td;};
@@ -139,12 +140,17 @@ async function recordPayment(e) {
 }
 async function loadRuns() {
     if(!admin)return;
+    const request=++state.runRequest, requestedPage=state.runPage;
+    const body=el('payrollRunRows');body.setAttribute('aria-busy','true');
     try {
         const {year,month}=period();
         const data=await api('/api/hr-payroll/runs?'+new URLSearchParams({
-            year:String(year),month:String(month),page:String(state.runPage),pageSize:'10'}));
-        const body=el('payrollRunRows');body.replaceChildren();
+            year:String(year),month:String(month),page:String(requestedPage),pageSize:'10'}));
+        if(request!==state.runRequest||requestedPage!==state.runPage||
+            year!==Number(el('payrollYear').value)||month!==Number(el('payrollMonth').value))return;
         state.runPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
+        if(state.runPage>state.runPages){state.runPage=state.runPages;return loadRuns();}
+        body.replaceChildren();
         for(const row of data.items||[]) {
             const tr=document.createElement('tr');
             tr.append(cell(row.runNumber),cell(row.month+'/'+row.year),cell(row.campusId??'Institution-wide'),
@@ -165,7 +171,14 @@ async function loadRuns() {
         }
         if(!data.items?.length)empty(body,10,'No payroll runs for this period.');
         pageInfo('payrollRun',state.runPage,state.runPages,data.totalCount||0);
-    } catch(e){notice(e.message,true);}
+    } catch(e){if(request===state.runRequest)notice(e.message,true);}
+    finally{if(request===state.runRequest)body.removeAttribute('aria-busy');}
+}
+function invalidateRunRegister() {
+    ++state.runRequest;state.runPage=1;state.runPages=1;
+    const body=el('payrollRunRows');body.replaceChildren();body.removeAttribute('aria-busy');
+    pageInfo('payrollRun',1,1,0);
+    el('payrollRunPageLabel').textContent='Filters changed · select Load runs';
 }
 function openCancellation(row) {
     if(state.busy)return;
@@ -234,12 +247,14 @@ async function approve(row) {
 }
 async function loadEmployees(reference,page=1) {
     if(!admin)return;
+    const request=++state.detailRequest;
     state.selected=reference;state.detailPage=page;
+    const body=el('payrollEmployeeRows');body.setAttribute('aria-busy','true');
     try {
         const data=await api('/api/hr-payroll/runs/'+encodeURIComponent(reference)+'/employees?'+
             new URLSearchParams({page:String(page),pageSize:'10'}));
-        if(state.selected!==reference)return;
-        const body=el('payrollEmployeeRows');body.replaceChildren();
+        if(request!==state.detailRequest||state.selected!==reference||state.detailPage!==page)return;
+        body.replaceChildren();
         for(const row of data.items||[]) {
             const tr=document.createElement('tr');
             const breakdown=(row.lines||[]).map(x=>x.salaryComponentName+': '+money(x.amount)).join('; ');
@@ -255,7 +270,8 @@ async function loadEmployees(reference,page=1) {
         state.detailPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
         pageInfo('payrollDetail',page,state.detailPages,data.totalCount||0);
         el('payrollDetails').classList.remove('d-none');
-    }catch(e){notice(e.message,true);}
+    }catch(e){if(request===state.detailRequest)notice(e.message,true);}
+    finally{if(request===state.detailRequest)body.removeAttribute('aria-busy');}
 }
 function actionButtonForPayslip(row) {
     const btn=document.createElement('button');btn.type='button';btn.className='btn btn-sm btn-outline-secondary';
@@ -283,10 +299,13 @@ function printPayslip(row) {
 }
 window.addEventListener('afterprint',()=>el('payrollSlipPrintArea').classList.add('d-none'));
 async function loadSlips() {
+    const request=++state.slipRequest, page=state.slipPage;
+    const body=el('payrollSlipRows');body.setAttribute('aria-busy','true');
     try {
         const data=await api('/api/hr-payroll/my-payslips?'+new URLSearchParams({
-            page:String(state.slipPage),pageSize:'10'}));
-        const body=el('payrollSlipRows');body.replaceChildren();
+            page:String(page),pageSize:'10'}));
+        if(request!==state.slipRequest||page!==state.slipPage)return;
+        body.replaceChildren();
         for(const row of data.items||[]) {
             const tr=document.createElement('tr');
             tr.append(cell(String(row.periodStart||'').slice(0,10)+' – '+String(row.periodEnd||'').slice(0,10)),
@@ -300,7 +319,8 @@ async function loadSlips() {
         if(!data.items?.length)empty(body,7,'No posted payslips found.');
         state.slipPages=Math.max(1,Math.ceil((data.totalCount||0)/10));
         pageInfo('payrollSlip',state.slipPage,state.slipPages,data.totalCount||0);
-    }catch(e){notice(e.message,true);}
+    }catch(e){if(request===state.slipRequest)notice(e.message,true);}
+    finally{if(request===state.slipRequest)body.removeAttribute('aria-busy');}
 }
 if(admin) {
     el('payrollCancellationForm').addEventListener('submit',cancelPayroll);
@@ -321,7 +341,7 @@ if(admin) {
             if(campus.isActive)select.add(new Option(campus.name,campus.id));
     }).catch(e=>notice('Campus selector: '+e.message,true));
     for(const id of ['payrollYear','payrollMonth','payrollCampus','payrollProration'])
-        el(id).addEventListener('change',()=>{state.requestId=null;state.requestPeriod=null;state.runPage=1;});
+        el(id).addEventListener('change',()=>{state.requestId=null;state.requestPeriod=null;invalidateRunRegister();});
     el('payrollRunPrev').addEventListener('click',()=>{if(state.runPage>1){state.runPage--;loadRuns();}});
     el('payrollRunNext').addEventListener('click',()=>{if(state.runPage<state.runPages){state.runPage++;loadRuns();}});
     el('payrollDetailPrev').addEventListener('click',()=>{if(state.selected&&state.detailPage>1)loadEmployees(state.selected,state.detailPage-1);});
@@ -331,5 +351,5 @@ if(admin) {
 el('payrollSlipPrev').addEventListener('click',()=>{if(state.slipPage>1){state.slipPage--;loadSlips();}});
 el('payrollSlipNext').addEventListener('click',()=>{if(state.slipPage<state.slipPages){state.slipPage++;loadSlips();}});
 el('payrollMy').addEventListener('click',()=>{state.slipPage=1;loadSlips();});
-if(!admin)loadSlips();
+loadSlips();
 })();

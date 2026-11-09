@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, intakeRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -252,18 +252,21 @@
     async function loadIntakeForms() {
         const list = document.getElementById('intakeFormList');
         if (!list) return;
+        const request = ++state.intakeRequest;
         list.setAttribute('aria-busy', 'true');
         list.replaceChildren(statusMessage(i18n.loading));
         try {
             const response = await fetch('/api/admission-intake/forms', apiOptions());
             const payload = await response.json().catch(() => null);
+            if (request !== state.intakeRequest) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data)) throw new Error(payload?.message || 'Admission forms could not be loaded.');
             state.intakeForms = payload.data;
             renderIntakeForms();
         } catch (error) {
-            list.replaceChildren(statusMessage(error.message || 'Admission forms could not be loaded.'));
+            if (request === state.intakeRequest)
+                list.replaceChildren(statusMessage(error.message || 'Admission forms could not be loaded.'));
         } finally {
-            list.removeAttribute('aria-busy');
+            if (request === state.intakeRequest) list.removeAttribute('aria-busy');
         }
     }
 
@@ -359,6 +362,8 @@
             } else if (Number(item.state) === 2) {
                 controls.append(actionButton(intakeText('Close', 'বন্ধ করুন'), 'close', item.id, 'btn-outline-danger'));
             }
+            if (list.dataset.mutatingIntake)
+                controls.querySelectorAll('button[data-intake-action]').forEach(button => { button.disabled = true; });
             card.append(summary, controls);
             return card;
         }));

@@ -300,6 +300,15 @@
                         {
                             <a href="/FeeOperations/Ledger">@(useBangla ? "শিক্ষার্থী ফি ও সংগ্রহ" : "Fees & Collections")</a>
                         }
+                        @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ||
+                             User.IsInRole("VicePrincipal") || User.IsInRole("ExamController") || User.IsInRole("Teacher"))
+                        {
+                            <a href="/AssessmentAdministration/Marks">@(useBangla ? "পরীক্ষার নম্বর এন্ট্রি" : "Exam Marks Entry")</a>
+                        }
+                        @if (User.IsInRole("TenantAdmin"))
+                        {
+                            <a href="/PayrollOperations/Index">@(useBangla ? "বেতন ব্যবস্থাপনা" : "Payroll Operations")</a>
+                        }
                         <a href="/Account/Profile">@T["Profile"]</a>
                     }
                     else

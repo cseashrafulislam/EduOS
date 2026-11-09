@@ -17,6 +17,7 @@
     let correctionTarget = null;
     if (!form || !rows || !date) return;
     let loaded = false, roster = null, dirty = false;
+    let acceptedDate = '', acceptedBatch = '', acceptedSubject = '';
     let historicalSessionId = null;
     let historicalQuery = { search: '', state: '' };
     let rosterPage = 1, rosterPages = 0, rosterRequest = 0;
@@ -29,6 +30,7 @@
     let subjectPage = 1, subjectPages = 0, subjectRequest = 0;
     const local = new Date();
     date.value = [local.getFullYear(), String(local.getMonth() + 1).padStart(2, '0'), String(local.getDate()).padStart(2, '0')].join('-');
+    acceptedDate = date.value;
     function status(type, message) {
         const box = el('attendanceAlert');
         box.className = 'alert alert-' + type; box.textContent = message; box.focus();
@@ -57,6 +59,10 @@
         select.disabled = !items.length;
     }
     async function loadBatches() {
+        if (dirty && !confirm('Discard unsaved attendance before changing batch filters?')) {
+            date.value = acceptedDate; return;
+        }
+        acceptedDate = date.value; acceptedBatch = ''; acceptedSubject = '';
         historicalSessionId = null;
         resetHistoricalQuery();
         rosterPage = 1;
@@ -109,6 +115,10 @@
         el('attendanceSubjectPage').textContent = '';
     }
     async function loadSubjects() {
+        if (dirty && !confirm('Discard unsaved attendance before changing subjects?')) {
+            el('sectionId').value = acceptedBatch; return;
+        }
+        acceptedBatch = el('sectionId').value; acceptedSubject = '';
         historicalSessionId = null;
         resetHistoricalQuery();
         rosterPage = 1;
@@ -278,7 +288,7 @@
             tr.append(td);
             const checkIn = inputCell('time', 'checkIn', student.checkInTime ? String(student.checkInTime).slice(0, 5) : '');
             const remarks = inputCell('text', 'remarks', student.remarks || '');
-            if (roster?.isHistoricalReadOnly) {
+            if (roster?.isHistoricalReadOnly || roster?.isFinalized) {
                 checkIn.querySelector('input').disabled = true;
                 remarks.querySelector('input').disabled = true;
             }
@@ -315,6 +325,9 @@
                 return;
             }
             roster = result.data;
+            acceptedDate = date.value;
+            acceptedBatch = el('sectionId').value;
+            acceptedSubject = el('attendanceSubject').value;
             rosterPages = roster?.totalPages || 0;
             render(roster?.students || []);
             loaded = true;
@@ -454,6 +467,10 @@
     }
     el('sectionId').addEventListener('change', () => { subjectPage = 1; loadSubjects(); });
     el('attendanceSubject').addEventListener('change', () => {
+        if (dirty && !confirm('Discard unsaved attendance before changing subjects?')) {
+            el('attendanceSubject').value = acceptedSubject; return;
+        }
+        acceptedSubject = el('attendanceSubject').value;
         historicalSessionId = null; resetHistoricalQuery(); rosterPage = 1; invalidate();
     });
     el('attendanceSubjectFind').addEventListener('click', () => { subjectPage = 1; loadSubjects(); });
