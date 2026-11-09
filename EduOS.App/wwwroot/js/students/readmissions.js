@@ -4,7 +4,9 @@
     if(!root)return;
     const el=id=>document.getElementById(id);
     const val=id=>el(id).value.trim();
-    const state={options:null,requestId:null,saving:false};
+    const state={options:null,requestId:null,requestFingerprint:null,saving:false,searchRequest:0,optionsRequest:0};
+    const form=el('readmissionForm');
+    const guard=window.EduOSFormGuard?.create(form);
     const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value||'';
     const guid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     function notice(message,success=false) {
@@ -23,17 +25,22 @@
         return result.data;
     }
     function reset() {
-        state.options=null;state.requestId=null;
+        state.options=null;state.requestId=null;state.requestFingerprint=null;
+        form.reset();guard?.markClean();
         el('readmissionEditor').classList.add('d-none');
         el('readmissionStudent').textContent='';
     }
     async function search(event) {
-        event.preventDefault();reset();
+        event.preventDefault();
+        if(state.saving || (guard?.isDirty() && !guard.confirmDiscard()))return;
         const query=val('readmissionQuery');
         if(query.length<2)return notice('Enter at least two characters.');
+        reset();++state.optionsRequest;
+        const request=++state.searchRequest;
         const box=el('readmissionMatches');box.textContent='Searching...';
         try {
             const data=await api('/api/students?'+new URLSearchParams({search:query,page:1,pageSize:20}));
+            if(request!==state.searchRequest)return;
             box.replaceChildren();
             if(!data?.items?.length){box.textContent='No matching students.';return;}
             for(const item of data.items) {
@@ -42,13 +49,16 @@
                 button.textContent=item.studentCode+' — '+item.fullName+' ('+item.status+')';
                 button.addEventListener('click',()=>load(item.reference));box.append(button);
             }
-        } catch(error){box.textContent='';notice(error.message);}
+        } catch(error){if(request===state.searchRequest){box.textContent='';notice(error.message);}}
     }
     async function load(reference) {
-        reset();
         if(!guid.test(reference))return notice('Invalid student reference.');
+        if(state.saving || (guard?.isDirty() && !guard.confirmDiscard()))return;
+        reset();
+        const request=++state.optionsRequest;
         try {
             const options=await api('/api/students/'+encodeURIComponent(reference)+'/readmission/options');
+            if(request!==state.optionsRequest)return;
             if(!options||!Array.isArray(options.targets))throw Error('Readmission options unavailable.');
             state.options=options;
             el('readmissionStudent').textContent=options.studentCode+' — '+options.previousStatus;
@@ -59,36 +69,38 @@
             }
             if(!options.targets.length)return notice('No eligible open batches for this student.');
             el('readmissionRoll').value='';el('readmissionReason').value='';
-            state.requestId=crypto.randomUUID();
+            guard?.markClean();
             el('readmissionEditor').classList.remove('d-none');
-        } catch(error){notice(error.message);}
+        } catch(error){if(request===state.optionsRequest)notice(error.message);}
     }
     async function submit(event) {
         event.preventDefault();
-        if(state.saving||!state.options||!state.requestId)return;
+        if(state.saving||!state.options)return;
         const batch=Number(val('readmissionBatch')),roll=val('readmissionRoll'),reason=val('readmissionReason');
         if(!state.options.targets.some(x=>x.academicBatchId===batch)||!roll||roll.length>50||
             !reason||reason.length>450)return notice('Select an eligible batch and enter roll and reason.');
         if(!confirm('Readmit '+state.options.studentCode+'? A new enrollment and status history will be created.'))return;
-        const request={clientRequestId:state.requestId,previousEnrollmentId:state.options.previousEnrollmentId,
+        const request={previousEnrollmentId:state.options.previousEnrollmentId,
             targetAcademicBatchId:batch,targetRoll:roll,reason,
             studentRowVersion:state.options.studentRowVersion,
             previousEnrollmentRowVersion:state.options.previousEnrollmentRowVersion};
-        state.saving=true;el('readmissionSubmit').disabled=true;
+        const fingerprint=JSON.stringify(request);
+        if(!state.requestId||state.requestFingerprint!==fingerprint)state.requestId=crypto.randomUUID();
+        state.requestFingerprint=fingerprint;
+        request.clientRequestId=state.requestId;
+        const reference=state.options.studentReference;
+        state.saving=true;form.inert=true;el('readmissionSubmit').disabled=true;
         try {
-            const result=await api('/api/students/'+encodeURIComponent(state.options.studentReference)+
+            const result=await api('/api/students/'+encodeURIComponent(reference)+
                 '/readmission','POST',request);
             notice(result?.alreadyProcessed?'Readmission already recorded.':'Student readmitted successfully.',true);
             reset();
         } catch(error){notice(error.message+' Retry unchanged details with the same request ID.');}
-        finally{state.saving=false;el('readmissionSubmit').disabled=false;}
+        finally{state.saving=false;form.inert=false;el('readmissionSubmit').disabled=false;}
     }
     el('readmissionSearch').addEventListener('submit',search);
     el('readmissionForm').addEventListener('submit',submit);
-    for(const id of ['readmissionBatch','readmissionRoll','readmissionReason']) {
-        el(id).addEventListener('input',()=>{if(!state.saving)state.requestId=crypto.randomUUID();});
-        el(id).addEventListener('change',()=>{if(!state.saving)state.requestId=crypto.randomUUID();});
-    }
+    el('readmissionQuery').addEventListener('input',()=>{++state.searchRequest;});
     const preselected=new URLSearchParams(location.search).get('studentReference');
     if(preselected&&guid.test(preselected))load(preselected);
 })();

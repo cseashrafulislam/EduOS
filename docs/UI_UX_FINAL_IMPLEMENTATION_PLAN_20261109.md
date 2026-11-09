@@ -228,6 +228,12 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - Destination enrollment linking preserves typed student/enrollment references if the operator refuses to discard them when switching handoffs. Linking is single-flight with an inert editor; confirmed completion clears the form and refreshes the inbox after the busy state ends. Older inbox responses cannot repaint an in-progress review/link/confirmation.
 - Added source contract checks and an executable concurrent-selection test that deliberately resolves an old student's request after the new student's eligibility. Server-side student/tenant authorization, source/destination approval, enrollment-linked confirmation and transfer completion semantics are unchanged. This is a further **UX-03 vertical tranche**, not the required final role/device/tenant/SQL acceptance of every form.
 
+### 4.23. UX-03 student promotion/repeat and readmission placement (2026-11-10)
+
+- Student Promotion/Repeat protects the editable next-batch, roll and decision-note draft before selecting a different student. Readmission protects the batch/roll/reason before switching students or starting a new search. Search/option generations suppress outdated responses after a newer student or query was selected. Only eligibility returned by the current canonical server endpoint enables posting.
+- Each state-changing placement form is inert while its existing authorized POST is pending and retains the draft on a rejected/uncertain write. The retry key now follows the *complete immutable payload fingerprint*: unchanged retried placement uses the identical key; edited details generate a fresh key, without allocating keys for every keystroke. A confirmed write resets the form; promotion performs a single refreshed student/history load.
+- Added an executable readmission test that forces two uncertain identical writes and checks the retry key is preserved, followed by an edited successful request with a new key. The existing promotion-history source contract was updated to the equivalent explicit request-key assignment. All actual enrollment, roll, campus, history and double-post safeguards remain server-owned. Automated cross-tenant/browser/SQL and independent QA are still required for full UX-03 acceptance.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:

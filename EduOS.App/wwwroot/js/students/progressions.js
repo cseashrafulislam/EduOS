@@ -4,13 +4,16 @@
     const val = id => el(id)?.value?.trim() || '';
     const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const state = {
-        options: null, requestId: null, saving: false, reference: null,
+        options: null, requestId: null, requestFingerprint: null, saving: false, reference: null,
         lookupPending: 0, selectionPending: 0, historyPending: 0,
         historyPage: 1, historyPages: 0
     };
 
+    let promotionGuard = null;
     document.addEventListener('DOMContentLoaded', () => {
+        promotionGuard = window.EduOSFormGuard?.create(el('promotionForm')) || null;
         el('promotionLookup')?.addEventListener('submit', searchStudents);
+        el('promotionSearch')?.addEventListener('input', () => { ++state.lookupPending; });
         el('promotionResults')?.addEventListener('click', event => {
             const button = event.target.closest('button[data-reference]');
             if (button && guid.test(button.dataset.reference)) selectStudent(button.dataset.reference);
@@ -89,12 +92,16 @@
         }
     }
 
-    async function selectStudent(reference) {
-        if (!guid.test(reference)) return;
+    async function selectStudent(reference, internal = false) {
+        if (!guid.test(reference) || (state.saving && !internal)) return;
+        if (promotionGuard?.isDirty() && !internal && !promotionGuard.confirmDiscard()) return;
+        el('promotionForm').reset();
+        promotionGuard?.markClean();
         const request = ++state.selectionPending;
         state.reference = reference;
         state.options = null;
         state.requestId = null;
+        state.requestFingerprint = null;
         ++state.historyPending;
         el('promotionEditor').classList.add('d-none');
         el('promotionHistoryPanel').classList.remove('d-none');
@@ -118,7 +125,6 @@
                 if (request !== state.selectionPending || reference !== state.reference) return;
                 if (!data || !Array.isArray(data.targets)) throw Error('Promotion options unavailable.');
                 state.options = data;
-                state.requestId = crypto.randomUUID();
                 el('promotionStudentSummary').textContent =
                     'Student: ' + (data.studentCode || '') + ' · Current enrollment #' + data.sourceEnrollmentId;
                 const select = el('promotionTarget');
@@ -135,6 +141,7 @@
                 }
                 el('promotionRoll').value = '';
                 el('promotionNote').value = '';
+                promotionGuard?.markClean();
                 el('promotionEditor').classList.remove('d-none');
             } catch (error) {
                 if (request === state.selectionPending)
@@ -207,7 +214,7 @@
 
     async function submitProgression(event) {
         event.preventDefault();
-        if (state.saving || !state.options || !state.requestId || !state.reference) return;
+        if (state.saving || !state.options || !state.reference) return;
         const selected = state.options.targets.find(x =>
             String(x.academicBatchId) === val('promotionTarget'));
         const roll = val('promotionRoll');
@@ -217,7 +224,6 @@
         }
         const reference = state.reference;
         const request = {
-            clientRequestId: state.requestId,
             sourceEnrollmentId: state.options.sourceEnrollmentId,
             targetAcademicYearId: selected.academicYearId,
             targetAcademicLevelId: selected.academicLevelId,
@@ -228,7 +234,13 @@
             sourceEnrollmentRowVersion: state.options.sourceEnrollmentRowVersion,
             note: val('promotionNote') || null
         };
+        const fingerprint = JSON.stringify(request);
+        if (!state.requestId || state.requestFingerprint !== fingerprint)
+            state.requestId = crypto.randomUUID();
+        state.requestFingerprint = fingerprint;
+        request.clientRequestId = state.requestId;
         state.saving = true;
+        el('promotionForm').inert = true;
         el('promotionSubmit').disabled = true;
         try {
             const data = await api('/api/students/' + encodeURIComponent(reference) +
@@ -240,13 +252,16 @@
             el('promotionEditor').classList.add('d-none');
             state.options = null;
             state.requestId = null;
-            await loadHistory(1);
-            await selectStudent(reference);
+            state.requestFingerprint = null;
+            el('promotionForm').reset();
+            promotionGuard?.markClean();
+            await selectStudent(reference, true);
         } catch (error) {
             if (reference === state.reference)
                 notice(error.message || 'Progression failed. Retry with the same request.');
         } finally {
             state.saving = false;
+            el('promotionForm').inert = false;
             el('promotionSubmit').disabled = false;
         }
     }

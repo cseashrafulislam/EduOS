@@ -15,7 +15,8 @@ test('promotion workspace supports tenant-scoped student search and paged histor
     assert.match(js, /encodeURIComponent\(reference\)/);
     assert.match(js, /textContent/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
-    assert.match(js, /clientRequestId: state.requestId/);
+    assert.match(js, /request\.clientRequestId = state\.requestId/);
+    assert.match(js, /state\.requestFingerprint !== fingerprint/);
     assert.match(js, /sourceEnrollmentRowVersion/);
     assert.match(js, /RequestVerificationToken/);
     assert.match(view, /id="promotionResults"/);
