@@ -42,6 +42,15 @@
             <h3 class="h5" id="offerApplicantName"></h3>
             <p id="offerCurrentState" class="text-muted" aria-live="polite"></p>
             <p id="offerStageGuidance" class="small" aria-live="polite"></p>
+            <ol id="offerProgress" class="list-unstyled d-flex flex-wrap gap-2" aria-label="@(bn ? "ভর্তির ধাপ" : "Enrollment stages")">
+                <li id="offerProgressIssue" class="badge text-bg-secondary">@(bn ? "১. অফার" : "1. Offer")</li>
+                <li id="offerProgressAccept" class="badge text-bg-secondary">@(bn ? "২. গ্রহণ যাচাই" : "2. Verify acceptance")</li>
+                <li id="offerProgressEnroll" class="badge text-bg-secondary">@(bn ? "৩. ভর্তি" : "3. Enroll")</li>
+            </ol>
+            <div id="offerCompleted" class="alert alert-success" role="status" aria-live="polite" hidden>
+                <strong>@(bn ? "শিক্ষার্থী ভর্তি সম্পন্ন" : "Student enrollment completed")</strong>
+                <p class="mb-0">@(bn ? "এই আবেদন ইতিমধ্যে ভর্তি হয়েছে। পুনরায় ভর্তি করা যাবে না।" : "This application is already admitted. Enrollment cannot be repeated.")</p>
+            </div>
         </div>
         <div class="row g-3">
             <div id="offerIssueSection" class="col-12 row g-3 m-0 p-0">

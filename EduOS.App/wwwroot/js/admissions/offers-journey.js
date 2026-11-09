@@ -1,5 +1,6 @@
-export const label=(stage,bn)=>({issue:bn?'অফার প্রদান':'Issue offer',accept:bn?'স্বাক্ষর যাচাই':'Verify signed acceptance',enroll:bn?'শিক্ষার্থী ভর্তি':'Enroll student',expired:bn?'অফারের মেয়াদ শেষ':'Offer expired',review:bn?'আবেদন পর্যালোচনা':'Review application'})[stage]||'Review';
+export const label=(stage,bn)=>({issue:bn?'অফার প্রদান':'Issue offer',accept:bn?'স্বাক্ষর যাচাই':'Verify signed acceptance',enroll:bn?'শিক্ষার্থী ভর্তি':'Enroll student',expired:bn?'অফারের মেয়াদ শেষ':'Offer expired',complete:bn?'ভর্তি সম্পন্ন':'Enrollment completed',review:bn?'আবেদন পর্যালোচনা':'Review application'})[stage]||'Review';
 export function nextStage(applicantState,offerState,expiresAt,now=Date.now()){
+ if(Number(applicantState)===8)return 'complete';
  if(Number(applicantState)!==6)return 'review';
  if(Number(offerState)===3)return 'enroll';
  if(Number(offerState)===2)return !expiresAt||Date.parse(expiresAt)<=now?'expired':'accept';

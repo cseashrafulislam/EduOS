@@ -47,12 +47,13 @@ export function render() {
     el('offerAcceptButton').disabled = busy || !qualified || state !== 2 || expired ||
         !num(val('offerEvidence')) || !el('offerIdentityChecked').checked || !ctx.decision?.rowVersion;
     el('offerEnrollButton').disabled = busy || !qualified || state !== 3 || !ctx.applicant?.rowVersion;
-    const stage = !qualified ? 'review' : state === 3 ? 'enroll' : expired ? 'expired' : state === 2 ? 'accept' : state === 0 ? 'issue' : 'review';
+    const stage = Number(ctx.applicant?.state) === 8 ? 'complete' : !qualified ? 'review' : state === 3 ? 'enroll' : expired ? 'expired' : state === 2 ? 'accept' : state === 0 ? 'issue' : 'review';
     const captions = {
         review: localized('Application review required', 'আবেদন পর্যালোচনা প্রয়োজন'),
         issue: localized('Ready to issue offer', 'অফার প্রদানের জন্য প্রস্তুত'),
         accept: localized('Awaiting verified acceptance', 'যাচাইকৃত গ্রহণের অপেক্ষায়'),
         expired: localized('Offer expired; review required', 'অফারের মেয়াদ শেষ; পর্যালোচনা প্রয়োজন'),
+        complete: localized('Enrollment completed', 'ভর্তি সম্পন্ন'),
         enroll: localized('Accepted; ready for enrollment', 'গৃহীত; ভর্তির জন্য প্রস্তুত')
     };
     el('offerCurrentState').textContent = captions[stage];
@@ -60,12 +61,25 @@ export function render() {
         const section = el(id);
         if (section) section.hidden = !visible;
     }
+    const completed = el('offerCompleted');
+    if (completed) completed.hidden = stage !== 'complete';
+    const steps = ['issue', 'accept', 'enroll'];
+    const position = steps.indexOf(stage);
+    steps.forEach((step, index) => {
+        const element = el('offerProgress' + step[0].toUpperCase() + step.slice(1));
+        if (!element) return;
+        const done = stage === 'complete' || (position >= 0 && index < position);
+        element.className = 'badge ' + (done ? 'text-bg-success' : index === position ? 'text-bg-primary' : 'text-bg-secondary');
+        if (index === position) element.setAttribute('aria-current', 'step');
+        else element.removeAttribute('aria-current');
+    });
     const guidance = el('offerStageGuidance');
     if (guidance) guidance.textContent = ({
         review: localized('Complete the admission review before issuing an offer.', 'অফার দেওয়ার আগে আবেদন পর্যালোচনা সম্পন্ন করুন।'),
         issue: localized('Choose a batch and future expiry to issue the offer.', 'ব্যাচ ও ভবিষ্যতের মেয়াদ নির্বাচন করে অফার দিন।'),
         accept: localized('Verify the signed acceptance document and signer identity.', 'স্বাক্ষরিত গ্রহণপত্র ও স্বাক্ষরকারীর পরিচয় যাচাই করুন।'),
         expired: localized('The expired offer cannot be accepted. Review the application and contact an authorized officer.', 'মেয়াদোত্তীর্ণ অফার গ্রহণ করা যাবে না। আবেদন পর্যালোচনা করে দায়িত্বপ্রাপ্ত কর্মকর্তার সঙ্গে যোগাযোগ করুন।'),
+        complete: localized('The student record already exists; do not enroll again.', 'শিক্ষার্থী রেকর্ড ইতিমধ্যে তৈরি হয়েছে; পুনরায় ভর্তি জমা দেবেন না।'),
         enroll: localized('Enter the roll and optional track to create the student record.', 'শিক্ষার্থী রেকর্ড তৈরির জন্য রোল ও প্রয়োজনে বিভাগ নির্বাচন করুন।')
     })[stage];
 }
