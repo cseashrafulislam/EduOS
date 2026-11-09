@@ -10,7 +10,7 @@ const site=fs.readFileSync(path.join(root,'EduOS.App/wwwroot/js/site.js'),'utf8'
 test('quiz routes require LMS module, antiforgery and student/author roles',()=>{
  assert.match(api,/RequireModule\("LMS"\)/);
  assert.match(api,/AutoValidateAntiforgeryToken/);
- assert.match(api,/Authorize\(Roles = "Student"\)/);
+ assert.match(api,/Authorize\(Roles = "Student,Teacher"\)/);
  assert.match(api,/Authorize\(Roles = "TenantAdmin,Principal,Teacher"\)/);
 });
 test('candidate query projects options without correct-answer flags',()=>{
