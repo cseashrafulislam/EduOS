@@ -28,16 +28,21 @@ test('section-specific categories include dynamic role portals and privileged ad
         ['setup', '/AcademicManagement/Years', 'academic-setup'],
         ['setup', '/AcademicManagement/Offerings', 'academic-setup'],
         ['setup', '/StudentTransferRequests/Index#destinationInbox', 'enrollment'],
+        ['setup', '/CentralWorkCenter/Index', 'work-center'],
         ['academics', '/StudentPortal/Index#learnerConsents', 'portal'],
         ['academics', '/LearnerIdentities/AccessHistory', 'learners'],
+        ['academics', '/StudentSupport/Scholarships', 'learners'],
+        ['academics', '/StudentSupport/Counseling', 'learners'],
         ['academics', '/Learning/CourseCompletions', 'learning'],
         ['academics', '/CareerEmployers/Index', 'career'],
         ['academics', '/CareerOpportunities/Index', 'career'],
         ['academics', '/CareerPlacements/Index', 'career'],
         ['management', '/FacilityWorkOrders/Index', 'campus'],
         ['management', '/FacilitySpaces/Index', 'campus'],
+        ['management', '/FacilityCosts/Index', 'campus'],
         ['academics', '/AssessmentAdministration/Certificates', 'assessments'],
         ['management', '/FeeHeadAccounting/Index', 'finance'],
+        ['management', '/InstitutionBudgets/Index', 'finance'],
         ['management', '/AccountingJournals/Index', 'finance'],
         ['management', '/hostel/my-history/print', 'campus'],
         ['management', '/TransportOperations/Family', 'campus'],
@@ -83,6 +88,10 @@ test('section-specific categories include dynamic role portals and privileged ad
     assert.equal(categoryFor('academics', 'career', '/CareerPlacements/Index'), 'operations');
     assert.equal(categoryFor('management', 'campus', '/FacilitySpaces/Index'), 'settings');
     assert.equal(categoryFor('management', 'campus', '/FacilityWorkOrders/Index'), 'operations');
+    assert.equal(categoryFor('management', 'campus', '/FacilityCosts/Index'), 'reports');
+    assert.equal(categoryFor('management', 'finance', '/InstitutionBudgets/Index'), 'operations');
+    assert.equal(categoryFor('academics', 'learners', '/StudentSupport/Counseling'), 'operations');
+    assert.equal(categoryFor('academics', 'assessments', '/AssessmentAdministration/Omr'), 'operations');
     assert.equal(normalizedPath('/Attendance/Index/?q=1'), '/attendance/index');
 });
 
@@ -134,6 +143,9 @@ test('restricted links remain gated in Razor rather than client-side role filter
     assert.match(styles, /\.sidebar-category-toggle:focus-visible/);
     assert.match(styles, /data-workspace-navigation="top"\] \.sidebar \.sidebar-submenu/);
     assert.match(script, /allCategories\.push\(subDetails\)/);
+    assert.match(script, /if \(namedCategories\.length <= 1\)/);
+    assert.doesNotMatch(script, /sidebar-group-count|sidebar-category-count|'other', 'Other'/);
+    assert.doesNotMatch(styles, /\.sidebar-group-count|\.sidebar-category-count/);
 });
 
 test('sidebar keyboard and persisted navigation state are scoped to the rendered institution session', () => {

@@ -73,11 +73,13 @@
 
     const sidebar = document.getElementById('sidebarMenu');
     const trigger = document.getElementById('featureSearchOpen');
+    const sidebarTrigger = document.getElementById('sidebarFeatureSearchOpen');
+    const triggers = [trigger, sidebarTrigger].filter(Boolean);
     const dialog = document.getElementById('featureSearchDialog');
     const input = document.getElementById('featureSearchInput');
     const results = document.getElementById('featureSearchResults');
     const close = document.getElementById('featureSearchClose');
-    if (!sidebar || !trigger || !dialog || !input || !results) return;
+    if (!sidebar || !triggers.length || !dialog || !input || !results) return;
 
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn');
     const labels = bangla
@@ -105,7 +107,7 @@
             group
         };
     }));
-    if (!catalog.length) { trigger.hidden = true; return; }
+    if (!catalog.length) { triggers.forEach(button => { button.hidden = true; }); return; }
 
     const byHref = new Map(catalog.map(entry => [entry.href, entry]));
     const key = 'eduos.feature-discovery.v1';
@@ -140,7 +142,7 @@
         if (current === 'changed') {
             invalidated = true;
             state = scopedState(null, tenant, session, catalog);
-            trigger.disabled = true;
+            triggers.forEach(button => { button.disabled = true; });
             try { sessionStorage.removeItem(key); } catch { /* Optional storage. */ }
         }
         return false;
@@ -255,8 +257,10 @@
         if (!favorites.length && !recent.length) section(labels.available, catalog.slice(0, 12));
     }
 
-    async function open() {
+    let lastOpener = trigger || sidebarTrigger;
+    async function open(opener) {
         if (!await verifiedContext()) return;
+        lastOpener = opener?.isConnected ? opener : (trigger || sidebarTrigger);
         input.value = '';
         render();
         if (typeof dialog.showModal === 'function') dialog.showModal();
@@ -266,12 +270,12 @@
     function dismiss() {
         if (typeof dialog.close === 'function') dialog.close();
         else dialog.removeAttribute('open');
-        trigger.focus();
+        if (status() === 'ready') lastOpener?.focus();
     }
-    trigger.addEventListener('click', () => { void open(); });
+    for (const button of triggers) button.addEventListener('click', () => { void open(button); });
     close?.addEventListener('click', dismiss);
     dialog.addEventListener('close', () => {
-        if (status() === 'ready') trigger.focus();
+        if (status() === 'ready') lastOpener?.focus();
     });
     input.addEventListener('input', render);
     window.addEventListener('pageshow', () => { if (dialog.open) currentContext(); });
@@ -286,7 +290,7 @@
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k' &&
             !event.altKey && !event.shiftKey) {
             event.preventDefault();
-            if (!dialog.open) void open();
+            if (!dialog.open) void open(document.activeElement);
             else input.focus();
         }
     });

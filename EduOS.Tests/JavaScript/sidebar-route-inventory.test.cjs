@@ -69,6 +69,30 @@ test('navigation declarations are duplicate-free across literal and computed sou
         'duplicate static, computed or role-portal navigation requires review');
 });
 
+test('every current sidebar destination belongs to a named task group, not a generic catch-all', () => {
+    const { groupFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+    const sections = [...sidebar.matchAll(/<nav\b[^>]*data-sidebar-section="([^"]+)"[^>]*>([\s\S]*?)<\/nav>/g)];
+    assert.equal(sections.length, 4, 'all sidebar sections must be inventoried');
+    for (const [, section, markup] of sections) {
+        const destinations = [
+            ...[...markup.matchAll(/<a\b[^>]*\bhref="(\/[^\"]+)"/g)].map(m => m[1]),
+            ...[...markup.matchAll(/\bPath:\s*"(\/[^\"]+)"/g)].map(m => m[1])
+        ];
+        for (const [, match, variable, tuples] of markup.matchAll(/(@foreach\s*\(var\s+(\w+)\s+in\s+new\[\]\s*\{([\s\S]*?)\}\s*\))/g)) {
+            if (!/\bAction:\s*"/.test(tuples)) continue;
+            const next = markup.slice(markup.indexOf(match) + match.length, markup.indexOf(match) + match.length + 1400);
+            const path = next.match(new RegExp('var\\s+\\w+Path\\s*=\\s*"([^"]+)"\\s*\\+\\s*' + variable + '\\.Action'))?.[1];
+            assert.ok(path, 'computed navigation prefix missing for ' + variable);
+            destinations.push(...[...tuples.matchAll(/\bAction:\s*"([^"]+)"/g)].map(m => path + m[1]));
+        }
+        assert.ok(destinations.length > 0, 'missing ' + section + ' destinations');
+        for (const route of destinations) {
+            if (route.toLowerCase().startsWith('/dashboard/')) continue;
+            assert.notEqual(groupFor(section, route), 'other', `${section}: ${route}`);
+        }
+    }
+});
+
 test('role portal remains server entitlement/role gated; inventory cannot grant a link', () => {
     assert.match(portals, /availableModules\.Contains\(module\)/);
     assert.match(portals, /roles\.Any\(user\.IsInRole\)/);

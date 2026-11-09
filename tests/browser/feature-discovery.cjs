@@ -9,14 +9,15 @@ const root = path.resolve(__dirname, '../..');
 const scriptPath = path.join(root, 'EduOS.App/wwwroot/js/platform/feature-discovery.js');
 const sidebarScriptPath = path.join(root, 'EduOS.App/wwwroot/js/sidebar-navigation.js');
 const layout = fs.readFileSync(path.join(root, 'EduOS.App/Views/Shared/_Layout.cshtml'), 'utf8');
-for (const id of ['sidebarMenu','featureSearchOpen','featureSearchDialog','featureSearchInput','featureSearchResults','featureSearchClose'])
+for (const id of ['sidebarMenu','sidebarFeatureSearchOpen','featureSearchOpen','featureSearchDialog','featureSearchInput','featureSearchResults','featureSearchClose'])
     assert(layout.includes('id="' + id + '"'), 'Shared Razor layout missing ' + id);
 const session = 'A'.repeat(64);
 function html(bn, tenant) {
     return '<!doctype html><html lang="' + (bn?'bn-BD':'en-BD') + '"><head><meta charset="utf-8"></head>' +
         '<body data-auth-tenant-id="' + tenant + '" data-auth-session-reference="' + session + '">' +
         '<div id="eduosSessionShield" hidden></div>' +
-        '<aside id="sidebarMenu"><div class="menu-title">Academics</div>' +
+        '<aside id="sidebarMenu"><button id="sidebarFeatureSearchOpen" type="button">Find pages and favorites</button>' +
+        '<div class="menu-title">Academics</div>' +
         '<nav data-sidebar-section="academics"><a class="nav-link" href="/Students/Index" aria-current="page"><span>Students</span></a>' +
         '<a class="nav-link" href="/FeeOperations/Index"><span>'+(bn?'ফি ও বিলিং':'Fee collection')+'</span></a>' +
         '<a class="nav-link" href="/Admissions/Index"><span>Admissions</span></a></nav>' +
@@ -78,7 +79,12 @@ async function english(browser) {
 async function isolation(browser) {
     const {context,page,errors}=await setup(browser,true,'22',true);
     try {
-        await page.locator('#featureSearchOpen').click();
+        await page.locator('#sidebarFeatureSearchOpen').click();
+        await page.locator('#featureSearchDialog[open]').waitFor();
+        await page.locator('#featureSearchClose').click();
+        assert.equal(await page.locator('#sidebarFeatureSearchOpen').evaluate(e=>document.activeElement===e),true,
+            'close returns focus to the sidebar launcher');
+        await page.locator('#sidebarFeatureSearchOpen').click();
         await page.locator('#featureSearchDialog[open]').waitFor();
         assert.equal((await page.locator('#sidebarMenu a[href="/Students/Index"]').textContent()).trim(),'শিক্ষার্থী তালিকা');
         for (const [query, expected] of [
@@ -101,6 +107,7 @@ async function isolation(browser) {
         await page.locator('#featureSearchInput').fill('ফি');
         assert.equal(await page.locator('#featureSearchDialog').evaluate(e=>e.open),false);
         assert.equal(await page.locator('#featureSearchOpen').isDisabled(),true);
+        assert.equal(await page.locator('#sidebarFeatureSearchOpen').isDisabled(),true);
         assert.equal(await page.locator('#featureSearchResults').innerText(),'');
         assert.deepEqual(errors,[]);
     } finally { await context.close(); }

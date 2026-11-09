@@ -15,11 +15,12 @@
             ['access', 'Users & Access', 'ব্যবহারকারী ও অনুমতি', ['/TenantUsers', '/TenantPermissionOverrides']],
             ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules', '/SubscriptionBilling', '/IntegrationAdministration']],
             ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions']],
+            ['work-center', 'Work Center', 'কাজ ও অনুমোদন', ['/CentralWorkCenter']],
             ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
         ],
         academics: [
             ['portal', 'My Learning Portal', 'আমার লার্নিং পোর্টাল', ['/StudentPortal', '/StudentSubjects', '/Alumni']],
-            ['learners', 'Admissions & Students', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/LearnerIdentities']],
+            ['learners', 'Admissions & Students', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/LearnerIdentities', '/StudentSupport']],
             ['career', 'Career & Placement', 'ক্যারিয়ার ও কর্মসংস্থান', ['/CareerEmployers', '/CareerOpportunities', '/CareerPlacements']],
             ['research', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন', ['/ResearchProposals', '/ResearchGrants']],
             ['accreditation', 'Accreditation & Quality', 'স্বীকৃতি ও মান', ['/Accreditation']],
@@ -29,9 +30,9 @@
         ],
         management: [
             ['people', 'HR & Payroll', 'এইচআর ও বেতন', ['/HR', '/HrEmployeeRecords', '/EmployeeContracts', '/Recruitment', '/EmployeeAttendance', '/LeaveEntitlements', '/PayrollOperations', '/PayrollSalaryStructures', '/PayrollSalaryComponents', '/PayrollSalaryStatement', '/PayrollReconciliation', '/PayrollBonuses', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/EmployeePortal']],
-            ['finance', 'Fees & Accounting', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']],
+            ['finance', 'Fees & Accounting', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview', '/InstitutionBudgets']],
             ['inventory', 'Inventory & Assets', 'ইনভেন্টরি ও সম্পদ', ['/InventoryCatalog', '/InventoryMovements', '/AssetLifecycle']],
-            ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights', '/FacilityWorkOrders', '/FacilitySpaces']],
+            ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights', '/FacilityWorkOrders', '/FacilitySpaces', '/FacilityCosts']],
             ['library', 'Library', 'গ্রন্থাগার', ['/Library', '/offline-study.html']],
             ['communication', 'Communication & Documents', 'যোগাযোগ ও ডকুমেন্ট', ['/CommunicationWorkspace', '/CommunicationAdministration', '/CustomFields', '/DocumentAdministration']],
             ['governance', 'Audit & Reporting', 'অডিট ও রিপোর্ট', ['/AuditLogs', '/ImportHistory']]
@@ -56,7 +57,7 @@
         ],
         'academics:learners': [
             ['settings', 'Settings', 'সেটিংস', ['/Admissions/Forms', '/Admissions/AssessmentSetup']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/Admissions/NewApplication', '/Admissions/Applications', '/Admissions/Merit', '/Admissions/Assessments', '/Admissions/Offers', '/Admissions/Index', '/Students', '/LearnerIdentities/Index']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Admissions/NewApplication', '/Admissions/Applications', '/Admissions/Merit', '/Admissions/Assessments', '/Admissions/Offers', '/Admissions/Index', '/Students', '/LearnerIdentities/Index', '/StudentSupport']],
             ['reports', 'Reports', 'রিপোর্ট', ['/LearnerIdentities/AccessHistory']]
         ],
         'academics:career': [
@@ -76,12 +77,12 @@
         ],
         'management:finance': [
             ['settings', 'Settings', 'সেটিংস', ['/FeeOperations/Structures', '/FeeDiscountRules', '/FeeHeadAccounting', '/AccountingSetup', '/FinanceAdjustments/Policies']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations/Billing', '/FeeOperations/Ledger', '/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments/StudentAdjustments', '/FinanceAdjustments/Refunds', '/FinanceAdjustments/HostelClearances', '/FinanceAdjustments/TransportClearances', '/FinanceAdjustments/ReservationPreflight', '/FinanceAdjustments/DiscountAwards', '/FinanceAdjustments', '/AccountingJournals', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeInstallmentPlans']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/FeeOperations/Billing', '/FeeOperations/Ledger', '/FeeOperations', '/AdmissionCashReceipts', '/FinanceAdjustments/StudentAdjustments', '/FinanceAdjustments/Refunds', '/FinanceAdjustments/HostelClearances', '/FinanceAdjustments/TransportClearances', '/FinanceAdjustments/ReservationPreflight', '/FinanceAdjustments/DiscountAwards', '/FinanceAdjustments', '/AccountingJournals', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeInstallmentPlans', '/InstitutionBudgets']],
             ['reports', 'Reports', 'রিপোর্ট', ['/FeeReceivablesAging', '/AccountingReports', '/FinanceAdjustments/FineRegister', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview']]
         ],
         'academics:assessments': [
             ['settings', 'Settings', 'সেটিংস', ['/AssessmentAdministration/Setup', '/AssessmentAdministration/AssessmentComponents', '/AssessmentAdministration/AssessmentSchedules', '/AssessmentAdministration/GradeSchemes', '/AssessmentAdministration/CertificateTemplates']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/AssessmentAdministration/Marks', '/AssessmentAdministration/Results', '/AssessmentAdministration/Index', '/AssessmentAdministration/MarkReviews', '/AssessmentAdministration/ComponentMarks', '/AssessmentAdministration/SubjectCompletions', '/AssessmentAdministration/Attempts', '/AssessmentAdministration/ResultRescrutiny', '/AssessmentAdministration/AdmitCards']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/AssessmentAdministration/Marks', '/AssessmentAdministration/Results', '/AssessmentAdministration/Index', '/AssessmentAdministration/MarkReviews', '/AssessmentAdministration/ComponentMarks', '/AssessmentAdministration/SubjectCompletions', '/AssessmentAdministration/Attempts', '/AssessmentAdministration/ResultRescrutiny', '/AssessmentAdministration/AdmitCards', '/AssessmentAdministration/Omr']],
             ['reports', 'Reports', 'রিপোর্ট', ['/AssessmentAdministration/ExamReports', '/AssessmentAdministration/Publications', '/AssessmentAdministration/GradeDistribution', '/AssessmentAdministration/ResultFollowUp', '/AssessmentAdministration/Certificates', '/AssessmentAdministration/Transcripts']]
         ],
         'academics:operations': [
@@ -111,7 +112,7 @@
         'management:campus': [
             ['settings', 'Settings', 'সেটিংস', ['/HostelOperations/Setup', '/TransportOperations/Setup', '/FacilitySpaces']],
             ['operations', 'Operations', 'কার্যক্রম', ['/HostelOperations/Applications', '/HostelOperations/Allocations', '/HostelOperations/Index', '/hostel', '/TransportOperations/Assignments', '/TransportOperations/Index', '/TransportOperations/Trips', '/TransportOperations/Family', '/TransportOperations/DriverTrips', '/FacilityWorkOrders']],
-            ['reports', 'Reports', 'রিপোর্ট', ['/HostelOperations/Reports', '/TransportOperations/Reports', '/OperationsInsights']]
+            ['reports', 'Reports', 'রিপোর্ট', ['/HostelOperations/Reports', '/TransportOperations/Reports', '/OperationsInsights', '/FacilityCosts']]
         ]
     };
 
@@ -387,7 +388,7 @@
             link.classList.add('sidebar-dashboard-link');
             container.append(link);
         }
-        for (const [key, english, bengali] of [...definitions, ['other', 'Other', 'অন্যান্য', []]]) {
+        for (const [key, english, bengali] of [...definitions, ['other', 'More tools', 'আরও সুবিধা', []]]) {
             const children = categorized.get(key);
             if (!children?.length) continue;
             const details = document.createElement('details');
@@ -398,11 +399,7 @@
             const label = document.createElement('span');
             label.className = 'sidebar-group-label';
             label.textContent = bangla ? bengali : english;
-            const count = document.createElement('span');
-            count.className = 'sidebar-group-count';
-            count.textContent = String(children.length);
-            count.setAttribute('aria-hidden', 'true');
-            summary.append(label, count);
+            summary.append(label);
             const submenu = document.createElement('div');
             submenu.className = 'sidebar-submenu';
             const definitionsForGroup = categories[`${section}:${key}`];
@@ -413,9 +410,14 @@
                     if (!byCategory.has(category)) byCategory.set(category, []);
                     byCategory.get(category).push(child);
                 }
-                for (const [categoryKey, en, bn] of [...definitionsForGroup, ['other', 'Other', 'অন্যান্য', []]]) {
+                // One category adds an unnecessary click. Unmapped destinations
+                // remain visible without creating repeated generic Other menus.
+                const namedCategories = definitionsForGroup.filter(([categoryKey]) => byCategory.has(categoryKey));
+                if (namedCategories.length <= 1) {
+                    for (const child of children) submenu.append(child);
+                }
+                for (const [categoryKey, en, bn] of namedCategories.length > 1 ? namedCategories : []) {
                     const sublinks = byCategory.get(categoryKey);
-                    if (!sublinks?.length) continue;
                     const subDetails = document.createElement('details');
                     subDetails.className = 'sidebar-category';
                     subDetails.dataset.sidebarCategory = `${section}:${key}:${categoryKey}`;
@@ -423,17 +425,16 @@
                     subToggle.className = 'sidebar-category-toggle';
                     const subLabel = document.createElement('span');
                     subLabel.textContent = bangla ? bn : en;
-                    const subCount = document.createElement('span');
-                    subCount.className = 'sidebar-category-count';
-                    subCount.textContent = String(sublinks.length);
-                    subCount.setAttribute('aria-hidden', 'true');
-                    subToggle.append(subLabel, subCount);
+                    subToggle.append(subLabel);
                     const categoryLinks = document.createElement('div');
                     categoryLinks.className = 'sidebar-category-links';
                     for (const link of sublinks) categoryLinks.append(link);
                     subDetails.append(subToggle, categoryLinks);
                     submenu.append(subDetails);
                     allCategories.push(subDetails);
+                }
+                if (namedCategories.length > 1) {
+                    for (const child of byCategory.get('other') || []) submenu.append(child);
                 }
             } else {
                 for (const child of children) submenu.append(child);

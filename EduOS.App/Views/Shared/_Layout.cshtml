@@ -91,6 +91,17 @@
                 </button>
             </div>
 
+            @if (User?.Identity?.IsAuthenticated == true)
+            {
+                <button class="sidebar-feature-search" id="sidebarFeatureSearchOpen" type="button"
+                        aria-haspopup="dialog" aria-controls="featureSearchDialog"
+                        aria-label="@(currentCulture == "bn-BD" ? "মেনু খুঁজুন, পছন্দের ও সাম্প্রতিক পেজ দেখুন" : "Search menu, favorites and recent pages")">
+                    <svg class="edu-icon" aria-hidden="true"><use href="/images/eduos-icons.svg#search" /></svg>
+                    <span>@(currentCulture == "bn-BD" ? "পেজ খুঁজুন · পছন্দের তালিকা" : "Find pages · Favorites")</span>
+                    <kbd>Ctrl K</kbd>
+                </button>
+            }
+
             @if (User?.IsInRole("SuperAdmin") == true)
             {
                 <div class="menu-title">@(currentCulture == "bn-BD" ? "প্ল্যাটফর্ম প্রশাসন" : "Platform Administration")</div>

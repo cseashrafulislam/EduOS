@@ -65,12 +65,16 @@ test('global feature search reuses server-rendered entitlement and role gated si
     assert.match(layout, /data-feature-discovery-link[^>]+href="\/workspace"/);
     assert.match(script, /document\.querySelectorAll\('a\[data-feature-discovery-link\]'\)/);
     assert.match(layout, /id="featureSearchOpen"/);
+    assert.match(layout, /id="sidebarFeatureSearchOpen"/);
     assert.match(layout, /id="featureSearchDialog"/);
     assert.match(layout, /id="featureSearchInput"/);
     assert.match(layout, /feature-discovery\.js" asp-append-version="true"/);
     assert.match(layout, /aria-haspopup="dialog"/);
     assert.match(layout, /type="search"/);
     assert.match(layout, /@if \(User\?\.Identity\?\.IsAuthenticated == true\)/);
+    assert.match(script, /for \(const button of triggers\) button\.addEventListener\('click'/);
+    assert.match(script, /lastOpener\?\.focus\(\)/);
+    assert.match(styles, /\.sidebar-feature-search:focus-visible/);
     assert.doesNotMatch(script, /innerHTML|eval\(|localStorage|fetch\(/);
 });
 
@@ -105,7 +109,7 @@ test('feature discovery fails closed on tenant/session change and temporary sess
     assert.match(script, /window\.location\.assign\(entry\.href\)/);
     assert.match(script, /event\.metaKey \|\|/);
     assert.match(script, /sessionStorage\.removeItem\(key\)/);
-    assert.match(script, /trigger\.disabled = true/);
+    assert.match(script, /triggers\.forEach\(button => \{ button\.disabled = true; \}\)/);
     assert.match(script, /document\.addEventListener\('visibilitychange'/);
     assert.doesNotMatch(script, /window\.location\.replace\(entry\.href\)/);
 });

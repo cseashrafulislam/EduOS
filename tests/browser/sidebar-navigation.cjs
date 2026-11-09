@@ -83,6 +83,12 @@ async function exercise(browser, mobile) {
             ['/FacilityWorkOrders/Index', '/FacilitySpaces/Index'].sort());
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:other"]').count(), 0);
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:other"]').count(), 0);
+        assert.equal(await page.locator('.sidebar-group-count,.sidebar-category-count').count(), 0,
+            'static menu quantities must not appear as notification badges');
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="setup:access"] details.sidebar-category').count(), 0,
+            'single-category groups should expose authorized links directly');
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:career"] details.sidebar-category').count(), 1,
+            'multi-category groups should retain useful categorization');
         for (const [route, label] of [
             ['/LearnerIdentities/AccessHistory', mobile ? 'পরিচয় তথ্য দেখার ইতিহাস' : 'Identity Access History'],
             ['/EmployeeAttendance/Index', mobile ? 'কর্মীর উপস্থিতি' : 'Employee Attendance'],

@@ -64,6 +64,13 @@ All items require a route/component inventory, scoped implementation, tests and 
 
 P0 navigation, shell, forms and data-performance foundations should be established before mass module migration. **Task D delivers C3 voice backend and frontend as one coherent full-stack UX-06 vertical slice**, reusing the approved central AI capability registry and canonical domain APIs; C1/C2 remain inside Task C. Final all-page coverage requires the common field contract and P0/P1 QA. Avoid a project-wide cosmetic rewrite that creates hundreds of unverified partial screens.
 
+### 4.2. UX-01 sidebar delivery evidence (2026-11-09)
+
+- Canonical `Views/Shared/_Layout.cshtml` navigation still renders role/entitlement-gated links on the server. `sidebar-navigation.js` now names the Work Center, Student Support, Smart OMR, institutional budgets and facility costs routes instead of placing them in generic buckets. An automated route inventory fails if a declared sidebar destination falls outside a named group.
+- Navigation removes misleading numeric menu badges, displays a secondary Operations/Reports/Settings category only when the current role actually has multiple named categories, and keeps unknown authorized destinations directly accessible without repeated `Other` menus. Existing active/deep-link, session-scoped collapse/scroll, right/top navigation and keyboard behavior are retained.
+- The sidebar's **Find pages · Favorites** control opens the existing feature discovery dialog; no parallel route registry, search index or favorites store exists. Both launchers are disabled on stale tenant/session context and restore focus to their respective opener. Search results are derived exclusively from already authorized links; all navigation still requires server authorization.
+- Scope-specific Node tests and synthetic Chromium scripts cover route inventory, bilingual labels, active links, accessibility, keyboard, tenant/session changes, favorites, recent and focus restoration. Local JavaScript tests passed; full .NET build, Chromium execution in CI and authenticated multi-role staging acceptance are **not yet certified by this local environment**. UX-01 is an implementation candidate pending those gates; UX-02 through UX-12 remain separate delivery packages.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:
