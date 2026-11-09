@@ -3,6 +3,13 @@
     const el = id => document.getElementById(id);
     if (!el('hostelTitle')) return;
     const manager = !!el('hostelAllocationForm');
+    const allocationGuard = manager ? window.EduOSFormGuard.create(el('hostelAllocationForm')) : null;
+    let allocationBusy = false, bedMoveBusy = false, studentsReady = false, bedsReady = false;
+    function refreshAllocationSave() {
+        if (!manager) return;
+        el('hostelAllocate').disabled = allocationBusy || !studentsReady || !bedsReady ||
+            !el('hostelStudent').value || !el('hostelBed').value;
+    }
     let requestId = crypto.randomUUID(), studentPage = 1, bedPage = 1, activePage = 1, activePages = 1;
     let studentLookup = 0, bedLookup = 0, activeLookup = 0;
     let pendingBedMove = null, movePage = 1, movePages = 1, moveLookup = 0;
@@ -47,6 +54,9 @@
     }
     async function loadStudents() {
         const lookup = ++studentLookup;
+        studentsReady = false; el('hostelStudent').disabled = true;
+        el('hostelStudent').replaceChildren(new Option('Loading eligible students', ''));
+        refreshAllocationSave();
         try {
             const params = new URLSearchParams({ page: String(studentPage), pageSize: '25', startDate: el('hostelStart').value || today() });
             if (el('hostelEnd').value) params.set('endDate', el('hostelEnd').value);
@@ -55,11 +65,16 @@
             if (lookup !== studentLookup) return;
             const select = el('hostelStudent'); select.replaceChildren(); option(select, '', 'Choose eligible student');
             (info.items || []).forEach(x => option(select, x.enrollmentReference, x.studentName + ' (' + x.studentCode + ', Roll ' + x.roll + ')'));
+            studentsReady = true; select.disabled = false;
             el('hostelNextStudent').disabled = studentPage >= info.totalPages;
+            refreshAllocationSave();
         } catch (error) { if (lookup === studentLookup) notify(error.message); }
     }
     async function loadBeds() {
         const lookup = ++bedLookup;
+        bedsReady = false; el('hostelBed').disabled = true;
+        el('hostelBed').replaceChildren(new Option('Loading available beds', ''));
+        refreshAllocationSave();
         try {
             const params = new URLSearchParams({ page: String(bedPage), pageSize: '25' });
             const term = el('hostelBedSearch').value.trim(); if (term) params.set('search', term);
@@ -73,13 +88,17 @@
                 x.hostelName + ' · Room ' + x.roomNumber + ' / Bed ' + x.bedNumber +
                 (fixed ? ' · Available slots ' + x.remainingRoomSlots :
                     ' · Rent ' + x.rentPerBed + (x.genderRestriction ? ' · ' + x.genderRestriction : ''))));
+            bedsReady = true; select.disabled = false;
             el('hostelNextBed').disabled = bedPage >= info.totalPages;
+            refreshAllocationSave();
         } catch (error) { if (lookup === bedLookup) notify(error.message); }
     }
     async function allocate(event) {
         event.preventDefault(); const form = el('hostelAllocationForm');
+        if (allocationBusy || !studentsReady || !bedsReady || !el('hostelStudent').value || !el('hostelBed').value) return;
         if (!form.reportValidity()) return;
-        const button = el('hostelAllocate'); button.disabled = true;
+        allocationBusy = true; form.inert = true;
+        const button = el('hostelAllocate'); refreshAllocationSave();
         try {
             const amount = el('hostelRent').value.trim();
             const body = { clientRequestId: requestId, studentEnrollmentReference: el('hostelStudent').value,
@@ -91,9 +110,12 @@
                 throw new Error('Checkout must be on or after arrival and within 90 inclusive days.');
             await api('/api/hostel/allocations', 'POST', body);
             requestId = crypto.randomUUID(); form.reset(); el('hostelStart').value = today();
+            allocationGuard.markClean();
             notify('Hostel bed allocated.', true);
             await Promise.all([loadStudents(), loadBeds(), loadActive()]);
-        } catch (error) { notify(error.message); } finally { button.disabled = false; }
+        } catch (error) { notify(error.message); } finally {
+            allocationBusy = false; form.inert = false; refreshAllocationSave();
+        }
     }
     async function loadActive() {
         const lookup = ++activeLookup;
@@ -207,12 +229,13 @@
         } catch (error) { if (lookup === moveLookup) notify(error.message); }
     }
     async function submitBedMove() {
-        if (!pendingBedMove) return;
+        if (bedMoveBusy || !pendingBedMove) return;
         const targetBedId = Number(el('hostelBedMoveTarget').value);
         if (!Number.isSafeInteger(targetBedId) || targetBedId <= 0) {
             notify('Select an available bed.'); return;
         }
         if (!confirm('Change this upcoming reservation to the selected bed? Financial terms remain unchanged.')) return;
+        bedMoveBusy = true;
         const button = el('hostelBedMoveSave'); button.disabled = true;
         try {
             await api('/api/hostel/allocations/' + encodeURIComponent(pendingBedMove.id) + '/reassign-bed', 'POST',
@@ -220,7 +243,7 @@
             dismissBedMove();
             notify('Upcoming reservation bed updated.', true);
             await Promise.all([loadActive(), loadBeds()]);
-        } catch (error) { notify(error.message); } finally { button.disabled = false; }
+        } catch (error) { notify(error.message); } finally { bedMoveBusy = false; button.disabled = false; }
     }
     async function closeAllocation(item, button) {
         if (!confirm('Close the hostel allocation for ' + item.studentName + '?')) return;
@@ -245,13 +268,15 @@
     }
     if (el('hostelMine')) loadMine();
         if (manager) {
-        el('hostelStart').value = today();
+        el('hostelStart').value = today(); allocationGuard.markClean(); refreshAllocationSave();
         for (const field of ['hostelStart', 'hostelEnd']) {
             el(field).addEventListener('change', () => {
                 studentPage = 1; bedPage = 1;
                 loadStudents(); loadBeds();
             });
         }
+        el('hostelStudent').addEventListener('change', refreshAllocationSave);
+        el('hostelBed').addEventListener('change', refreshAllocationSave);
         el('hostelFindStudents').addEventListener('click', () => { studentPage = 1; loadStudents(); });
         el('hostelNextStudent').addEventListener('click', () => { studentPage++; loadStudents(); });
         el('hostelFindBeds').addEventListener('click', () => { bedPage = 1; loadBeds(); });

@@ -4,6 +4,11 @@
     const catalogRows = el('catalogRows'), issueRows = el('issueRows'), query = el('libraryQuery');
     if (!catalogRows || !query) return;
     const canManage = !!el('libraryBookForm');
+    const formGuard = canManage ? window.EduOSFormGuard : null;
+    const bookGuard = formGuard?.create(el('libraryBookForm'));
+    const copyGuard = formGuard?.create(el('libraryCopyForm'));
+    const categoryGuard = formGuard?.create(el('libraryCategoryForm'));
+    let bookSaving = false, copySaving = false, categorySaving = false;
     const loanEndpoint = el('myLibraryLoans')?.dataset.loanEndpoint === 'my-employee-issues'
         ? 'my-employee-issues' : 'my-issues';
     let books = [], categories = [], selectedCopyBook = null, copyPage = 1, copyRequest = 0;
@@ -133,27 +138,31 @@
         const n = Number(value || 0);
         return Number.isFinite(n) ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
     }
-    function resetForm() {
-        if (!canManage) return;
+    function resetForm(force = false) {
+        if (!canManage || (!force && (bookSaving || !bookGuard.confirmDiscard()))) return;
         el('libraryBookForm').reset(); el('bookReference').value = ''; el('bookRowVersion').value = '';
         el('bookSave').textContent = 'Save book';
         el('bookCategory').value = '';
+        bookGuard.markClean();
     }
     function populate(book) {
-        if (!canManage) return;
+        if (!canManage || bookSaving || !bookGuard.confirmDiscard()) return;
         const pairs = { bookReference: book.reference, bookRowVersion: book.rowVersion, bookTitle: book.title,
             bookAuthor: book.author, bookIsbn: book.isbn, bookPublisher: book.publisher, bookEdition: book.edition,
             bookCover: book.coverImageUrl, bookReplacement: book.replacementPrice, bookCategory: book.bookCategoryId };
         Object.entries(pairs).forEach(([key, value]) => { el(key).value = value ?? ''; });
         el('bookSave').textContent = 'Update book';
+        bookGuard.markClean();
         el('libraryBookForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
         el('bookTitle').focus();
     }
     async function saveBook(event) {
         event.preventDefault();
-        if (!el('libraryBookForm').reportValidity()) return;
+        if (bookSaving || !el('libraryBookForm').reportValidity()) return;
+        bookSaving = true;
         const submit = el('bookSave');
         submit.disabled = true;
+        el('libraryBookForm').inert = true;
         try {
             const price = el('bookReplacement').value.trim();
             const payload = { reference: el('bookReference').value || null, rowVersion: el('bookRowVersion').value || null,
@@ -162,26 +171,30 @@
                 isbn: el('bookIsbn').value.trim() || null, publisher: el('bookPublisher').value.trim() || null,
                 edition: el('bookEdition').value.trim() || null, coverImageUrl: el('bookCover').value.trim() || null,
                 replacementPrice: price ? Number(price) : null, isActive: true };
-            if (!payload.title || price && !Number.isFinite(payload.replacementPrice)) throw new Error('Check book title and price.');
+            if (!payload.title || (price && (!Number.isFinite(payload.replacementPrice) || payload.replacementPrice < 0)))
+                throw new Error('Check book title and nonnegative replacement price.');
             await api('/api/library/books', 'POST', payload);
-            resetForm(); clearMessage(); message('Book metadata saved.', true); await loadCatalog();
+            resetForm(true); clearMessage(); message('Book metadata saved.', true); await loadCatalog();
         } catch (error) { message(error.message); }
-        finally { submit.disabled = false; }
+        finally { bookSaving = false; el('libraryBookForm').inert = false; submit.disabled = false; }
     }
     async function archiveBook(book, button) {
+        if (el('bookReference')?.value === book.reference && !bookGuard.confirmDiscard()) return;
         if (!window.confirm('Archive this book? It will be hidden from the active catalog.')) return;
         button.disabled = true;
         try {
             await api('/api/library/books/' + encodeURIComponent(book.reference) + '?rowVersion=' + encodeURIComponent(book.rowVersion), 'DELETE');
-            if (el('bookReference')?.value === book.reference) resetForm();
+            if (el('bookReference')?.value === book.reference) resetForm(true);
             message('Book archived.', true); await loadCatalog();
         } catch (error) { message(error.message); button.disabled = false; }
     }
 
-    function resetCopyForm() {
+    function resetCopyForm(force = false) {
+        if (!force && (copySaving || !copyGuard.confirmDiscard())) return;
         el('libraryCopyForm').reset(); el('copyId').value = ''; el('copyRowVersion').value = '';
         el('copyBranch').value = '';
         el('copySave').textContent = 'Save copy';
+        copyGuard.markClean();
     }
     function chooseCopyBranch(id) {
         const select = el('copyBranch'), value = id == null ? '' : String(id);
@@ -213,15 +226,16 @@
         }
     }
     function editCopy(copy) {
+        if (copySaving || !copyGuard.confirmDiscard()) return;
         el('copyId').value = copy.id; el('copyRowVersion').value = copy.rowVersion || '';
         el('copyAccession').value = copy.accessionNumber; el('copyBarcode').value = copy.barcode || '';
         el('copyShelf').value = copy.shelfNumber || '';
         chooseCopyBranch(copy.libraryBranchId);
-        el('copySave').textContent = 'Update copy'; el('copyAccession').focus();
+        el('copySave').textContent = 'Update copy'; copyGuard.markClean(); el('copyAccession').focus();
     }
     function selectCopyBook(book) {
-        if (!canManage) return;
-        selectedCopyBook = book; copyPage = 1; ++copyRequest; resetCopyForm();
+        if (!canManage || copySaving || !copyGuard.confirmDiscard()) return;
+        selectedCopyBook = book; copyPage = 1; ++copyRequest; resetCopyForm(true);
         el('copyBookTitle').textContent = book.title;
         el('libraryCopiesPanel').classList.remove('d-none');
         el('libraryCopiesPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -258,8 +272,10 @@
     }
     async function saveCopy(event) {
         event.preventDefault();
-        if (!selectedCopyBook || !el('libraryCopyForm').reportValidity()) return;
+        if (copySaving || !selectedCopyBook || !el('libraryCopyForm').reportValidity()) return;
+        copySaving = true;
         const button = el('copySave'); button.disabled = true;
+        el('libraryCopyForm').inert = true;
         try {
             const id = el('copyId').value;
             const branchId = Number(el('copyBranch').value);
@@ -272,10 +288,10 @@
                 rowVersion: el('copyRowVersion').value || null };
             await api(id ? '/api/library/copies/' + encodeURIComponent(id) : '/api/library/copies',
                 id ? 'PUT' : 'POST', payload);
-            resetCopyForm(); message('Book copy saved.', true);
+            resetCopyForm(true); message('Book copy saved.', true);
             await Promise.all([loadCopies(), loadCatalog()]);
         } catch (error) { message(error.message); }
-        finally { button.disabled = false; }
+        finally { copySaving = false; el('libraryCopyForm').inert = false; button.disabled = false; }
     }
     el('librarySearch').addEventListener('submit', e => { e.preventDefault(); paging.catalog = 1; clearMessage(); loadCatalog(); });
     el('clearLibrarySearch').addEventListener('click', () => { query.value = ''; paging.catalog = 1; loadCatalog(); });
@@ -288,7 +304,7 @@
         el('issueCsv').addEventListener('click', exportMyIssues);
     }
     el('printLibrary')?.addEventListener('click', () => window.print());
-    if (canManage) { el('libraryBookForm').addEventListener('submit', saveBook); el('bookReset').addEventListener('click', resetForm); }
+    if (canManage) { el('libraryBookForm').addEventListener('submit', saveBook); el('bookReset').addEventListener('click', () => resetForm()); }
 
     let categoryLoadVersion = 0;
     async function loadCategories() {
@@ -310,43 +326,47 @@
                 const td = document.createElement('td'), button = document.createElement('button');
                 button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'Edit';
                 button.addEventListener('click', () => {
+                    if (categorySaving || !categoryGuard.confirmDiscard()) return;
                     el('categoryId').value = row.id; el('categoryRowVersion').value = row.rowVersion;
                     el('categoryName').value = row.name; el('categoryCode').value = row.code;
-                    el('categoryActive').checked = !!row.isActive; el('categoryName').focus();
+                    el('categoryActive').checked = !!row.isActive; categoryGuard.markClean(); el('categoryName').focus();
                 });
                 td.append(button); tr.append(td); body.append(tr);
             }
             if (!categories.length) { const tr = document.createElement('tr'), td = cell('No categories.'); td.colSpan = 4; tr.append(td); body.append(tr); }
         } catch (error) { message(error.message); }
     }
-    function resetCategory() {
+    function resetCategory(force = false) {
+        if (!force && (categorySaving || !categoryGuard.confirmDiscard())) return;
         el('libraryCategoryForm').reset(); el('categoryId').value = ''; el('categoryRowVersion').value = '';
         el('categoryActive').checked = true;
+        categoryGuard.markClean();
     }
     async function saveCategory(event) {
         event.preventDefault();
-        if (!el('libraryCategoryForm').reportValidity()) return;
+        if (categorySaving || !el('libraryCategoryForm').reportValidity()) return;
         const id = el('categoryId').value, button = el('categorySave');
         const body = { name: el('categoryName').value.trim(), code: el('categoryCode').value.trim(),
             isActive: el('categoryActive').checked, rowVersion: el('categoryRowVersion').value || null };
         if (!body.name || !body.code) return message('Category name and code are required.');
-        button.disabled = true;
+        categorySaving = true; button.disabled = true;
+        el('libraryCategoryForm').inert = true;
         try {
             await api(id ? '/api/library/categories/' + encodeURIComponent(id) : '/api/library/categories',
                 id ? 'PUT' : 'POST', body);
-            resetCategory(); await loadCategories(); await loadCatalog();
+            resetCategory(true); await loadCategories(); await loadCatalog();
             message('Category saved.', true);
         } catch (error) { message(error.message); }
-        finally { button.disabled = false; }
+        finally { categorySaving = false; el('libraryCategoryForm').inert = false; button.disabled = false; }
     }
     if (canManage) {
         el('libraryCategoryForm').addEventListener('submit', saveCategory);
-        el('categoryReset').addEventListener('click', resetCategory);
+        el('categoryReset').addEventListener('click', () => resetCategory());
         loadCategories();
     }
     if (canManage) {
         el('libraryCopyForm').addEventListener('submit', saveCopy);
-        el('copyReset').addEventListener('click', resetCopyForm);
+        el('copyReset').addEventListener('click', () => resetCopyForm());
         el('copyBranchFind').addEventListener('click', () => { branchPage = 1; loadCopyBranches(); });
         el('copyBranchSearch').addEventListener('keydown', event => {
             if (event.key === 'Enter') { event.preventDefault(); branchPage = 1; loadCopyBranches(); }

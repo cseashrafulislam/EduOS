@@ -3,6 +3,14 @@
     const el = id => document.getElementById(id);
     if (!el('transportTitle')) return;
     const canManage = !!el('transportAssignmentForm');
+    const assignmentGuard = canManage ? window.EduOSFormGuard.create(el('transportAssignmentForm')) : null;
+    let assignmentBusy = false, extensionBusy = false, correctionBusy = false;
+    let studentsReady = false, routesReady = false, studentRequest = 0, staticRequest = 0, activeRequest = 0;
+    function refreshAssignmentSave() {
+        if (!canManage) return;
+        el('transportSave').disabled = assignmentBusy || !studentsReady || !routesReady ||
+            !el('transportStudent').value || !el('transportRoute').value || !el('transportVehicle').value;
+    }
     let routes = [], vehicles = [], clientRequestId = newRequestId(), studentPage = 1, activePage = 1, activePages = 1;
     let pendingStopCorrection = null;
     let pendingRiderExtension = null;
@@ -43,8 +51,19 @@
         }
     }
     async function loadStatic() {
+        const request = ++staticRequest;
+        routesReady = false; refreshAssignmentSave();
+        let previousRoute = '', previousVehicle = '', previousPickup = '', previousDrop = '';
         try {
             const [routeData, vehicleData] = await Promise.all([api('/api/transport/routes'), api('/api/transport/vehicles')]);
+            if (request !== staticRequest) return;
+            // Capture the user's latest values after the await, not stale pre-request values.
+            if (canManage) {
+                previousRoute = el('transportRoute').value;
+                previousVehicle = el('transportVehicle').value;
+                previousPickup = el('transportPickup').value;
+                previousDrop = el('transportDrop').value;
+            }
             routes = routeData || []; vehicles = vehicleData || [];
             // Route/vehicle options are required for assignments, but the
             // overview lists live only on the separately rendered Setup page.
@@ -53,9 +72,17 @@
             if (canManage) {
                 fillSelect('transportRoute', routes, 'Select route', x => x.name);
                 fillSelect('transportVehicle', vehicles, 'Select vehicle', x => x.vehicleNumber + ' (today ' + x.activeAssignments + '/' + x.capacity + ')');
+                if (routes.some(x => x.reference === previousRoute)) el('transportRoute').value = previousRoute;
+                if (vehicles.some(x => x.reference === previousVehicle)) el('transportVehicle').value = previousVehicle;
                 updateStops();
+                if (el('transportRoute').value === previousRoute) {
+                    for (const [id, value] of [['transportPickup', previousPickup], ['transportDrop', previousDrop]]) {
+                        if ([...el(id).options].some(option => option.value === value)) el(id).value = value;
+                    }
+                }
+                routesReady = true; refreshAssignmentSave();
             }
-        } catch (err) { notify(err.message); }
+        } catch (err) { if (request === staticRequest) notify(err.message); }
     }
     async function loadMine() {
         try {
@@ -64,6 +91,10 @@
         } catch (err) { notify(err.message); }
     }
     async function loadStudents() {
+        const request = ++studentRequest;
+        studentsReady = false; el('transportStudent').disabled = true;
+        el('transportStudent').replaceChildren(new Option('Loading eligible students', ''));
+        refreshAssignmentSave();
         try {
             const term = el('transportStudentSearch').value.trim();
             const q = new URLSearchParams({ page: String(studentPage), pageSize: '25',
@@ -72,16 +103,22 @@
             if (endDate) q.set('endDate', endDate);
             if (term) q.set('search', term);
             const data = await api('/api/transport/eligible-students?' + q);
+            if (request !== studentRequest) return;
             const select = el('transportStudent'); select.replaceChildren(); option(select, '', 'Select eligible student');
             (data.items || []).forEach(x => option(select, x.enrollmentReference, x.studentName + ' (' + x.studentCode + ', Roll ' + x.roll + ')'));
+            studentsReady = true; select.disabled = false;
             el('transportMoreStudents').disabled = studentPage >= data.totalPages;
+            refreshAssignmentSave();
             if (!data.items?.length) notify('No eligible students on this page.');
-        } catch (err) { notify(err.message); }
+        } catch (err) { if (request === studentRequest) notify(err.message); }
     }
     async function assign(event) {
         event.preventDefault(); const form = el('transportAssignmentForm');
+        if (assignmentBusy || !studentsReady || !routesReady || !el('transportStudent').value ||
+            !el('transportRoute').value || !el('transportVehicle').value) return;
         if (!form.reportValidity()) return;
-        const save = el('transportSave'); save.disabled = true;
+        assignmentBusy = true; form.inert = true;
+        const save = el('transportSave'); refreshAssignmentSave();
         try {
             const amount = el('transportFare').value.trim();
             const body = { clientRequestId, studentEnrollmentReference: el('transportStudent').value,
@@ -96,15 +133,20 @@
             if (amount && (!Number.isFinite(body.monthlyFare) || body.monthlyFare < 0)) throw new Error('Monthly fare must be nonnegative.');
             await api('/api/transport/assignments', 'POST', body);
             clientRequestId = newRequestId(); form.reset(); el('transportStart').value = localDate(); updateStops();
+            assignmentGuard.markClean();
             notify('Transport assignment saved.', true);
             await Promise.all([loadStudents(), loadActive(), loadStatic()]);
-        } catch (err) { notify(err.message); } finally { save.disabled = false; }
+        } catch (err) { notify(err.message); } finally {
+            assignmentBusy = false; form.inert = false; refreshAssignmentSave();
+        }
     }
     async function loadActive() {
+        const request = ++activeRequest;
         try {
             const q = new URLSearchParams({ page: String(activePage), pageSize: '25' });
             const term = el('transportActiveTerm').value.trim(); if (term) q.set('search', term);
             const data = await api('/api/transport/active-assignments?' + q);
+            if (request !== activeRequest) return;
             const body = el('transportActiveRows'); body.replaceChildren();
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
@@ -183,9 +225,10 @@
             el('transportPageInfo').textContent = 'Page ' + activePage + ' of ' + activePages + ' · ' + data.totalCount + ' total';
             el('transportPrev').disabled = activePage <= 1;
             el('transportNext').disabled = activePage >= activePages;
-        } catch (err) { notify(err.message); }
+        } catch (err) { if (request === activeRequest) notify(err.message); }
     }
     function beginRiderExtension(item) {
+        if (extensionBusy) return;
         if (!item.endDate || item.startDate > localDate() || item.endDate < localDate()) {
             notify('Only operating reservations with a current finite end can be extended.'); return;
         }
@@ -200,12 +243,13 @@
     }
     async function submitRiderExtension(event) {
         event.preventDefault();
-        if (!pendingRiderExtension) return;
+        if (extensionBusy || !pendingRiderExtension) return;
         const item = pendingRiderExtension, endDate = el('transportRiderExtensionDate').value;
         if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate) || endDate <= item.endDate) {
             notify('Choose a new end date after the existing reservation end.'); return;
         }
         if (!confirm('Extend the reservation for ' + item.studentName + ' through ' + endDate + '?')) return;
+        extensionBusy = true;
         const save = el('transportRiderExtensionSave');
         save.disabled = true;
         try {
@@ -215,9 +259,10 @@
             el('transportRiderExtensionPanel').hidden = true;
             notify('Rider reservation extended.', true);
             await Promise.all([loadActive(), loadStatic()]);
-        } catch (err) { notify(err.message); } finally { save.disabled = false; }
+        } catch (err) { notify(err.message); } finally { extensionBusy = false; save.disabled = false; }
     }
     function beginStopCorrection(item) {
+        if (correctionBusy) return;
         const route = routes.find(x => x.reference === item.routeReference);
         if (!route?.isActive || !route.stops) { notify('Route is unavailable. Refresh the route list.'); return; }
         pendingStopCorrection = item;
@@ -234,10 +279,10 @@
     }
     async function submitStopCorrection(event) {
         event.preventDefault();
-        if (!pendingStopCorrection) return;
+        if (correctionBusy || !pendingStopCorrection) return;
         const item = pendingStopCorrection, save = el('transportCorrectSave');
         if (!confirm('Update pickup/drop stops for ' + item.studentName + '? Monthly fare will not change.')) return;
-        save.disabled = true;
+        correctionBusy = true; save.disabled = true;
         try {
             const active = item.startDate <= localDate();
             const endpoint = active ? '/active-stops' : '/stops';
@@ -249,9 +294,10 @@
             pendingStopCorrection = null; el('transportStopCorrectionPanel').hidden = true;
             notify(active ? 'Current transport stops updated.' : 'Upcoming transport stops updated.', true);
             await loadActive();
-        } catch (err) { notify(err.message); } finally { save.disabled = false; }
+        } catch (err) { notify(err.message); } finally { correctionBusy = false; save.disabled = false; }
     }
     async function closeAssignment(item, button) {
+        if (button.disabled) return;
         if (item.startDate > localDate()) { notify('Cancel upcoming reservations instead of closing them.'); return; }
         if (!confirm('Close the transport assignment for ' + item.studentName + '?')) return;
         const date = prompt('End date (YYYY-MM-DD)', localDate());
@@ -274,8 +320,10 @@
     if (el('transportMine')) loadMine();
     if (canManage) loadStatic();
     if (canManage) {
-        el('transportStart').value = localDate();
-        el('transportRoute').addEventListener('change', updateStops);
+        el('transportStart').value = localDate(); assignmentGuard.markClean(); refreshAssignmentSave();
+        el('transportRoute').addEventListener('change', () => { updateStops(); refreshAssignmentSave(); });
+        el('transportVehicle').addEventListener('change', refreshAssignmentSave);
+        el('transportStudent').addEventListener('change', refreshAssignmentSave);
         for (const id of ['transportStart', 'transportEnd']) {
             el(id).addEventListener('change', () => {
                 studentPage = 1;
@@ -288,10 +336,11 @@
         el('transportAssignmentForm').addEventListener('submit', assign);
         el('transportRiderExtensionForm').addEventListener('submit', submitRiderExtension);
         el('transportRiderExtensionCancel').addEventListener('click', () => {
+            if (extensionBusy) return;
             pendingRiderExtension = null; el('transportRiderExtensionPanel').hidden = true;
         });
         el('transportStopCorrectionForm').addEventListener('submit', submitStopCorrection);
-        el('transportCorrectCancel').addEventListener('click', () => { pendingStopCorrection = null; el('transportStopCorrectionPanel').hidden = true; });
+        el('transportCorrectCancel').addEventListener('click', () => { if (correctionBusy) return; pendingStopCorrection = null; el('transportStopCorrectionPanel').hidden = true; });
         el('transportActiveSearch').addEventListener('submit', event => { event.preventDefault(); activePage = 1; loadActive(); });
         el('transportPrev').addEventListener('click', () => { activePage = Math.max(1, activePage - 1); loadActive(); });
         el('transportNext').addEventListener('click', () => { activePage = Math.min(activePages, activePage + 1); loadActive(); });
