@@ -291,11 +291,17 @@ select,
 }
 .sidebar .sidebar-submenu .nav-link {
     min-height: 2.3rem; margin-bottom: .1rem;
-    padding: .47rem .5rem; border-radius: .55rem;
+    gap: .55rem; padding: .47rem .6rem; border-radius: .55rem;
     font-size: .84rem; font-weight: 500; line-height: 1.3;
     overflow-wrap: anywhere;
 }
-.sidebar .sidebar-submenu .nav-link .edu-icon { width: 1rem; height: 1rem; }
+/* Leaf routes read as a clean tree. Icons identify modules, not every action. */
+.sidebar .sidebar-submenu .nav-link > .edu-icon { display: none; }
+.sidebar .sidebar-submenu .nav-link::before {
+    content: ''; flex: 0 0 .27rem; width: .27rem; height: .27rem;
+    border-radius: 50%; background: rgba(191, 219, 254, .6);
+}
+.sidebar .sidebar-submenu .nav-link.active::before { background: #7dd3fc; }
 .sidebar .sidebar-submenu .nav-link.active {
     background: rgba(56, 189, 248, .2); box-shadow: inset .2rem 0 0 #7dd3fc;
     font-weight: 700;
@@ -322,6 +328,7 @@ select,
 .sidebar-category-links { padding-left: .3rem; margin: .15rem 0 .35rem .2rem; border-left: 1px solid rgba(255,255,255,.16); }
 .sidebar .sidebar-dashboard-link { margin-bottom: .5rem; }
 .sidebar .sidebar-single-link { min-height: 2.6rem; font-size: .89rem; }
+.sidebar .sidebar-single-link .sidebar-group-icon { flex: 0 0 1.1rem; color: #a7d8ff; }
 
 .sidebar-divider {
     margin: 1rem .45rem;

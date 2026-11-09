@@ -70,7 +70,11 @@ async function exercise(browser, bn) {
 }
 
 (async () => {
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox'],
+        ...(process.env.EDUOS_CHROMIUM_EXECUTABLE ? { executablePath: process.env.EDUOS_CHROMIUM_EXECUTABLE } : {})
+    });
     try {
         await exercise(browser, false);
         await exercise(browser, true);

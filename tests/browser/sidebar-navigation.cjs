@@ -5,13 +5,14 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const script = path.resolve(__dirname, '../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+const css = path.resolve(__dirname, '../../EduOS.App/wwwroot/css/site.css');
 const referenceA = 'A'.repeat(64), referenceB = 'B'.repeat(64);
 let tenant = '22', reference = referenceA, bangla = false;
 function html() {
     return '<!doctype html><html lang="' + (bangla ? 'bn-BD' : 'en-BD') +
         '"><head><meta charset="utf-8"></head><body data-auth-tenant-id="' + tenant +
         '" data-auth-session-reference="' + reference + '">' +
-        '<aside id="sidebarMenu" aria-label="Main navigation">' +
+        '<aside class="sidebar" id="sidebarMenu" aria-label="Main navigation">' +
         '<div class="menu-title">Main</div>' +
         '<nav data-sidebar-section="setup">' +
         '<a class="nav-link" href="/Dashboard/Index">Dashboard</a>' +
@@ -48,6 +49,7 @@ async function exercise(browser, mobile) {
         route.fulfill({ contentType: 'text/html; charset=utf-8', body: html() }));
     try {
         await page.goto('http://eduos.test/Dashboard/Index');
+        await page.addStyleTag({ path: css });
         await inject(page);
         const academicSection = page.locator('nav[data-sidebar-section="academics"]');
         const managementSection = page.locator('nav[data-sidebar-section="management"]');
@@ -63,12 +65,22 @@ async function exercise(browser, mobile) {
         assert.equal(await academicSection.evaluate(el => el.hidden), false,
             'keyboard opens the Academics section');
         assert.equal(await managementSection.evaluate(el => el.hidden), true);
+        await page.waitForFunction(() => JSON.parse(
+            sessionStorage.getItem('eduos.sidebar.navigation.v1') || '{}').section === 'academics');
+        await page.goto('http://eduos.test/Dashboard/Index');
+        await page.addStyleTag({ path: css });
+        await inject(page);
+        assert.equal(await academicSection.evaluate(el => el.hidden), true,
+            'returning to Dashboard must not restore a previously expanded section');
+        assert.equal(await managementSection.evaluate(el => el.hidden), true);
         await managementToggle.click();
         assert.equal(await academicSection.evaluate(el => el.hidden), true,
             'only one expanded section remains visible');
         assert.equal(await managementSection.evaluate(el => el.hidden), false);
         assert.equal(await managementToggle.getAttribute('aria-expanded'), 'true');
-        await managementToggle.click();
+        await page.goto('http://eduos.test/Dashboard/Index');
+        await page.addStyleTag({ path: css });
+        await inject(page);
         assert.equal(await managementSection.evaluate(el => el.hidden), true);
         if (!mobile) {
             await page.evaluate(() => {
@@ -104,6 +116,11 @@ async function exercise(browser, mobile) {
         });
         assert.equal(await access.count(), 1);
         assert.equal(await institution.count(), 1);
+        assert.equal(await page.locator('a.nav-link[href="/TenantUsers/Index"] .sidebar-group-icon').count(), 1,
+            'one-destination module has the same visual icon as grouped modules');
+        assert.equal(await page.locator('.sidebar-submenu a.nav-link').first().evaluate(el =>
+            getComputedStyle(el.querySelector('.edu-icon') || el, '::before').content), '""',
+        'nested routes have a uniform visual marker');
         const career = page.locator('summary.sidebar-group-toggle').filter({
             hasText: mobile ? 'ক্যারিয়ার ও কর্মসংস্থান' : 'Career & Placement'
         });
@@ -195,7 +212,11 @@ async function exercise(browser, mobile) {
     } finally { await context.close(); }
 }
 (async () => {
-    const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+    const browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox'],
+        ...(process.env.EDUOS_CHROMIUM_EXECUTABLE ? { executablePath: process.env.EDUOS_CHROMIUM_EXECUTABLE } : {})
+    });
     try {
         await exercise(browser, false);
         await exercise(browser, true);

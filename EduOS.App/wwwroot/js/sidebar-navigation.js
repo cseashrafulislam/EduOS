@@ -336,7 +336,9 @@
         if (topNavigation || (section !== 'academics' && section !== 'management')) return true;
         if (activeSection === 'academics' || activeSection === 'management')
             return section === activeSection;
-        return section === savedSection;
+        // A previous academic/management page must not expand the Dashboard
+        // on the next visit. The user can still expand a section manually.
+        return false;
     }
 
     if (typeof module !== 'undefined' && module.exports) {
@@ -385,6 +387,15 @@
     const allLinks = [];
     const allDetails = [];
     const allCategories = [];
+    function createModuleIcon(section, key) {
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('class', 'edu-icon sidebar-group-icon');
+        icon.setAttribute('aria-hidden', 'true');
+        const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+        use.setAttribute('href', '/images/eduos-icons.svg#' + groupIconFor(section, key));
+        icon.append(use);
+        return icon;
+    }
     for (const nav of navs) {
         const section = nav.dataset.sidebarSection;
         const definitions = groups[section] || [];
@@ -421,6 +432,8 @@
             // level. Keep its real Razor link directly accessible instead.
             if (children.length === 1) {
                 children[0].classList.add('sidebar-single-link');
+                if (!children[0].querySelector('.edu-icon'))
+                    children[0].prepend(createModuleIcon(section, key));
                 container.append(children[0]);
                 continue;
             }
@@ -429,12 +442,7 @@
             details.dataset.sidebarGroup = `${section}:${key}`;
             const summary = document.createElement('summary');
             summary.className = 'sidebar-group-toggle';
-            const moduleIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            moduleIcon.setAttribute('class', 'edu-icon sidebar-group-icon');
-            moduleIcon.setAttribute('aria-hidden', 'true');
-            const iconUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            iconUse.setAttribute('href', '/images/eduos-icons.svg#' + groupIconFor(section, key));
-            moduleIcon.append(iconUse);
+            const moduleIcon = createModuleIcon(section, key);
             const label = document.createElement('span');
             label.className = 'sidebar-group-label';
             label.textContent = bangla ? bengali : english;

@@ -15,7 +15,10 @@ test('large navigation sections start closed on Dashboard and open on their own 
     assert.equal(sectionInitiallyOpen('academics', 'academics', '', false), true);
     assert.equal(sectionInitiallyOpen('management', 'academics', 'management', false), false);
     assert.equal(sectionInitiallyOpen('management', 'management', 'academics', false), true);
-    assert.equal(sectionInitiallyOpen('academics', 'setup', 'academics', false), true);
+    assert.equal(sectionInitiallyOpen('academics', 'setup', 'academics', false), false,
+        'saved academic section must not clutter Dashboard');
+    assert.equal(sectionInitiallyOpen('management', 'setup', 'management', false), false,
+        'saved management section must not clutter Dashboard');
     assert.equal(sectionInitiallyOpen('setup', 'setup', '', false), true);
     assert.equal(sectionInitiallyOpen('academics', 'setup', '', true), true);
     assert.equal(sectionInitiallyOpen('management', 'setup', '', true), true);
@@ -36,8 +39,10 @@ test('standard sidebar has recognizable grouped icons, generous width and sticky
     assert.match(script, /document\.createElementNS\('http:\/\/www\.w3\.org\/2000\/svg', 'svg'\)/);
     assert.match(script, /summary\.append\(moduleIcon, label\)/);
     assert.match(script, /if \(children\.length === 1\)/);
+    assert.match(script, /children\[0\]\.prepend\(createModuleIcon\(section, key\)\)/);
     assert.match(styles, /--edu-sidebar-width: 18\.25rem/);
     assert.match(styles, /\.sidebar-feature-search \{\s*position: sticky/);
+    assert.match(styles, /\.sidebar \.sidebar-submenu \.nav-link > \.edu-icon \{ display: none; \}/);
 });
 
 test('every sidebar section is grouped without replacing role and module gated Razor links', () => {
