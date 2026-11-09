@@ -2,6 +2,8 @@
 
 **Decision baseline:** 2026-10-27; **unified owner delivery decision:** 2026-10-31 | **Working branch:** `Ashraful` | **Status:** approved product direction, not a claim of implemented features. The [Unified Project Master Plan](PROJECT_MASTER_PLAN.md) is the only active backlog; former release partitions are history.
 
+**Latest application UI/UX delivery standard (2026-11-09):** The [Final UI/UX Implementation & Acceptance Plan](UI_UX_FINAL_IMPLEMENTATION_PLAN_20261109.md) consolidates twelve work packages for the existing and new application pages. Keep the approved navy/blue/white design, task-based navigation/forms/dashboards, per-user scoped Appearance, full bilingual/page-help/mobile/report quality, **one global/page-aware voice assistant with label-directed eligible field actions**, and independent source/security/performance QA. This is required UX scope, not proof of a completed feature or permission to duplicate domain services.
+
 ## 1. Product identity
 
 EduOS is a configurable, multi-tenant **Education ERP + LMS + Finance + Administration** platform. One modular codebase serves schools, colleges, universities, madrasas, polytechnics, vocational/training institutes, coaching centres, private tutors and LMS-only providers. Institution presets configure terminology, rules, enabled modules and UI; they must not cause institution-specific entity/class/table renames or separate forks.

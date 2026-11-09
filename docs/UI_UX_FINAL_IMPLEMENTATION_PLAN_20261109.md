@@ -1,0 +1,176 @@
+# EduOS — Final UI/UX Implementation & Acceptance Plan
+
+**Owner decision:** 2026-11-09 | **Branch:** Ashraful only | **Scope:** unified EduOS application (existing and future pages) | **Status:** approved requirements and execution plan; **NOT evidence that any work package has passed QA or shipped**.
+
+> Start here for the current UI/UX backlog. This plan **combines** the prior design, appearance, bilingual Page Information, PWA, and AI/voice requirements in [UI_PERSONALIZATION.md](UI_PERSONALIZATION.md), the unified ownership/backlog in [PROJECT_MASTER_PLAN.md](PROJECT_MASTER_PLAN.md), the product capability map in [PRODUCT_BLUEPRINT.md](PRODUCT_BLUEPRINT.md), and mandatory [AGENTS.md](../AGENTS.md). Existing dated implementation notes and verified slices are retained as history, not duplicated development tasks. Where the earlier voice plan limited microphones to pilot forms, **the 2026-11-09 all-page, label-directed requirement below supersedes that rollout target**, while retaining pilot-first sequencing, server authorization, provider opt-in, and confirmation safety. No automation/schedule change is authorized by this documentation update.
+
+## 1. Non-negotiable product decisions
+
+1. **Keep the approved visual identity:** current navy sidebar, blue accents and white/light surfaces; retain supported Light/Dark/System, optional palette/custom HEX/RGB, readable contrast, and authorized institutional branding. Do not clone a competitor or replace the entire color system.
+2. **One coherent product and one shared design system:** all modules/roles use the same approved shell, tokens, components, Page Information Help Drawer, localization and preference contract. Preserve working routes, existing data and business rules.
+3. **Make navigation understandable:** module-oriented grouping, no duplicate routes or generic repeated “Other” buckets, meaningful titles, one active destination, favorites/recent/global feature search and maximum Module → Operations/Reports/Settings → Feature when the middle level adds value. Do not flatten hundreds of authorized features into a single massive menu.
+4. **One page, one primary job:** keep related tasks together, separate unrelated setups/operations, avoid duplicate headers, giant explanatory panels, modal chains, setup banners after completion and excessive footer notes.
+5. **Voice is available on every supported EduOS application page:** one global Ask EduOS experience plus a compact page-aware voice/text entry point; voice operates eligible visible, authorized form fields by spoken **label/alias**, not one microphone/textarea per field. Read-only pages support safe page/navigation/filter commands. Roll out and verify by page inventory; unsupported controls have explicit non-deceptive fallback.
+6. **Business integrity outranks convenience:** no voice, theme or UI action bypasses tenant/campus/record/role checks, module entitlement, state-machine/approval restrictions, idempotency, financial GL, stock movements, audit or historical reporting. No arbitrary SQL or client-only permission decision.
+7. **Preserve data and preferences:** reuse existing user-within-institution appearance persistence, module APIs and deep links. Migration, if actually necessary, is additive, versioned, rollback-aware and tenant-safe.
+8. **Bilingual and Bangladesh-first:** bn-BD and en-BD across menus, forms, validations, help, print/report headings and voice aliases; school/college/madrasa configuration determines terminology without per-institute code forks.
+9. **No false completion claims:** planned, in progress, implemented and verified mean different things. Screenshot inspection is a UX finding, not proof of runtime performance/security or institution UAT.
+
+## 2. Baseline evidence and specific reported UX defects
+
+The owner's 2026-11-09 screenshots show the following **visual observations only**, requiring reproduction and source verification before code changes:
+
+| Surface | Observed issue | Intended correction / verification |
+| --- | --- | --- |
+| Institution dashboard | Large setup/subscription panel despite 100% setup; repeated account status/checklist; operational metrics secondary; zero student/teacher counts without data context; “Owner/Trial Not available” text | Role-based daily work and source-backed KPIs first; completed setup collapsed/secondary; show true empty/unknown states and correct onboarding/plan status; no fabricated values |
+| Sidebar | Deep nested Academics → Settings → features; multiple “Other” groups; Admissions and Student-related destinations appear in separate groups; numeric badges resemble unread alerts | Audited canonical route map and task-based labels; remove duplicate destinations only, preserve deep links/entitlements; badge labels/counts must convey their actual meaning or be omitted |
+| Workspace Appearance | Very long page mixing personal theme, dashboard widgets, unrelated table-column lists and institutional branding; save actions far below fold | Personal Appearance, Dashboard Customize, local Table Columns and authorized Institution Branding as distinct surfaces backed by the existing scoped preferences |
+| New Admission Application | Duplicate title cards, large default “Draft from text”/speech-provider warnings, excessive preview/apply/undo controls before form, separate readiness box, Published Intake unselected while year/campus/class already shown | Compact task header, intake-first dependency and validated selections, grouped student/guardian form, optional collapsed AI/Voice entry, inline readiness and clear draft/submit actions |
+
+**Known existing assets to inspect, not recreate blindly:** shared Razor layout, sidebar-navigation.js, platform/feature-discovery.js, shared site.css/design tokens, WorkspacePreferences controller/view/persistence, localization and Page Information Help Drawer, current Ask EduOS/voice assets, actual relevant APIs and tests. Build a fresh current-HEAD route/field inventory; do not assume screenshot defects represent every institution or role.
+
+## 3. Ownership and no-duplicate-work boundary
+
+| Owner | Primary responsibility | Boundary / required coordination |
+| --- | --- | --- |
+| **Daywise / Existing Full UI UX** | Navigation, shell, design tokens, page/field presentation, responsive forms/lists/reports, per-page voice launcher and field adapters, localization, Help Drawer, appearance/settings UX, UI-level performance and targeted regression | Does not create alternative domain services, ledgers, statuses, SQL/AI orchestration or a parallel theme/help/voice system |
+| **Requisition / AI-Voice backend** | Reviewed deterministic bilingual intents, provider-neutral/local-first speech/AI processing contracts and approved capability registry | Expose one typed, authenticated interface; Daywise owns presentation, not another backend parser |
+| **Article Control / Education domain** | Admission, student, academic/exam and applicable Bangladesh workflows and their authoritative server-side validation | New pages follow shared UI contract; domain owner keeps posting/admission/status commands |
+| **Advice Sheet / Education content** | LMS/library/learning backend and approved content workflows | Newly delivered pages use common UI components; no separate design fork |
+| **Received / Independent QA** | Cross-module auth/tenant/CSRF/IDOR, concurrency, integrity, performance, browser/mobile/locale/voice security evidence | QA may triage unowned gaps but does not reimplement another owner's canonical business service |
+
+The owner may pause/resume automations separately. This plan **does not activate, reschedule, create or rename tasks**, and does not create another branch or a standalone centralization queue. New full-stack development owns its own feature UI/QA; the UI owner supplies shared components and performs consistency/coverage verification, not duplicate feature construction.
+
+## 4. Twelve implementation work packages
+
+All items require a route/component inventory, scoped implementation, tests and exact-SHA evidence. Priority describes ordering, **not** current completion status.
+
+| ID | Work package | Required deliverables | Acceptance evidence |
+| --- | --- | --- | --- |
+| **UX-01 P0** | **Sidebar and navigation** | Role/entitlement-aware route map; meaningful module grouping; collapse/active/deep links; accessible searchable menu; favorites/recent; remove duplicate “Other” destinations; preserve valid navigation modes | Each authorized route reachable via canonical menu/search/context; forbidden routes absent and direct access denied; bn/en, mobile, keyboard, tenant switch tests |
+| **UX-02 P0** | **Shared design system and shell** | Retain navy/blue/white tokens; one header, page title, breadcrumb/help, cards, buttons, inputs, statuses, dialogs, toasts, skeletons, empty/error/403 states; responsive density | Visual/component regression by role/theme; no duplicated CSS engines or accidental financial-status recoloring |
+| **UX-03 P0** | **All create/edit/transaction forms** | One coherent task and title; logical field groups; required state; sensible defaults; tenant-safe searchable/dependent selects; inline errors; predictable save/cancel; draft and unsaved-change behavior; duplicate-submit prevention | Normal/invalid/stale/retry/multi-tab flows; existing domain API and report parity; no unauthorized autofill |
+| **UX-04 P0** | **All lists, tables and details** | Consistent search/filter/sort; server-side paging/projections; row actions/statuses; authorized exports/print; inline per-table columns/order; responsive detail context and return-to-list filters | Large seeded dataset query/page evidence; filter/export consistency; permission-safe column/profile persistence |
+| **UX-05 P0** | **Role-based operational dashboards** | Principal/Admin/Teacher/Accountant/Student/Guardian/SuperAdmin role-specific cards, attendance/collections/dues/actions, exact source definitions, drilldowns; setup/subscription relocated to secondary administration | Canonical report totals and campus/as-of scope; zero vs no-data vs unauthorized distinctions; no cross-tenant widget |
+| **UX-06 P0** | **All-page AI/voice UI integration** | One Ask EduOS page; one reusable global/page launcher; label-directed field registry and adapters; typed fallback; transcript edit, preview/highlight/undo/clarify/confirm; secure navigation/filter commands | Page-by-page supported-field matrix; bn/en, dropdown collision, voice denial/provider-off, role/tenant, high-risk no-auto-post and offline text tests |
+| **UX-07 P1** | **Workspace Appearance and settings** | Personal Appearance, Dashboard Customize, per-table Columns and authorized Institution Branding separated without duplicated stored facts; advanced color controls on demand; safe preview/reset/save | Existing preference migration/round-trip/cross-institute isolation; contrast, conflict, desktop/mobile tests |
+| **UX-08 P1** | **Mobile/tablet responsive UX and PWA** | Useful 360/390/768/1280+ layouts; sidebar drawer; forms, tables, filters, modals, reports, voice; offline/reconnect indicators with no private-data service-worker cache | Actual viewport/keyboard/touch/auth switching tests; no horizontal form breakage, private offline cache or unsafe offline write |
+| **UX-09 P0** | **End-to-end perceived and measured performance** | Page-specific baseline, route/API waterfalls, lazy voice/chart/optional JS, data projection/paging, avoid N+1/unnecessary Includes, stable loading/cancel/retry and SQL indexes only when measured | Before/after p75/p95 interaction/route/API, SQL IO/plan and error/throughput evidence by representative role/tenant; no unmeasured speed claim |
+| **UX-10 P1** | **All-module workflow polish** | Per-module route matrix; task-first operations, settings, reports, approval/correction/print; fix duplications/overloaded pages; reconcile Admissions vs Student register and public-vs-admin admission flows | Functional end-to-end routes and existing API/status preservation; owners sign off on real business behavior |
+| **UX-11 P1** | **Localization, accessibility and in-app manuals** | bn-BD/en-BD parity; one compact page-header Info → reviewed on-demand bilingual Help Drawer; keyboard/focus/contrast/Bangla font/touch; localized print/PDF/Excel where supported | Missing-key coverage, accurate examples, roles, read-only/403 states, keyboard/mobile/screen-reader and bilingual export assertions |
+| **UX-12 P0 final gate** | **Independent UI/UX regression QA** | Full route and field coverage register; role × tenant × campus × language × theme × device matrix; authorization, privacy, report/source and voice security; no regressions | Exact Ashraful SHA, build/JS/.NET/SQL/Chromium results with PASS/FAIL/BLOCKED/NOT RUN and UAT explicitly separate |
+
+### 4.1. P0 means solve first; it does not remove P1
+
+P0 navigation, shell, forms and data-performance foundations should be established before mass module migration. Shared AI/voice core and adapters can advance in their assigned owner tracks, but final all-page coverage requires the common field contract and P0/P1 QA. Avoid a project-wide cosmetic rewrite that creates hundreds of unverified partial screens.
+
+## 5. Mandatory page/module coverage inventory
+
+Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:
+
+**Route/Area | Controller/View/JS | Module | Role/Entitlement | Tenant/Campus/Record Scope | Page Type | Old Navigation | New Canonical Navigation | Form Controls & Dependencies | Voice Field/Action Coverage | Bilingual Help Key | Table/Print/Export | Mobile | API/SQL Dependencies | Tests | Status | Evidence SHA | Blocker/Owner.**
+
+Inventory these existing and newly implemented domain areas; **absence of a row is not proof a feature is missing**:
+
+1. SaaS onboarding, plans, subscription, institutional branding, multi-institution account switching, platform governance, users/access/privacy/audit.
+2. Admission Intake configuration and Public Admission Application; internal New Application, review, assessment/merit, offer, verification, enrolment and admissions reporting.
+3. Students, guardian/identity consent, records/documents, promotion/transfer, attendance, class/section/campus and academic-year workflows.
+4. Academic setup, programmes/grades, departments, subjects/curriculum/prerequisites, class routine/calendar, teacher assignments.
+5. Exams, marks/moderation, results/publish/corrections, report cards/transcripts/certificates and OBE features where actually implemented.
+6. Fee structures, invoice generation, fee collection, dues/aging, scholarships/discounts, central Finance accounts/GL, cash/bank, statements and authorized reports.
+7. HR/staff/leave/attendance/payroll, maker/checker, statutory/print/report surfaces.
+8. LMS, lessons, assignments/submissions, quizzes/questions, education library/digital content and teacher/student/guardian portals.
+9. Library, Hostel, Transport, inventory/store, Procurement, Assets, Facilities, Visitor Operations and related source-linked reports.
+10. Notifications, messaging, files/documents, calendar, Work Center/MIS, reports/export/audit, career/alumni/research/accreditation and available integrations.
+
+Marketing website redesign is a separate website deliverable; it shares branding and truthful feature language but does **not** make this application UI scope a website rebuild.
+
+For each route, check **create, edit, details, list, approval/status, error/empty/loading, reports/print/export, responsive, voice and help** as applicable. Avoid forcing an irrelevant Create/Voice Field on a read-only report: that page still exposes the page-level assistant for authorized navigation/filter/read actions and reports its eligible control count accurately.
+
+## 6. Canonical admission page correction — reusable form exemplar
+
+- **Admission Intake** is an admin-configured period/rules/eligible-campus/programme source; **Application** is a separate, linked applicant transaction. Never combine the two editable sources or duplicate academic-year/campus/master records.
+- On **New Admission Application**, choose a currently eligible **Published Intake first** (subject to server validation). Load its allowed academic year/term/campus/level or allowed options. Do not silently preselect conflicting year/class/campus while Intake is empty. One-to-many allowed options remain selectable **within Intake limits**; validated fixed values may be read-only.
+- Show one page heading; use compact **Admission context → Student → Guardian/Contact → Documents (when actually required) → Review/Submit**. Inline required messages, correct Bangladeshi phone/date conventions, true optional fields and clear success destination.
+- A compact **AI/Voice Assistant** control replaces the permanently expanded Draft-from-Text box and repeated microphone-provider errors. Voice provider unavailable means honest typed fallback; never imply audio was recorded or voice worked.
+- Draft text parsing is **not submission**; show editable recognized fields, field highlights, Apply/Undo only where meaningful, and existing validated Submit. Do not auto-post, auto-publish an intake, or skip duplicate/eligibility/deadline checks.
+- Public external application and staff-assisted internal application reuse validated server rules and canonical data; they remain distinct views/permissions and must not leak applicant PII across institutes.
+
+## 7. AI/Voice detailed page-level and field-level contract (latest owner change)
+
+### 7.1. Interaction model
+
+- Every supported operational page has **one accessible, clearly named page-level AI/Voice entry** (possibly integrated with the common header/global launcher), **not** a microphone on each field or a giant always-open textarea. The global Ask EduOS experience remains **one** interface, with a dynamic approved capability catalogue (never a fixed agent count).
+- On page activation, resolve **current authorized form/section, route, control metadata, record and tenant/campus scope**. The field registry uses stable keys, explicit labels, bn/en spoken aliases, type, allowed options, dependencies, required/read-only/hidden/disabled state and domain adapter. Reuse real accessible label/for, name and ARIA metadata; avoid relying on DOM position or free-text fuzzy matching alone.
+- Spoken examples: “Applicant name Abu Nayeem” populates one editable text field; “Gender Male” selects only an existing gender option; “Campus Mirpur” selects an authorized campus then refreshes eligible child controls; “Date of birth 15 March 2015” parses against form locale and date rules; “Check required fields” runs current validation; “Undo last voice change” restores the previous draft state.
+- Support text, textarea, numeric/decimal, date, select/searchable select, radio, checkbox, table-cell entry **only when explicit safe adapters exist**; file upload can open a user-controlled picker but cannot invent/authorize a file. Protected/read-only/hidden/financially locked controls cannot be overwritten. Re-resolve aliases when page/section, tenant, campus or selected parent changes.
+- Same/similar label, person name, campus, class or option matches require **clarification**; ambiguity must never silently choose the first result. A voice-selected dropdown uses real authoritative option IDs, not invented text. Validation and parent/child dependencies use the existing application form logic.
+- Listening → editable transcript → resolved field/action preview → highlighted proposed changes → user Apply/Undo/Confirm → canonical server operation where authorized. Ordinary safe draft field changes may apply on explicit user direction with reversible undo; **submit, approve, publish, pay, delete, reverse, lock, bulk update and other consequential actions require explicit review and confirmation** and the existing server workflow. Voice never directly authorizes sensitive writes.
+- Never auto-open microphone, start recording without gesture, retain raw audio/transcripts by default, or silently send a child's/guardian's/payroll/finance data to an unapproved provider. Provider-neutral local-first contract, consent/HTTPS/cancel/time/size bounds, offline-safe typed fallback and no-model default follow [UI_PERSONALIZATION.md §8.8](UI_PERSONALIZATION.md#88-unified-ask-eduos-voice-entry--task-3-pending-uiux-scope-owner-addition-2026-11-06) and [PROJECT_MASTER_PLAN.md](PROJECT_MASTER_PLAN.md). Browser-native speech is **not presumed local**.
+
+### 7.2. All-page rollout without unsupported promises
+
+1. Inventory and register each **supported** page and its eligible controls; the launcher is present consistently. If a page has no editable controls (or no approved voice provider), offer safe typed commands/navigation/help and truthful capability states.
+2. Pilot and prove **Admission, Attendance, Fee Collection**; next Exam Marks, HR/Payroll, Library, Hostel, Transport, Facilities, LMS and remaining routes. “Pilot” controls deployment order, **not** the final requirement: all eligible application pages and fields must be mapped, tested or explicitly documented as unsupported with a justified risk/technical reason.
+3. Keep a field/action matrix: route, field key/label aliases, type, adapter, dependencies, permission, success/ambiguity/invalid cases, bn/en tests, keyboard/mobile tests, reviewed status.
+4. No raw SQL/LLM-generated authority, no client-only tenant assumptions, no fixed AI agent count or per-module duplicate engine. Reviewed backend intents/capabilities remain Requisition's contract; Daywise reuses it. All public or guest microphone surfaces require their own privacy/abuse review.
+
+## 8. Workspace Appearance, dashboard and shell destination rules
+
+| User-facing setting or work | Canonical UX location | One authoritative owner |
+| --- | --- | --- |
+| Theme, fonts, density, navigation placement, personal semantic colors | **My Profile → Appearance** (Basic; Advanced collapsed) | Existing per-user-per-institute preference contract |
+| Dashboard cards, order and visibility | **Dashboard → Customize** | Same scoped preference source, authorized widget allowlist |
+| Column visibility/order for a table | **That table → Columns** | Same scoped preference store keyed by stable table ID; never hide server-required/audit fields for actual queries |
+| Logo, campus branding, institution public color/portal | **Administration → Branding / Institution Settings** | Existing authorized institutional config, **not** a parallel personal color record |
+| Onboarding, subscription, plan usage, capacity | **Institution/Subscription Admin**; dashboard only when action genuinely pending | Existing authoritative subscription/setup services |
+| Dashboard daily activity and cards | **Dashboard** | Existing canonical domain report/MIS sources, scoped to role/campus/as-of |
+
+Keep header Find Feature, language/account switch and contextual Info/help discoverable but compact. A fully completed setup is **not** a permanent full-width checklist; genuine pending/expired/blocked states remain visible. Avoid redundant duplicate dashboard headers, broken “Not available” placeholders and confusing feature-count badges. Re-check zero/unknown metrics against real data rather than cosmetic substitution.
+
+## 9. Execution sequence and dependencies
+
+| Phase | Scope | Dependency/gate | Output |
+| --- | --- | --- | --- |
+| **0 — Read-only inventory** | Full route/page/field/role map, screenshot issues, current HEAD code/tests/CI, baseline mobile/load metrics | Must precede broad edits; exact gaps and owners | Coverage matrix + baseline and risk register |
+| **1 — Shared foundation** | UX-01 + UX-02: canonical shell, navigation, component/tokens, reusable help/locale contracts | Preserve current server-rendered authorization and existing theme/prefs | Tested shared UI contract and compatibility |
+| **2 — High-use workflows** | UX-03 + UX-04 + UX-10 pilots: Admission/Student, Attendance, Fees, Exams/marks, Payroll; operational dashboard UX-05 | Source owner confirms domain rules; no schema churn for pure UI | Verified form/list/detail/transaction patterns |
+| **3 — Personalization and voice** | UX-07 Appearance split; UX-06 shared launcher + label adapters/field registry; role dashboards | Requisition backend contracts and authorized domain adapters; voice fallback/confirm | Pilot-evidenced voice + scoped prefs and dashboard parity |
+| **4 — All module coverage** | Apply shared patterns to remaining routes; UX-08 mobile/PWA; UX-11 bilingual/help/accessibility | Prioritize most-used pages, preserve previous verified features | Route and field matrices with no unexplained gaps |
+| **5 — Performance and independent QA** | UX-09 before/after measurement, UX-12 multi-role/multi-tenant regression, exact-SHA CI/SQL/Chromium | No unverified financial, result, audit, IDOR or voice write | Development Final OK evidence **only if all gates actually pass** |
+
+Large coherent, conflict-safe batches are encouraged, but **each batch must compile/test and retain stable navigation/API behavior**. Never claim all-page completion on the strength of one shared component or a few screenshots.
+
+## 10. Acceptance and non-regression matrix
+
+Test at minimum:
+- **Personas:** SuperAdmin, Institution Owner/Admin, Principal, Admission Officer, Teacher, Accountant, HR, Student, Guardian and applicable operation specialists; verify current effective role, not stale menu assumptions.
+- **Scopes:** two distinct institutes, multi-institute user, two campuses, denied direct URL/IDOR, role revoked, module disabled, tenant switch during pending request, back navigation and export/session cache.
+- **Screens:** 360/390px phone, 768px tablet, 1280/1440px desktop, portrait/landscape where meaningful, current target browsers; Light/Dark/System, personal custom contrast, reduced motion, keyboard and touch.
+- **Page types:** dashboard; setup; list/filter/sort/paging; create/edit/details; required/error/duplicate/stale validation; approval/cancel/reversal/confirm; print/PDF/Excel; empty/loading/403/404/expired-session.
+- **Localization/help:** en-BD/bn-BD toggle across shell/form/toast/manual/report and after login/tenant change; read-only/correct examples, matching current actual buttons; no raw technical keys or phantom features.
+- **Voice:** provider not configured, denied permission, no network/provider key, text fallback, consent, ambiguous Bangla/English labels, same-name records, numeric/date parsing, dependent dropdown, unsupported file, hidden/read-only/protected fields, undo/cancel, high-risk explicit confirm, idempotent retry and no provider calls in ModelOff for deterministic factual questions.
+- **Data/performance:** canonical attendance/fee/result/report totals; source↔GL/stock parity when impacted; SQL tenant-filtered projection/paging and actual query plans; before/after browser/network and server p75/p95 plus errors and no uncontrolled cache growth. Use representative loaded data; note test environment and sample size.
+- **Migration:** existing preference payload/tenant defaults, old deep links, feature flags, older version cookies, page bookmarks, custom colors, CI/SQL migrations when affected, rollback and cache invalidation. No private PWA offline cache.
+- **Independent gate:** automated code/JS/.NET/SQL/security/browser evidence with exact commit SHA. User/pilot UAT, external speech provider activation, real deployment/load and production sign-off remain **separate**, explicitly NOT RUN until executed.
+
+No arbitrary fixed performance number or “100% done” without measurement. Treat critical UI/security/data-integrity failure as blocking; recoverable polish issues should be assigned and tracked rather than silently ignored.
+
+## 11. Definition of Ready, Done and repeatable handoff
+
+**DoR per batch:** current Ashraful head, exact routes/modules/roles/fields, existing code and tests, baseline issue reproduction, owner, source API and data scope, upstream/downstream consumers, localization/help impact, performance risk and rollback path.
+
+**DoD per batch:** authorized navigation and task completion; one design system; accurate field/voice behavior; bilingual help; mobile/keyboard; server validation unchanged; paged/scoped data; print/export parity; relevant JS/.NET/SQL and browser/role/tenant tests pass or explicit BLOCKED; exact commit and release notes.
+
+**Overall UI/UX Development Final OK only when:**
+1. Every in-scope existing route/action is inventoried and assigned, with passed or explicitly justified N/A UX checks.
+2. Every eligible field has a supported/tested voice mapping or documented capability gap; no false “works on every field” messaging.
+3. No duplicated/confusing active nav destinations; both languages, dark/light, role/tenant/permission and mobile tested.
+4. Core forms, lists, dashboards, transactions, reports, print and export use a coherent reviewed UI standard.
+5. Performance evidence shows the before/after result and remaining measured bottlenecks.
+6. No new critical accessibility, auth/IDOR/tenant, data-integrity, privacy or status/approval regression.
+7. Verified code is committed to **Ashraful only**, with exact-SHA tests/evidence and a distinct remaining institutional UAT/production gate list.
+
+**Run report template:** Scope/owner → inspected base SHA → routes/pages/fields affected → before issue → actual changed files → domain/tenant/security implications → tested PASS/FAIL/BLOCKED/NOT RUN (exact SHA, CI/SQL/browser links) → unchanged legacy behavior → outstanding route/voice coverage → next highest-value non-duplicate action.
+
+**Documentation maintenance:** Update this plan's coverage/acceptance status only with verified evidence; update detailed [UI_PERSONALIZATION.md](UI_PERSONALIZATION.md) contracts and bilingual page manuals in the same feature change. Change [PROJECT_MASTER_PLAN.md](PROJECT_MASTER_PLAN.md) only for genuinely changed active backlog/ownership. Preserve dated test/implementation logs and do not re-label historical work as current completion.
