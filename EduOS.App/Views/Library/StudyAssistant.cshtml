@@ -24,6 +24,11 @@
         <div class="col-12 col-lg-5">
             <label for="assistantSource" class="form-label">@(bn ? "অনুমোদিত অধ্যায়" : "Reviewed chapter")</label>
             <select id="assistantSource" class="form-select" required><option value="">@(bn ? "অধ্যায় নির্বাচন করুন" : "Select a chapter")</option></select>
+            <div class="d-flex align-items-center justify-content-end gap-2 mt-1">
+                <button id="assistantSourcePrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "আগে" : "Prev")</button>
+                <span id="assistantSourcePage" class="small text-muted" aria-live="polite"></span>
+                <button id="assistantSourceNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "পরে" : "Next")</button>
+            </div>
         </div>
         <div class="col-12">
             <label for="assistantQuestion" class="form-label">@(bn ? "অধ্যায় থেকে প্রশ্ন করুন" : "Ask about the chapter")</label>
@@ -49,6 +54,11 @@
                 <div class="col-sm-7"><label for="assistantReviewSearch" class="form-label">@(bn ? "উৎস খুঁজুন" : "Find reviewable source")</label><input id="assistantReviewSearch" class="form-control" maxlength="100" /></div>
                 <div class="col-sm-5 d-flex align-items-end"><button id="assistantReviewFind" class="btn btn-outline-primary" type="button">@(bn ? "লোড" : "Load sources")</button></div>
                 <div class="col-12"><label for="assistantReviewSource" class="form-label">@(bn ? "লাইসেন্সধারী অধ্যায়" : "Licensed chapter")</label><select id="assistantReviewSource" class="form-select"><option value="">@(bn ? "নির্বাচন করুন" : "Select")</option></select></div>
+                <div class="col-12 d-flex justify-content-end gap-2 align-items-center">
+                    <button id="assistantReviewSourcePrev" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "আগে" : "Prev")</button>
+                    <span id="assistantReviewSourcePage" class="small text-muted" aria-live="polite"></span>
+                    <button id="assistantReviewSourceNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>@(bn ? "পরে" : "Next")</button>
+                </div>
             </div>
             <form id="assistantExcerptForm" class="row g-2 mt-2">
                 <div class="col-sm-6"><label for="assistantLocator" class="form-label">@(bn ? "পৃষ্ঠা/অনুচ্ছেদ" : "Page / paragraph locator")</label><input id="assistantLocator" class="form-control" maxlength="160" minlength="2" required /></div>

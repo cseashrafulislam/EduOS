@@ -1,0 +1,43 @@
+name: C2 Grounded Study QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [Ashraful]
+    paths:
+      - '.github/workflows/c2-grounded-study-qa.yml'
+      - 'EduOS.AI/GroundedChapterStudy.cs'
+      - 'EduOS.App/Controllers/Api/GroundedStudyAssistantController.cs'
+      - 'EduOS.App/Views/Library/StudyAssistant.cshtml'
+      - 'EduOS.App/wwwroot/js/library/study-assistant.js'
+      - 'EduOS.Core/DTOs/Library/GroundedStudyDtos.cs'
+      - 'EduOS.Core/Entities/Library/StudyEvidenceExcerpt.cs'
+      - 'EduOS.Persistence/Context/EduOSDbContext.cs'
+      - 'EduOS.Persistence/Migrations/*GroundedStudy*'
+      - 'EduOS.Service/Services/Library/GroundedStudyAssistantService.cs'
+      - 'EduOS.Tests/Services/GroundedStudyAssistantServiceTests.cs'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-c2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore EduOS.slnx
+      - name: Build
+        run: dotnet build EduOS.slnx --configuration Release --no-restore
+      - name: Validate C2 chapter and service security tests
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~GroundedChapterStudyTests|FullyQualifiedName~GroundedStudyAssistantServiceTests' --logger 'console;verbosity=normal'
+      - name: Validate EF snapshot drift
+        run: |
+          dotnet tool install --global dotnet-ef --version 10.0.12
+          dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
+      - name: Verify all .NET regression tests
+        run: dotnet test EduOS.slnx --configuration Release --no-build --logger 'console;verbosity=minimal'

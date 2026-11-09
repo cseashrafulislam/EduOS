@@ -7,7 +7,8 @@
     const session = document.body?.dataset.authSessionReference || '';
     const tenant = document.body?.dataset.authTenantId || '';
     const active = new Set();
-    let sequence = 0, reviewing = 1, reviewTotal = 0;
+    let sequence = 0, reviewSequence = 0, sourcePage = 1, reviewSourcePage = 1,
+        reviewing = 1, reviewTotal = 0;
     const validSession = () => /^[0-9A-F]{64}$/.test(session) &&
         document.body?.dataset.authSessionReference === session &&
         document.body?.dataset.authTenantId === tenant &&
@@ -59,18 +60,24 @@
         }
         if ([...select.options].some(o => o.value === previous)) select.value = previous;
     }
-    async function loadSources() {
+    async function loadSources(page = 1) {
         const current = ++sequence;
         try {
-            const data = await api('/api/ai/study/sources?' + param(el('assistantSearch').value));
+            const data = await api('/api/ai/study/sources?' + param(el('assistantSearch').value, page));
             if (current !== sequence) return;
+            sourcePage = data.page;
             fill(el('assistantSource'), data.items);
             el('assistantCount').textContent = say(`${data.totalCount} reviewed chapters`, `${data.totalCount}টি অনুমোদিত অধ্যায়`);
+            el('assistantSourcePage').textContent = `${data.page} / ${data.totalPages || 1}`;
+            el('assistantSourcePrev').disabled = !data.hasPreviousPage;
+            el('assistantSourceNext').disabled = !data.hasNextPage;
         } catch (error) { if (error.name !== 'AbortError') notice(error.message); }
     }
-    el('assistantFind').addEventListener('click', loadSources);
+    el('assistantFind').addEventListener('click', () => loadSources(1));
+    el('assistantSourcePrev').addEventListener('click', () => loadSources(Math.max(1, sourcePage - 1)));
+    el('assistantSourceNext').addEventListener('click', () => loadSources(sourcePage + 1));
     el('assistantSearch').addEventListener('keydown', event => {
-        if (event.key === 'Enter') { event.preventDefault(); loadSources(); }
+        if (event.key === 'Enter') { event.preventDefault(); loadSources(1); }
     });
     el('assistantForm').addEventListener('submit', async event => {
         event.preventDefault();
@@ -91,10 +98,16 @@
 
     if (!el('assistantReviewPanel')) { loadSources(); return; }
     const reviewSource = el('assistantReviewSource');
-    async function loadReviewSources() {
+    async function loadReviewSources(page = 1) {
+        const current = ++reviewSequence;
         try {
-            const data = await api('/api/ai/study/author-sources?' + param(el('assistantReviewSearch').value));
+            const data = await api('/api/ai/study/author-sources?' + param(el('assistantReviewSearch').value, page));
+            if (current !== reviewSequence) return;
+            reviewSourcePage = data.page;
             fill(reviewSource, data.items);
+            el('assistantReviewSourcePage').textContent = `${data.page} / ${data.totalPages || 1}`;
+            el('assistantReviewSourcePrev').disabled = !data.hasPreviousPage;
+            el('assistantReviewSourceNext').disabled = !data.hasNextPage;
             if (reviewSource.value) await loadReviews(1);
             else el('assistantReviewRows').replaceChildren();
         } catch (error) { if (error.name !== 'AbortError') notice(error.message); }
@@ -151,7 +164,9 @@
             el('assistantReviewNext').disabled = !data.hasNextPage;
         } catch (error) { if (error.name !== 'AbortError') notice(error.message); }
     }
-    el('assistantReviewFind').addEventListener('click', loadReviewSources);
+    el('assistantReviewFind').addEventListener('click', () => loadReviewSources(1));
+    el('assistantReviewSourcePrev').addEventListener('click', () => loadReviewSources(Math.max(1, reviewSourcePage - 1)));
+    el('assistantReviewSourceNext').addEventListener('click', () => loadReviewSources(reviewSourcePage + 1));
     reviewSource.addEventListener('change', () => {
         const option = reviewSource.selectedOptions[0];
         if (option?.dataset.language) el('assistantLanguage').value = option.dataset.language;
@@ -177,5 +192,5 @@
     el('assistantReviewNext').addEventListener('click', () => {
         if (reviewing * 20 < reviewTotal) loadReviews(reviewing + 1);
     });
-    loadSources(); loadReviewSources();
+    loadSources(1); loadReviewSources(1);
 })();
