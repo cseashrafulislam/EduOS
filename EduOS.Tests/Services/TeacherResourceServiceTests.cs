@@ -26,6 +26,10 @@ namespace EduOS.Tests.Services;
 public sealed class TeacherResourceServiceTests
 {
     private static readonly InMemoryDatabaseRoot Databases = new();
+    private sealed class IsolatedHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
+    }
 
     private static EduOSDbContext Context(long tenant = 101, string? databaseName = null)
     {
@@ -36,7 +40,7 @@ public sealed class TeacherResourceServiceTests
             new Claim(ClaimTypes.Role, "Teacher"), new Claim("TenantId", tenant.ToString())
         ], "Test")) };
         http.Items["TenantId"] = tenant;
-        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        return new EduOSDbContext(options, new IsolatedHttpContextAccessor { HttpContext = http });
     }
 
     private sealed class User(string role, long id = 7, long tenant = 101) : ICurrentUserService
