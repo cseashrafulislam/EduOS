@@ -160,6 +160,95 @@
         </section>
     }
 
+    @if (Model.OnboardingComplete)
+    {
+        var leader = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
+        var admissions = leader || User.IsInRole("AdmissionOfficer");
+        var teacher = leader || User.IsInRole("Teacher") || User.IsInRole("ExamController");
+        var feeRole = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Accountant");
+        var learner = User.IsInRole("Student") || User.IsInRole("Guardian") || User.IsInRole("Parent");
+        <section class="dashboard-operations" aria-labelledby="operationsTitle">
+            <div class="dashboard-section-heading">
+                <div>
+                    <p class="dashboard-eyebrow">@(useBangla ? "দৈনিক কাজ" : "Daily work")</p>
+                    <h2 id="operationsTitle">@(useBangla ? "কাজ ও পরবর্তী পদক্ষেপ" : "Operations & next actions")</h2>
+                    @if (Model.OperationalDate.HasValue)
+                    {
+                        <p class="small text-muted mb-0">@(useBangla ? "প্রতিষ্ঠানের স্থানীয় তারিখ" : "Institution-local date"): @Model.OperationalDate.Value.ToString("d", culture)</p>
+                    }
+                </div>
+            </div>
+            <div class="dashboard-stats-grid">
+                @if (admissions && Model.AdmissionApplicationsToReview.HasValue)
+                {
+                    <article class="dashboard-stat-card">
+                        <div><p>@(useBangla ? "যাচাইয়ের অপেক্ষায় আবেদন" : "Admissions needing review")</p>
+                            <strong>@Number(Model.AdmissionApplicationsToReview.Value)</strong>
+                            <a href="/Admissions/Applications">@(useBangla ? "আবেদন দেখুন" : "Review applications")</a></div>
+                    </article>
+                }
+                @if (leader && Model.AttendanceSessionsToday.HasValue)
+                {
+                    <article class="dashboard-stat-card">
+                        <div><p>@(useBangla ? "আজকের উপস্থিতি সেশন" : "Attendance sessions today")</p>
+                            <strong>@Number(Model.AttendanceSessionsToday.Value)</strong>
+                            <span>@(useBangla ? "অনুমোদিত ক্যাম্পাস" : "Authorized campuses")</span></div>
+                    </article>
+                    <article class="dashboard-stat-card">
+                        <div><p>@(useBangla ? "চূড়ান্ত করা বাকি" : "Sessions not finalized")</p>
+                            <strong>@Number(Model.AttendanceSessionsAwaitingFinalization ?? 0)</strong>
+                            <a href="/Attendance/Register">@(useBangla ? "উপস্থিতি দেখুন" : "Open register")</a></div>
+                    </article>
+                }
+                @if (User.IsInRole("Teacher") && Model.MyAttendanceSessionsToday.HasValue)
+                {
+                    <article class="dashboard-stat-card">
+                        <div><p>@(useBangla ? "আমার আজকের রেকর্ড করা সেশন" : "My recorded sessions today")</p>
+                            <strong>@Number(Model.MyAttendanceSessionsToday.Value)</strong>
+                            <a href="/Attendance/Register">@(useBangla ? "উপস্থিতি খুলুন" : "Open attendance")</a></div>
+                    </article>
+                }
+                @if (Model.FinancialSummaryAvailable && Model.MonthlyCollection.HasValue && Model.TotalDues.HasValue)
+                {
+                    <article class="dashboard-stat-card">
+                        <div><p>@(useBangla ? "চলতি মাসে সফল শিক্ষার্থী ফি গ্রহণ (BDT)" : "Successful student fee receipts this month (BDT)")</p>
+                            <strong>@Model.MonthlyCollection.Value.ToString("N2", culture)</strong>
+                            <a href="/FeeOperations/Ledger">@(useBangla ? "ফি লেজার" : "Fee ledger")</a></div>
+                    </article>
+                    <article class="dashboard-stat-card">
+                        <div><p>@(useBangla ? "বকেয়া শিক্ষার্থী ইনভয়েস (BDT)" : "Outstanding student invoices (BDT)")</p>
+                            <strong>@Model.TotalDues.Value.ToString("N2", culture)</strong>
+                            <span>@(useBangla ? "বাতিল ও ফেরত বাদে" : "Excludes cancelled/refunded")</span></div>
+                    </article>
+                }
+            </div>
+            <nav class="dashboard-actions mt-3" aria-label="@(useBangla ? "ভূমিকা অনুযায়ী কাজ" : "Role-based workspaces")">
+                @if (teacher)
+                {
+                    <a href="/Attendance/Register">@(useBangla ? "উপস্থিতি" : "Attendance")</a>
+                    <a href="/AssessmentAdministration/Marks">@(useBangla ? "নম্বর এন্ট্রি" : "Marks entry")</a>
+                }
+                @if (admissions)
+                {
+                    <a href="/Admissions/Applications">@(useBangla ? "ভর্তি আবেদন" : "Admissions")</a>
+                }
+                @if (feeRole)
+                {
+                    <a href="/FeeOperations/Ledger">@(useBangla ? "ফি হিসাব" : "Fee operations")</a>
+                }
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <a href="/PayrollOperations/Index">@(useBangla ? "পে-রোল" : "Payroll")</a>
+                }
+                @if (learner)
+                {
+                    <a href="/StudentPortal/Index">@(useBangla ? "আমার শিক্ষা পোর্টাল" : "My learning portal")</a>
+                }
+                <a href="/Account/Profile">@(useBangla ? "আমার প্রোফাইল" : "My profile")</a>
+            </nav>
+        </section>
+    }
+
     <section aria-labelledby="overviewTitle">
         <div class="dashboard-section-heading">
             <div>

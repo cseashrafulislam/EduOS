@@ -143,6 +143,13 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - **Automated evidence:** `node --test EduOS.Tests/JavaScript/*.test.cjs`: **1,312/1,312 pass, 0 fail**. Added deterministic Node VM race tests for Payroll, Component Marks, and assessment-result preview, one cash-payment double-submit test, and one unsaved Attendance selection test; refreshed the existing publication contract to assert preview-scope safety. Syntax checks passed for changed JavaScript; `git diff --check` clean. These do not simulate authenticated tenants or database writes.
 - **Unfinished Batch 2 acceptance:** this is a high-use **implementation/regression slice**, not full UX-03/04/05/10 coverage or sign-off. Remaining work includes role-specific authoritative dashboard KPI definitions, inventory-wide forms/table UX coverage beyond these routes, bilingual/mobile viewport checks, true authenticated cross-role/cross-tenant journeys, browser/keyboard/a11y testing, actual .NET Release build, SQL integration evidence and independent QA/UAT. None is marked passed without execution.
 
+### 4.11. Batch 2 operational dashboard role-scope follow-up (2026-11-09; awaiting integration)
+
+- Read-only operational indicators now distinguish **NULL/unavailable** from zero: admission applications requiring action, today's attendance sessions, today's unfinished attendance sessions and the current teacher's recorded sessions. DateOnly derives from the institution time zone.
+- An active user, current membership, live tenant-scoped/system role, tenant-specific row filter and active campus access are required for principal/vice-principal/admission-officer metrics. Tenant admins receive tenant-wide counts. Student/guardian roles have task-oriented portal links without sensitive institutional metrics.
+- Existing student fee receipt/invoice summaries remain **tenant-admin-only**; BDT-only values are shown as student receipt and due amounts, not as general-ledger cash or income. Principal and Accountant users use their separately authorized fee ledger until an auditable campus-allocation definition exists.
+- Added role/campus/tenant revocation regression cases in `DashboardServiceTests`. Full .NET build, SQL Server integration, authenticated mobile/browser UX and independent Task E QA are still required; this is not Batch 2 UAT sign-off.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:

@@ -1,5 +1,6 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Dashboard;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.HR;
@@ -101,33 +102,86 @@ public sealed class DashboardService : IDashboardService
             }
             var monthStart = new DateOnly(localNow.Year, localNow.Month, 1);
             var nextMonth = monthStart.AddMonths(1);
-            // Dashboard is open to ordinary institute members. Student payment
-            // totals and institution-wide dues are not. Revalidate the current
-            // live admin membership. Missing security context fails closed.
-            var financialAccess = false;
-            if (_currentUser.IsTenantAdmin && _securityDb is { } securityDb)
-                financialAccess = securityDb.CurrentTenantId == tenantId &&
-                    await securityDb.Users.AsNoTracking().AnyAsync(x =>
-                        x.Id == _currentUser.UserId && x.IsActive && !x.IsDeleted) &&
-                    await securityDb.TenantMemberships.AsNoTracking().AnyAsync(x =>
-                        x.TenantId == tenantId && x.UserId == _currentUser.UserId &&
-                        x.Status == MembershipStatus.Active && !x.IsDeleted) &&
-                    await securityDb.UserRoles.AsNoTracking().AnyAsync(ur =>
-                        ur.UserId == _currentUser.UserId &&
-                        securityDb.Roles.IgnoreQueryFilters().Any(r =>
-                            r.Id == ur.RoleId && r.IsActive && !r.IsDeleted &&
-                            r.NormalizedName == "TENANTADMIN" &&
-                            (r.TenantId == tenantId || (r.TenantId == null && r.IsSystemRole))));
+            var today = DateOnly.FromDateTime(localNow);
+            // The role claim is not a grant. Recheck current user, membership,
+            // tenant-scoped/system role and campus access before reading work queues.
+            var roles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (_securityDb is { } securityDb && securityDb.CurrentTenantId == tenantId &&
+                await securityDb.Users.AsNoTracking().AnyAsync(x =>
+                    x.Id == _currentUser.UserId && x.IsActive && !x.IsDeleted) &&
+                await securityDb.TenantMemberships.AsNoTracking().AnyAsync(x =>
+                    x.TenantId == tenantId && x.UserId == _currentUser.UserId &&
+                    x.Status == MembershipStatus.Active && !x.IsDeleted))
+            {
+                var liveRoles = await (from grant in securityDb.UserRoles.AsNoTracking()
+                    join role in securityDb.Roles.IgnoreQueryFilters().AsNoTracking() on grant.RoleId equals role.Id
+                    where grant.UserId == _currentUser.UserId && role.IsActive && !role.IsDeleted &&
+                        (role.TenantId == tenantId || (role.TenantId == null && role.IsSystemRole))
+                    select role.NormalizedName).ToListAsync();
+                foreach (var role in liveRoles)
+                    if (!string.IsNullOrWhiteSpace(role)) roles.Add(role);
+            }
+            bool HasLiveRole(string name) => _currentUser.IsInRole(name) && roles.Contains(name);
+            var isAdmin = HasLiveRole("TenantAdmin");
+            var canSeeAttendance = isAdmin || HasLiveRole("Principal") || HasLiveRole("VicePrincipal");
+            var canSeeAdmissions = canSeeAttendance || HasLiveRole("AdmissionOfficer");
+            int? admissionQueue = null, attendanceToday = null, attendanceOpen = null, myAttendance = null;
+            if (_securityDb is { } operations && operations.CurrentTenantId == tenantId)
+            {
+                if (canSeeAdmissions)
+                {
+                    var queue = operations.AdmissionApplicants.AsNoTracking().Where(x =>
+                        x.TenantId == tenantId && !x.IsDeleted &&
+                        (x.State == AdmissionApplicantState.Submitted ||
+                         x.State == AdmissionApplicantState.UnderReview ||
+                         x.State == AdmissionApplicantState.DocumentPending ||
+                         x.State == AdmissionApplicantState.AssessmentPending));
+                    if (!isAdmin)
+                        queue = queue.Where(app => operations.AdmissionIntakeForms.Any(form =>
+                            form.TenantId == tenantId && !form.IsDeleted && form.Id == app.AdmissionIntakeFormId &&
+                            operations.UserCampusAccesses.Any(access => access.TenantId == tenantId &&
+                                access.UserId == _currentUser.UserId && access.CampusId == form.CampusId &&
+                                access.IsActive && !access.IsDeleted)));
+                    admissionQueue = await queue.CountAsync();
+                }
+                if (canSeeAttendance)
+                {
+                    var sessions = operations.AttendanceSessions.AsNoTracking().Where(x =>
+                        x.TenantId == tenantId && !x.IsDeleted && x.AttendanceDate == today);
+                    if (!isAdmin)
+                        sessions = sessions.Where(session => operations.AcademicBatches.Any(batch =>
+                            batch.TenantId == tenantId && !batch.IsDeleted && batch.Id == session.AcademicBatchId &&
+                            operations.UserCampusAccesses.Any(access => access.TenantId == tenantId &&
+                                access.UserId == _currentUser.UserId && access.CampusId == batch.CampusId &&
+                                access.IsActive && !access.IsDeleted)));
+                    attendanceToday = await sessions.CountAsync();
+                    attendanceOpen = await sessions.CountAsync(x => !x.IsFinalized);
+                }
+                else if (HasLiveRole("Teacher"))
+                {
+                    var employeeId = await operations.Employees.AsNoTracking()
+                        .Where(x => x.TenantId == tenantId && x.UserId == _currentUser.UserId &&
+                            x.CanTeach && x.State == EmployeeState.Active && !x.IsDeleted)
+                        .Select(x => (long?)x.Id).FirstOrDefaultAsync();
+                    if (employeeId.HasValue)
+                        myAttendance = await operations.AttendanceSessions.AsNoTracking().CountAsync(x =>
+                            x.TenantId == tenantId && !x.IsDeleted && x.AttendanceDate == today &&
+                            x.TakenByEmployeeId == employeeId.Value);
+                }
+            }
+            // Fees do not have a proven campus-level receipt allocation here.
+            // Keep tenant-wide BDT totals admin-only; other roles use scoped reports.
+            var financialAccess = isAdmin;
             decimal? monthlyCollection = null, totalDues = null;
             if (financialAccess)
             {
                 monthlyCollection = await _payments.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenantId && x.State == PaymentState.Successful &&
-                        x.PaymentDate >= monthStart && x.PaymentDate < nextMonth)
+                        x.CurrencyCode == "BDT" && x.PaymentDate >= monthStart && x.PaymentDate < nextMonth)
                     .SumAsync(x => (decimal?)x.Amount) ?? 0m;
                 totalDues = await _invoices.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenantId && x.State != InvoiceState.Cancelled &&
-                        x.State != InvoiceState.Refunded && x.DueAmount > 0m)
+                        x.State != InvoiceState.Refunded && x.CurrencyCode == "BDT" && x.DueAmount > 0m)
                     .SumAsync(x => (decimal?)x.DueAmount) ?? 0m;
             }
 
@@ -156,7 +210,12 @@ public sealed class DashboardService : IDashboardService
                 TotalStaff = Math.Max(0, totalEmployees - totalTeachers),
                 TotalCampuses = totalCampuses, TotalClasses = totalLevels,
                 FinancialSummaryAvailable = financialAccess,
-                MonthlyCollection = monthlyCollection, TotalDues = totalDues
+                MonthlyCollection = monthlyCollection, TotalDues = totalDues,
+                OperationalDate = admissionQueue.HasValue || attendanceToday.HasValue || myAttendance.HasValue ? today : null,
+                AdmissionApplicationsToReview = admissionQueue,
+                AttendanceSessionsToday = attendanceToday,
+                AttendanceSessionsAwaitingFinalization = attendanceOpen,
+                MyAttendanceSessionsToday = myAttendance
             };
             vm.Alerts = BuildAlerts(tenant, subscription, plan, totalStudents, trialDays, expiryDays);
             return ApiResponse<DashboardVm>.SuccessResponse(vm);

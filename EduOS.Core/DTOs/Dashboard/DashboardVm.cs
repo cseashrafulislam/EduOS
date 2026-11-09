@@ -44,6 +44,12 @@ namespace EduOS.Core.DTOs.Dashboard
         public bool FinancialSummaryAvailable { get; set; }
         public decimal? MonthlyCollection { get; set; }
         public decimal? TotalDues { get; set; }
+        // A nullable count means unavailable/unauthorized; zero is a genuine result.
+        public DateOnly? OperationalDate { get; set; }
+        public int? AdmissionApplicationsToReview { get; set; }
+        public int? AttendanceSessionsToday { get; set; }
+        public int? AttendanceSessionsAwaitingFinalization { get; set; }
+        public int? MyAttendanceSessionsToday { get; set; }
 
         // ── Alerts (shown as banners on dashboard) ─────────────
         public List<DashboardAlert> Alerts { get; set; } = new();

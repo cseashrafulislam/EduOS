@@ -1,4 +1,5 @@
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Admission;
 using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.HR;
@@ -71,6 +72,82 @@ public sealed class DashboardServiceTests
         revoked.Data.MonthlyCollection.Should().BeNull();
         revoked.Data.TotalDues.Should().BeNull();
     }
+    [Fact]
+    public async Task Principal_operations_are_tenant_and_campus_scoped_and_revoked_roles_fail_closed()
+    {
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(Options(), new HttpContextAccessor { HttpContext = http });
+        http.Items["TenantId"] = 41L;
+        db.Tenants.AddRange(
+            new Tenant { Id = 41, Name = "Campus 41", Code = "DASH-OPS-41", Email = "ops41@example.test" },
+            new Tenant { Id = 42, Name = "Campus 42", Code = "DASH-OPS-42", Email = "ops42@example.test" });
+        db.Users.Add(new ApplicationUser { Id = 99, UserName = "principal" });
+        var membership = new TenantMembership { Id = 11, TenantId = 41, UserId = 99,
+            Status = MembershipStatus.Active };
+        db.TenantMemberships.Add(membership);
+        db.Roles.Add(new ApplicationRole { Id = 12, TenantId = 41,
+            Name = "Principal", NormalizedName = "PRINCIPAL" });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 99, RoleId = 12 });
+        db.UserCampusAccesses.Add(new UserCampusAccess { Id = 13, TenantId = 41, UserId = 99,
+            CampusId = 8, IsActive = true });
+        db.AdmissionIntakeForms.AddRange(
+            new AdmissionIntakeForm { Id = 51, TenantId = 41, CampusId = 8 },
+            new AdmissionIntakeForm { Id = 52, TenantId = 41, CampusId = 9 },
+            new AdmissionIntakeForm { Id = 53, TenantId = 42, CampusId = 9 });
+        db.AcademicBatches.AddRange(
+            new AcademicBatch { Id = 61, TenantId = 41, CampusId = 8 },
+            new AcademicBatch { Id = 62, TenantId = 41, CampusId = 9 },
+            new AcademicBatch { Id = 63, TenantId = 42, CampusId = 9 });
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        db.AdmissionApplicants.AddRange(
+            new AdmissionApplicant { TenantId = 41, AdmissionIntakeFormId = 51,
+                FullName = "My pending", ApplicationNumber = "OP-001", State = AdmissionApplicantState.Submitted },
+            new AdmissionApplicant { TenantId = 41, AdmissionIntakeFormId = 52,
+                FullName = "Other campus", ApplicationNumber = "OP-002", State = AdmissionApplicantState.Submitted },
+            new AdmissionApplicant { TenantId = 42, AdmissionIntakeFormId = 53,
+                FullName = "Other tenant", ApplicationNumber = "OP-003", State = AdmissionApplicantState.Submitted });
+        db.AttendanceSessions.AddRange(
+            new AttendanceSession { TenantId = 41, AcademicBatchId = 61, AttendanceDate = today, IsFinalized = false },
+            new AttendanceSession { TenantId = 41, AcademicBatchId = 61, AttendanceDate = today, IsFinalized = true },
+            new AttendanceSession { TenantId = 41, AcademicBatchId = 62, AttendanceDate = today, IsFinalized = false },
+            new AttendanceSession { TenantId = 42, AcademicBatchId = 63, AttendanceDate = today, IsFinalized = false });
+        await db.SaveChangesAsync();
+        var service = CreateService(db, new TestCurrentUser(41, admin: false, role: "Principal"), liveSecurity: true);
+        var visible = (await service.GetDashboardAsync()).Data!;
+        visible.AdmissionApplicationsToReview.Should().Be(1);
+        visible.AttendanceSessionsToday.Should().Be(2);
+        visible.AttendanceSessionsAwaitingFinalization.Should().Be(1);
+        visible.OperationalDate.Should().Be(today);
+        visible.MonthlyCollection.Should().BeNull();
+        visible.FinancialSummaryAvailable.Should().BeFalse();
+
+        membership.Status = MembershipStatus.Suspended;
+        await db.SaveChangesAsync();
+        var revoked = (await service.GetDashboardAsync()).Data!;
+        revoked.AdmissionApplicationsToReview.Should().BeNull();
+        revoked.AttendanceSessionsToday.Should().BeNull();
+        revoked.OperationalDate.Should().BeNull();
+        revoked.TotalDues.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Ordinary_student_receives_no_protected_daily_work_counts()
+    {
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(Options(), new HttpContextAccessor { HttpContext = http });
+        http.Items["TenantId"] = 41L;
+        db.Tenants.Add(new Tenant { Id = 41, Name = "Student school", Code = "DASH-ST-41",
+            Email = "student41@example.test" });
+        await db.SaveChangesAsync();
+        var student = (await CreateService(db, new TestCurrentUser(41, admin: false), liveSecurity: true)
+            .GetDashboardAsync()).Data!;
+        student.OperationalDate.Should().BeNull();
+        student.AdmissionApplicationsToReview.Should().BeNull();
+        student.AttendanceSessionsToday.Should().BeNull();
+        student.MyAttendanceSessionsToday.Should().BeNull();
+        student.FinancialSummaryAvailable.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Dashboard_derives_plan_capacity_and_alerts_from_authoritative_records()
     {
@@ -182,7 +259,7 @@ public sealed class DashboardServiceTests
         [new Claim(ClaimTypes.NameIdentifier, "99"), new Claim(ClaimTypes.Role, "TenantAdmin"),
             new Claim("TenantId", tenant.ToString())], "TestAuthentication"));
 
-    private sealed class TestCurrentUser(long tenant, bool admin = true) : ICurrentUserService
+    private sealed class TestCurrentUser(long tenant, bool admin = true, string? role = null) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
         public long UserId => 99;
@@ -191,8 +268,8 @@ public sealed class DashboardServiceTests
         public string? Email => "admin@example.test";
         public bool IsSuperAdmin => false;
         public bool IsTenantAdmin => admin;
-        public IReadOnlyList<string> Roles => admin ? ["TenantAdmin"] : ["Student"];
-        public bool IsInRole(string role) => admin ? role == "TenantAdmin" : role == "Student";
+        public IReadOnlyList<string> Roles => [role ?? (admin ? "TenantAdmin" : "Student")];
+        public bool IsInRole(string requested) => Roles.Contains(requested, StringComparer.OrdinalIgnoreCase);
         public string? IpAddress => "127.0.0.1";
         public string? UserAgent => "Tests";
     }
