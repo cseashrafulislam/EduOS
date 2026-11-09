@@ -136,7 +136,10 @@ public sealed class DashboardServiceTests
             new AcademicBatch { Id = 61, TenantId = 41, CampusId = 8 },
             new AcademicBatch { Id = 62, TenantId = 41, CampusId = 9 },
             new AcademicBatch { Id = 63, TenantId = 42, CampusId = 9 });
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // The tenant defaults to Asia/Dhaka. Attendance uses its local business
+        // date, which is already tomorrow after 18:00 UTC; never seed UTC today.
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Dhaka")));
         db.AdmissionApplicants.AddRange(
             new AdmissionApplicant { TenantId = 41, AdmissionIntakeFormId = 51,
                 FullName = "My pending", ApplicationNumber = "OP-001", State = AdmissionApplicantState.Submitted },
