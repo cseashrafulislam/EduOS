@@ -19,8 +19,9 @@ public sealed class AdaptiveStudyPlanning : Migration
         migrationBuilder.CreateIndex("IX_Quizzes_TenantId_CourseSectionId", "Quizzes", new[] { "TenantId", "CourseSectionId" });
         migrationBuilder.CreateIndex("IX_Quizzes_TenantId_CourseId_CourseSectionId_SkillCode", "Quizzes",
             new[] { "TenantId", "CourseId", "CourseSectionId", "SkillCode" });
-        migrationBuilder.AddForeignKey("FK_Quizzes_CourseSections_TenantId_CourseSectionId", "Quizzes",
-            new[] { "TenantId", "CourseSectionId" }, "CourseSections", new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
+        migrationBuilder.AddForeignKey(name: "FK_Quizzes_CourseSections_TenantId_CourseSectionId", table: "Quizzes",
+            columns: new[] { "TenantId", "CourseSectionId" }, principalTable: "CourseSections",
+            principalColumns: new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
         migrationBuilder.AddCheckConstraint("CK_Quizzes_PracticeDifficulty", "Quizzes", "[PracticeDifficulty] BETWEEN 1 AND 3");
 
         migrationBuilder.CreateTable(name: "AdaptiveStudyGoals", columns: table => new
