@@ -75,6 +75,10 @@ partial class EduOSDbContextModelSnapshot
             b.ToTable("Quizzes", t => t.HasCheckConstraint(
                 "CK_Quizzes_PracticeDifficulty", "[PracticeDifficulty] BETWEEN 1 AND 3"));
         });
+        modelBuilder.Entity("EduOS.Core.Entities.LMS.QuizQuestion", b =>
+        {
+            b.Property<string>("Explanation").HasMaxLength(2000).HasColumnType("nvarchar(2000)");
+        });
         modelBuilder.Entity("EduOS.Core.Entities.LMS.AdaptiveStudyGoal", b =>
         {
             b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant").WithMany()

@@ -249,6 +249,7 @@ public class QuizQuestionDto
 {
     public long Id { get; set; }
     public string QuestionText { get; set; } = string.Empty;
+    public string? Explanation { get; set; }
     public string QuestionType { get; set; } = string.Empty;
     public decimal Marks { get; set; }
     public int DisplayOrder { get; set; }
@@ -260,6 +261,7 @@ public class SaveQuizQuestionRequestDto
 {
     public long? Id { get; set; }
     [Required, MaxLength(4000)] public string QuestionText { get; set; } = string.Empty;
+    [MaxLength(2000)] public string? Explanation { get; set; }
     [Required, MaxLength(30)] public string QuestionType { get; set; } = "SingleChoice";
     [Range(typeof(decimal), "0", "100000")] public decimal Marks { get; set; }
     public int DisplayOrder { get; set; }
@@ -327,6 +329,7 @@ public sealed class QuizAttemptAnswerReviewDto
 {
     public long QuizQuestionId { get; set; }
     public string QuestionText { get; set; } = string.Empty;
+    public string? Explanation { get; set; }
     public decimal? AwardedMarks { get; set; }
     public IReadOnlyList<QuizAttemptSelectedOptionDto> SelectedOptions { get; set; } = Array.Empty<QuizAttemptSelectedOptionDto>();
 }

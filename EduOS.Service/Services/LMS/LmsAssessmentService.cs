@@ -172,6 +172,7 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
             Questions = questions.Select(q => new QuizQuestionDto
             {
                 Id = q.Id, QuestionText = q.QuestionText, QuestionType = q.QuestionType,
+                Explanation = q.Explanation,
                 Marks = q.Marks, DisplayOrder = q.DisplayOrder,
                 RowVersion = Convert.ToBase64String(q.RowVersion),
                 Options = options.Where(o => o.QuizQuestionId == q.Id).Select(o => new QuizOptionDto

@@ -21,6 +21,7 @@ $('quizQuestions').replaceChildren();q.questions.forEach(question);$('quizSave')
 }catch(e){msg('danger',e.message);}}
 async function save(e){e.preventDefault();if(!e.currentTarget.reportValidity())return;
 const questions=[...$('quizQuestions').children].map((box,i)=>({questionText:box.querySelector('.question-text').value.trim(),
+explanation:box.querySelector('.question-explanation').value.trim()||null,
 questionType:box.querySelector('.question-type').value,marks:Number(box.querySelector('.question-marks').value),displayOrder:i+1,
 options:[...box.querySelectorAll('.question-option')].map((o,j)=>({optionText:o.value.trim(),
 isCorrect:box.querySelector('.question-type').value==='MultipleChoice'

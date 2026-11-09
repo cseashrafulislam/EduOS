@@ -113,6 +113,68 @@ public sealed class LmsQuizHistoricalEvidenceTests
     }
 
     [Fact]
+    public async Task Explanations_are_released_only_when_graded_and_attempts_exhausted()
+    {
+        await using var db = Db();
+        var seed = await Seed(db);
+        db.QuizQuestions.Add(new QuizQuestion { TenantId = 101, QuizId = seed.Quiz.Id,
+            QuestionText = "Why?", Explanation = "Because the evidence supports it.",
+            QuestionType = "SingleChoice", Marks = 10 });
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var first = await service.GetMyAttemptReviewAsync(seed.Attempt.Id);
+        Assert.True(first.Success, first.Message);
+        Assert.Null(Assert.Single(first.Data!.Answers).Explanation);
+
+        seed.Quiz.MaxAttempts = 1;
+        await db.SaveChangesAsync();
+        var exhausted = await service.GetMyAttemptReviewAsync(seed.Attempt.Id);
+        Assert.True(exhausted.Success, exhausted.Message);
+        Assert.Equal("Because the evidence supports it.", Assert.Single(exhausted.Data!.Answers).Explanation);
+
+        seed.Attempt.State = QuizAttemptState.Submitted;
+        await db.SaveChangesAsync();
+        var ungraded = await service.GetMyAttemptReviewAsync(seed.Attempt.Id);
+        Assert.True(ungraded.Success, ungraded.Message);
+        Assert.Null(Assert.Single(ungraded.Data!.Answers).Explanation);
+    }
+
+    [Fact]
+    public async Task Unfinished_retry_blocks_explanation_even_after_attempt_limit()
+    {
+        await using var db = Db();
+        var seed = await Seed(db);
+        db.QuizQuestions.Add(new QuizQuestion { TenantId = 101, QuizId = seed.Quiz.Id,
+            QuestionText = "Why?", Explanation = "Private answer rationale.", Marks = 10 });
+        db.QuizAttempts.Add(new QuizAttempt { TenantId = 101, QuizId = seed.Quiz.Id,
+            CourseEnrollmentId = seed.Enrollment.Id, ClientRequestId = Guid.NewGuid(),
+            AttemptNo = 2, State = QuizAttemptState.Started });
+        await db.SaveChangesAsync();
+        var response = await Service(db).GetMyAttemptReviewAsync(seed.Attempt.Id);
+        Assert.True(response.Success, response.Message);
+        Assert.Null(Assert.Single(response.Data!.Answers).Explanation);
+    }
+
+    [Fact]
+    public async Task Candidate_payload_never_exposes_explanation_or_correct_options()
+    {
+        await using var db = Db();
+        var seed = await Seed(db);
+        seed.Course.IsActive = true;
+        seed.Enrollment.State = CourseEnrollmentState.Active;
+        seed.Academic.State = EnrollmentState.Active;
+        db.QuizQuestions.Add(new QuizQuestion { TenantId = 101, QuizId = seed.Quiz.Id,
+            QuestionText = "Why?", Explanation = "Keep secret until graded.", Marks = 10 });
+        await db.SaveChangesAsync();
+        var response = await Service(db).GetQuizForLearnerAsync(seed.Quiz.PublicId);
+        Assert.True(response.Success, response.Message);
+        var json = JsonSerializer.Serialize(response.Data);
+        Assert.DoesNotContain("Explanation", json);
+        Assert.DoesNotContain("IsCorrect", json);
+        Assert.DoesNotContain("Keep secret", json);
+    }
+
+    [Fact]
     public async Task Archived_quiz_eligibility_requires_original_campus_and_curriculum()
     {
         await using var db = Db();

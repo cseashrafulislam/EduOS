@@ -7,6 +7,7 @@
 - **Teacher overrides:** a goal is scoped to the assigned active academic course, enrolled student, published chapter and mapped skill. A tenant principal/admin may manage courses in that tenant. TargetPercent is 0–100 with a teacher note and rowversion concurrency protection.
 - **Recommendations:** the most recent graded and submitted evidence per quiz contributes earned/possible marks. Latest graded quiz percentages are weighted by question marks across a skill; outstanding attempts, quiz access window and difficulty determine a suggested practice quiz. Priority is No evidence, Review (below 50%), Practice (below the teacher target), or Extend.
 - **History:** learners save a point-in-time JSON study-plan snapshot. The unique tenant/request key makes replays idempotent. Future goals, scores, chapter names and algorithms do not overwrite historical snapshots.
+- **Explanations:** quiz authors may add a 2,000-character rationale per question. The existing authorized attempt-review endpoint includes it only for a graded attempt after the quiz closes or the learner has exhausted their attempt limit, and only when no unfinished retry remains. Candidate/attempt-start endpoints never expose explanations or correct-option flags. Existing questions have no rationale by default.
 - **Authorization:** every API requires an LMS-enabled tenant session, role and server-side course/enrollment ownership. Student endpoints never accept an arbitrary student ID; teacher mutations validate the instructor, course, chapter, student enrollment and mapped published quiz within the transaction.
 
 ## Pages and endpoints
@@ -21,14 +22,14 @@ All mutating requests require antiforgery. UI uses textContent and tenant-sessio
 
 ## Deployment and rollback
 
-1. Back up production SQL and verify restore. Stage and apply migration 20261109072000_AdaptiveStudyPlanning after compatibility review; it adds columns with a non-breaking default, tenant-bound relationships, new tables and indexes.
+1. Back up production SQL and verify restore. Stage and apply migration 20261109072000_AdaptiveStudyPlanning after compatibility review; it adds columns with a non-breaking default, an optional quiz-question explanation, tenant-bound relationships, new tables and indexes.
 2. Deploy updated API, DI, quiz author, teacher and learner pages. Existing quiz clients omit the new fields and continue as before.
 3. Validate new/old quiz create-edit-read, assigned-teacher target saves, student snapshots and historical quiz grades; test with two tenants and users.
 4. Inspect lock durations and index utilization on large data. Do not silently roll back populated goal, mapping or snapshot evidence; the down migration intentionally blocks data loss.
 
 ## Verification checklist
 
-- Unit: scoring, latest graded selection, authorization, canonical marks unchanged, teacher ownership, mapped skills, replay idempotency and historical immutability.
+- Unit: scoring, latest graded selection, authorization, canonical marks unchanged, teacher ownership, mapped skills, replay idempotency, historical immutability and explanation anti-cheating gates.
 - API: unauthorized and cross-tenant requests 403/404; invalid skill/chapter/percent 400/404; stale rowversion 409; duplicate client request returns the original snapshot.
 - Data: new FKs include TenantId; unique goal and request indexes; decimal targets and official marks; migration/model snapshot without drift.
 - UX: Bangla/English, responsive tables, keyboard form controls, error/retry handling, clear current-vs-saved plan.

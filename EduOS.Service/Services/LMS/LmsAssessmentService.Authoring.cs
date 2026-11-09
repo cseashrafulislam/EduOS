@@ -24,6 +24,7 @@ public sealed partial class LmsAssessmentService
             return Fail<QuizDto>("Invalid quiz metadata.");
         if (request.Questions.Any(q => q == null || string.IsNullOrWhiteSpace(q.QuestionText) ||
             q.QuestionText.Trim().Length > 4000 ||
+            q.Explanation?.Trim().Length > 2000 ||
             (q.QuestionType != "SingleChoice" && q.QuestionType != "MultipleChoice") ||
             q.Marks <= 0 || q.Options == null || q.Options.Count is < 2 or > 10 ||
             q.Options.Any(o => o == null || string.IsNullOrWhiteSpace(o.OptionText) ||
@@ -93,6 +94,7 @@ public sealed partial class LmsAssessmentService
                 {
                     var q = new QuizQuestion { TenantId = _user.TenantId, QuizId = quiz.Id,
                         QuestionText = input.QuestionText.Trim(), QuestionType = input.QuestionType,
+                        Explanation = string.IsNullOrWhiteSpace(input.Explanation) ? null : input.Explanation.Trim(),
                         Marks = input.Marks, DisplayOrder = ++order, CreatedAt = Now, CreatedBy = _user.UserId };
                     await _questions.AddAsync(q);
                     await _uow.SaveChangesAsync(token);

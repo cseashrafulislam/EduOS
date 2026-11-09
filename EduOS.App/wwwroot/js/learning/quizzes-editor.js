@@ -3,6 +3,9 @@ const {$,el}=app;
 window.EduQuizQuestionEditor=function(q){const box=el('fieldset');box.className='border rounded p-2';
 const title=el('input');title.className='form-control mb-2 question-text';title.required=true;
 title.maxLength=4000;title.placeholder='Question';title.value=q?.questionText||'';
+const explanation=el('textarea');explanation.className='form-control mb-2 question-explanation';
+explanation.maxLength=2000;explanation.rows=2;explanation.setAttribute('aria-label','Explanation after grading');
+explanation.placeholder='Explanation after grading / গ্রেডিংয়ের পর ব্যাখ্যা (optional)';explanation.value=q?.explanation||'';
 const marks=el('input');marks.type='number';marks.min='.01';marks.step='.01';marks.required=true;
 marks.className='form-control mb-2 question-marks';marks.value=q?.marks||1;
 const type=el('select');type.className='form-select mb-2 question-type';type.setAttribute('aria-label','Question type');
@@ -24,5 +27,5 @@ wrap.querySelectorAll('.question-multi-key').forEach(x=>x.classList.toggle('d-no
 const add=el('button','Add option');add.type='button';add.className='btn btn-sm btn-outline-primary';
 add.onclick=()=>{if(wrap.children.length<10)addOption({optionText:'',isCorrect:false});};
 const remove=el('button','Remove question');remove.type='button';remove.className='btn btn-sm btn-outline-danger ms-2';remove.onclick=()=>box.remove();
-box.append(title,marks,type,wrap,correct,add,remove);$('quizQuestions').append(box);};
+box.append(title,explanation,marks,type,wrap,correct,add,remove);$('quizQuestions').append(box);};
 })();

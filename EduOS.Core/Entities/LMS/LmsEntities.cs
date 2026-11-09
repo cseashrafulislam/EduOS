@@ -118,6 +118,7 @@ public class QuizQuestion : BaseTenantEntity
 {
     public long QuizId { get; set; }
     [Required, MaxLength(4000)] public string QuestionText { get; set; } = string.Empty;
+    [MaxLength(2000)] public string? Explanation { get; set; }
     [Required, MaxLength(30)] public string QuestionType { get; set; } = "SingleChoice";
     [Column(TypeName = "decimal(18,2)")] public decimal Marks { get; set; }
     public int DisplayOrder { get; set; }

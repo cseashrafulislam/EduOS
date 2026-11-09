@@ -19,6 +19,19 @@ public sealed partial class LmsAssessmentService
             return Fail<QuizAttemptReviewDto>("Attempt access denied.", 403);
         if (attempt.State is not (QuizAttemptState.Submitted or QuizAttemptState.Graded))
             return Fail<QuizAttemptReviewDto>("Review is available only after submission.", 409);
+        // Never disclose the teaching explanation while an unfinished retry can use it.
+        // Completion of grading alone does not authorize release of the answer rationale.
+        var explanationAllowed = false;
+        if (attempt.State == QuizAttemptState.Graded)
+        {
+            var attempts = await _attempts.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == _user.TenantId && x.QuizId == quiz.Id &&
+                x.CourseEnrollmentId == attempt.CourseEnrollmentId && !x.IsDeleted)
+                .Select(x => x.State).ToListAsync(ct);
+            explanationAllowed = (quiz.ClosesAt.HasValue && quiz.ClosesAt.Value <= Now ||
+                attempts.Count >= quiz.MaxAttempts) &&
+                attempts.All(state => state == QuizAttemptState.Graded);
+        }
         var questions = await _questions.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == _user.TenantId && x.QuizId == quiz.Id && !x.IsDeleted)
             .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).ToListAsync(ct);
@@ -43,6 +56,7 @@ public sealed partial class LmsAssessmentService
                 return new QuizAttemptAnswerReviewDto
                 {
                     QuizQuestionId = q.Id, QuestionText = q.QuestionText, AwardedMarks = answer?.AwardedMarks,
+                    Explanation = explanationAllowed ? q.Explanation : null,
                     SelectedOptions = options.Where(o => ids.Contains(o.Id) && o.QuizQuestionId == q.Id)
                         .OrderBy(o => o.DisplayOrder).Select(o => new QuizAttemptSelectedOptionDto
                         { Id = o.Id, OptionText = o.OptionText }).ToList()

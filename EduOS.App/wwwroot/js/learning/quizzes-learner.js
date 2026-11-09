@@ -19,7 +19,8 @@ $('quizSubmit').disabled=true;try{const result=await api('/api/lms/quizzes/attem
 {answers,rowVersion:state.attempt.rowVersion});$('quizAnswerForm').classList.add('d-none');
 const review=await api('/api/lms/quizzes/attempts/'+state.attempt.id+'/review');
 const heading=el('strong','Marks: '+result.obtainedMarks),list=el('ul');
-review.answers.forEach(a=>{list.append(el('li',a.questionText+' — '+(a.selectedOptions.map(o=>o.optionText).join(', ')||'Unanswered')+' (marks: '+(a.awardedMarks??0)+')'));});
+review.answers.forEach(a=>{const item=el('li',a.questionText+' — '+(a.selectedOptions.map(o=>o.optionText).join(', ')||'Unanswered')+' (marks: '+(a.awardedMarks??0)+')');
+if(a.explanation)item.append(el('p',(document.documentElement.lang==='bn-BD'?'ব্যাখ্যা: ':'Explanation: ')+a.explanation));list.append(item);});
 $('quizResult').replaceChildren(heading,list);msg('success','Quiz graded');
 }catch(e){msg('danger',e.message);}finally{$('quizSubmit').disabled=false;}}
 $('quizList').addEventListener('change',()=>{state.candidate=null;state.attempt=null;state.requestId=null;

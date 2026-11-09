@@ -106,7 +106,8 @@ if(k!==epoch)return;rows=data.items||[];total=data.totalCount||0;render();}
 catch(e){if(k===epoch){render();msg('danger',e.message);}}}
 async function review(id){try{const data=await api('/api/lms/quizzes/attempts/'+id+'/review');
 const heading=el('strong','Marks: '+(data.obtainedMarks??'Pending')),list=el('ul');
-(data.answers||[]).forEach(a=>list.append(el('li',a.questionText+' — '+(a.selectedOptions||[]).map(x=>x.optionText).join(', ')+' (marks: '+(a.awardedMarks??0)+')')));
+(data.answers||[]).forEach(a=>{const item=el('li',a.questionText+' — '+(a.selectedOptions||[]).map(x=>x.optionText).join(', ')+' (marks: '+(a.awardedMarks??0)+')');
+if(a.explanation)item.append(el('p',(document.documentElement.lang==='bn-BD'?'ব্যাখ্যা: ':'Explanation: ')+a.explanation));list.append(item);});
 $('quizHistoryReview').replaceChildren(heading,list);}
 catch(e){msg('danger',e.message);}}
 function csv(){const cells=[['Quiz','Attempt','Submitted','Marks','Pass']];
