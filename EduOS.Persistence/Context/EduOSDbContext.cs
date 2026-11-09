@@ -383,6 +383,7 @@ public class EduOSDbContext :
     // Library
     public DbSet<Book> Books => Set<Book>();
     public DbSet<StudyBookmark> StudyBookmarks => Set<StudyBookmark>();
+    public DbSet<StudyEvidenceExcerpt> StudyEvidenceExcerpts => Set<StudyEvidenceExcerpt>();
     public DbSet<BookCategory> BookCategories => Set<BookCategory>();
     public DbSet<BookCopy> BookCopies => Set<BookCopy>();
     public DbSet<BookIssue> BookIssues => Set<BookIssue>();
@@ -540,12 +541,30 @@ public class EduOSDbContext :
         ConfigureLmsCertificateGuardianGrants(modelBuilder);
         ConfigureLmsProgressGuardianGrants(modelBuilder);
         ConfigureLmsLessonRevisions(modelBuilder);
+        ConfigureGroundedStudy(modelBuilder);
         ConfigureIndexes(modelBuilder);
         ConfigureCheckConstraints(modelBuilder);
         ConfigureAuditLog(modelBuilder);
         ConfigureSpecialMappings(modelBuilder);
         ApplyDateTimeType(modelBuilder);
         DisableCascadeDelete(modelBuilder);
+    }
+
+    private static void ConfigureGroundedStudy(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<StudyEvidenceExcerpt>(entity =>
+        {
+            entity.ToTable(t => t.HasCheckConstraint("CK_StudyEvidenceExcerpts_State",
+                "[StateCode] IN (N'Pending',N'Approved',N'Rejected',N'Revoked')"));
+            entity.HasIndex(x => x.PublicId).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.DocumentId, x.StateCode, x.LanguageCode, x.Id });
+            entity.HasIndex(x => new { x.TenantId, x.DocumentId, x.SourceLocator })
+                .IsUnique().HasFilter("[IsDeleted] = 0 AND [StateCode] IN ('Pending','Approved')");
+            entity.HasOne<EduOS.Core.Entities.Files.Document>().WithMany()
+                .HasForeignKey(x => new { x.TenantId, x.DocumentId })
+                .HasPrincipalKey(x => new { x.TenantId, x.Id })
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     private static void ConfigureLmsCertificateGuardianGrants(ModelBuilder modelBuilder)

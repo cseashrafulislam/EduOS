@@ -8,7 +8,13 @@
             <h2 id="studyHeading" class="h4 mb-1">@(bn ? "বাংলাদেশ অধ্যয়ন সংগ্রহ" : "Bangladesh study collections")</h2>
             <p class="small text-muted mb-0">@(bn ? "প্রাতিষ্ঠানিকভাবে অনুমোদিত SSC, HSC, বিশ্ববিদ্যালয় ভর্তি ও NTRCA অধ্যয়ন উপকরণ। চাকরি/নিয়োগ সেবা নয়।" : "Reviewed SSC, HSC, admission and NTRCA study-only resources; not recruitment services.")</p>
         </div>
-        <a asp-controller="Library" asp-action="Digital" class="btn btn-sm btn-outline-secondary">@(bn ? "ডিজিটাল লাইব্রেরি" : "Digital library")</a>
+        <div class="d-flex gap-2 flex-wrap">
+            @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Student") || User.IsInRole("Teacher"))
+            {
+                <a asp-controller="Library" asp-action="StudyAssistant" class="btn btn-sm btn-primary">@(bn ? "AI অধ্যয়ন সহকারী" : "AI Study Assistant")</a>
+            }
+            <a asp-controller="Library" asp-action="Digital" class="btn btn-sm btn-outline-secondary">@(bn ? "ডিজিটাল লাইব্রেরি" : "Digital library")</a>
+        </div>
     </header>
     <div id="studyAlert" class="d-none" role="alert" tabindex="-1"></div>
     <p class="small text-muted mt-2">@(bn ? "অনুমোদিত অফলাইন ফাইল ২৪ ঘণ্টা পর্যন্ত এনক্রিপ্টেড থাকবে। সংরক্ষণের পাসফ্রেজ হারালে ফেরত আনা যাবে না।" : "Approved offline files are encrypted for up to 24 hours. A lost passphrase cannot be recovered.") <a href="/offline-study.html">@(bn ? "অফলাইন রিডার" : "Offline reader")</a></p>

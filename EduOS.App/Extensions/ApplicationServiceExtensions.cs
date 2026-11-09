@@ -1,4 +1,5 @@
 using EduOS.BackgroundJobs.Jobs;
+using EduOS.AI;
 using EduOS.App.Authorization;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -140,6 +141,12 @@ namespace EduOS.App.Extensions
             s.AddScoped<ILibraryService, LibraryService>();
             s.AddScoped<ILibraryLiabilityService, LibraryLiabilityService>();
             s.AddScoped<ILibraryDigitalResourceService, LibraryDigitalResourceService>();
+            s.AddSingleton(new ReviewedCapabilityRegistry(new[]
+            {
+                new CapabilityDescriptor("attendance.status.count", 1, "attendance.status.count.v1", "Attendance.View"),
+                new CapabilityDescriptor("education.study.chapter", 1, "education.study.chapter.v1", "Study.Read")
+            }));
+            s.AddScoped<GroundedStudyAssistantService>();
             s.AddScoped<ITeacherResourceService, TeacherResourceService>();
             s.AddScoped<TeacherCpdService>();
             s.AddScoped<AdaptiveStudyService>();

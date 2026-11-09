@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EduOS.Core\EduOS.Core.csproj" />
+    <ProjectReference Include="..\EduOS.AI\EduOS.AI.csproj" />
     <ProjectReference Include="..\EduOS.Persistence\EduOS.Persistence.csproj" />
   </ItemGroup>
 

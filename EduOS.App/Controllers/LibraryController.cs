@@ -53,4 +53,9 @@ public sealed class LibraryController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent")]
     public IActionResult Study() => View();
+
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [Authorize(Roles = "TenantAdmin,Principal,Student,Teacher")]
+    public IActionResult StudyAssistant() => View();
 }

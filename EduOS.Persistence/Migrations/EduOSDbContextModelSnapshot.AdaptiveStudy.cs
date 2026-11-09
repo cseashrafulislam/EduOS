@@ -112,5 +112,6 @@ partial class EduOSDbContextModelSnapshot
                 .HasForeignKey("TenantId", "CourseSectionId")
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
         });
+        AddGroundedStudySnapshot(modelBuilder);
     }
 }
