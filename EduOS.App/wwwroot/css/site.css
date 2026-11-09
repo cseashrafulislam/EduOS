@@ -10,7 +10,7 @@
     --edu-success: #15803d;
     --edu-warning: #d97706;
     --edu-danger: #dc2626;
-    --edu-sidebar-width: 17rem;
+    --edu-sidebar-width: 18.25rem;
     --edu-topbar-height: 4.75rem;
     --edu-focus: 0 0 0 .2rem rgba(29, 78, 216, .28);
 }
@@ -157,6 +157,9 @@ select,
 }
 
 .sidebar-feature-search {
+    position: sticky;
+    top: .25rem;
+    z-index: 2;
     display: flex;
     align-items: center;
     width: 100%;
@@ -166,7 +169,7 @@ select,
     padding: .55rem .65rem;
     border: 1px solid rgba(255, 255, 255, .22);
     border-radius: .7rem;
-    background: rgba(255, 255, 255, .07);
+    background: #26354d;
     color: rgba(255, 255, 255, .9);
     font-size: .8rem;
     text-align: left;
@@ -235,12 +238,13 @@ select,
     display: flex; align-items: center; gap: .6rem;
     min-height: 2.65rem; padding: .6rem .8rem;
     border-radius: .75rem; cursor: pointer; list-style: none;
-    font-size: .89rem; font-weight: 700; line-height: 1.35;
+    font-size: .9rem; font-weight: 700; line-height: 1.35;
     color: rgba(255, 255, 255, .88);
     transition: background-color .18s ease, color .18s ease;
 }
 .sidebar-group-toggle::-webkit-details-marker { display: none; }
 .sidebar-group-toggle::before {
+    order: 3; margin-left: auto;
     content: ''; flex: 0 0 .4rem; width: .4rem; height: .4rem;
     border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
     transform: rotate(-45deg); transition: transform .18s ease;
@@ -256,14 +260,18 @@ select,
 .sidebar-group-toggle:focus-visible,
 .sidebar .nav-link:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .sidebar-group-label { flex: 1; min-width: 0; }
+.sidebar-group-icon { width: 1.1rem; height: 1.1rem; color: #a7d8ff; }
+.sidebar-group[open] > .sidebar-group-toggle .sidebar-group-icon,
+.sidebar-group.has-current > .sidebar-group-toggle .sidebar-group-icon { color: #fff; }
 .sidebar-submenu {
-    margin: .15rem .15rem .4rem .8rem; padding-left: .6rem;
+    margin: .15rem .1rem .4rem .65rem; padding-left: .45rem;
     border-left: 1px solid rgba(255, 255, 255, .18);
 }
 .sidebar .sidebar-submenu .nav-link {
     min-height: 2.3rem; margin-bottom: .1rem;
-    padding: .47rem .6rem; border-radius: .55rem;
+    padding: .47rem .5rem; border-radius: .55rem;
     font-size: .84rem; font-weight: 500; line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 .sidebar .sidebar-submenu .nav-link .edu-icon { width: 1rem; height: 1rem; }
 .sidebar .sidebar-submenu .nav-link.active {
@@ -289,8 +297,9 @@ select,
 .sidebar-category.has-current > .sidebar-category-toggle,
 .sidebar-category[open] > .sidebar-category-toggle { background: rgba(255,255,255,.08); color: #fff; }
 .sidebar-category-toggle:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
-.sidebar-category-links { padding-left: .45rem; margin: .15rem 0 .35rem .3rem; border-left: 1px solid rgba(255,255,255,.16); }
+.sidebar-category-links { padding-left: .3rem; margin: .15rem 0 .35rem .2rem; border-left: 1px solid rgba(255,255,255,.16); }
 .sidebar .sidebar-dashboard-link { margin-bottom: .5rem; }
+.sidebar .sidebar-single-link { min-height: 2.6rem; font-size: .89rem; }
 
 .sidebar-divider {
     margin: 1rem .45rem;
@@ -3757,3 +3766,48 @@ select,
     #hostelWorkspace form .form-control, #transportWorkspace form .form-control,
     #hostelWorkspace form .form-select, #transportWorkspace form .form-select { min-width: 0; }
 }
+
+/* Shared, no-provider page locator. Does not intercept or modify ERP forms. */
+.page-assistant-trigger {
+    display: inline-flex; align-items: center; gap: .45rem; min-height: 2.65rem;
+    padding: .45rem .8rem; border: 1px solid var(--edu-border, #dbe3ee);
+    border-radius: .75rem; background: var(--edu-soft, #eff6ff);
+    color: var(--edu-primary-dark, #1d4ed8); font-weight: 650;
+}
+.page-assistant-trigger:hover, .page-assistant-trigger:focus-visible {
+    border-color: var(--edu-primary, #2563eb); outline-offset: 2px;
+}
+.page-assistant-dialog {
+    width: min(38rem, calc(100vw - 1.5rem)); max-height: min(85dvh, 42rem);
+    padding: 1.35rem; border: 1px solid var(--edu-border, #dbe3ee);
+    border-radius: 1rem; color: var(--edu-text, #172033); background: var(--edu-card-bg, #fff);
+    box-shadow: 0 1.5rem 4rem #0f172a50; overflow: auto;
+}
+.page-assistant-dialog::backdrop { background: #0f172aa8; }
+.page-assistant-heading { display: flex; align-items: start; justify-content: space-between; gap: .75rem; margin-bottom: .75rem; }
+.page-assistant-heading h2 { font-size: 1.2rem; font-weight: 750; margin: 0; }
+.page-assistant-result { min-height: 3rem; padding-top: 1rem; }
+.page-assistant-result p { margin-bottom: .65rem; overflow-wrap: anywhere; }
+:root[data-workspace-theme="dark"] .page-assistant-dialog,
+:root[data-workspace-theme="dark"] .page-assistant-trigger {
+    background: #172235; color: #e2e8f0; border-color: #475569;
+}
+@media (prefers-color-scheme: dark) {
+    :root[data-workspace-theme="system"] .page-assistant-dialog,
+    :root[data-workspace-theme="system"] .page-assistant-trigger {
+        background: #172235; color: #e2e8f0; border-color: #475569;
+    }
+}
+@media (max-width: 767.98px) {
+    .page-assistant-trigger-label { display: none; }
+    .page-assistant-trigger { min-width: 2.65rem; justify-content: center; padding: .4rem; }
+    .page-assistant-dialog { padding: 1rem; }
+}
+#workspacePreferencesPage details > summary,
+.dashboard-checklist-disclosure > summary,
+#admissionDraftDisclosure > summary,
+#admissionReadinessDisclosure > summary { cursor: pointer; min-height: 2.5rem; }
+#workspacePreferencesPage details > summary:focus-visible,
+.dashboard-checklist-disclosure > summary:focus-visible,
+#admissionDraftDisclosure > summary:focus-visible,
+#admissionReadinessDisclosure > summary:focus-visible { outline: 3px solid var(--edu-primary, #2563eb); outline-offset: 3px; }

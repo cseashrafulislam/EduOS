@@ -7,7 +7,19 @@ const root = path.resolve(__dirname, '../..');
 const layout = fs.readFileSync(path.join(root, 'EduOS.App/Views/Shared/_Layout.cshtml'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/css/site.css'), 'utf8');
 const script = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/sidebar-navigation.js'), 'utf8');
-const { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+const { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath, groupIconFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+
+test('standard sidebar has recognizable grouped icons, generous width and sticky menu search', () => {
+    assert.equal(groupIconFor('academics', 'assessments'), 'exam');
+    assert.equal(groupIconFor('management', 'finance'), 'finance');
+    assert.equal(groupIconFor('setup', 'institution'), 'institution');
+    assert.equal(groupIconFor('platform', 'unknown'), 'reports');
+    assert.match(script, /document\.createElementNS\('http:\/\/www\.w3\.org\/2000\/svg', 'svg'\)/);
+    assert.match(script, /summary\.append\(moduleIcon, label\)/);
+    assert.match(script, /if \(children\.length === 1\)/);
+    assert.match(styles, /--edu-sidebar-width: 18\.25rem/);
+    assert.match(styles, /\.sidebar-feature-search \{\s*position: sticky/);
+});
 
 test('every sidebar section is grouped without replacing role and module gated Razor links', () => {
     for (const section of ['platform', 'setup', 'academics', 'management']) {

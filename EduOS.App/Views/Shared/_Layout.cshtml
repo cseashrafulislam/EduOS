@@ -1014,6 +1014,12 @@
                 <div class="topbar-right">
                     @if (User?.Identity?.IsAuthenticated == true)
                     {
+                        <button class="page-assistant-trigger" id="pageAssistantOpen" type="button"
+                                aria-haspopup="dialog" aria-controls="pageAssistantDialog"
+                                aria-label="@(currentCulture == "bn-BD" ? "পেজ সহকারী খুলুন" : "Open page assistant")">
+                            <span aria-hidden="true">✦</span>
+                            <span class="page-assistant-trigger-label">@(currentCulture == "bn-BD" ? "পেজ সহকারী" : "Page Assistant")</span>
+                        </button>
                         <button class="feature-search-trigger" id="featureSearchOpen" type="button"
                                 aria-haspopup="dialog" aria-controls="featureSearchDialog"
                                 aria-label="@(currentCulture == "bn-BD" ? "অনুমোদিত ফিচার খুঁজুন" : "Find an available feature")">
@@ -1081,6 +1087,26 @@
 
             @if (User?.Identity?.IsAuthenticated == true)
             {
+                <dialog class="page-assistant-dialog" id="pageAssistantDialog" aria-labelledby="pageAssistantTitle" aria-modal="true">
+                    <div class="page-assistant-heading">
+                        <div>
+                            <p class="dashboard-eyebrow mb-1">EduOS</p>
+                            <h2 id="pageAssistantTitle">@(currentCulture == "bn-BD" ? "গ্লোবাল পেজ সহকারী" : "Global Page Assistant")</h2>
+                        </div>
+                        <button class="icon-button" type="button" id="pageAssistantClose"
+                                aria-label="@(currentCulture == "bn-BD" ? "সহকারী বন্ধ করুন" : "Close assistant")">×</button>
+                    </div>
+                    <p class="small text-muted mb-3">@(currentCulture == "bn-BD"
+                        ? "মেনুর নাম অথবা পেজের ঘরের লেবেল লিখুন। যেমন: 'নাম'। কোন ঘরে যাবেন তা যাচাই করে নিশ্চিত করুন। বর্তমানে ভয়েস/AI provider সক্রিয় নয়; তথ্য নিজে পূরণ ও জমা দিতে হবে।"
+                        : "Type a visible menu or field label, for example 'Applicant name'. Review the match before navigating or focusing. Speech/AI provider is not enabled; you must enter and submit data yourself.")</p>
+                    <label class="form-label fw-semibold" for="pageAssistantQuery">@(currentCulture == "bn-BD" ? "পেজ বা ঘরের নাম" : "Page or field label")</label>
+                    <div class="d-flex gap-2">
+                        <input class="form-control" id="pageAssistantQuery" type="search" maxlength="120"
+                               autocomplete="off" placeholder="@(currentCulture == "bn-BD" ? "যেমন: অভিভাবকের নাম" : "e.g. Guardian name")" />
+                        <button type="button" class="btn btn-primary" id="pageAssistantFind">@(currentCulture == "bn-BD" ? "খুঁজুন" : "Find")</button>
+                    </div>
+                    <div id="pageAssistantResult" class="page-assistant-result" role="status" aria-live="polite"></div>
+                </dialog>
                 <dialog class="feature-search-dialog" id="featureSearchDialog" aria-labelledby="featureSearchTitle">
                     <div class="feature-search-heading">
                         <h2 id="featureSearchTitle">@(currentCulture == "bn-BD" ? "ফিচার খুঁজুন" : "Find a feature")</h2>
@@ -1165,6 +1191,7 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/sidebar-navigation.js" asp-append-version="true"></script>
     <script src="~/js/platform/ui-shell.js" asp-append-version="true"></script>
+    <script src="~/js/platform/page-assistant.js" asp-append-version="true"></script>
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/feature-discovery.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>

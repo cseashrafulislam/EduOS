@@ -11,6 +11,9 @@
         <div class="card-body">
             <form id="workspacePreferencesForm" autocomplete="off">
                 @Html.AntiForgeryToken()
+                <fieldset class="border-0 p-0 m-0" aria-labelledby="workspacePersonalTitle">
+                    <legend class="fs-6 fw-bold mb-3" id="workspacePersonalTitle">@(bn ? "ব্যক্তিগত ডিজাইন" : "Personal Appearance")</legend>
+                    <p class="small text-muted">@(bn ? "এই সেটিং শুধু আপনার ওয়ার্কস্পেসে প্রযোজ্য। প্রতিষ্ঠানের ব্র্যান্ডিং আলাদাভাবে পরিচালিত হয়।" : "These preferences affect your workspace. Institution branding is managed separately.")</p>
                 <div class="row g-3">
                     <div class="col-md-6"><label class="form-label" for="workspaceTheme">@(bn ? "থিম" : "Theme")</label>
                         <select class="form-select" id="workspaceTheme" name="theme">
@@ -41,6 +44,13 @@
                             <option value="large">@(bn ? "বড়" : "Large")</option>
                         </select></div>
                 </div>
+                </fieldset>
+                <div class="d-flex flex-wrap gap-2 mt-3 border-top pt-3" aria-label="@(bn ? "ডিজাইন সংরক্ষণের ব্যবস্থা" : "Appearance save actions")">
+                    <button class="btn btn-primary" type="submit" id="workspaceSave">@(bn ? "ডিজাইন সংরক্ষণ" : "Save appearance")</button>
+                    <button class="btn btn-outline-primary" type="button" id="workspaceDiscard" disabled>@(bn ? "প্রিভিউ বাতিল" : "Discard preview")</button>
+                    <button class="btn btn-outline-secondary" type="button" id="workspaceReset">@(bn ? "ডিফল্টে ফিরুন" : "Reset to defaults")</button>
+                </div>
+                <p class="small text-muted mt-2 mb-0">@(bn ? "ড্যাশবোর্ড ও কলামের পরিবর্তনও উপরের একই সংরক্ষণ বাটনে সংরক্ষিত হবে।" : "Dashboard and column changes use the same Save button above.")</p>
                 <details class="mt-4" id="workspaceAdvancedColors">
                     <summary class="fw-bold py-2">@(bn ? "অ্যাডভান্সড রঙ ও লাইভ প্রিভিউ" : "Advanced colors and live preview")</summary>
                     <fieldset class="row g-3 mt-1" aria-describedby="workspaceColorHint">
@@ -71,7 +81,9 @@
                         }
                     </fieldset>
                 </details>
-                <fieldset class="mt-4" aria-labelledby="workspacePanelsTitle">
+                <details class="mt-3" id="workspaceDashboardCustomize">
+                    <summary class="fw-bold py-2">@(bn ? "ড্যাশবোর্ড সাজান" : "Dashboard Customize")</summary>
+                <fieldset class="mt-2" aria-labelledby="workspacePanelsTitle">
                     <legend class="fs-6 fw-bold mb-2" id="workspacePanelsTitle">@(bn ? "ড্যাশবোর্ড প্যানেল" : "Dashboard panels")</legend>
                     <div class="list-group" id="workspaceDashboardPanels">
                         @foreach (var panel in new[] {
@@ -93,9 +105,12 @@
                         }
                     </div>
                 </fieldset>
+                </details>
                 @if (User.IsInRole("TenantAdmin"))
                 {
-                    <fieldset class="mt-4" aria-labelledby="workspaceTablesTitle">
+                    <details class="mt-3" id="workspaceTableCustomize">
+                        <summary class="fw-bold py-2">@(bn ? "তালিকার কলাম সাজান" : "Table Columns")</summary>
+                    <fieldset class="mt-2" aria-labelledby="workspaceTablesTitle">
                         <legend class="fs-6 fw-bold mb-2" id="workspaceTablesTitle">@(bn ? "তালিকার কলাম" : "Table columns")</legend>
                         @foreach (var table in new[] {
                             (Id: "institution-users", En: "Institution users", Bn: "প্রতিষ্ঠানের ব্যবহারকারী",
@@ -186,12 +201,8 @@
                             </div>
                         }
                     </fieldset>
+                    </details>
                 }
-                <div class="d-flex flex-wrap gap-2 mt-3">
-                    <button class="btn btn-primary" type="submit" id="workspaceSave">@(bn ? "ডিজাইন সংরক্ষণ" : "Save appearance")</button>
-                    <button class="btn btn-outline-primary" type="button" id="workspaceDiscard" disabled>@(bn ? "প্রিভিউ বাতিল" : "Discard preview")</button>
-                    <button class="btn btn-outline-secondary" type="button" id="workspaceReset">@(bn ? "ডিফল্টে ফিরুন" : "Reset to defaults")</button>
-                </div>
                 <details class="mt-3" id="workspaceHistory">
                     <summary class="fw-semibold py-2">@(bn ? "আগের সংরক্ষিত ডিজাইন" : "Previously saved appearances")</summary>
                     <p class="small text-muted mb-2">@(bn ? "এই প্রতিষ্ঠানে আপনার সর্বশেষ পাঁচটি আগের সংস্করণ রাখা হয়। ফিরিয়ে আনলে বর্তমান ডিজাইনও ইতিহাসে থাকবে।" : "Up to five previous versions are kept for you in this institution. Restoring one also archives the current appearance.")</p>

@@ -86,7 +86,8 @@
             if (content !== undefined) node.textContent = content;
             return node;
         };
-        const heading = el('h4', {class:'h6'}, t('Draft from text (no automatic submission)', 'লিখে খসড়া তৈরি (স্বয়ংক্রিয় জমা নয়)'));
+        const draftDisclosure = el('details', {class:'border rounded p-3 mb-3',id:'admissionDraftDisclosure'});
+        const heading = el('summary', {class:'fw-semibold'}, t('Optional: draft form fields from text', 'ঐচ্ছিক: লিখে ফরমের তথ্য তৈরি করুন'));
         const note = el('p', {class:'small text-muted'}, t('Microphone unavailable until an approved speech provider is configured. Type instead. Draft stays in this page only.', 'অনুমোদিত স্পিচ সেবা চালু না হওয়া পর্যন্ত মাইক্রোফোন বন্ধ। লিখে দিন। খসড়া শুধু এই পৃষ্ঠায় থাকবে।'));
         const input = el('textarea', {id:'admissionDraftText',class:'form-control',rows:'3','aria-label':t('Admission transcript draft','ভর্তি আবেদনের লিখিত খসড়া'),placeholder:t('Name: ...\nMobile: ...\nGuardian: ...','নাম: ...\nমোবাইল: ...\nঅভিভাবক: ...')});
         const previewButton = el('button',{type:'button',class:'btn btn-outline-primary mt-2'},t('Preview fields','তথ্য যাচাই'));
@@ -224,7 +225,7 @@
         });
         // Applicant-side readiness check is advisory: the canonical admission submit
         // handler remains the only writer and retains server-side validation.
-        const readiness = el('section', {class:'border rounded p-3 mt-3','aria-labelledby':'admissionReadinessTitle'});
+        const readiness = el('section', {class:'mt-3','aria-labelledby':'admissionReadinessTitle'});
         const readinessTitle = el('h5',{id:'admissionReadinessTitle',class:'h6'},
             t('Application readiness','আবেদন প্রস্তুতি'));
         const readinessSummary = el('p',{class:'small',role:'status','aria-live':'polite'},'');
@@ -264,7 +265,11 @@
         form.addEventListener('input',() => { readinessSummary.textContent = ''; readinessList.replaceChildren(); });
         form.addEventListener('change',() => { readinessSummary.textContent = ''; readinessList.replaceChildren(); });
         readiness.append(readinessTitle,readinessSummary,readinessList,checkButton);
-        host.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,reviewSummary,confirm,undo,status,readiness);
+        draftDisclosure.append(heading,note,privacy,connectivity,input,previewButton,clear,preview,reviewSummary,confirm,undo,status);
+        const readinessDisclosure = el('details',{class:'border rounded p-3 mb-3',id:'admissionReadinessDisclosure'});
+        const readinessHeading = el('summary',{class:'fw-semibold'},t('Check application readiness', 'আবেদন প্রস্তুতি যাচাই'));
+        readinessDisclosure.append(readinessHeading,readiness);
+        host.append(draftDisclosure,readinessDisclosure);
     }
     return {parse,parseDetailed,mount,normalizePhone,validateDraftField};
 });

@@ -39,6 +39,21 @@
         ]
     };
 
+    // One icon per top-level module, never per individual administrative URL.
+    // Icons decorate the already server-authorized menu; they grant no access.
+    const moduleIcons = {
+        platform: { institutions: 'institution', features: 'dashboard', subscriptions: 'finance', governance: 'shield' },
+        setup: { access: 'users', institution: 'institution', enrollment: 'students', 'work-center': 'reports', 'academic-setup': 'calendar' },
+        academics: { portal: 'book', learners: 'students', career: 'users', research: 'book', accreditation: 'shield',
+            learning: 'book', assessments: 'exam', operations: 'attendance' },
+        management: { people: 'users', finance: 'finance', inventory: 'reports', campus: 'campus',
+            library: 'book', communication: 'reports', governance: 'shield' }
+    };
+
+    function groupIconFor(section, key) {
+        return moduleIcons[section]?.[key] || 'reports';
+    }
+
     // Optional third level: Module > Settings/Operations/Reports > feature.
     // Only categorize links that Razor has already authorized and emitted.
     const categories = {
@@ -316,7 +331,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath };
+        module.exports = { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath, groupIconFor };
     }
     if (typeof document === 'undefined') return;
 
@@ -391,15 +406,28 @@
         for (const [key, english, bengali] of [...definitions, ['other', 'More tools', 'আরও সুবিধা', []]]) {
             const children = categorized.get(key);
             if (!children?.length) continue;
+            // An accordion containing one authorized destination adds a useless
+            // level. Keep its real Razor link directly accessible instead.
+            if (children.length === 1) {
+                children[0].classList.add('sidebar-single-link');
+                container.append(children[0]);
+                continue;
+            }
             const details = document.createElement('details');
             details.className = 'sidebar-group';
             details.dataset.sidebarGroup = `${section}:${key}`;
             const summary = document.createElement('summary');
             summary.className = 'sidebar-group-toggle';
+            const moduleIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            moduleIcon.setAttribute('class', 'edu-icon sidebar-group-icon');
+            moduleIcon.setAttribute('aria-hidden', 'true');
+            const iconUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            iconUse.setAttribute('href', '/images/eduos-icons.svg#' + groupIconFor(section, key));
+            moduleIcon.append(iconUse);
             const label = document.createElement('span');
             label.className = 'sidebar-group-label';
             label.textContent = bangla ? bengali : english;
-            summary.append(label);
+            summary.append(moduleIcon, label);
             const submenu = document.createElement('div');
             submenu.className = 'sidebar-submenu';
             const definitionsForGroup = categories[`${section}:${key}`];

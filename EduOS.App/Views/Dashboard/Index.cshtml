@@ -119,6 +119,8 @@
             </div>
         </div>
 
+        @if (!Model.OnboardingComplete)
+        {
         <div class="dashboard-progress-card">
             <div class="dashboard-progress-heading">
                 <span>@T["OnboardingProgress"]</span>
@@ -136,6 +138,7 @@
                 </div>
             </dl>
         </div>
+        }
     </section>
 
     @if (Model.Alerts.Count > 0)
@@ -275,15 +278,38 @@
                     <h2 id="quickActionsTitle">@T["QuickActions"]</h2>
                 </div>
                 <nav class="dashboard-actions" aria-label="@T["QuickActions"]">
+                    @if (Model.OnboardingComplete)
+                    {
+                        @if (User.IsInRole("TenantAdmin") || User.IsInRole("AdmissionOfficer"))
+                        {
+                            <a href="/Admissions/Applications">@(useBangla ? "আবেদন যাচাই" : "Review Applications")</a>
+                            <a href="/Students/Index">@T["Students"]</a>
+                        }
+                        @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ||
+                             User.IsInRole("VicePrincipal") || User.IsInRole("Teacher"))
+                        {
+                            <a href="/Attendance/Register">@(useBangla ? "উপস্থিতি এন্ট্রি" : "Attendance Register")</a>
+                        }
+                        @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Accountant"))
+                        {
+                            <a href="/FeeOperations/Ledger">@(useBangla ? "শিক্ষার্থী ফি ও সংগ্রহ" : "Fees & Collections")</a>
+                        }
+                        <a href="/Account/Profile">@T["Profile"]</a>
+                    }
+                    else
+                    {
                     <a asp-controller="Account" asp-action="InstitutionProfile">@T["CompleteInstitutionProfile"]</a>
                     <a asp-controller="Account" asp-action="CampusSetup">@T["SetupCampus"]</a>
                     <a asp-controller="Account" asp-action="AcademicSetup">@T["SetupAcademicYear"]</a>
                     <a asp-controller="Account" asp-action="GeneralSettings">@T["ConfigurePreferences"]</a>
                     <a asp-controller="Account" asp-action="PlanSelection">@T["ManagePlan"]</a>
+                    }
                 </nav>
             </section>
 
     <section class="dashboard-panel setup-checklist-panel" data-dashboard-panel="setup-checklist" aria-labelledby="checklistTitle">
+        <details open="@(!Model.OnboardingComplete)" class="dashboard-checklist-disclosure">
+            <summary class="fw-semibold">@(Model.OnboardingComplete ? (useBangla ? "সম্পন্ন সেটআপ দেখুন" : "Review completed setup") : (useBangla ? "সেটআপ ধাপসমূহ" : "Setup steps"))</summary>
         <div class="dashboard-section-heading">
             <div>
                 <p class="dashboard-eyebrow">@T["GuidedSetup"]</p>
@@ -307,6 +333,7 @@
                 </li>
             }
         </ol>
+        </details>
     </section>
     </div>
 </div>
