@@ -46,6 +46,7 @@ public sealed class AdaptiveStudyPlanning : Migration
         }, constraints: table =>
         {
             table.PrimaryKey("PK_AdaptiveStudyGoals", x => x.Id);
+            table.UniqueConstraint("AK_AdaptiveStudyGoals_TenantId_Id", x => new { x.TenantId, x.Id });
             table.CheckConstraint("CK_AdaptiveStudyGoals_Target", "[TargetPercent] >= 0 AND [TargetPercent] <= 100");
             table.ForeignKey("FK_AdaptiveStudyGoals_Tenants_TenantId", x => x.TenantId, "Tenants", "Id", onDelete: ReferentialAction.Restrict);
             table.ForeignKey("FK_AdaptiveStudyGoals_Courses_TenantId_CourseId", x => new { x.TenantId, x.CourseId },
@@ -55,7 +56,6 @@ public sealed class AdaptiveStudyPlanning : Migration
             table.ForeignKey("FK_AdaptiveStudyGoals_CourseSections_TenantId_CourseSectionId", x => new { x.TenantId, x.CourseSectionId },
                 "CourseSections", new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
         });
-        migrationBuilder.CreateIndex("IX_AdaptiveStudyGoals_TenantId_CourseId", "AdaptiveStudyGoals", new[] { "TenantId", "CourseId" });
         migrationBuilder.CreateIndex("IX_AdaptiveStudyGoals_TenantId_StudentId", "AdaptiveStudyGoals", new[] { "TenantId", "StudentId" });
         migrationBuilder.CreateIndex("IX_AdaptiveStudyGoals_TenantId_CourseSectionId", "AdaptiveStudyGoals", new[] { "TenantId", "CourseSectionId" });
         migrationBuilder.CreateIndex("IX_AdaptiveStudyGoals_TenantId_CourseId_StudentId_CourseSectionId_SkillCode", "AdaptiveStudyGoals",
@@ -82,6 +82,7 @@ public sealed class AdaptiveStudyPlanning : Migration
         }, constraints: table =>
         {
             table.PrimaryKey("PK_AdaptiveStudyPlanHistories", x => x.Id);
+            table.UniqueConstraint("AK_AdaptiveStudyPlanHistories_TenantId_Id", x => new { x.TenantId, x.Id });
             table.ForeignKey("FK_AdaptiveStudyPlanHistories_Tenants_TenantId", x => x.TenantId, "Tenants", "Id", onDelete: ReferentialAction.Restrict);
             table.ForeignKey("FK_AdaptiveStudyPlanHistories_CourseEnrollments_TenantId_CourseEnrollmentId", x => new { x.TenantId, x.CourseEnrollmentId },
                 "CourseEnrollments", new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);

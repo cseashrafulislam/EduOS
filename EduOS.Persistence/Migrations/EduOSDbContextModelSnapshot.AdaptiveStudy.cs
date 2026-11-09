@@ -30,7 +30,7 @@ partial class EduOSDbContextModelSnapshot
             b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
                 .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
             b.HasKey("Id");
-            b.HasIndex("TenantId", "CourseId");
+            b.HasAlternateKey("TenantId", "Id");
             b.HasIndex("TenantId", "CourseSectionId");
             b.HasIndex("TenantId", "StudentId");
             b.HasIndex("TenantId", "CourseId", "StudentId", "CourseSectionId", "SkillCode")
@@ -59,6 +59,7 @@ partial class EduOSDbContextModelSnapshot
             b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
                 .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
             b.HasKey("Id");
+            b.HasAlternateKey("TenantId", "Id");
             b.HasIndex("TenantId", "StudentId");
             b.HasIndex("TenantId", "ClientRequestId").IsUnique();
             b.HasIndex("TenantId", "CourseEnrollmentId", "GeneratedAt");

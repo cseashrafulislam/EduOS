@@ -309,6 +309,7 @@ public sealed class AdaptiveStudyService(EduOSDbContext db, ICurrentUserService 
                     latestMarks.Value >= 0 && latestMarks.Value <= full)
                 { earned += latestMarks.Value; possible += full; gradedCount++; }
                 var available = Math.Max(0, quiz.MaxAttempts - usage.GetValueOrDefault(quiz.Id));
+                if (enrollment.State != CourseEnrollmentState.Active) available = 0;
                 if (quiz.OpensAt > now || quiz.ClosesAt < now) available = 0;
                 remaining += available;
                 if (available > 0 && suggested == null) suggested = quiz.PublicId;

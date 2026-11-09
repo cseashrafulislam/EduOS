@@ -2168,6 +2168,8 @@ public class EduOSDbContext :
         modelBuilder.Entity<AdaptiveStudyPlanHistory>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
         modelBuilder.Entity<AdaptiveStudyPlanHistory>().HasIndex(x => new
         { x.TenantId, x.CourseEnrollmentId, x.GeneratedAt });
+        // Preserve the existing hot course-list index as adaptive mappings are introduced.
+        modelBuilder.Entity<Quiz>().HasIndex(x => new { x.TenantId, x.CourseId });
         modelBuilder.Entity<Quiz>().HasIndex(x => new { x.TenantId, x.CourseId, x.CourseSectionId, x.SkillCode });
         modelBuilder.Entity<Quiz>().ToTable(t => t.HasCheckConstraint(
             "CK_Quizzes_PracticeDifficulty", "[PracticeDifficulty] BETWEEN 1 AND 3"));
