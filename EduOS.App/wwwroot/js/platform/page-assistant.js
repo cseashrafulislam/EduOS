@@ -215,7 +215,7 @@
             next.onresult = event => {
                 if (recognizer !== next || !currentContext() || !dialog.open) { stopSpeech(); return; }
                 const transcript = String(event?.results?.[event.resultIndex || 0]?.[0]?.transcript || '').trim();
-                if (transcript.length < 2 || transcript.length > 120) {
+                if (transcript.length < 2 || transcript.length > 512) {
                     voiceMessage(t('Speech was not recognized clearly. Try typing.', 'কথা স্পষ্ট বোঝা যায়নি। লিখে চেষ্টা করুন।'));
                     return;
                 }

@@ -1100,11 +1100,11 @@
                                 aria-label="@(currentCulture == "bn-BD" ? "সহকারী বন্ধ করুন" : "Close assistant")">×</button>
                     </div>
                     <p class="small text-muted mb-3">@(currentCulture == "bn-BD"
-                        ? "মেনু বা ঘরের নাম লিখুন, অথবা ডিভাইসে আগে থেকেই ভয়েস সুবিধা থাকলে ব্যবহার করুন। ফলাফল যাচাই করে নিশ্চিত করুন। তথ্য পূরণ বা জমা স্বয়ংক্রিয়ভাবে হবে না।"
-                        : "Type a menu or field label, or use speech if an on-device language pack is already installed. Review the match before continuing. No form is automatically filled or submitted.")</p>
-                    <label class="form-label fw-semibold" for="pageAssistantQuery">@(currentCulture == "bn-BD" ? "পেজ বা ঘরের নাম" : "Page or field label")</label>
+                        ? "মেনু, ঘরের নাম বা হাজিরা-সংক্রান্ত প্রশ্ন লিখুন। ডিভাইসে আগে থেকে থাকা ভয়েস ব্যবহার করা যায়। যাচাই ছাড়া কোনো ফর্ম বা রিপোর্ট পরিবর্তন হবে না।"
+                        : "Type a menu/field label or an attendance question. Installed on-device voice is optional. Nothing is filled, posted or changed automatically.")</p>
+                    <label class="form-label fw-semibold" for="pageAssistantQuery">@(currentCulture == "bn-BD" ? "পেজ, ঘর বা প্রশ্ন" : "Page, field or question")</label>
                     <div class="page-assistant-controls">
-                        <input class="form-control" id="pageAssistantQuery" type="search" maxlength="120"
+                        <input class="form-control" id="pageAssistantQuery" type="search" maxlength="512"
                                autocomplete="off" placeholder="@(currentCulture == "bn-BD" ? "যেমন: অভিভাবকের নাম" : "e.g. Guardian name")" />
                         <button type="button" class="btn btn-primary" id="pageAssistantFind">@(currentCulture == "bn-BD" ? "খুঁজুন" : "Find")</button>
                         <button type="button" class="btn btn-outline-primary page-assistant-voice" id="pageAssistantVoice"
@@ -1115,6 +1115,24 @@
                     </div>
                     <p id="pageAssistantVoiceStatus" class="page-assistant-voice-status" role="status" aria-live="polite"></p>
                     <div id="pageAssistantResult" class="page-assistant-result" role="status" aria-live="polite"></div>
+                    <details class="page-assistant-ai mt-3" id="pageAssistantAiPanel">
+                        <summary>@(currentCulture == "bn-BD" ? "Ask EduOS — হাজিরা প্রশ্ন যাচাই (শুধু পড়ার জন্য)" : "Ask EduOS — Attendance question preview (read-only)")</summary>
+                        <div class="page-assistant-ai-controls mt-2">
+                            <label class="form-label" for="pageAssistantCampusSearch">@(currentCulture == "bn-BD" ? "ক্যাম্পাসের নাম (ঐচ্ছিক)" : "Campus name (optional filter)")</label>
+                            <div class="page-assistant-controls">
+                                <input id="pageAssistantCampusSearch" class="form-control" type="search" maxlength="80" autocomplete="off" />
+                                <button id="pageAssistantCampusFind" class="btn btn-outline-primary" type="button">@(currentCulture == "bn-BD" ? "ক্যাম্পাস খুঁজুন" : "Find campus")</button>
+                            </div>
+                            <label class="form-label mt-2" for="pageAssistantCampusSelect">@(currentCulture == "bn-BD" ? "অনুমোদিত ক্যাম্পাস" : "Authorized campus")</label>
+                            <select id="pageAssistantCampusSelect" class="form-select" disabled>
+                                <option value="">@(currentCulture == "bn-BD" ? "প্রথমে ক্যাম্পাস খুঁজুন" : "Find a campus first")</option>
+                            </select>
+                            <button id="pageAssistantAiPreview" class="btn btn-outline-primary btn-sm mt-2" type="button" disabled>
+                                @(currentCulture == "bn-BD" ? "প্রশ্ন যাচাই" : "Review question")
+                            </button>
+                            <div id="pageAssistantAiResult" class="page-assistant-result mt-2" role="status" aria-live="polite"></div>
+                        </div>
+                    </details>
                 </dialog>
                 <dialog class="feature-search-dialog" id="featureSearchDialog" aria-labelledby="featureSearchTitle">
                     <div class="feature-search-heading">
@@ -1201,6 +1219,7 @@
     <script src="~/js/sidebar-navigation.js" asp-append-version="true"></script>
     <script src="~/js/platform/ui-shell.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-assistant.js" asp-append-version="true"></script>
+    <script src="~/js/platform/ai-voice-attendance-preview.js" asp-append-version="true"></script>
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/feature-discovery.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>
