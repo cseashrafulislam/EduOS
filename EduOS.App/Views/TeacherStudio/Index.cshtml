@@ -8,6 +8,7 @@
     <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
         <h2 class="h4 mb-0">@(bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</h2>
         @if (teacher) { <a class="btn btn-sm btn-primary" href="/TeacherStudio/Cpd">@(bn ? "শিক্ষক প্রশিক্ষণ (CPD)" : "Teacher CPD")</a> }
+        <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/AdaptiveGoals">@(bn ? "শিক্ষার্থীর লক্ষ্য" : "Adaptive goals")</a>
         @if (admin) { <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/CpdReview">@(bn ? "সনদ যাচাই" : "CPD review")</a> }
         <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/Public">@(bn ? "উন্মুক্ত শিক্ষাসামগ্রীর তালিকা" : "Public teaching materials")</a>
         <details class="position-relative">

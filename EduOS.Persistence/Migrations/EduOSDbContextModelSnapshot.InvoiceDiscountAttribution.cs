@@ -52,5 +52,6 @@ partial class EduOSDbContextModelSnapshot
             b.Navigation("Tenant");
             b.Navigation("StudentInvoiceLine");
         });
+        AddAdaptiveStudySnapshot(modelBuilder);
     }
 }

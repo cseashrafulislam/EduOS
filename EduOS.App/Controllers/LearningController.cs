@@ -17,6 +17,10 @@ public sealed class LearningController : Controller
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Quizzes() => View();
     [HttpGet]
+    [Authorize(Roles = "Student")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult StudyPlan() => View();
+    [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult LiveClasses() => View();
     [HttpGet]

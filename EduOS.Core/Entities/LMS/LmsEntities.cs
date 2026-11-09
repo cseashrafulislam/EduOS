@@ -108,6 +108,10 @@ public class Quiz : BaseTenantEntity
     public DateTime? OpensAt { get; set; }
     public DateTime? ClosesAt { get; set; }
     public bool IsPublished { get; set; }
+    // Optional pedagogic metadata. Existing quizzes remain valid without a mapping.
+    public long? CourseSectionId { get; set; }
+    [MaxLength(64)] public string? SkillCode { get; set; }
+    public int PracticeDifficulty { get; set; } = 1; // 1 Foundation, 2 Standard, 3 Challenge
 }
 
 public class QuizQuestion : BaseTenantEntity

@@ -13,6 +13,12 @@ public sealed partial class LmsAssessmentService
         if (request == null || request.CourseReference == Guid.Empty || string.IsNullOrWhiteSpace(request.Title) ||
             request.Title.Trim().Length > 200 || request.DurationMinutes is < 1 or > 1440 ||
             request.MaxAttempts is < 1 or > 100 || request.Questions == null ||
+            request.PracticeDifficulty is < 1 or > 3 ||
+            (request.CourseSectionId.HasValue != !string.IsNullOrWhiteSpace(request.SkillCode)) ||
+            (request.CourseSectionId.HasValue && request.CourseSectionId <= 0) ||
+            (request.SkillCode?.Length > 64) ||
+            (request.SkillCode != null && request.SkillCode.Trim().Any(c =>
+                !(char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'))) ||
             request.Questions.Count is < 1 or > 50 || (request.OpensAt.HasValue &&
             request.ClosesAt.HasValue && request.OpensAt >= request.ClosesAt))
             return Fail<QuizDto>("Invalid quiz metadata.");
@@ -32,6 +38,11 @@ public sealed partial class LmsAssessmentService
             return Fail<QuizDto>("Invalid pass marks.");
         var course = await AuthorCourseAsync(request.CourseReference, ct);
         if (course == null) return Fail<QuizDto>("Course access denied.", 403);
+        if (request.CourseSectionId.HasValue && (_sections == null ||
+            !await _sections.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == _user.TenantId &&
+                x.CourseId == course.Id && x.Id == request.CourseSectionId.Value &&
+                x.IsPublished && !x.IsDeleted, ct)))
+            return Fail<QuizDto>("Published chapter mapping must belong to this course.", 400);
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
@@ -73,6 +84,9 @@ public sealed partial class LmsAssessmentService
                 quiz.Title = request.Title.Trim(); quiz.DurationMinutes = request.DurationMinutes;
                 quiz.PassMarks = request.PassMarks; quiz.MaxAttempts = request.MaxAttempts;
                 quiz.OpensAt = request.OpensAt; quiz.ClosesAt = request.ClosesAt;
+                quiz.CourseSectionId = request.CourseSectionId;
+                quiz.SkillCode = request.SkillCode?.Trim().ToUpperInvariant();
+                quiz.PracticeDifficulty = request.PracticeDifficulty;
                 quiz.IsPublished = request.IsPublished;
                 var order = 0;
                 foreach (var input in request.Questions)

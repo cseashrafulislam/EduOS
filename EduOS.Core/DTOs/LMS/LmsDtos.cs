@@ -221,6 +221,9 @@ public class QuizDto
     public DateTime? OpensAt { get; set; }
     public DateTime? ClosesAt { get; set; }
     public bool IsPublished { get; set; }
+    public long? CourseSectionId { get; set; }
+    public string? SkillCode { get; set; }
+    public int PracticeDifficulty { get; set; } = 1;
     public IReadOnlyList<QuizQuestionDto> Questions { get; set; } = Array.Empty<QuizQuestionDto>();
     public string RowVersion { get; set; } = string.Empty;
 }
@@ -235,6 +238,9 @@ public class SaveQuizRequestDto
     public DateTime? OpensAt { get; set; }
     public DateTime? ClosesAt { get; set; }
     public bool IsPublished { get; set; }
+    public long? CourseSectionId { get; set; }
+    [MaxLength(64)] public string? SkillCode { get; set; }
+    [Range(1, 3)] public int PracticeDifficulty { get; set; } = 1;
     public IReadOnlyList<SaveQuizQuestionRequestDto> Questions { get; set; } = Array.Empty<SaveQuizQuestionRequestDto>();
     public string? RowVersion { get; set; }
 }

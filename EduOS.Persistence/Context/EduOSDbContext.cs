@@ -426,6 +426,8 @@ public class EduOSDbContext :
     public DbSet<AssignmentSubmissionFile> AssignmentSubmissionFiles => Set<AssignmentSubmissionFile>();
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CourseEnrollment> CourseEnrollments => Set<CourseEnrollment>();
+    public DbSet<AdaptiveStudyGoal> AdaptiveStudyGoals => Set<AdaptiveStudyGoal>();
+    public DbSet<AdaptiveStudyPlanHistory> AdaptiveStudyPlanHistories => Set<AdaptiveStudyPlanHistory>();
     public DbSet<LmsCompletionCertificate> LmsCompletionCertificates => Set<LmsCompletionCertificate>();
     public DbSet<LmsCertificateGuardianGrant> LmsCertificateGuardianGrants => Set<LmsCertificateGuardianGrant>();
     public DbSet<LmsProgressGuardianGrant> LmsProgressGuardianGrants => Set<LmsProgressGuardianGrant>();
@@ -1237,11 +1239,17 @@ public class EduOSDbContext :
         TenantReference<CourseEnrollment, Student>(modelBuilder, nameof(CourseEnrollment.StudentId));
         TenantReference<CourseEnrollment, Employee>(modelBuilder, nameof(CourseEnrollment.EmployeeId));
         TenantReference<CourseEnrollment, StudentEnrollment>(modelBuilder, nameof(CourseEnrollment.StudentEnrollmentId));
+        TenantReference<AdaptiveStudyGoal, Course>(modelBuilder, nameof(AdaptiveStudyGoal.CourseId));
+        TenantReference<AdaptiveStudyGoal, Student>(modelBuilder, nameof(AdaptiveStudyGoal.StudentId));
+        TenantReference<AdaptiveStudyGoal, CourseSection>(modelBuilder, nameof(AdaptiveStudyGoal.CourseSectionId));
+        TenantReference<AdaptiveStudyPlanHistory, CourseEnrollment>(modelBuilder, nameof(AdaptiveStudyPlanHistory.CourseEnrollmentId));
+        TenantReference<AdaptiveStudyPlanHistory, Student>(modelBuilder, nameof(AdaptiveStudyPlanHistory.StudentId));
         TenantReference<LmsCompletionCertificate, CourseEnrollment>(modelBuilder, nameof(LmsCompletionCertificate.CourseEnrollmentId));
         TenantReference<LmsCompletionCertificate, Course>(modelBuilder, nameof(LmsCompletionCertificate.CourseId));
         TenantReference<LmsCompletionCertificate, Student>(modelBuilder, nameof(LmsCompletionCertificate.StudentId));
         TenantReference<LmsCompletionCertificate, Employee>(modelBuilder, nameof(LmsCompletionCertificate.EmployeeId));
         TenantReference<CourseSection, Course>(modelBuilder, nameof(CourseSection.CourseId));
+        TenantReference<Quiz, CourseSection>(modelBuilder, nameof(Quiz.CourseSectionId));
         TenantReference<Lesson, Course>(modelBuilder, nameof(Lesson.CourseId));
         TenantReference<Lesson, CourseSection>(modelBuilder, nameof(Lesson.CourseSectionId));
         TenantReference<TeacherResource, Employee>(modelBuilder, nameof(TeacherResource.AuthorEmployeeId));
@@ -2152,6 +2160,17 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[StudentEnrollmentId] IS NOT NULL AND [IsDeleted] = 0");
         modelBuilder.Entity<CourseEnrollment>().HasIndex(x => new { x.TenantId, x.CourseId, x.StudentId })
             .IsUnique().HasFilter("[StudentEnrollmentId] IS NULL AND [StudentId] IS NOT NULL AND [IsDeleted] = 0");
+        modelBuilder.Entity<AdaptiveStudyGoal>().HasIndex(x => new
+        { x.TenantId, x.CourseId, x.StudentId, x.CourseSectionId, x.SkillCode })
+            .IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<AdaptiveStudyGoal>().ToTable(t => t.HasCheckConstraint(
+            "CK_AdaptiveStudyGoals_Target", "[TargetPercent] >= 0 AND [TargetPercent] <= 100"));
+        modelBuilder.Entity<AdaptiveStudyPlanHistory>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<AdaptiveStudyPlanHistory>().HasIndex(x => new
+        { x.TenantId, x.CourseEnrollmentId, x.GeneratedAt });
+        modelBuilder.Entity<Quiz>().HasIndex(x => new { x.TenantId, x.CourseId, x.CourseSectionId, x.SkillCode });
+        modelBuilder.Entity<Quiz>().ToTable(t => t.HasCheckConstraint(
+            "CK_Quizzes_PracticeDifficulty", "[PracticeDifficulty] BETWEEN 1 AND 3"));
         UniqueTenant<LessonProgress>(modelBuilder, nameof(LessonProgress.CourseEnrollmentId), nameof(LessonProgress.LessonId));
         UniqueTenant<AssignmentRubricCriterion>(modelBuilder,
             [nameof(AssignmentRubricCriterion.AssignmentId), nameof(AssignmentRubricCriterion.DisplayOrder)], "[IsDeleted] = 0");

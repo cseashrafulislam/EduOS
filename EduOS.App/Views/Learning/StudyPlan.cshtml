@@ -1,0 +1,30 @@
+@{
+ var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+ ViewData["Title"] = bn ? "ব্যক্তিগত পড়াশোনার পরিকল্পনা" : "My Adaptive Study Plan";
+}
+<section id="adaptiveStudy" class="container-fluid py-3" data-lang="@(bn ? "bn" : "en")">
+ <header class="content-header-card d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+  <h2 class="h4 mb-0">@(bn ? "ব্যক্তিগত পড়াশোনার পরিকল্পনা" : "My Adaptive Study Plan")</h2>
+  <div class="d-flex gap-2"><details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পৃষ্ঠা সহায়তা" : "Page help")">ⓘ</summary>
+   <div class="card card-body shadow position-absolute end-0" style="width:min(22rem,85vw);z-index:10"><h3 class="h6">@(bn ? "ব্যবহার নির্দেশিকা" : "Page manual")</h3>
+    <ol class="small"><li>@(bn ? "নিজের অনুমোদিত কোর্স বেছে নিন।" : "Choose an enrolled course.")</li>
+     <li>@(bn ? "প্রকাশিত কুইজের ফল থেকে দক্ষতাভিত্তিক পরামর্শ দেখুন।" : "Preview recommendations from graded published quizzes.")</li>
+     <li>@(bn ? "সংরক্ষণ করলে তারিখসহ পূর্বের পরিকল্পনা দেখা যাবে।" : "Save a dated snapshot and reopen it from history.")</li>
+     <li>@(bn ? "অনুশীলনের জন্য কুইজ পৃষ্ঠায় যান; অফিসিয়াল নম্বর অপরিবর্তিত থাকে।" : "Use the Quiz page for practice; official marks stay unchanged.")</li></ol></div>
+   </details><a class="btn btn-sm btn-outline-secondary" href="/Learning/Quizzes">@(bn ? "কুইজ" : "Quizzes")</a></div>
+ </header>
+ <div id="adaptiveAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+ <div class="card mb-3"><div class="card-body row g-2 align-items-end">
+  <div class="col-md-7"><label class="form-label" for="adaptiveCourse">@(bn ? "কোর্স" : "Course")</label><select class="form-select" id="adaptiveCourse"><option value="">@(bn ? "কোর্স বাছাই করুন" : "Choose a course")</option></select><button id="adaptiveMoreCourses" type="button" class="btn btn-sm btn-link d-none">@(bn ? "আরও কোর্স" : "Load more courses")</button></div>
+  <div class="col-md-5 d-flex gap-2"><button id="adaptivePreview" type="button" class="btn btn-primary flex-grow-1">@(bn ? "পরিকল্পনা দেখুন" : "Preview plan")</button><button id="adaptiveSave" type="button" class="btn btn-outline-primary" disabled>@(bn ? "সংরক্ষণ" : "Save snapshot")</button></div>
+ </div></div>
+ <section class="card mb-3"><div class="card-header h6">@(bn ? "দক্ষতা ও অগ্রাধিকার" : "Skills and priorities")</div>
+  <div class="table-responsive"><table class="table table-sm table-striped align-middle mb-0"><thead><tr><th>@(bn ? "অধ্যায় / দক্ষতা" : "Chapter / skill")</th><th>@(bn ? "ফল" : "Observed")</th><th>@(bn ? "লক্ষ্য" : "Target")</th><th>@(bn ? "অগ্রাধিকার" : "Priority")</th><th>@(bn ? "অনুশীলন" : "Practice")</th></tr></thead><tbody id="adaptiveSkillRows"></tbody></table></div>
+ </section>
+ <section class="card"><div class="card-header h6">@(bn ? "সংরক্ষিত পরিকল্পনার ইতিহাস" : "Saved plan history")</div>
+  <div class="card-body"><div id="adaptiveHistory" class="d-grid gap-2" aria-live="polite"></div>
+   <div class="d-flex justify-content-end gap-2 mt-3"><button id="adaptivePrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগে" : "Previous")</button><span id="adaptivePage" class="align-self-center"></span><button id="adaptiveNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরে" : "Next")</button></div>
+  </div>
+ </section>
+</section>
+@section Scripts { <script src="~/js/lms/adaptive-study.js" asp-append-version="true"></script> }

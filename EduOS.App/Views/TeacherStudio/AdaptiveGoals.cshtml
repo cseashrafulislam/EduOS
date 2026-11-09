@@ -1,0 +1,24 @@
+@{
+ var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+ ViewData["Title"] = bn ? "শিক্ষার্থীর শেখার লক্ষ্য" : "Adaptive Learning Goals";
+}
+<section id="adaptiveGoals" class="container-fluid py-3" data-lang="@(bn ? "bn" : "en")">
+ <header class="content-header-card d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><h2 class="h4 mb-0">@(bn ? "শিক্ষার্থীর শেখার লক্ষ্য" : "Adaptive Learning Goals")</h2>
+  <div class="d-flex gap-2"><details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পৃষ্ঠা সহায়তা" : "Page help")">ⓘ</summary><div class="card card-body shadow position-absolute end-0" style="width:min(22rem,85vw);z-index:10">
+   <h3 class="h6">@(bn ? "ব্যবহার নির্দেশিকা" : "Page manual")</h3><ol class="small"><li>@(bn ? "কোর্স ও নিবন্ধিত শিক্ষার্থী বাছাই করুন।" : "Choose an assigned course and enrolled learner.")</li>
+    <li>@(bn ? "প্রকাশিত কুইজে যুক্ত দক্ষতা বেছে লক্ষ্য দিন।" : "Choose a chapter/skill mapped to a published quiz.")</li><li>@(bn ? "লক্ষ্য ও কারণ সংরক্ষণ করুন, পরে সম্পাদনার আগে রিলোড করুন।" : "Save the target and reason, reload before editing again.")</li>
+    <li>@(bn ? "অফিসিয়াল ফল/নম্বর অপরিবর্তিত থাকে।" : "Official results and marks never change.")</li></ol></div></details>
+   <a class="btn btn-sm btn-outline-secondary" href="/Learning/Quizzes">@(bn ? "কুইজ" : "Quizzes")</a></div>
+ </header>
+ <div id="goalAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
+ <form id="goalForm" class="card mb-3"><div class="card-body row g-3">
+  <div class="col-md-6"><label for="goalCourse" class="form-label">@(bn ? "কোর্স" : "Course")</label><select id="goalCourse" class="form-select" required><option value="">@(bn ? "কোর্স বাছাই করুন" : "Choose course")</option></select><button id="goalMoreCourses" type="button" class="btn btn-sm btn-link d-none">@(bn ? "আরও কোর্স" : "Load more courses")</button></div>
+  <div class="col-md-6"><label for="goalStudent" class="form-label">@(bn ? "শিক্ষার্থী" : "Learner")</label><select id="goalStudent" class="form-select" required><option value="">@(bn ? "শিক্ষার্থী বাছাই করুন" : "Choose learner")</option></select><button id="goalMoreStudents" type="button" class="btn btn-sm btn-link d-none">@(bn ? "আরও শিক্ষার্থী" : "Load more learners")</button></div>
+  <div class="col-md-8"><label for="goalSkill" class="form-label">@(bn ? "অধ্যায় ও দক্ষতা" : "Chapter and skill")</label><select id="goalSkill" class="form-select" required><option value="">@(bn ? "দক্ষতা বাছাই করুন" : "Choose mapped skill")</option></select></div>
+  <div class="col-md-4"><label for="goalPercent" class="form-label">@(bn ? "লক্ষ্য (%)" : "Target (%)")</label><input id="goalPercent" class="form-control" type="number" step="0.01" min="0" max="100" value="80" required /></div>
+  <div class="col-12"><label for="goalNote" class="form-label">@(bn ? "শিক্ষকের মন্তব্য" : "Teacher note")</label><textarea id="goalNote" class="form-control" maxlength="500" rows="2"></textarea></div>
+  <div class="col-12"><button id="goalSave" type="submit" class="btn btn-primary">@(bn ? "লক্ষ্য সংরক্ষণ করুন" : "Save goal")</button></div>
+ </div></form>
+ <section class="card"><div class="card-header h6">@(bn ? "বর্তমান লক্ষ্য" : "Current goals")</div><div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>@(bn ? "দক্ষতা" : "Skill")</th><th>@(bn ? "লক্ষ্য" : "Target")</th><th>@(bn ? "মন্তব্য" : "Note")</th><th>@(bn ? "সম্পাদনা" : "Edit")</th></tr></thead><tbody id="goalRows"></tbody></table></div></section>
+</section>
+@section Scripts { <script src="~/js/lms/adaptive-goals.js" asp-append-version="true"></script> }

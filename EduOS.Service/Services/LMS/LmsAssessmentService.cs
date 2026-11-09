@@ -18,6 +18,7 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
 {
     private readonly IGenericRepository<Course> _courses;
     private readonly IGenericRepository<Quiz> _quizzes;
+    private readonly IGenericRepository<CourseSection>? _sections;
     private readonly IGenericRepository<QuizQuestion> _questions;
     private readonly IGenericRepository<QuizOption> _options;
     private readonly IGenericRepository<QuizAttempt> _attempts;
@@ -49,9 +50,11 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
         IGenericRepository<AcademicYear>? historyYears = null,
         IGenericRepository<AcademicCurriculum>? historyCurricula = null,
         IGenericRepository<AcademicTerm>? historyTerms = null,
-        IGenericRepository<CurriculumSubject>? historySubjects = null)
+        IGenericRepository<CurriculumSubject>? historySubjects = null,
+        IGenericRepository<CourseSection>? sections = null)
     {
         _courses = courses; _quizzes = quizzes; _questions = questions; _options = options;
+        _sections = sections;
         _attempts = attempts; _answers = answers; _answerOptions = answerOptions; _enrollments = enrollments;
         _students = students; _employees = employees; _uow = uow;
         _user = user; _clock = clock; _logger = logger;
@@ -163,6 +166,8 @@ public sealed partial class LmsAssessmentService : ILmsAssessmentService
             Id = quiz.Id, Reference = quiz.PublicId, CourseReference = courseReference,
             Title = quiz.Title, DurationMinutes = quiz.DurationMinutes, PassMarks = quiz.PassMarks,
             MaxAttempts = quiz.MaxAttempts, OpensAt = quiz.OpensAt, ClosesAt = quiz.ClosesAt,
+            CourseSectionId = quiz.CourseSectionId, SkillCode = quiz.SkillCode,
+            PracticeDifficulty = quiz.PracticeDifficulty,
             IsPublished = quiz.IsPublished, RowVersion = Convert.ToBase64String(quiz.RowVersion),
             Questions = questions.Select(q => new QuizQuestionDto
             {

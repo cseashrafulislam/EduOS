@@ -25,4 +25,7 @@ public sealed class TeacherStudioController : Controller
     [Authorize(Roles = "TenantAdmin,Principal")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult CpdReview() => View();
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult AdaptiveGoals() => View();
 }

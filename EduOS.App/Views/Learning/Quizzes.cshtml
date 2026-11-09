@@ -20,6 +20,9 @@
   <div class="col-md-5"><label for="quizOpens">Opens</label><input id="quizOpens" type="datetime-local" class="form-control" /></div>
   <div class="col-md-5"><label for="quizCloses">Closes</label><input id="quizCloses" type="datetime-local" class="form-control" /></div>
   <div class="col-md-2"><label><input id="quizPublished" type="checkbox" /> Publish</label></div>
+  <div class="col-md-5"><label for="quizChapter">Adaptive chapter / অধ্যায় (optional)</label><select id="quizChapter" class="form-select"><option value="">Not mapped</option></select></div>
+  <div class="col-md-4"><label for="quizSkill">Skill code / দক্ষতা (optional)</label><input id="quizSkill" class="form-control" maxlength="64" pattern="[A-Za-z0-9._-]*" placeholder="e.g. ALGEBRA-01" /></div>
+  <div class="col-md-3"><label for="quizDifficulty">Practice level / স্তর</label><select id="quizDifficulty" class="form-select"><option value="1">Foundation / ভিত্তি</option><option value="2">Standard / সাধারণ</option><option value="3">Challenge / উন্নত</option></select></div>
   <div class="col-12"><button id="quizAddQuestion" type="button" class="btn btn-sm btn-outline-primary mb-2">Add question</button><div id="quizQuestions" class="d-grid gap-2"></div></div>
   <div class="col-12"><button id="quizSave" class="btn btn-primary" type="submit">Save quiz</button> <button id="quizReset" type="button" class="btn btn-outline-secondary">New draft</button></div>
   <p class="small text-muted">Single choice: one correct option. Multiple choice: select all correct options (exact-set grading). Published quizzes and answer keys are immutable.</p>
