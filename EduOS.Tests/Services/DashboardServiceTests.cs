@@ -111,7 +111,11 @@ public sealed class DashboardServiceTests
             new AttendanceSession { TenantId = 41, AcademicBatchId = 61, AttendanceDate = today, IsFinalized = true },
             new AttendanceSession { TenantId = 41, AcademicBatchId = 62, AttendanceDate = today, IsFinalized = false },
             new AttendanceSession { TenantId = 42, AcademicBatchId = 63, AttendanceDate = today, IsFinalized = false });
+        // Seed two tenants as an unauthenticated system fixture. Production
+        // tenant-boundary validation must remain enabled for request writes.
+        http.Items.Remove("TenantId");
         await db.SaveChangesAsync();
+        http.Items["TenantId"] = 41L;
         var service = CreateService(db, new TestCurrentUser(41, admin: false, role: "Principal"), liveSecurity: true);
         var visible = (await service.GetDashboardAsync()).Data!;
         visible.AdmissionApplicationsToReview.Should().Be(1);
