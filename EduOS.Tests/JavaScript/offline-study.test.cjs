@@ -56,3 +56,19 @@ test('mobile bilingual offline reader has no inline executable scripts or sensit
     assert.match(code, /Sign in to sync reading progress/);
     assert.doesNotMatch(code, /quiz-attempt|grades|finance|health/i);
 });
+
+test('offline reader revokes displayed bytes and cancels stale decrypt or sync after rights/session changes', () => {
+    const code = read('EduOS.App/wwwroot/js/learning/offline-library.js');
+    const worker = read('EduOS.App/wwwroot/service-worker.js');
+    assert.match(code, /function closeReader\(message\)/);
+    assert.match(code, /URL\.revokeObjectURL\(objectUrl\)/);
+    assert.match(code, /openingId === record\.id \|\| openRecord\?\.id === record\.id/);
+    assert.match(code, /const sequence = \+\+openGeneration/);
+    assert.match(code, /if \(sequence !== openGeneration\) throw Error/);
+    assert.ok((code.match(/assertOpen\(\);/g) || []).length >= 3);
+    assert.match(code, /const syncGeneration = generation/);
+    assert.match(code, /if \(syncGeneration !== generation\) throw Error/);
+    assert.match(code, /await discard\(record, tr\('Offline rights revoked\.'/);
+    assert.match(code, /await discard\(record, tr\('Offline rights changed\.'/);
+    assert.match(worker, /\$\{CACHE_PREFIX\}v13/);
+});

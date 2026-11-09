@@ -108,10 +108,10 @@ test('install and activate retain only the current public shell cache', async ()
     await w.store('unrelated-app-cache').put(request('/js/other.js'), response('other'));
     await w.install();
     await w.activate();
-    assert.deepEqual([...w.stores.keys()].sort(), ['eduos-static-v12', 'unrelated-app-cache']);
+    assert.deepEqual([...w.stores.keys()].sort(), ['eduos-static-v13', 'unrelated-app-cache']);
     assert.equal(w.skipWaiting, 1);
     assert.equal(w.claim, 1);
-    assert.ok(await w.store('eduos-static-v12').match(request('/offline.html')));
+    assert.ok(await w.store('eduos-static-v13').match(request('/offline.html')));
 });
 
 test('private response from unrelated cache is never returned for a public-looking URL', async () => {
@@ -122,18 +122,18 @@ test('private response from unrelated cache is never returned for a public-looki
     const got = await w.doFetch(request(url));
     assert.equal(got.body, 'PUBLIC_IMAGE');
     assert.equal(w.network.length, 1);
-    assert.equal((await w.store('eduos-static-v12').match(request(url))).body, 'PUBLIC_IMAGE');
+    assert.equal((await w.store('eduos-static-v13').match(request(url))).body, 'PUBLIC_IMAGE');
 });
 
 test('poisoned private cached response is evicted before the next institution session reads it', async () => {
     const w = worker();
     const url = '/images/student.jpg';
-    await w.store('eduos-static-v12').put(request(url), response('TENANT_A_PRIVATE', {
+    await w.store('eduos-static-v13').put(request(url), response('TENANT_A_PRIVATE', {
         contentType: 'image/jpeg', headers: { 'Cache-Control': 'private, no-store' }
     }));
     w.queued.push(response('TENANT_B_PUBLIC', { contentType: 'image/jpeg' }));
     assert.equal((await w.doFetch(request(url))).body, 'TENANT_B_PUBLIC');
-    assert.equal((await w.store('eduos-static-v12').match(request(url))).body, 'TENANT_B_PUBLIC');
+    assert.equal((await w.store('eduos-static-v13').match(request(url))).body, 'TENANT_B_PUBLIC');
 });
 
 test('public static cache hit is reused but tenant switch clears runtime assets and retains shell', async () => {
@@ -145,8 +145,8 @@ test('public static cache hit is reused but tenant switch clears runtime assets 
     assert.equal((await w.doFetch(req)).body, 'public-v1');
     assert.equal(w.network.length, 1);
     await w.clear();
-    assert.equal(await w.store('eduos-static-v12').match(req), undefined);
-    assert.ok(await w.store('eduos-static-v12').match(request('/offline.html')));
+    assert.equal(await w.store('eduos-static-v13').match(req), undefined);
+    assert.ok(await w.store('eduos-static-v13').match(request('/offline.html')));
     w.queued.push(response('public-v2', { contentType: 'image/jpeg' }));
     assert.equal((await w.doFetch(req)).body, 'public-v2');
     assert.equal(w.network.length, 2);
@@ -161,7 +161,7 @@ test('old-session in-flight static fetch cannot repopulate cache after switch', 
     await w.clear();
     waiting.resolve(response('OLD_CAMPUS', { contentType: 'image/jpeg' }));
     assert.equal((await pending).body, 'OLD_CAMPUS');
-    assert.equal(await w.store('eduos-static-v12').match(req), undefined);
+    assert.equal(await w.store('eduos-static-v13').match(req), undefined);
     w.queued.push(response('NEW_CAMPUS', { contentType: 'image/jpeg' }));
     assert.equal((await w.doFetch(req)).body, 'NEW_CAMPUS');
 });
@@ -181,7 +181,7 @@ test('private, vary-cookie, authorization-vary, wildcard-vary and redirect respo
         const req = request('/js/runtime.js');
         w.queued.push(response('sensitive', options));
         assert.equal((await w.doFetch(req)).body, 'sensitive');
-        assert.equal(await w.store('eduos-static-v12').match(req), undefined);
+        assert.equal(await w.store('eduos-static-v13').match(req), undefined);
     }
 });
 
@@ -215,7 +215,7 @@ test('authenticated navigation is network-only and offline fallback contains no 
     const page = request('/HostelOperations/Index', { mode: 'navigate' });
     assert.equal((await w.doFetch(page)).body, 'TENANT_A_HTML');
     assert.equal(w.network[0].opts.cache, 'no-store');
-    assert.equal(await w.store('eduos-static-v12').match(page), undefined);
+    assert.equal(await w.store('eduos-static-v13').match(page), undefined);
     w.queued.push(new Error('offline'));
     assert.equal((await w.doFetch(page)).body, 'public:/offline.html');
 });
@@ -227,7 +227,7 @@ test('offline study reader opens its precached public shell when connectivity is
     w.queued.push(new Error('offline'));
     assert.equal((await w.doFetch(reader)).body, 'public:/offline-study.html');
     assert.equal(w.network[0].opts.cache, 'no-store');
-    assert.equal((await w.store('eduos-static-v12').match(reader)).body,
+    assert.equal((await w.store('eduos-static-v13').match(reader)).body,
         'public:/offline-study.html');
 });
 
@@ -257,7 +257,7 @@ test('clear waits for an already-started cache write and deletes its old-session
     await oldFetch;
     await clear;
     assert.equal(cleared, true);
-    assert.equal(await w.store('eduos-static-v12').match(req), undefined);
+    assert.equal(await w.store('eduos-static-v13').match(req), undefined);
 });
 
 test('unrelated service-worker messages do not clear public runtime assets', async () => {
@@ -266,7 +266,7 @@ test('unrelated service-worker messages do not clear public runtime assets', asy
     w.queued.push(response('public'));
     await w.doFetch(req);
     await w.message({ type: 'ANOTHER_MESSAGE' });
-    assert.equal((await w.store('eduos-static-v12').match(req)).body, 'public');
+    assert.equal((await w.store('eduos-static-v13').match(req)).body, 'public');
 });
 
 test('sixteen institution switches never reuse previous runtime assets or intercept private V2 files', async () => {
@@ -279,14 +279,14 @@ test('sixteen institution switches never reuse previous runtime assets or interc
         // The application explicitly clears public runtime assets when the
         // authenticated institution changes. Core offline shell stays public.
         await w.clear();
-        assert.equal(await w.store('eduos-static-v12').match(banner), undefined);
-        assert.ok(await w.store('eduos-static-v12').match(request('/offline.html')));
+        assert.equal(await w.store('eduos-static-v13').match(banner), undefined);
+        assert.ok(await w.store('eduos-static-v13').match(request('/offline.html')));
 
         const expected = 'PUBLIC_CAMPUS_' + institute;
         w.queued.push(response(expected, { contentType: 'image/jpeg' }));
         assert.equal((await w.doFetch(banner)).body, expected);
         assert.equal((await w.doFetch(banner)).body, expected);
-        assert.equal((await w.store('eduos-static-v12').match(banner)).body, expected);
+        assert.equal((await w.store('eduos-static-v13').match(banner)).body, expected);
 
         // Private downloads, authenticated APIs and tenant-tagged static URLs
         // must bypass the service worker rather than inheriting the old cache.
@@ -296,7 +296,7 @@ test('sixteen institution switches never reuse previous runtime assets or interc
     }
 
     await w.clear();
-    assert.equal(await w.store('eduos-static-v12').match(banner), undefined);
+    assert.equal(await w.store('eduos-static-v13').match(banner), undefined);
     assert.equal(w.network.length, 16);
     assert.equal(w.stores.size, 1);
 });

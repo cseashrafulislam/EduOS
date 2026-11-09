@@ -14,6 +14,7 @@ using EduOS.Service.Services.LMS;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using System.Security.Claims;
@@ -24,10 +25,12 @@ namespace EduOS.Tests.Services;
 
 public sealed class TeacherResourceServiceTests
 {
-    private static EduOSDbContext Context(long tenant = 101)
+    private static readonly InMemoryDatabaseRoot Databases = new();
+
+    private static EduOSDbContext Context(long tenant = 101, string? databaseName = null)
     {
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
-            .UseInMemoryDatabase("teacher-studio-" + Guid.NewGuid().ToString("N")).Options;
+            .UseInMemoryDatabase(databaseName ?? "teacher-studio-" + Guid.NewGuid().ToString("N"), Databases).Options;
         var http = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([
             new Claim(ClaimTypes.NameIdentifier, "7"),
             new Claim(ClaimTypes.Role, "Teacher"), new Claim("TenantId", tenant.ToString())
@@ -192,8 +195,10 @@ public sealed class TeacherResourceServiceTests
     [Fact]
     public async Task Public_catalogue_shares_only_licensed_links_and_enforces_live_withdrawal()
     {
-        await using var db = Context(102);
-        db.Tenants.AddRange(
+        var databaseName = "teacher-public-" + Guid.NewGuid().ToString("N");
+        await using var source = Context(101, databaseName);
+        await using var db = Context(102, databaseName);
+        source.Tenants.AddRange(
             new Tenant { Id = 101, Code = "SOURCE", Name = "Source school", Email = "source@example.org",
                 State = TenantState.Active },
             new Tenant { Id = 102, Code = "READER", Name = "Reader school", Email = "reader@example.org",
@@ -210,7 +215,8 @@ public sealed class TeacherResourceServiceTests
             OriginalFileName = "source.pdf", SizeBytes = 1024, IsVerifiedSafe = true,
             MalwareScanStateCode = "Clean", Visibility = FileVisibility.Private
         };
-        db.FileAssets.Add(asset);
+        source.FileAssets.Add(asset);
+        await source.SaveChangesAsync();
         await db.SaveChangesAsync();
         var publicReference = Guid.NewGuid();
         var publicRow = new TeacherResource
@@ -223,8 +229,8 @@ public sealed class TeacherResourceServiceTests
             SourceUrl = "https://education.example.org/cc-by-handout",
             PublishedAtUtc = DateTime.UtcNow, CreatedAt = DateTime.UtcNow
         };
-        db.TeacherResources.Add(publicRow);
-        await db.SaveChangesAsync();
+        source.TeacherResources.Add(publicRow);
+        await source.SaveChangesAsync();
         var viewer = Service(db, "Teacher", tenant: 102);
         var result = await viewer.ListPublicAsync("classroom", 1, 20);
         result.Success.Should().BeTrue(result.Message);
@@ -236,7 +242,7 @@ public sealed class TeacherResourceServiceTests
         (await Service(db, "Student", tenant: 102).ListPublicAsync(null, 1, 20))
             .StatusCode.Should().Be(403);
         publicRow.StateCode = "Withdrawn";
-        await db.SaveChangesAsync();
+        await source.SaveChangesAsync();
         (await viewer.ListPublicAsync(null, 1, 20)).Data!.Items.Should().BeEmpty();
     }
 

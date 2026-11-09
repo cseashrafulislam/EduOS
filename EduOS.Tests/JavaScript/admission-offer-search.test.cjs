@@ -34,5 +34,6 @@ test('qualified applicants can open offer workspace directly, while other roles 
     assert.match(search, /new URLSearchParams\(window\.location\.search\)/);
     assert.match(core, /ctx\.applicant\.applicantName/);
     assert.match(core, /sequence !== loadSequence/);
-    assert.match(core, /ctx\.reference !== reference/);
+    assert.match(core, /currentReference = reference => !!reference && ctx\.reference === reference/);
+    assert.match(core, /if \(!currentReference\(reference\)\) return/);
 });

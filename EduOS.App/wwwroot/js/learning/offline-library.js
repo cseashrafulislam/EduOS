@@ -19,7 +19,8 @@
         document.body?.dataset.authTenantId === tenant &&
         document.body?.dataset.authUserId === user &&
         window.EduOSSessionTransitionPending?.() !== true;
-    let generation = 0, selected = null, controller = null, objectUrl = null;
+    let generation = 0, openGeneration = 0, openingId = null;
+    let selected = null, controller = null, objectUrl = null;
     let openKey = null, openRecord = null;
     const channel = typeof BroadcastChannel === 'function'
         ? new BroadcastChannel('eduos-offline-study') : null;
@@ -59,13 +60,24 @@
     const get = id => operation('readonly', store => store.get(id));
     const put = value => operation('readwrite', store => store.put(value));
     const remove = id => operation('readwrite', store => store.delete(id));
+    function closeReader(message) {
+        ++openGeneration;
+        openingId = null;
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = null; openKey = null; openRecord = null;
+        if (offline) {
+            el('offlineReaderContent').replaceChildren();
+            if (message) el('offlineReaderStatus').textContent = message;
+        }
+    }
+    async function discard(record, message) {
+        if (openingId === record.id || openRecord?.id === record.id) closeReader(message);
+        await remove(record.id);
+    }
     function clearLocal(broadcast = true) {
         ++generation;
         controller?.abort(); controller = null;
-        if (objectUrl) URL.revokeObjectURL(objectUrl);
-        objectUrl = null;
-        openKey = null; openRecord = null;
-        if (offline) el('offlineReaderContent').replaceChildren();
+        closeReader();
         if (broadcast) channel?.postMessage({ type: 'clear' });
         return new Promise(resolve => {
             const req = indexedDB.deleteDatabase(NAME);
@@ -98,7 +110,8 @@
         } catch { return false; }
     }
     async function cleanup() {
-        for (const item of await all()) if (item.expiresAt <= Date.now()) await remove(item.id);
+        for (const item of await all()) if (item.expiresAt <= Date.now())
+            await discard(item, tr('Offline licence expired.', 'অফলাইন লাইসেন্সের মেয়াদ শেষ।'));
     }
     function progress(value) {
         const target = el('studyOfflineProgress');
@@ -253,9 +266,15 @@
     }
     async function syncProgress(record, key) {
         if (!record.progress || !navigator.onLine) return;
+        const syncGeneration = generation;
+        const assertSync = () => {
+            if (syncGeneration !== generation) throw Error('Offline session changed; sync cancelled.');
+        };
         const pending = JSON.parse(new TextDecoder().decode(await unseal(key, record.progress)));
+        assertSync();
         const tokenResponse = await fetch('/api/library/digital/study/progress/token',
             { credentials: 'same-origin', cache: 'no-store' });
+        assertSync();
         if (!tokenResponse.ok || tokenResponse.redirected) throw Error('Sign in to sync reading progress.');
         const csrf = (await tokenResponse.json()).token;
         if (!csrf) throw Error('Security token missing.');
@@ -266,50 +285,70 @@
                 body: JSON.stringify(command)
             });
         }
+        assertSync();
         let response = await save(pending);
+        assertSync();
         if (response.status === 409) {
             const currentResponse = await fetch('/api/library/digital/study/progress/' +
                 encodeURIComponent(record.reference), { credentials: 'same-origin', cache: 'no-store' });
+            assertSync();
             if (!currentResponse.ok) throw Error('Cannot resolve a reader position conflict.');
             const current = (await currentResponse.json()).data;
             if (!current) throw Error('Cannot read current server position.');
             if (!window.confirm(tr(`Server page ${current.page}; offline page ${pending.page}. Use offline position?`,
                 `সার্ভারে পৃষ্ঠা ${current.page}; অফলাইনে ${pending.page}। অফলাইনের অবস্থান রাখবেন?`))) {
+                assertSync();
                 record.progress = null; record.progressVersion = current.rowVersion || null;
                 record.progressPage = current.page; await put(record); return;
             }
+            assertSync();
             pending.expectedRowVersion = current.rowVersion || null;
             pending.commandId = crypto.randomUUID();
             record.progress = await seal(key, text.encode(JSON.stringify(pending)));
             await put(record);
             response = await save(pending);
+            assertSync();
         }
         if (!response.ok) throw Error('Sync rejected; offline position is still saved.');
         const snapshot = (await response.json()).data;
+        assertSync();
         if (!snapshot) throw Error('Invalid sync acknowledgement.');
         record.progress = null; record.progressVersion = snapshot.rowVersion || null;
         record.progressPage = snapshot.page; await put(record);
         el('offlineReaderStatus').textContent = tr('Reading position synchronized.', 'পড়ার অবস্থান সিঙ্ক হয়েছে।');
     }
     async function open(record) {
+        const sequence = ++openGeneration;
+        openingId = record.id;
+        const assertOpen = () => {
+            if (sequence !== openGeneration) throw Error('Offline reader was cleared.');
+        };
         const status = el('offlineReaderStatus');
         const container = el('offlineReaderContent');
         container.replaceChildren();
         if (objectUrl) URL.revokeObjectURL(objectUrl);
         objectUrl = null;
-        if (record.expiresAt <= Date.now()) { await remove(record.id); return list(); }
+        if (record.expiresAt <= Date.now()) {
+            await discard(record, tr('Offline licence expired.', 'অফলাইন লাইসেন্সের মেয়াদ শেষ।'));
+            return list();
+        }
         const password = el('offlineReaderPassphrase').value;
         el('offlineReaderPassphrase').value = '';
-        if (password.length < 12 || password.length > 128)
-            return void (status.textContent = tr('Enter the encryption passphrase.', 'এনক্রিপশন পাসফ্রেজ লিখুন।'));
+        if (password.length < 12 || password.length > 128) {
+            openingId = null;
+            status.textContent = tr('Enter the encryption passphrase.', 'এনক্রিপশন পাসফ্রেজ লিখুন।');
+            return;
+        }
         try {
             const key = await keyFrom(password, new Uint8Array(record.salt));
+            assertOpen();
             if (!await verify(key, record)) throw Error('Incorrect passphrase.');
             const parts = Math.ceil(record.sizeBytes / BLOCK);
             if (!record.complete || record.parts.length !== parts) throw Error('Incomplete offline file.');
             const bytes = new Uint8Array(record.sizeBytes);
             for (let i = 0; i < parts; i++) {
                 const chunk = new Uint8Array(await unseal(key, record.parts[i]));
+                assertOpen();
                 if (chunk.length !== Math.min(BLOCK, record.sizeBytes - i * BLOCK))
                     throw Error('Corrupt offline part.');
                 bytes.set(chunk, i * BLOCK);
@@ -317,6 +356,7 @@
             if (await digest(bytes) !== record.sha256 || record.expiresAt <= Date.now())
                 throw Error('Offline file expired or failed integrity verification.');
             const title = new TextDecoder().decode(await unseal(key, record.title));
+            assertOpen();
             const heading = document.createElement('h2'); heading.className = 'h5';
             heading.textContent = title; container.append(heading);
             objectUrl = URL.createObjectURL(new Blob([bytes], { type: record.contentType }));
@@ -327,6 +367,7 @@
             reader.className = 'w-100 border rounded offline-reader-frame';
             reader.setAttribute('title', title); container.append(reader);
             openKey = key; openRecord = record;
+            openingId = null;
             const progressForm = document.createElement('form');
             progressForm.className = 'd-flex flex-wrap align-items-end gap-2 my-3';
             const label = document.createElement('label');
@@ -358,7 +399,8 @@
             });
             status.textContent = tr('Offline copy loaded. Check rights when online.',
                 'অফলাইন ফাইল খোলা হয়েছে। অনলাইনে অনুমতি পুনরায় যাচাই হবে।');
-        } catch (error) { status.textContent = error.message; }
+        } catch (error) { if (sequence === openGeneration) status.textContent = error.message; }
+        finally { if (sequence === openGeneration && openingId === record.id) openingId = null; }
     }
     if (offline) {
         el('offlineReaderClear').addEventListener('click', async () => {
@@ -378,11 +420,12 @@
                         encodeURIComponent(record.reference) + '/offline/permit',
                     { cache: 'no-store', credentials: 'same-origin' });
                     if ([401, 403, 404].includes(response.status) || response.redirected)
-                        await remove(record.id);
+                        await discard(record, tr('Offline rights revoked.', 'অফলাইন পড়ার অনুমতি প্রত্যাহার হয়েছে।'));
                     else if (response.ok) {
                         const permit = (await response.json()).data;
                         if (permit?.sha256 !== record.sha256 ||
-                            Date.parse(permit?.expiresAtUtc) < Date.now()) await remove(record.id);
+                            Date.parse(permit?.expiresAtUtc) < Date.now())
+                            await discard(record, tr('Offline rights changed.', 'অফলাইন পড়ার অনুমতি পরিবর্তিত হয়েছে।'));
                     }
                 } catch { /* No reliable connection; preserve short-lived encrypted copy. */ }
             }
