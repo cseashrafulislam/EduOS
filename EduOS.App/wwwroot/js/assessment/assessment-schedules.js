@@ -4,7 +4,11 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { rows: [], scopes: [], page: 1, pageSize: 20, total: 0, editId: null, rowVersion: null, busy: false };
+    const form = el('scheduleForm');
+    const formGuard = window.EduOSFormGuard?.create(form);
+    const state = { rows: [], scopes: [], page: 1, pageSize: 20, total: 0, editId: null, rowVersion: null,
+        busy: false, editorLoading: false, roomReady: false, roomGeneration: 0, editGeneration: 0, listGeneration: 0 };
+    let lastSubject = '';
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     function notice(message, error = false) {
         const box = el('scheduleNotice'); box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -23,12 +27,29 @@
         return result.data;
     }
     const selected = () => state.scopes.find(x => String(x.assessmentSubjectId) === el('scheduleSubject').value);
+    function updateSave() {
+        el('scheduleSave').disabled = state.busy || state.editorLoading || !state.roomReady;
+    }
     async function rooms() {
+        const generation = ++state.roomGeneration;
         const subject = selected();
-        const room = el('scheduleRoom'); room.replaceChildren(new Option('No room assigned', ''));
-        if (!subject) return;
-        const data = await api('/api/assessment-administration/schedules/rooms?assessmentSubjectId=' + encodeURIComponent(subject.assessmentSubjectId));
+        const room = el('scheduleRoom');
+        state.roomReady = false; room.disabled = true;
+        room.replaceChildren(new Option('No room assigned', '')); updateSave();
+        if (!subject) return false;
+        let data;
+        try {
+            data = await api('/api/assessment-administration/schedules/rooms?assessmentSubjectId=' + encodeURIComponent(subject.assessmentSubjectId));
+        } catch (error) {
+            if (generation !== state.roomGeneration || selected()?.assessmentSubjectId !== subject.assessmentSubjectId)
+                return false;
+            throw error;
+        }
+        if (generation !== state.roomGeneration || selected()?.assessmentSubjectId !== subject.assessmentSubjectId) return false;
         for (const x of data || []) room.add(new Option(x.name + ' (' + x.code + ')', String(x.id)));
+        state.roomReady = true; room.disabled = state.busy || state.editorLoading;
+        updateSave();
+        return true;
     }
     async function scopes() {
         const data = await api('/api/assessment-administration/scopes');
@@ -60,6 +81,7 @@
         el('scheduleNext').disabled = state.page * state.pageSize >= state.total;
     }
     async function load() {
+        const generation = ++state.listGeneration;
         const query = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
         const subject = selected();
         if (subject) query.set('assessmentSubjectId', String(subject.assessmentSubjectId));
@@ -67,16 +89,34 @@
         if (el('scheduleTo').value) query.set('toDate', el('scheduleTo').value);
         try {
             const data = await api('/api/assessment-administration/schedules?' + query);
+            if (generation !== state.listGeneration) return;
             state.rows = data.items || []; state.total = data.totalCount || 0; render();
-        } catch (error) { notice(error.message, true); }
+            return true;
+        } catch (error) { if (generation === state.listGeneration) notice(error.message, true); }
+        return false;
     }
     async function edit(row) {
+        if (state.busy || (formGuard && !formGuard.confirmDiscard())) return;
         if (!state.scopes.some(x => x.assessmentSubjectId === row.assessmentSubjectId)) {
             notice('This subject is not in the available assessment scopes.', true); return;
         }
+        const generation = ++state.editGeneration;
+        state.editorLoading = true;
+        form.querySelectorAll('input, select').forEach(field => { field.disabled = true; });
+        state.editId = null; state.rowVersion = null; updateSave();
         el('scheduleSubject').value = String(row.assessmentSubjectId);
-        try { await rooms(); } catch (error) { notice(error.message, true); return; }
+        try {
+            if (!await rooms() || generation !== state.editGeneration) return;
+            if (row.roomId != null && ![...el('scheduleRoom').options].some(x => x.value === String(row.roomId)))
+                throw new Error('The saved room is not available in this assessment scope. Edit cancelled to protect the booking.');
+        } catch (error) {
+            if (generation === state.editGeneration) { clear(true); notice(error.message, true); }
+            return;
+        }
+        if (generation !== state.editGeneration) return;
         state.editId = row.id; state.rowVersion = row.rowVersion;
+        state.editorLoading = false;
+        form.querySelectorAll('input, select').forEach(field => { field.disabled = false; });
         el('scheduleSubject').disabled = true;
         el('scheduleDate').value = row.assessmentDate;
         el('scheduleStart').value = row.startTime?.slice(0, 5) || '';
@@ -85,18 +125,28 @@
         el('scheduleInstructions').value = row.instructions || '';
         el('scheduleFormTitle').textContent = 'Edit schedule #' + row.id;
         el('scheduleSave').textContent = 'Update schedule';
-        el('scheduleForm').scrollIntoView({ behavior: 'smooth' });
+        lastSubject = el('scheduleSubject').value;
+        formGuard?.markClean(); updateSave();
+        form.scrollIntoView({ behavior: 'smooth' });
     }
-    function clear() {
+    function clear(force = false) {
+        if (state.busy && !force) return false;
+        if (!force && formGuard && !formGuard.confirmDiscard()) return false;
+        ++state.editGeneration;
+        state.editorLoading = false;
         state.editId = null; state.rowVersion = null;
-        el('scheduleForm').reset(); el('scheduleSubject').disabled = false;
+        form.querySelectorAll('input, select').forEach(field => { field.disabled = false; });
+        form.reset(); el('scheduleSubject').disabled = false;
         el('scheduleFormTitle').textContent = 'New schedule';
         el('scheduleSave').textContent = 'Save schedule';
+        lastSubject = el('scheduleSubject').value;
         rooms().catch(error => notice(error.message, true));
+        formGuard?.markClean();
+        return true;
     }
     async function save(event) {
         event.preventDefault();
-        if (state.busy) return;
+        if (state.busy || state.editorLoading || !state.roomReady) return;
         const subject = selected(), start = el('scheduleStart').value, end = el('scheduleEnd').value;
         if (!subject || !el('scheduleDate').value || (!!start !== !!end) ||
             (start && start >= end) || (el('scheduleRoom').value && !start)) {
@@ -110,16 +160,28 @@
             instructions: el('scheduleInstructions').value.trim() || null,
             rowVersion: state.rowVersion
         };
-        state.busy = true; el('scheduleSave').disabled = true;
+        state.busy = true;
+        const fields = [...form.querySelectorAll('input, select, button')];
+        const disabledBefore = fields.map(field => field.disabled);
+        fields.forEach(field => { field.disabled = true; });
+        updateSave();
         try {
             await api('/api/assessment-administration/schedules' +
                 (state.editId == null ? '' : '/' + encodeURIComponent(state.editId)),
                 state.editId == null ? 'POST' : 'PUT', payload);
-            notice('Assessment schedule saved.'); clear(); await load();
+            clear(true);
+            if (await load()) notice('Assessment schedule saved.');
+            else notice('Schedule saved, but the register could not refresh. Search before another save.', true);
         } catch (error) {
-            notice(error.message + ' Check the register before retrying; the write may already have succeeded.', true);
             await load();
-        } finally { state.busy = false; el('scheduleSave').disabled = false; }
+            notice(error.message + ' Check the register before retrying; the write may already have succeeded.', true);
+        } finally {
+            state.busy = false;
+            fields.forEach((field, index) => { field.disabled = disabledBefore[index]; });
+            el('scheduleSubject').disabled = state.editId != null;
+            el('scheduleRoom').disabled = !state.roomReady;
+            updateSave();
+        }
     }
     function csv() {
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
@@ -133,14 +195,24 @@
         document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     el('scheduleSubject').addEventListener('change', async () => {
+        const subjectId = el('scheduleSubject').value;
+        const hasEnteredData = !!(el('scheduleDate').value || el('scheduleStart').value ||
+            el('scheduleEnd').value || el('scheduleRoom').value || el('scheduleInstructions').value);
+        if ((hasEnteredData || state.editId != null) && formGuard && !formGuard.confirmDiscard()) {
+            el('scheduleSubject').value = lastSubject; return;
+        }
+        clear(true);
+        el('scheduleSubject').value = subjectId;
+        lastSubject = subjectId;
+        formGuard?.markClean();
         try { await rooms(); state.page = 1; await load(); } catch (error) { notice(error.message, true); }
     });
-    el('scheduleForm').addEventListener('submit', save);
-    el('scheduleClear').addEventListener('click', clear);
+    form.addEventListener('submit', save);
+    el('scheduleClear').addEventListener('click', () => clear());
     el('scheduleSearch').addEventListener('click', () => { state.page = 1; load(); });
     el('schedulePrev').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
     el('scheduleNext').addEventListener('click', () => { if (state.page * state.pageSize < state.total) { state.page++; load(); } });
     el('scheduleCsv').addEventListener('click', csv);
     el('schedulePrint').addEventListener('click', () => window.print());
-    scopes().then(load).catch(error => notice(error.message, true));
+    scopes().then(() => { clear(true); return load(); }).catch(error => notice(error.message, true));
 })();

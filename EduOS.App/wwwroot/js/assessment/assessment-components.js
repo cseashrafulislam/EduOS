@@ -4,7 +4,10 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { rows: [], scopes: [], page: 1, pageSize: 20, total: 0, editId: null, rowVersion: null, busy: false };
+    const form = el('componentForm');
+    const formGuard = window.EduOSFormGuard?.create(form);
+    const state = { rows: [], scopes: [], page: 1, pageSize: 20, total: 0, editId: null, rowVersion: null, busy: false, listGeneration: 0 };
+    let lastSubject = '';
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     function notice(message, error = false) {
         const box = el('componentNotice');
@@ -60,18 +63,27 @@
         el('componentNext').disabled = state.page * state.pageSize >= state.total;
     }
     async function load() {
+        const generation = ++state.listGeneration;
         const query = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize) });
         if (selected()) query.set('assessmentSubjectId', String(selected().assessmentSubjectId));
         if (el('componentSearchText').value.trim()) query.set('search', el('componentSearchText').value.trim());
         try {
             const data = await api('/api/assessment-administration/components?' + query);
+            if (generation !== state.listGeneration) return;
             state.rows = data.items || []; state.total = data.totalCount || 0;
             render();
-        } catch (error) { notice(error.message, true); }
+            return true;
+        } catch (error) { if (generation === state.listGeneration) notice(error.message, true); }
+        return false;
     }
     function edit(row) {
+        if (state.busy || (formGuard && !formGuard.confirmDiscard())) return;
         if (!draft(row.state)) { notice('Only draft assessments can be edited.', true); return; }
+        if (!state.scopes.some(x => x.assessmentSubjectId === row.assessmentSubjectId)) {
+            notice('This subject is not available for editing.', true); return;
+        }
         el('componentSubject').value = String(row.assessmentSubjectId);
+        lastSubject = el('componentSubject').value;
         state.editId = row.id; state.rowVersion = row.rowVersion;
         el('componentSubject').disabled = true;
         el('componentCode').value = row.code;
@@ -83,13 +95,19 @@
         el('componentMandatory').checked = row.isMandatoryPass;
         el('componentFormTitle').textContent = 'Edit component #' + row.id;
         el('componentSave').textContent = 'Update component';
+        formGuard?.markClean();
         el('componentForm').scrollIntoView({ behavior: 'smooth' });
     }
-    function clear() {
+    function clear(force = false) {
+        if (state.busy && !force) return false;
+        if (!force && formGuard && !formGuard.confirmDiscard()) return false;
         state.editId = null; state.rowVersion = null;
-        el('componentForm').reset(); el('componentSubject').disabled = false;
+        form.reset(); el('componentSubject').disabled = false;
         el('componentFormTitle').textContent = 'New assessment component';
         el('componentSave').textContent = 'Save component';
+        lastSubject = el('componentSubject').value;
+        formGuard?.markClean();
+        return true;
     }
     const valid2 = n => Number.isFinite(n) && Math.abs(Math.round(n * 100) - n * 100) < 1e-7;
     async function save(event) {
@@ -116,16 +134,25 @@
             isMandatoryPass: el('componentMandatory').checked, displayOrder: order,
             rowVersion: state.rowVersion
         };
-        state.busy = true; el('componentSave').disabled = true;
+        state.busy = true;
+        const fields = [...form.querySelectorAll('input, select, button')];
+        const disabledBefore = fields.map(field => field.disabled);
+        fields.forEach(field => { field.disabled = true; });
         try {
             await api('/api/assessment-administration/components' +
                 (state.editId == null ? '' : '/' + encodeURIComponent(state.editId)),
                 state.editId == null ? 'POST' : 'PUT', payload);
-            notice('Assessment component saved.'); clear(); await load();
+            clear(true);
+            if (await load()) notice('Assessment component saved.');
+            else notice('Component saved, but the register could not refresh. Search before another save.', true);
         } catch (error) {
-            notice(error.message + ' Check the register before retrying; the write may already have succeeded.', true);
             await load();
-        } finally { state.busy = false; el('componentSave').disabled = false; }
+            notice(error.message + ' Check the register before retrying; the write may already have succeeded.', true);
+        } finally {
+            state.busy = false;
+            fields.forEach((field, index) => { field.disabled = disabledBefore[index]; });
+            el('componentSubject').disabled = state.editId != null;
+        }
     }
     function csv() {
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
@@ -138,11 +165,21 @@
         const a = document.createElement('a'); a.href = url; a.download = 'assessment-components-page-' + state.page + '.csv';
         document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    el('componentForm').addEventListener('submit', save);
-    el('componentClear').addEventListener('click', clear);
+    form.addEventListener('submit', save);
+    el('componentClear').addEventListener('click', () => clear());
     el('componentSubject').addEventListener('change', () => {
         const subjectId = el('componentSubject').value;
-        state.page = 1; clear(); el('componentSubject').value = subjectId; load();
+        const hasEnteredData = !!(el('componentCode').value || el('componentName').value ||
+            el('componentFull').value || el('componentPass').value || el('componentWeight').value ||
+            el('componentMandatory').checked || Number(el('componentOrder').value));
+        if ((hasEnteredData || state.editId != null) && formGuard && !formGuard.confirmDiscard()) {
+            el('componentSubject').value = lastSubject; return;
+        }
+        clear(true);
+        el('componentSubject').value = subjectId;
+        lastSubject = subjectId;
+        formGuard?.markClean();
+        state.page = 1; load();
     });
     el('componentSearch').addEventListener('click', () => { state.page = 1; load(); });
     el('componentPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });

@@ -4,7 +4,9 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false };
+    const form = el('gradeSchemeForm');
+    const formGuard = window.EduOSFormGuard?.create(form);
+    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, listGeneration: 0, detailGeneration: 0 };
     function notice(message, error = false) {
         const box = el('gradeSchemeNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -53,6 +55,7 @@
         el('gradeSchemeNext').disabled = state.page * state.pageSize >= state.total;
     }
     async function load() {
+        const generation = ++state.listGeneration;
         const params = new URLSearchParams({
             page: String(state.page), pageSize: String(state.pageSize),
             search: el('gradeSchemeSearch').value.trim(),
@@ -60,13 +63,18 @@
         });
         try {
             const data = await api('/api/assessment-administration/grade-schemes?' + params);
+            if (generation !== state.listGeneration) return;
             state.rows = data.items || []; state.total = data.totalCount || 0;
             render();
-        } catch (error) { notice(error.message, true); }
+            return true;
+        } catch (error) { if (generation === state.listGeneration) notice(error.message, true); }
+        return false;
     }
     async function details(id) {
+        const generation = ++state.detailGeneration;
         try {
             const data = await api('/api/assessment-administration/grade-schemes/' + encodeURIComponent(id));
+            if (generation !== state.detailGeneration) return;
             el('gradeSchemeDetailTitle').textContent = data.code + ' — ' + data.name +
                 (data.useCreditWeightedGpa ? ' · Credit-weighted GPA' : ' · Overall-percentage GPA') +
                 ' · Repeat policy: ' + policyLabel(data.repeatCourseGradePolicy);
@@ -79,7 +87,7 @@
             }
             el('gradeSchemeDetail').classList.remove('d-none');
             el('gradeSchemeDetail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } catch (error) { notice(error.message, true); }
+        } catch (error) { if (generation === state.detailGeneration) notice(error.message, true); }
     }
     function addRule() {
         const body = el('gradeSchemeRuleEditor');
@@ -153,15 +161,23 @@
             if (!body.code || !body.name || body.code.length > 50 || body.name.length > 150)
                 throw new Error('Enter a valid name and code.');
         } catch (error) { notice(error.message, true); return; }
-        state.busy = true; el('gradeSchemeSave').disabled = true;
+        state.busy = true;
+        const fields = [...form.querySelectorAll('input, select, button')];
+        const disabledBefore = fields.map(field => field.disabled);
+        fields.forEach(field => { field.disabled = true; });
         try {
             await api('/api/assessment-administration/grade-schemes', 'POST', body);
-            notice('Grade scheme created. To amend it, create a new code.');
-            clear(); state.page = 1; await load();
+            clear(); state.page = 1;
+            if (await load()) notice('Grade scheme created. To amend it, create a new code.');
+            else notice('Grade scheme created, but the register could not refresh. Search before another create.', true);
         } catch (error) {
-            notice(error.message + ' Check the register before retrying; a successful request may already exist.', true);
             await load();
-        } finally { state.busy = false; el('gradeSchemeSave').disabled = false; }
+            notice(error.message + ' Check the register before retrying; a successful request may already exist.', true);
+        } finally {
+            state.busy = false;
+            fields.forEach((field, index) => { field.disabled = disabledBefore[index]; });
+            el('gradeSchemeRepeatPolicy').disabled = el('gradeSchemeGpaMode').value !== 'credits';
+        }
     }
     function clear() {
         el('gradeSchemeForm').reset();
@@ -170,6 +186,7 @@
         el('gradeSchemeActive').checked = true;
         el('gradeSchemeRepeatPolicy').disabled = true;
         el('gradeSchemeRepeatPolicy').value = '0';
+        formGuard?.markClean();
     }
     function csv() {
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
@@ -184,13 +201,15 @@
         a.download = 'grade-schemes-page-' + state.page + '.csv';
         document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    el('gradeSchemeForm').addEventListener('submit', save);
+    form.addEventListener('submit', save);
     el('gradeSchemeGpaMode').addEventListener('change', () => {
         const field = el('gradeSchemeRepeatPolicy');
         field.disabled = el('gradeSchemeGpaMode').value !== 'credits';
         if (field.disabled) field.value = '0';
     });
-    el('gradeSchemeClear').addEventListener('click', clear);
+    el('gradeSchemeClear').addEventListener('click', () => {
+        if (!state.busy && (!formGuard || formGuard.confirmDiscard())) clear();
+    });
     el('gradeSchemeAddRule').addEventListener('click', addRule);
     el('gradeSchemeRefresh').addEventListener('click', () => { state.page = 1; load(); });
     el('gradeSchemePrev').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
