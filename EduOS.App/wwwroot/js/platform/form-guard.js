@@ -38,5 +38,20 @@
         }
         return guard;
     }
-    root.EduOSFormGuard = Object.freeze({ create, fingerprint });
+    // Bootstrap emits a cancelable hide event for Escape, backdrop, close and Cancel.
+    // Only opt-in editors use this; read-only modals keep their existing behavior.
+    function protectModal(modal, guard, isSaving) {
+        if (!modal || !guard || typeof modal.addEventListener !== 'function')
+            throw new Error('A modal and form guard are required.');
+        const onHide = event => {
+            if (isSaving?.() || !guard.confirmDiscard()) {
+                event.preventDefault();
+                return;
+            }
+            guard.markClean();
+        };
+        modal.addEventListener('hide.bs.modal', onHide);
+        return () => modal.removeEventListener('hide.bs.modal', onHide);
+    }
+    root.EduOSFormGuard = Object.freeze({ create, fingerprint, protectModal });
 })(typeof window !== 'undefined' ? window : globalThis);

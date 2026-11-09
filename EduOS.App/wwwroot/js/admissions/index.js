@@ -4,6 +4,7 @@
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
     const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, intakeRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null, listPageRows: null };
+    const guards = { application: null, intake: null, review: null, enrollment: null };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -20,6 +21,16 @@
     document.addEventListener('DOMContentLoaded', async () => {
         const form = document.getElementById('admissionForm');
         if (!form) return;
+        for (const [name, id, modalId, isSaving] of [
+            ['application', 'admissionForm', null, null],
+            ['intake', 'intakeFormEditor', 'intakeFormModal', () => state.savingIntake],
+            ['review', 'reviewForm', 'reviewModal', () => state.savingDecision || state.preparingEnrollment],
+            ['enrollment', 'enrollmentForm', 'enrollmentModal', () => state.enrolling]
+        ]) {
+            guards[name] = window.EduOSFormGuard?.create(document.getElementById(id)) || null;
+            if (modalId && guards[name])
+                window.EduOSFormGuard.protectModal(document.getElementById(modalId), guards[name], isSaving);
+        }
         const feature = document.querySelector('section[data-admission-feature]')?.dataset.admissionFeature || 'all';
         form.addEventListener('submit', submitApplication);
         form.addEventListener('input', () => clearAdmissionErrors(form));
@@ -27,7 +38,7 @@
         document.getElementById('admissionFilters')?.addEventListener('submit', applyFilters);
         document.getElementById('admissionPageSize')?.addEventListener('change', changePageSize);
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
-        document.getElementById('admissionFormReference')?.addEventListener('change', selectAdmissionForm);
+        document.getElementById('admissionFormReference')?.addEventListener('change', changeAdmissionForm);
         document.getElementById('applicationList')?.addEventListener('click', openReview);
         document.getElementById('applicantDocumentSearch')?.addEventListener('input', resetApplicantDocumentPage);
         document.getElementById('applicantDocumentPageSize')?.addEventListener('change', resetApplicantDocumentPage);
@@ -71,6 +82,8 @@
     }, { once: true });
 
     async function loadOptions() {
+        const wasDirty = guards.application?.isDirty();
+        const intakeWasDirty = guards.intake?.isDirty();
         try {
             const response = await fetch('/api/admission-applications/options', apiOptions());
             const payload = await response.json().catch(() => null);
@@ -103,9 +116,12 @@
             if (previousReference && state.options.openForms?.some(x => x.reference === previousReference))
                 setValue('admissionFormReference', previousReference);
             selectAdmissionForm(previousReference === valueOf('admissionFormReference') ? previousCustom : null);
+            state.activeIntakeReference = valueOf('admissionFormReference');
             refreshTerms();
             restoreAvailableOption('academicTermId', previousSelections.term);
             refreshIntakeTerms();
+            if (!wasDirty) guards.application?.markClean();
+            if (!intakeWasDirty) guards.intake?.markClean();
         } catch {
             showAlert('danger', i18n.optionsFailed);
         }
@@ -146,6 +162,23 @@
         const terms = state.options?.academicTerms?.filter(item => Number(item.parentId) === yearId) || [];
         fillSelect('intakeTermId', terms, false);
         if (selectedValue) setValue('intakeTermId', selectedValue);
+    }
+
+    function changeAdmissionForm() {
+        const next = valueOf('admissionFormReference');
+        const previous = state.activeIntakeReference || '';
+        if (next === previous) return;
+        // The changed intake selector itself is not evidence of an edited draft.
+        setValue('admissionFormReference', previous);
+        if (guards.application?.isDirty() && !guards.application.confirmDiscard()) return;
+        const form = document.getElementById('admissionForm');
+        form.reset();
+        setValue('admissionFormReference', next);
+        selectAdmissionForm();
+        state.activeIntakeReference = next;
+        state.pendingFingerprint = null;
+        state.pendingRequestId = createRequestId();
+        guards.application?.markClean();
     }
 
 
@@ -436,6 +469,7 @@
     function openIntakeFormEditor(item) {
         const editor = document.getElementById('intakeFormEditor');
         if (!editor || !state.options) return;
+        if (state.savingIntake || (guards.intake?.isDirty() && !guards.intake.confirmDiscard())) return;
         editor.reset();
         state.intakeFingerprint = null;
         clearIntakeValidation();
@@ -465,6 +499,7 @@
         requirements?.replaceChildren();
         (item?.fields || []).forEach(addIntakeFieldRow);
         (item?.documentRequirements || []).forEach(addDocumentRequirementRow);
+        guards.intake?.markClean();
         bootstrap.Modal.getOrCreateInstance(document.getElementById('intakeFormModal')).show();
     }
 
@@ -649,6 +684,7 @@
         }
         const button = document.getElementById('saveIntakeFormButton');
         state.savingIntake = true;
+        editor.inert = true;
         setLoading(button, true);
         try {
             const response = await fetch(id ? `/api/admission-intake/forms/${encodeURIComponent(id)}` : '/api/admission-intake/forms', apiOptions(id ? 'PUT' : 'POST', request));
@@ -659,6 +695,8 @@
             }
             if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Admission form could not be saved.');
             state.intakeFingerprint = null;
+            guards.intake?.markClean();
+            state.savingIntake = false;
             bootstrap.Modal.getInstance(document.getElementById('intakeFormModal'))?.hide();
             showAlert('success', payload.message || 'Admission form saved.');
             await loadIntakeForms();
@@ -666,6 +704,7 @@
             showAlert('danger', error.message || 'Admission form could not be saved.');
         } finally {
             state.savingIntake = false;
+            editor.inert = false;
             setLoading(button, false);
         }
     }
@@ -811,6 +850,7 @@
         request.clientRequestId = state.pendingRequestId;
         state.submitting = true;
         const button = document.getElementById('submitApplicationButton');
+        form.inert = true;
         setLoading(button, true);
         try {
             const response = await fetch('/api/admission-applications', apiOptions('POST', request));
@@ -840,6 +880,8 @@
             })), true);
             selectAdmissionForm();
             refreshTerms();
+            state.activeIntakeReference = valueOf('admissionFormReference');
+            guards.application?.markClean();
             showAlert('success', `${i18n.created} ${payload.data?.applicationNumber || ''}`.trim());
             state.page = 1;
             await loadApplications();
@@ -848,6 +890,7 @@
             document.getElementById('submitApplicationButton')?.focus();
         } finally {
             state.submitting = false;
+            form.inert = false;
             setLoading(button, false);
         }
     }
@@ -1015,6 +1058,7 @@
             setValue('reviewRowVersion', payload.data.rowVersion);
             setValue('decisionNote', payload.data.decisionNote);
             fillReviewStatuses(Number(payload.data.state));
+            guards.review?.markClean();
             document.getElementById('admitApplicantButton')?.classList.toggle('d-none', Number(payload.data.state) !== 6);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('reviewModal')).show();
             // Do not await here: loadApplicantDocuments already protects the active
@@ -1284,6 +1328,7 @@
         if (!reference || !status) return;
         const button = document.getElementById('saveDecisionButton');
         state.savingDecision = true;
+        document.getElementById('reviewModal').inert = true;
         setLoading(button, true);
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/status`, apiOptions('PUT', {
@@ -1299,11 +1344,15 @@
                         : 'Another reviewer changed this application. Reopen it from the list to review the latest details.')
                     : (payload?.message || i18n.decisionFailed));
                 if (conflict) {
+                    guards.review?.markClean();
+                    state.savingDecision = false;
                     bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
                     await loadApplications();
                 } else button?.focus();
                 return;
             }
+            guards.review?.markClean();
+            state.savingDecision = false;
             bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
             showAlert('success', i18n.decisionSaved);
             await loadApplications();
@@ -1312,6 +1361,7 @@
             button?.focus();
         } finally {
             state.savingDecision = false;
+            document.getElementById('reviewModal').inert = false;
             setLoading(button, false);
         }
     }
@@ -1319,6 +1369,7 @@
     async function prepareEnrollment() {
         const item = state.currentApplication;
         if (!item?.reference || Number(item.state) !== 6 || state.preparingEnrollment) return;
+        if (guards.review?.isDirty() && !guards.review.confirmDiscard()) return;
         const selectedReview = state.reviewRequest;
         state.preparingEnrollment = true;
         const trigger = document.getElementById('admitApplicantButton');
@@ -1333,6 +1384,9 @@
             setValue('enrollmentReference', item.reference);
             setValue('enrollmentRowVersion', item.rowVersion);
             setValue('enrollmentRoll', '');
+            guards.review?.markClean();
+            guards.enrollment?.markClean();
+            state.preparingEnrollment = false;
             bootstrap.Modal.getInstance(document.getElementById('reviewModal'))?.hide();
             bootstrap.Modal.getOrCreateInstance(document.getElementById('enrollmentModal')).show();
         } catch (error) {
@@ -1490,6 +1544,7 @@
         if (!reference) return;
         const button = document.getElementById('completeEnrollmentButton');
         state.enrolling = true;
+        document.getElementById('enrollmentModal').inert = true;
         setLoading(button, true);
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/admit`, apiOptions('POST', {
@@ -1506,12 +1561,16 @@
                         : 'Enrollment data changed. Reopen the application from the list before trying again.')
                     : (payload?.message || i18n.enrollmentFailed));
                 if (conflict) {
+                    guards.enrollment?.markClean();
+                    state.enrolling = false;
                     bootstrap.Modal.getInstance(document.getElementById('enrollmentModal'))?.hide();
                     state.currentApplication = null;
                     await loadApplications();
                 } else button?.focus();
                 return;
             }
+            guards.enrollment?.markClean();
+            state.enrolling = false;
             bootstrap.Modal.getInstance(document.getElementById('enrollmentModal'))?.hide();
             showAlert('success', `${i18n.admittedSuccess} ${payload.data?.studentCode || ''}`.trim());
             state.currentApplication = null;
@@ -1523,6 +1582,7 @@
             button?.focus();
         } finally {
             state.enrolling = false;
+            document.getElementById('enrollmentModal').inert = false;
             setLoading(button, false);
         }
     }
