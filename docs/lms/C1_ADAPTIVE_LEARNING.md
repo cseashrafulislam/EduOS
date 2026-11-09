@@ -22,7 +22,7 @@ All mutating requests require antiforgery. UI uses textContent and tenant-sessio
 
 ## Deployment and rollback
 
-1. Back up production SQL and verify restore. Stage and apply migration 20261109072000_AdaptiveStudyPlanning after compatibility review; it adds columns with a non-breaking default, an optional quiz-question explanation, tenant-bound relationships, new tables and indexes.
+1. Back up production SQL and verify restore. Stage and apply migrations 20261109072000_AdaptiveStudyPlanning and 20261109083000_AdaptiveQuizExplanations in order. The second is deliberately separate and conditionally adds the optional column, preserving both environments with the prior migration already applied and any short-lived C1 deployment containing the column; old quiz clients continue to work.
 2. Deploy updated API, DI, quiz author, teacher and learner pages. Existing quiz clients omit the new fields and continue as before.
 3. Validate new/old quiz create-edit-read, assigned-teacher target saves, student snapshots and historical quiz grades; test with two tenants and users.
 4. Inspect lock durations and index utilization on large data. Do not silently roll back populated goal, mapping or snapshot evidence; the down migration intentionally blocks data loss.

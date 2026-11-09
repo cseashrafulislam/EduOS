@@ -13,7 +13,6 @@ public sealed class AdaptiveStudyPlanning : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.AddColumn<string>("Explanation", "QuizQuestions", type: "nvarchar(2000)", maxLength: 2000, nullable: true);
         migrationBuilder.AddColumn<long>("CourseSectionId", "Quizzes", type: "bigint", nullable: true);
         migrationBuilder.AddColumn<string>("SkillCode", "Quizzes", type: "nvarchar(64)", maxLength: 64, nullable: true);
         migrationBuilder.AddColumn<int>("PracticeDifficulty", "Quizzes", type: "int", nullable: false, defaultValue: 1);
@@ -100,7 +99,7 @@ public sealed class AdaptiveStudyPlanning : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql("IF EXISTS (SELECT 1 FROM dbo.AdaptiveStudyGoals) OR EXISTS (SELECT 1 FROM dbo.AdaptiveStudyPlanHistories) OR EXISTS (SELECT 1 FROM dbo.Quizzes WHERE CourseSectionId IS NOT NULL) OR EXISTS (SELECT 1 FROM dbo.QuizQuestions WHERE Explanation IS NOT NULL) THROW 51062, 'Approved retention migration required before rolling back adaptive study evidence.', 1;");
+        migrationBuilder.Sql("IF EXISTS (SELECT 1 FROM dbo.AdaptiveStudyGoals) OR EXISTS (SELECT 1 FROM dbo.AdaptiveStudyPlanHistories) OR EXISTS (SELECT 1 FROM dbo.Quizzes WHERE CourseSectionId IS NOT NULL) THROW 51062, 'Approved retention migration required before rolling back adaptive study evidence.', 1;");
         migrationBuilder.DropTable("AdaptiveStudyPlanHistories");
         migrationBuilder.DropTable("AdaptiveStudyGoals");
         migrationBuilder.DropCheckConstraint("CK_Quizzes_PracticeDifficulty", "Quizzes");
@@ -110,6 +109,5 @@ public sealed class AdaptiveStudyPlanning : Migration
         migrationBuilder.DropColumn("CourseSectionId", "Quizzes");
         migrationBuilder.DropColumn("SkillCode", "Quizzes");
         migrationBuilder.DropColumn("PracticeDifficulty", "Quizzes");
-        migrationBuilder.DropColumn("Explanation", "QuizQuestions");
     }
 }
