@@ -1,12 +1,19 @@
+import {label,nextStage,validateIssue,validateRoll} from './offers-journey.js';
 import { el, val, num, ctx, base, notice, api, render, refresh, load } from './offers-core.js';
 import { initializeOfferSearch } from './offers-search.js';
 const offerRetry = window.EduOSAdmissionOffers.createRetryTracker(
     window.EduOSAdmissionRetry, window.crypto, () => window.sessionStorage);
+const bn=()=>document.getElementById('offerLocale')?.value==='bn-BD';
+const say=(en,bd)=>bn()?bd:en;
+function updateStage(){
+ const target=el('offerJourneyStage');
+ if(target)target.textContent=ctx.applicant?label(nextStage(ctx.applicant.state,ctx.decision?.state,ctx.decision?.expiresAt),bn()):'';
+}
 let issuingOffer = false;
 async function issue() {
     const batch = num(val('offerBatch')), expiry = new Date(val('offerExpiry'));
-    if (!batch || !Number.isFinite(expiry.getTime()) || expiry.getTime() <= Date.now())
-        return notice('Select a valid batch and future expiry.', true);
+    if (!validateIssue(batch,val('offerExpiry')))
+        return notice(say('Select a valid batch and future expiry.','সঠিক ব্যাচ ও ভবিষ্যতের মেয়াদ নির্বাচন করুন।'), true);
     if (issuingOffer) return;
     issuingOffer = true;
     el('offerIssueButton').disabled = true;
@@ -22,7 +29,7 @@ async function issue() {
         });
         offerRetry.clear(key);
         await refresh();
-        notice('Offer issued. Verify signed evidence before acceptance.');
+        notice(say('Offer issued. Verify signed evidence before acceptance.','অফার দেওয়া হয়েছে। গ্রহণের আগে স্বাক্ষরিত নথি যাচাই করুন।'));
     } catch (error) { notice(error.message || 'Offer failed.', true); }
     finally { issuingOffer = false; render(); }
 }
@@ -36,13 +43,13 @@ async function accept() {
             signerRole: val('offerSigner'), identityChecked: true
         });
         await refresh();
-        notice('Verified acceptance recorded. Enrollment unlocked.');
+        notice(say('Verified acceptance recorded. Enrollment unlocked.','যাচাইকৃত গ্রহণ সংরক্ষিত হয়েছে। ভর্তি করা যাবে।'));
     } catch (error) { notice(error.message || 'Acceptance failed.', true); }
     finally { render(); }
 }
 async function enroll() {
     const batch = num(val('offerBatch')), roll = val('offerRoll');
-    if (!batch || !roll || roll.length > 50) return notice('Batch and roll are required.', true);
+    if (!validateRoll(batch,roll)) return notice(say('A valid batch and roll are required.','সঠিক ব্যাচ ও রোল প্রয়োজন।'), true);
     el('offerEnrollButton').disabled = true;
     try {
         const result = await api(base() + '/admit', 'POST', {
@@ -50,11 +57,13 @@ async function enroll() {
             roll, rowVersion: ctx.applicant.rowVersion
         });
         await refresh();
-        notice('Student enrolled: ' + (result?.studentCode || 'Created'));
+        notice(say('Student enrolled: ','শিক্ষার্থী ভর্তি হয়েছে: ') + (result?.studentCode || say('Created','তৈরি হয়েছে')));
     } catch (error) { notice(error.message || 'Enrollment failed.', true); }
     finally { render(); }
 }
 document.addEventListener('DOMContentLoaded', () => {
+    const state=el('offerCurrentState');
+    if(state)new MutationObserver(updateStage).observe(state,{childList:true,subtree:true,characterData:true});
     if (!el('offerLookupForm')) return;
     el('offerLookupForm').addEventListener('submit', load);
     initializeOfferSearch();
