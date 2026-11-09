@@ -4,10 +4,14 @@ on:
     branches: [Ashraful]
     paths:
       - 'EduOS.App/wwwroot/js/sidebar-navigation.js'
+      - 'EduOS.App/wwwroot/js/platform/ui-shell.js'
       - 'EduOS.App/Views/Shared/_Layout.cshtml'
+      - 'EduOS.App/wwwroot/css/site.css'
       - 'EduOS.Tests/JavaScript/sidebar-navigation.test.cjs'
       - 'EduOS.Tests/JavaScript/sidebar-route-inventory.test.cjs'
       - 'tests/browser/sidebar-navigation.cjs'
+      - 'tests/browser/ui-shell.cjs'
+      - 'EduOS.Tests/JavaScript/ui-shell.test.cjs'
       - 'tests/browser/sidebar-role-staging.cjs'
       - '.github/workflows/sidebar-navigation-browser.yml'
   workflow_dispatch:
@@ -33,3 +37,5 @@ jobs:
         run: node --check tests/browser/sidebar-role-staging.cjs
       - name: Exercise scoped bilingual sidebar keyboard navigation in Chromium
         run: node tests/browser/sidebar-navigation.cjs
+      - name: Exercise shared page shell, breadcrumbs, notifications and tenant isolation
+        run: node tests/browser/ui-shell.cjs

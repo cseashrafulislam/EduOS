@@ -1005,8 +1005,9 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#menu" /></svg>
                     </button>
                     <div class="page-heading">
+                        <nav class="page-breadcrumbs" id="pageBreadcrumbs"
+                             aria-label="@(currentCulture == "bn-BD" ? "পৃষ্ঠার অবস্থান" : "Breadcrumb")" hidden></nav>
                         <h1>@pageTitle</h1>
-                        <p>@T["ManageInstitution"]</p>
                     </div>
                 </div>
 
@@ -1157,11 +1158,13 @@
         </section>
     }
     <div class="visually-hidden" aria-live="polite" data-app-status></div>
+    <div class="edu-toast-stack" id="eduToastStack" aria-label="@(currentCulture == "bn-BD" ? "বিজ্ঞপ্তি" : "Notifications")"></div>
 
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/sidebar-navigation.js" asp-append-version="true"></script>
+    <script src="~/js/platform/ui-shell.js" asp-append-version="true"></script>
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/feature-discovery.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>

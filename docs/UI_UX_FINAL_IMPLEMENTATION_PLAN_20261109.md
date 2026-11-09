@@ -71,6 +71,13 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - The sidebar's **Find pages · Favorites** control opens the existing feature discovery dialog; no parallel route registry, search index or favorites store exists. Both launchers are disabled on stale tenant/session context and restore focus to their respective opener. Search results are derived exclusively from already authorized links; all navigation still requires server authorization.
 - Scope-specific Node tests and synthetic Chromium scripts cover route inventory, bilingual labels, active links, accessibility, keyboard, tenant/session changes, favorites, recent and focus restoration. Local JavaScript tests passed; full .NET build, Chromium execution in CI and authenticated multi-role staging acceptance are **not yet certified by this local environment**. UX-01 is an implementation candidate pending those gates; UX-02 through UX-12 remain separate delivery packages.
 
+### 4.3. UX-02 shared shell foundation (2026-11-09)
+
+- `Views/Shared/_Layout.cshtml` now displays contextual breadcrumbs from the **already-authorized, active sidebar route** rather than the same generic “Manage Institution” caption on every page. The actual server-localized H1 remains authoritative; unknown routes do not acquire invented breadcrumbs. On small screens the breadcrumb hides to prioritize page title and actions.
+- `wwwroot/js/platform/ui-shell.js` provides a single in-memory `EduOSNotify(message, kind)` presentation API. Notification text is never HTML, only known display types are accepted, the live stack is bounded, the user can dismiss alerts, and notifications cannot carry over when the rendered tenant/session changes. It is not an authoritative workflow or business-status engine.
+- Shared, opt-in styling now covers page surfaces, headings, labels, empty/error states, loading skeletons and accessible notifications across light/dark/system appearance and reduced-motion preferences. Existing per-module transaction/report colors and status rules remain untouched. Focused Node tests and a synthetic Chromium regression were added to the existing navigation CI workflow.
+- **Remaining UX-02 acceptance:** adopt components across the full existing page inventory where appropriate, run actual Chromium/mobile visual regression and .NET compilation, confirm 403/404/500 and dialog parity, and receive final independent QA. This foundation is not a claim that every old form, table or dashboard has been polished.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:
