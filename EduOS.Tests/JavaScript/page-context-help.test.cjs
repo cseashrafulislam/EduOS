@@ -30,7 +30,7 @@ const routes = ['/Account/Profile', '/FeeDiscountAttributionReview/Index', '/Fee
         .map(name => '/' + name + '/Index')];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 139, en: 139, bn: 139 });
+    assert.deepEqual(coverage(), { routes: 141, en: 141, bn: 141 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -44,6 +44,23 @@ test('all reviewed route manuals have full bilingual structure, matching steps a
         }
         assert.deepEqual(en.related.map(x => x.path), bn.related.map(x => x.path));
         assert.notEqual(en.purpose, bn.purpose);
+    }
+});
+test('institution and restricted platform dashboards have real bilingual task manuals', () => {
+    const controller = read('EduOS.App/Controllers/DashboardController.cs');
+    const institute = read('EduOS.App/Views/Dashboard/Index.cshtml');
+    const platform = read('EduOS.App/Views/Dashboard/Admin.cshtml');
+    assert.match(controller, /\[Authorize\(Roles = "SuperAdmin"\)\]/);
+    assert.match(institute, /id="dashboardWelcome"/);
+    assert.match(platform, /id="platformRefresh"/);
+    for (const route of ['/Dashboard/Index', '/Dashboard/Admin']) {
+        const en = guideFor(route, 'en-BD'), bn = guideFor(route, 'bn-BD');
+        assert.ok(en && bn, route);
+        assert.equal(en.steps.length, 3);
+        assert.equal(en.steps.length, bn.steps.length);
+        assert.match(en.title, /Dashboard/);
+        assert.match(bn.title, /ড্যাশবোর্ড/);
+        assert.deepEqual(en.related.map(x => x.path), bn.related.map(x => x.path));
     }
 });
 test('visitor occupancy manual v5 covers overdue alerts and campus time-policy recovery', () => {
@@ -164,7 +181,9 @@ test('shared drawer is one user-initiated accessible renderer, not hover-trigger
     assert.match(layout, /aria-controls="pageHelpDrawer"/);
     assert.match(layout, /<dialog class="page-help-drawer" id="pageHelpDrawer" aria-labelledby="pageHelpTitle" aria-modal="true"/);
     assert.match(layout, /id="pageHelpContent"/);
-    assert.match(layout, /page-context-help\.js" asp-append-version="true"/);
+    assert.match(layout, /page-help-loader\.js" asp-append-version="true"/);
+    assert.match(layout, /FileVersionProvider\.AddFileVersionToPath\(Context\.Request\.PathBase/);
+    assert.match(layout, /id="pageHelpLoadStatus"[^>]+role="status"/);
     assert.match(js, /dialog\.showModal\(\)/);
     assert.match(js, /trigger\.addEventListener\('click'/);
     assert.match(js, /dialog\.addEventListener\('close', \(\) => \{ if \(status\(\) === 'ready'\) trigger\.focus\(\); \}\)/);

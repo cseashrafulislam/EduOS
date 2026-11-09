@@ -26,6 +26,24 @@
         return partial.length ? { kind: 'ambiguous', count: partial.length } : { kind: 'missing' };
     }
 
+    // Only remove reviewed navigation/focus phrasing. Commands are interpreted
+    // as a label lookup and NEVER as permission to edit, submit or post data.
+    function spokenLabel(text) {
+        const phrase = normalizeLabel(text);
+        const en = phrase.match(/^(?:please\s+)?(?:open|go to|show|find|search for)\s+(.+)$/u);
+        const bn = phrase.match(/^(.+?)\s+(?:খুলুন|খোলো|দেখাও|দেখান|খুঁজুন|খুঁজে দাও|যাও)$/u);
+        const label = (en?.[1] || bn?.[1] || '').trim();
+        if (!label) return null;
+        return label.replace(/\s+(?:page|field|menu|পেজ|পাতা|ঘর)$/u, '').trim() || null;
+    }
+
+    function matchRequestedLabel(entries, requested) {
+        const direct = matchLabel(entries, requested);
+        if (direct.kind !== 'missing') return direct;
+        const label = spokenLabel(requested);
+        return label && label !== normalizeLabel(requested) ? matchLabel(entries, label) : direct;
+    }
+
     function isAvailableField(field) {
         if (!field || field.disabled || field.type === 'hidden' || field.readOnly ||
             field.closest('[hidden], [inert], [aria-hidden="true"], .d-none')) return false;
@@ -133,8 +151,8 @@
             reset();
             if (!currentContext()) { message(t('Your session changed. Reload the page.', 'সেশন পরিবর্তিত হয়েছে। পেজটি রিফ্রেশ করুন।')); return; }
             const requested = query.value.trim();
-            const field = matchLabel(fieldsOnPage(doc), requested);
-            const nav = matchLabel(linksInSidebar(doc), requested);
+            const field = matchRequestedLabel(fieldsOnPage(doc), requested);
+            const nav = matchRequestedLabel(linksInSidebar(doc), requested);
             if (field.kind === 'ambiguous' || nav.kind === 'ambiguous' ||
                 (field.kind === 'match' && nav.kind === 'match')) {
                 message(t('More than one item matches. Enter its full visible label.', 'একাধিক মিল পাওয়া গেছে। সম্পূর্ণ লেবেল লিখুন।'));
@@ -241,5 +259,6 @@
         hostWindow.addEventListener('pagehide', stopSpeech);
     }
 
-    return { normalizeLabel, matchLabel, isAvailableField, isAvailableNavigationLink, createOnDeviceRecognizer, mount };
+    return { normalizeLabel, matchLabel, spokenLabel, matchRequestedLabel,
+        isAvailableField, isAvailableNavigationLink, createOnDeviceRecognizer, mount };
 });

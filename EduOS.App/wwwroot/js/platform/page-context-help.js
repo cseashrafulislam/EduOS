@@ -1236,6 +1236,38 @@
             [['/Learning/Index', 'Learning courses', 'কোর্সসমূহ']])
     };
     const manuals = {
+        '/dashboard/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Dashboard', 'প্রতিষ্ঠান ড্যাশবোর্ড'],
+            purpose: ['Review your current institution overview, subscription capacity, account status and authorized daily-work shortcuts.', 'বর্তমান প্রতিষ্ঠানের সারসংক্ষেপ, সাবস্ক্রিপশনের সীমা, অ্যাকাউন্টের অবস্থা এবং অনুমোদিত কাজের শর্টকাট দেখুন।'],
+            before: ['Sign in to your selected institution with an active permitted account. Cards and shortcuts depend on available data and your assigned permissions.', 'নির্বাচিত প্রতিষ্ঠানে সক্রিয় অনুমোদিত অ্যাকাউন্ট দিয়ে লগ ইন করুন। কার্ড ও শর্টকাট দৃশ্যমান তথ্য এবং আপনার অনুমতির ওপর নির্ভর করে।'],
+            steps: [
+                ['Check the institution banner and status badges for the current plan and setup state.', 'প্রতিষ্ঠানের নাম, বর্তমান প্ল্যান ও সেটআপের অবস্থা ওপরের ব্যানারে দেখুন।'],
+                ['Review student and teacher counts, subscription limits and any available account alerts.', 'শিক্ষার্থী-শিক্ষক সংখ্যা, সাবস্ক্রিপশনের সীমা এবং উপলব্ধ অ্যাকাউন্ট সতর্কতা দেখুন।'],
+                ['Use the authorized Quick actions or sidebar to open the relevant operation. Expand account details when you need setup history.', 'অনুমোদিত Quick actions বা সাইডবার থেকে কাজের পেজ খুলুন। প্রয়োজন হলে অ্যাকাউন্টের বিস্তারিত অংশ প্রসারিত করুন।']
+            ],
+            example: ['Example: an institution administrator reviews student capacity, then selects Students to open its authorized register.', 'উদাহরণ: একজন প্রতিষ্ঠান প্রশাসক শিক্ষার্থী ধারণক্ষমতা দেখে Students বেছে অনুমোদিত তালিকা খোলেন।'],
+            result: ['The dashboard shows current read-only overview and links; opening a linked workflow is a separate action.', 'ড্যাশবোর্ডে বর্তমান সারসংক্ষেপ ও লিংক দেখা যায়; লিংক থেকে কাজের পেজ খোলা আলাদা পদক্ষেপ।'],
+            rules: ['These cards are not a financial trial balance or proof of a completed transaction. Missing/unauthorized figures must not be treated as zero; account changes require their own protected workflow.', 'এসব কার্ড ট্রায়াল ব্যালেন্স বা লেনদেন সম্পন্ন হওয়ার প্রমাণ নয়। অনুপস্থিত বা অননুমোদিত পরিমাণকে শূন্য ধরবেন না; অ্যাকাউন্ট পরিবর্তন নিজস্ব সুরক্ষিত প্রক্রিয়ায় করতে হবে।'],
+            recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
+            related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
+        },
+        '/dashboard/admin/index': {
+            version: 1, reviewed: true,
+            title: ['Platform Operations Dashboard', 'প্ল্যাটফর্ম পরিচালনা ড্যাশবোর্ড'],
+            purpose: ['Inspect restricted platform-wide institution onboarding, subscription risk, recent registrations and pending manual-payment review indicators.', 'সীমিত প্ল্যাটফর্ম জুড়ে প্রতিষ্ঠান চালুকরণ, সাবস্ক্রিপশনের ঝুঁকি, নতুন নিবন্ধন ও ম্যানুয়াল পেমেন্ট যাচাইয়ের সূচক দেখুন।'],
+            before: ['A signed-in SuperAdmin role is required. Figures are operational read-only snapshots, not approval actions.', 'লগ ইন করা SuperAdmin ভূমিকা প্রয়োজন। সংখ্যাগুলো পরিচালনাগত শুধু-পাঠযোগ্য তথ্য; অনুমোদন দেওয়ার কাজ নয়।'],
+            steps: [
+                ['Open Platform Operations and inspect the last-refreshed UTC timestamp.', 'Platform Operations খুলে সর্বশেষ UTC হালনাগাদের সময় দেখুন।'],
+                ['Review institution, onboarding, subscription and pending-review counts; inspect recent tenants and upcoming expirations.', 'প্রতিষ্ঠান, সেটআপ, সাবস্ক্রিপশন ও যাচাই-অপেক্ষমাণ সংখ্যা দেখুন; নতুন প্রতিষ্ঠান এবং শিগগির শেষ হওয়া প্ল্যান পরীক্ষা করুন।'],
+                ['Select Refresh metrics for current figures, or open a separately authorized operations link to take action.', 'বর্তমান সংখ্যা দেখতে Refresh metrics চাপুন; কাজ করতে আলাদা অনুমোদিত operations লিংক খুলুন।']
+            ],
+            example: ['Example: a SuperAdmin reviews subscriptions expiring within seven days and opens the approved payment-verification queue separately.', 'উদাহরণ: SuperAdmin আগামী সাত দিনে মেয়াদোত্তীর্ণ হতে যাওয়া প্ল্যান দেখে অনুমোদিত পেমেন্ট যাচাই তালিকা আলাদাভাবে খোলেন।'],
+            result: ['Platform metrics and bounded operational lists update without changing tenant or payment status.', 'প্ল্যাটফর্মের সংখ্যা ও সীমিত কার্যতালিকা আপডেট হয়; প্রতিষ্ঠান বা পেমেন্টের অবস্থা বদলায় না।'],
+            rules: ['Platform-wide counts are restricted to SuperAdmin. A pending payment count does not mean funds were verified; payment approval and activation remain in their original protected workflows.', 'প্ল্যাটফর্মব্যাপী সংখ্যা শুধু SuperAdmin দেখতে পারেন। অপেক্ষমাণ পেমেন্টের সংখ্যা টাকা যাচাইয়ের প্রমাণ নয়; পেমেন্ট অনুমোদন ও চালুকরণ মূল সুরক্ষিত প্রক্রিয়ায় হবে।'],
+            recovery: ['If refresh fails, inspect the status notice and retry without changing any payment state. Unauthorized users must not attempt a direct URL.', 'রিফ্রেশ ব্যর্থ হলে অবস্থার বার্তা দেখে আবার চেষ্টা করুন; পেমেন্টের অবস্থা বদলাবেন না। অনুমতিহীন ব্যবহারকারী সরাসরি URL খুলবেন না।'],
+            related: []
+        },
         '/centralworkcenter/index': {
             version: 1, reviewed: true,
             title: ['Central Approval Work Center', 'কেন্দ্রীয় অনুমোদন তালিকা'],

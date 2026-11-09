@@ -1,4 +1,5 @@
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@inject Microsoft.AspNetCore.Mvc.ViewFeatures.IFileVersionProvider FileVersionProvider
 @inject Microsoft.Extensions.Configuration.IConfiguration PilotConfiguration
 @inject EduOS.Core.Interfaces.IServices.ITenantModuleService TenantModuleService
 @{
@@ -1030,8 +1031,10 @@
                     }
                     <button class="icon-button page-help-trigger" id="pageContextHelp" type="button"
                             aria-haspopup="dialog" aria-controls="pageHelpDrawer"
+                            data-manual-src="@(FileVersionProvider.AddFileVersionToPath(Context.Request.PathBase, Url.Content("~/js/platform/page-context-help.js")))"
                             aria-label="@(currentCulture == "bn-BD" ? "এই পৃষ্ঠার সম্পূর্ণ নির্দেশিকা" : "Full user manual for this page")"
                             title="@(currentCulture == "bn-BD" ? "পৃষ্ঠার নির্দেশিকা" : "Page user manual")">ⓘ</button>
+                    <span id="pageHelpLoadStatus" class="visually-hidden" role="status" aria-live="polite"></span>
                     <button class="install-button" type="button" data-install-app hidden>
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#download" /></svg>
                         <span>@T["InstallApp"]</span>
@@ -1201,7 +1204,7 @@
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/feature-discovery.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>
-    <script src="~/js/platform/page-context-help.js" asp-append-version="true"></script>
+    <script src="~/js/platform/page-help-loader.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

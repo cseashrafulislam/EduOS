@@ -32,8 +32,8 @@ test('qualified applicants can open offer workspace directly, while other roles 
     assert.match(list, /\/Admissions\/Offers\?reference=/);
     assert.match(listView, /User\.IsInRole\("TenantAdmin"\)/);
     assert.match(search, /new URLSearchParams\(window\.location\.search\)/);
-    assert.match(core, /ctx\.applicant\.applicantName/);
+    assert.match(core, /el\('offerApplicantName'\)\.textContent = applicant\.applicantName/);
     assert.match(core, /sequence !== loadSequence/);
     assert.match(core, /currentReference = reference => !!reference && ctx\.reference === reference/);
-    assert.match(core, /if \(!currentReference\(reference\)\) return/);
+    assert.match(core, /sequence !== refreshSequence \|\| !currentReference\(reference\)\) return false/);
 });

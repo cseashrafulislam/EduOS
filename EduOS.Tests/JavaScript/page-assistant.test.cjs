@@ -24,6 +24,25 @@ test('page assistant rejects ambiguous exact labels, including duplicate forms',
     assert.equal(assistant.normalizeLabel('  মোবাইল :  '), 'মোবাইল');
 });
 
+test('bilingual spoken navigation phrases resolve labels but never become executable commands', () => {
+    const entries = [
+        { labels: ['Students', 'শিক্ষার্থী'], id: 1 },
+        { labels: ['Student name', 'শিক্ষার্থীর নাম'], id: 2 }
+    ];
+    for (const [utterance, expected] of [
+        ['Open Students page', 1], ['please go to Students page', 1],
+        ['show student name field', 2], ['শিক্ষার্থী খুলুন', 1],
+        ['শিক্ষার্থীর নাম ঘর খুলুন', 2]
+    ]) assert.equal(assistant.matchRequestedLabel(entries, utterance).entry.id, expected, utterance);
+    assert.equal(assistant.matchRequestedLabel(entries, 'delete Students').kind, 'missing');
+    assert.equal(assistant.matchRequestedLabel(entries, 'approve student name').kind, 'missing');
+    assert.equal(assistant.spokenLabel('pay student fees'), null);
+    assert.equal(assistant.matchRequestedLabel(entries, 'Students').entry.id, 1);
+    assert.equal(assistant.matchRequestedLabel([
+        { labels: ['Students'] }, { labels: ['Students'] }
+    ], 'open Students page').kind, 'ambiguous');
+});
+
 test('page assistant never offers hidden, disabled or read-only form fields', () => {
     const make = overrides => ({
         disabled: false, readOnly: false, type: 'text', closest: () => null,
