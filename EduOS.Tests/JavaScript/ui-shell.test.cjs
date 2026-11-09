@@ -8,7 +8,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/ui-shell.js');
-const { breadcrumbParts, notificationData } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
+const { breadcrumbParts, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
 const site = read('EduOS.App/wwwroot/js/site.js');
 
 test('shared breadcrumb reduces duplicate levels and never creates navigation routes', () => {
@@ -38,6 +38,42 @@ test('shared toast messages are bounded, text-only and explicitly typed', () => 
     assert.match(js, /if \(!host \|\| !data \|\| !sameSession\(\)\) return null/);
     assert.match(js, /if \(host\.children\.length >= 3\)/);
     assert.match(js, /data\.kind === 'error' \? 'alert' : 'status'/);
+});
+
+test('short transient notices never auto-dismiss while read and long/critical notices stay until closed', () => {
+    assert.equal(notificationDismissalMs(notificationData('OK', 'success')), 5500);
+    assert.equal(notificationDismissalMs(notificationData('Review required', 'info')), 5500);
+    assert.ok(notificationDismissalMs(notificationData('x'.repeat(120), 'success')) >= 9000);
+    assert.equal(notificationDismissalMs(notificationData('x'.repeat(121), 'success')), null);
+    assert.equal(notificationDismissalMs(notificationData('Payment declined', 'error')), null);
+    assert.equal(notificationDismissalMs(notificationData('Approval pending', 'warning')), null);
+    assert.equal(notificationDismissalMs(null), null);
+    assert.match(js, /toast\.addEventListener\('pointerenter', pauseTimer\)/);
+    assert.match(js, /toast\.addEventListener\('focusin', pauseTimer\)/);
+    assert.match(js, /toast\.contains\(document\.activeElement\)/);
+    assert.match(js, /toast\.setAttribute\('aria-atomic', 'true'\)/);
+});
+
+test('shared public error pages expose localized titles and safe recovery for 403, 404 and 500', () => {
+    const pages = [
+        ['AccessDenied', '403', 'AccessDeniedTitle', 'AccessDeniedMessage'],
+        ['NotFound', '404', 'PageNotFoundTitle', 'PageNotFoundMessage'],
+        ['ServerError', '500', 'ServerErrorTitle', 'ServerErrorMessage']
+    ];
+    const publicLayout = read('EduOS.App/Views/Shared/_PublicLayout.cshtml');
+    assert.match(publicLayout, /<main class="public-main" id="main-content" tabindex="-1">/);
+    assert.match(publicLayout, /<a class="skip-link" href="#main-content">/);
+    for (const [name, status, title, message] of pages) {
+        const markup = read('EduOS.App/Views/Error/' + name + '.cshtml');
+        assert.match(markup, /Layout = "_PublicLayout"/);
+        assert.match(markup, /aria-labelledby="errorTitle" aria-describedby="errorDescription"/);
+        assert.match(markup, /<p id="errorDescription">/);
+        assert.ok(markup.includes('aria-hidden="true">' + status + '</div>'));
+        assert.ok(markup.includes('@T["' + title + '"]'));
+        assert.ok(markup.includes('@T["' + message + '"]'));
+        assert.match(markup, /href="\/" class="btn/);
+        assert.doesNotMatch(markup, /ViewBag\.Exception|StackTrace|Exception\.Message|Model\.Exception/);
+    }
 });
 
 test('one shared shell uses opt-in status, skeleton, empty and responsive presentation', () => {

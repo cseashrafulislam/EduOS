@@ -164,6 +164,13 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - Tenant-admin Dashboard (UX-05): outstanding BDT amounts now aggregate only non-deleted **Issued** or **PartiallyPaid** invoices with a positive due, rather than including editable Draft or anomalous Paid balances. Cross-tenant and non-BDT invoices are excluded. A focused .NET regression fixture covers the classifications and tenant filter; compilation/execution is NOT RUN here because the .NET execution environment is unavailable.
 - **Status:** These are additional Batch 2 implementation changes. They do **not** establish 100% route-by-route UX-03/04/05/10 completion, authenticated browser/role verification, SQL parity, full C# test execution or independent Task E QA. Existing financial posting, reconciliation and approval workflows were not modified; deploy with rollback/validation of dashboard totals.
 
+### 4.14. UX-02 shared shell: notification readability and error-page accessibility (2026-11-09)
+
+- Shared toast notifications now retain actionable warning/error messages and long success/info messages until explicit user dismissal. Short success/info messages still expire, with reading-time adjusted by length; expiry is paused on pointer hover, keyboard focus and while the document is hidden. The stack remains bounded and text-only, with session/tenant fail-closed checks unchanged. This fixes the previous fixed 5.5-second expiry for messages too long to read.
+- The localized 403, 404 and 500 pages keep the safe public shell but explicitly associate each explanatory paragraph with its error heading using `aria-describedby`. The pages still disclose no exception internals or tenant data.
+- Focused deterministic Node assertions cover notification timing rules, non-HTML content, browser focus/hover contracts, and the public error template structure; the synthetic Playwright shell script checks atomic announcement and long-notice persistence.
+- **UX-02 implementation status:** Shared-shell code and source-level regression coverage are complete for this scope, building on the prior UX-02 foundation. No route/permission/tenant/accounting behavior is changed. The full UX-02 acceptance gate still requires executable `.NET` compilation, role-authenticated 403/404/500 browser checks, desktop/mobile contrast and keyboard screenshots, real Chromium run and independent Task E QA. These checks have **NOT RUN** in the unavailable execution environment and must not be called passed.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:

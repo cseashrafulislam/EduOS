@@ -53,8 +53,12 @@ async function exercise(browser, bn) {
         await page.evaluate(() => window.EduOSNotify('<img src=x onerror=alert(1)>', 'error'));
         assert.equal(await page.locator('#eduToastStack img').count(), 0, 'unsafe message must remain text');
         assert.match(await page.locator('#eduToastStack [role="alert"]').innerText(), /<img src=x onerror=alert\(1\)>/);
+        assert.equal(await page.locator('#eduToastStack [role="alert"]').getAttribute('aria-atomic'), 'true');
         await page.locator('#eduToastStack button').click();
         assert.equal(await page.locator('.edu-toast').count(), 0);
+        await page.evaluate(() => window.EduOSNotify('A long notice: ' + 'read '.repeat(50), 'info'));
+        assert.equal(await page.locator('.edu-toast').count(), 1, 'long info should remain until explicit dismissal');
+        await page.locator('#eduToastStack button').click();
         await page.evaluate(() => {
             for (let i = 0; i < 5; i++) window.EduOSNotify('Status ' + i, 'warning');
         });

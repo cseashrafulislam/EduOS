@@ -19,8 +19,15 @@
         return { message: message.trim().slice(0, 800), kind: types.has(kind) ? kind : 'info' };
     }
 
+    function notificationDismissalMs(data) {
+        // Critical/long notices require explicit dismissal so users can read them.
+        if (!data || (data.kind !== 'success' && data.kind !== 'info') || data.message.length > 120)
+            return null;
+        return Math.max(5500, Math.min(10000, data.message.length * 80));
+    }
+
     if (typeof module !== 'undefined' && module.exports)
-        module.exports = { breadcrumbParts, notificationData };
+        module.exports = { breadcrumbParts, notificationData, notificationDismissalMs };
     if (typeof document === 'undefined') return;
 
     const crumbs = document.getElementById('pageBreadcrumbs');
@@ -74,6 +81,7 @@
         const toast = document.createElement('div');
         toast.className = `edu-toast edu-toast--${data.kind}`;
         toast.setAttribute('role', data.kind === 'error' ? 'alert' : 'status');
+        toast.setAttribute('aria-atomic', 'true');
         const text = document.createElement('span');
         text.textContent = data.message;
         const dismiss = document.createElement('button');
@@ -86,8 +94,33 @@
         // Bounded presentation state: no storage and no hidden stale notifications.
         if (host.children.length >= 3) host.firstElementChild?.remove();
         host.append(toast);
-        if (data.kind === 'success' || data.kind === 'info')
-            window.setTimeout(() => toast.remove(), 5500);
+        const delay = notificationDismissalMs(data);
+        if (delay !== null) {
+            let timer = null;
+            function pauseTimer() {
+                if (timer !== null) window.clearTimeout(timer);
+                timer = null;
+            }
+            function resumeTimer() {
+                pauseTimer();
+                if (!toast.isConnected) return;
+                timer = window.setTimeout(() => {
+                    timer = null;
+                    if (!toast.isConnected) return;
+                    // Never close a notice while it is being read or acted upon.
+                    if (document.hidden || toast.matches(':hover') || toast.contains(document.activeElement))
+                        return resumeTimer();
+                    toast.remove();
+                }, delay);
+            }
+            toast.addEventListener('pointerenter', pauseTimer);
+            toast.addEventListener('pointerleave', resumeTimer);
+            toast.addEventListener('focusin', pauseTimer);
+            toast.addEventListener('focusout', () => window.setTimeout(() => {
+                if (!toast.contains(document.activeElement)) resumeTimer();
+            }, 0));
+            resumeTimer();
+        }
         return toast;
     };
 })();

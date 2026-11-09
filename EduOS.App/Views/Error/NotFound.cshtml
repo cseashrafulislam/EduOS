@@ -3,9 +3,9 @@
     Layout = "_PublicLayout";
 }
 
-<section class="error-card" aria-labelledby="errorTitle">
+<section class="error-card" aria-labelledby="errorTitle" aria-describedby="errorDescription">
     <div class="error-code" aria-hidden="true">404</div>
     <h1 id="errorTitle">@T["PageNotFoundTitle"]</h1>
-    <p>@T["PageNotFoundMessage"]</p>
+    <p id="errorDescription">@T["PageNotFoundMessage"]</p>
     <a href="/" class="btn btn-primary auth-primary-action mt-4 px-4">@T["BackToDashboard"]</a>
 </section>

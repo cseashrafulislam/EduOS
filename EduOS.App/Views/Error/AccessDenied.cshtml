@@ -3,9 +3,9 @@
     Layout = "_PublicLayout";
 }
 
-<section class="error-card error-card-warning" aria-labelledby="errorTitle">
+<section class="error-card error-card-warning" aria-labelledby="errorTitle" aria-describedby="errorDescription">
     <div class="error-code" aria-hidden="true">403</div>
     <h1 id="errorTitle">@T["AccessDeniedTitle"]</h1>
-    <p>@T["AccessDeniedMessage"]</p>
+    <p id="errorDescription">@T["AccessDeniedMessage"]</p>
     <a href="/" class="btn btn-warning auth-primary-action mt-4 px-4">@T["BackToDashboard"]</a>
 </section>
