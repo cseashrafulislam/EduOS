@@ -58,7 +58,7 @@ public sealed class LmsProgressGuardianService(
         if (!Student || enrollmentId <= 0) return Deny<IReadOnlyList<LmsGuardianChoiceDto>>();
         var studentId = await Owned().AsNoTracking().Where(x => x.Id == enrollmentId)
             .Select(x => x.StudentId).FirstOrDefaultAsync(ct);
-        if (studentId == 0) return Deny<IReadOnlyList<LmsGuardianChoiceDto>>();
+        if (!studentId.HasValue || studentId.Value == 0) return Deny<IReadOnlyList<LmsGuardianChoiceDto>>();
         var rows = await EligibleLinks(studentId.Value).OrderBy(x => x.GuardianName)
             .ThenBy(x => x.GuardianLinkId).Take(25).ToListAsync(ct);
         return ApiResponse<IReadOnlyList<LmsGuardianChoiceDto>>.SuccessResponse(rows);
@@ -69,7 +69,7 @@ public sealed class LmsProgressGuardianService(
         if (!Student || enrollmentId <= 0) return Deny<IReadOnlyList<LmsProgressGuardianGrantDto>>();
         var studentId = await Owned().AsNoTracking().Where(x => x.Id == enrollmentId)
             .Select(x => x.StudentId).FirstOrDefaultAsync(ct);
-        if (studentId == 0) return Deny<IReadOnlyList<LmsProgressGuardianGrantDto>>();
+        if (!studentId.HasValue || studentId.Value == 0) return Deny<IReadOnlyList<LmsProgressGuardianGrantDto>>();
         var rows = await (from grant in db.LmsProgressGuardianGrants.AsNoTracking()
             join link in db.StudentGuardians.AsNoTracking() on grant.StudentGuardianId equals link.Id
             join guardian in db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id
