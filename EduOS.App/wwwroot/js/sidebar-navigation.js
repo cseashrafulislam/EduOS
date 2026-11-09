@@ -330,8 +330,17 @@
         return matchesPrefix(current, base) ? 100 + base.length : -1;
     }
 
+    // Dashboard should remain compact, while a deep link opens its own section.
+    // Top navigation has no section headings, so all authorized modules stay visible.
+    function sectionInitiallyOpen(section, activeSection, savedSection, topNavigation) {
+        if (topNavigation || (section !== 'academics' && section !== 'management')) return true;
+        if (activeSection === 'academics' || activeSection === 'management')
+            return section === activeSection;
+        return section === savedSection;
+    }
+
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath, groupIconFor };
+        module.exports = { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath, groupIconFor, sectionInitiallyOpen };
     }
     if (typeof document === 'undefined') return;
 
@@ -352,17 +361,19 @@
     const matchesScope = () => Boolean(scope) &&
         document.body?.dataset.authTenantId === initialTenant &&
         document.body?.dataset.authSessionReference === initialReference;
+    const emptyState = () => ({ scroll: 0, group: '', category: '', section: '' });
     function readState() {
-        if (!matchesScope()) return { scroll: 0, group: '', category: '' };
+        if (!matchesScope()) return emptyState();
         try {
             const state = JSON.parse(sessionStorage.getItem(storageKey) || '{}');
-            if (state.scope !== scope) return { scroll: 0, group: '', category: '' };
+            if (state.scope !== scope) return emptyState();
             return {
                 scroll: Number.isFinite(state.scroll) && state.scroll >= 0 ? state.scroll : 0,
                 group: typeof state.group === 'string' ? state.group : '',
-                category: typeof state.category === 'string' ? state.category : ''
+                category: typeof state.category === 'string' ? state.category : '',
+                section: ['academics', 'management'].includes(state.section) ? state.section : ''
             };
-        } catch { return { scroll: 0, group: '', category: '' }; }
+        } catch { return emptyState(); }
     }
     let state = readState();
     function saveState() {
@@ -511,6 +522,50 @@
     const isTop = () => window.matchMedia('(min-width: 992px)').matches &&
         document.documentElement.dataset.workspaceNavigation === 'top';
 
+    const collapsibleSections = new Map();
+    for (const section of ['academics', 'management']) {
+        const nav = navs.find(candidate => candidate.dataset.sidebarSection === section);
+        const heading = nav?.previousElementSibling;
+        if (!nav || nav.hidden || !heading?.classList.contains('menu-title')) continue;
+        // Only enhance headings after the authorized server menu is available.
+        // Keep the heading directly beside its nav for breadcrumbs and search.
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = heading.className + ' sidebar-section-trigger';
+        button.textContent = heading.textContent;
+        if (!nav.id) nav.id = 'sidebar-section-' + section;
+        button.setAttribute('aria-controls', nav.id);
+        heading.replaceWith(button);
+        collapsibleSections.set(section, { nav, button });
+    }
+
+    function showSection(section, expanded) {
+        const entry = collapsibleSections.get(section);
+        if (!entry) return;
+        entry.nav.hidden = !expanded;
+        entry.button.setAttribute('aria-expanded', String(expanded));
+        entry.button.classList.toggle('is-expanded', expanded);
+        entry.button.classList.toggle('is-current-section',
+            selected?.closest('nav[data-sidebar-section]')?.dataset.sidebarSection === section);
+    }
+
+    function restoreSections() {
+        const currentSection = selected?.closest('nav[data-sidebar-section]')?.dataset.sidebarSection || '';
+        for (const section of collapsibleSections.keys()) {
+            showSection(section, sectionInitiallyOpen(section, currentSection, state.section, isTop()));
+        }
+    }
+
+    for (const [section, { nav, button }] of collapsibleSections) {
+        button.addEventListener('click', () => {
+            if (isTop()) return;
+            const expanding = nav.hidden;
+            state.section = expanding ? section : '';
+            for (const other of collapsibleSections.keys()) showSection(other, expanding && other === section);
+            saveState();
+        });
+    }
+
     function restoreOpenGroup() {
         const toOpen = isTop() ? null : (activeGroup ||
             allDetails.find(details => details.dataset.sidebarGroup === state.group));
@@ -523,6 +578,7 @@
         }
     }
     restoreOpenGroup();
+    restoreSections();
 
     for (const details of allDetails) {
         details.addEventListener('toggle', () => {
@@ -557,6 +613,8 @@
         state.scroll = sidebar.scrollTop;
         state.group = link.closest('.sidebar-group')?.dataset.sidebarGroup || state.group;
         state.category = link.closest('.sidebar-category')?.dataset.sidebarCategory || state.category;
+        const section = link.closest('nav[data-sidebar-section]')?.dataset.sidebarSection;
+        state.section = ['academics', 'management'].includes(section) ? section : '';
         saveState();
     });
     window.addEventListener('pagehide', () => {
@@ -581,9 +639,11 @@
         selected = highlightCurrent();
         activeGroup = selected?.closest('.sidebar-group') || null;
         restoreOpenGroup();
+        restoreSections();
         window.requestAnimationFrame(showActiveAndRestoreScroll);
     });
     window.addEventListener('eduos:workspace-preferences', () => {
+        restoreSections();
         if (isTop()) {
             allDetails.forEach(details => { details.open = false; });
             allCategories.forEach(details => { details.open = false; });
@@ -591,6 +651,14 @@
             restoreOpenGroup();
             window.requestAnimationFrame(showActiveAndRestoreScroll);
         }
+    });
+    let lastTopNavigation = isTop();
+    window.addEventListener('resize', () => {
+        const topNavigation = isTop();
+        if (topNavigation === lastTopNavigation) return;
+        lastTopNavigation = topNavigation;
+        restoreSections();
+        if (!topNavigation) window.requestAnimationFrame(showActiveAndRestoreScroll);
     });
 
     // Native <summary> handles Enter/Space. Arrow/Home/End provide predictable

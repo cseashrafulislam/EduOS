@@ -7,7 +7,26 @@ const root = path.resolve(__dirname, '../..');
 const layout = fs.readFileSync(path.join(root, 'EduOS.App/Views/Shared/_Layout.cshtml'), 'utf8');
 const styles = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/css/site.css'), 'utf8');
 const script = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/sidebar-navigation.js'), 'utf8');
-const { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath, groupIconFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+const { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath, groupIconFor, sectionInitiallyOpen } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+
+test('large navigation sections start closed on Dashboard and open on their own deep links', () => {
+    assert.equal(sectionInitiallyOpen('academics', 'setup', '', false), false);
+    assert.equal(sectionInitiallyOpen('management', 'setup', '', false), false);
+    assert.equal(sectionInitiallyOpen('academics', 'academics', '', false), true);
+    assert.equal(sectionInitiallyOpen('management', 'academics', 'management', false), false);
+    assert.equal(sectionInitiallyOpen('management', 'management', 'academics', false), true);
+    assert.equal(sectionInitiallyOpen('academics', 'setup', 'academics', false), true);
+    assert.equal(sectionInitiallyOpen('setup', 'setup', '', false), true);
+    assert.equal(sectionInitiallyOpen('academics', 'setup', '', true), true);
+    assert.equal(sectionInitiallyOpen('management', 'setup', '', true), true);
+    assert.match(script, /heading\.replaceWith\(button\)/);
+    assert.match(script, /button\.setAttribute\('aria-controls', nav\.id\)/);
+    assert.match(script, /entry\.button\.setAttribute\('aria-expanded', String\(expanded\)\)/);
+    assert.match(script, /entry\.nav\.hidden = !expanded/);
+    assert.match(script, /restoreSections\(\)/);
+    assert.match(styles, /\.sidebar \.menu-title\.sidebar-section-trigger:focus-visible/);
+    assert.doesNotMatch(script, /innerHTML|eval\(|localStorage/);
+});
 
 test('standard sidebar has recognizable grouped icons, generous width and sticky menu search', () => {
     assert.equal(groupIconFor('academics', 'assessments'), 'exam');
