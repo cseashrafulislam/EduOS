@@ -19370,6 +19370,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<DateOnly>("BonusDate")
                         .HasColumnType("date");
 
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -19412,6 +19415,10 @@ namespace EduOS.Persistence.Migrations
                     b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("TenantId", "EmployeeId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("[ClientRequestId] IS NOT NULL");
 
                     b.ToTable("Bonuses", t =>
                         {

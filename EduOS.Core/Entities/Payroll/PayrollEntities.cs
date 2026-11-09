@@ -72,6 +72,8 @@ public class PayrollLine : BaseTenantEntity
 
 public class Bonus : BaseTenantEntity
 {
+    // NULL preserves pre-migration records; new bonus commands use a unique replay key.
+    public Guid? ClientRequestId { get; set; }
     public long EmployeeId { get; set; }
     public DateOnly BonusDate { get; set; }
     [Column(TypeName = "decimal(18,2)")] public decimal Amount { get; set; }

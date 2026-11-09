@@ -1979,6 +1979,8 @@ public class EduOSDbContext :
             .IsUnique().HasFilter("[CampusId] IS NOT NULL AND [State] <> 5 AND [IsDeleted] = 0");
         UniqueTenant<PayrollEmployee>(modelBuilder, nameof(PayrollEmployee.PayrollRunId), nameof(PayrollEmployee.EmployeeId));
         UniqueTenant<PayrollLine>(modelBuilder, nameof(PayrollLine.PayrollEmployeeId), nameof(PayrollLine.SalaryComponentId));
+        modelBuilder.Entity<Bonus>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         modelBuilder.Entity<LoanAdvance>().HasIndex(x => new { x.TenantId, x.ClientRequestId })
             .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         UniqueTenant<LoanAdvanceRecovery>(modelBuilder, nameof(LoanAdvanceRecovery.ClientRequestId));

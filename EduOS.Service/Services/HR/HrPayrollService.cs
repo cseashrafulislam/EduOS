@@ -772,25 +772,47 @@ public sealed class HrPayrollService : IPayrollAdministrationService
             request.Amount != decimal.Round(request.Amount, 2) ||
             request.Reason?.Length > 500 || bonusId is <= 0)
             return Error<BonusDto>("Invalid bonus request.");
-        var employee = await ActiveEmployeeAsync(request.EmployeeReference, ct);
-        if (employee == null) return Error<BonusDto>("Employee not found.", 404);
+        var tenant = _user.TenantId;
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
+                if (!bonusId.HasValue)
+                {
+                    // A successful request must remain replayable even if the employee's
+                    // status or payroll period changes after the original acknowledgement.
+                    var replay = await _bonuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, token);
+                    if (replay != null)
+                    {
+                        if (replay.IsDeleted)
+                            return Error<BonusDto>("A previous bonus with this request key was removed; review its audit history.", 409);
+                        var previousEmployee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                            x.TenantId == tenant && x.Id == replay.EmployeeId, token);
+                        if (previousEmployee == null || previousEmployee.PublicId != request.EmployeeReference ||
+                            replay.BonusDate != request.BonusDate || replay.Amount != request.Amount ||
+                            replay.Reason != Trim(request.Reason))
+                            return Error<BonusDto>("Request key already belongs to a different bonus.", 409);
+                        return ApiResponse<BonusDto>.SuccessResponse(MapBonus(replay, previousEmployee),
+                            "Existing bonus registration returned.");
+                    }
+                }
+
+                var employee = await ActiveEmployeeAsync(request.EmployeeReference, token);
+                if (employee == null) return Error<BonusDto>("Employee not found.", 404);
                 var row = bonusId.HasValue ? await _bonuses.GetQueryable().FirstOrDefaultAsync(x =>
-                    x.TenantId == _user.TenantId && x.Id == bonusId.Value && !x.IsDeleted, token) : null;
+                    x.TenantId == tenant && x.Id == bonusId.Value && !x.IsDeleted, token) : null;
                 if (bonusId.HasValue && row == null) return Error<BonusDto>("Bonus not found.", 404);
                 if (row != null) return Error<BonusDto>("Existing bonuses cannot be overwritten after payroll calculation.", 409);
                 if (await _runs.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == _user.TenantId && x.Year == request.BonusDate.Year &&
+                    x.TenantId == tenant && x.Year == request.BonusDate.Year &&
                     x.Month == request.BonusDate.Month && x.State != PayrollRunState.Cancelled &&
                     !x.IsDeleted, token))
                     return Error<BonusDto>("Bonus date belongs to an existing payroll run.", 409);
                 var now = _clock.GetUtcNow().UtcDateTime;
                 row = new Bonus
                 {
-                    TenantId = _user.TenantId, EmployeeId = employee.Id,
+                    TenantId = tenant, ClientRequestId = request.ClientRequestId, EmployeeId = employee.Id,
                     BonusDate = request.BonusDate, Amount = Round(request.Amount),
                     Reason = Trim(request.Reason), CreatedAt = now, CreatedBy = _user.UserId
                 };
@@ -799,8 +821,11 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 return ApiResponse<BonusDto>.SuccessResponse(MapBonus(row, employee), "Bonus saved.");
             }, ct);
         }
-        catch (DbUpdateException)
-        { return Error<BonusDto>("Bonus write conflicts with another update.", 409); }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Bonus registration conflict tenant {TenantId}", tenant);
+            return Error<BonusDto>("Bonus request already processed or conflicts with another registration. Reload the register.", 409);
+        }
     }
 
     public async Task<ApiResponse<LoanAdvanceDto>> CreateLoanAdvanceAsync(
