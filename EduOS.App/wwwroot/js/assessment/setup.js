@@ -4,8 +4,14 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const form = el('setupDefinition');
+    const formGuard = window.EduOSFormGuard?.create(form);
     const state = { current: null, requestKey: null, years: [], campuses: [], terms: [],
-        schemes: [], batches: [], offerings: [], definitions: [], busy: false };
+        schemes: [], batches: [], offerings: [], definitions: [], busy: false, refsReady: false,
+        detailGeneration: 0, definitionsGeneration: 0, batchGeneration: 0, offeringGeneration: 0 };
+    let lastExisting = '';
+    form.inert = true;
+    el('setupExisting').disabled = true;
     async function api(path, method = 'GET', body) {
         const res = await fetch(path, { method, cache: 'no-store', credentials: 'same-origin',
             headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -29,7 +35,7 @@
         const detail = state.current;
         el('setupStatus').textContent = detail ?
             `Saved · ${detail.code} · ${Number(detail.state) === 1 ? 'Draft' : 'Read-only'}` : 'New draft';
-        el('setupSave').disabled = state.busy || !!detail && Number(detail.state) !== 1;
+        el('setupSave').disabled = state.busy || !state.refsReady || !!detail && Number(detail.state) !== 1;
         el('setupAddSubject').disabled = state.busy || !detail || Number(detail.state) !== 1;
     }
     function syncTerm() {
@@ -43,12 +49,21 @@
             'id', x => x.name, 'Select academic year', true);
         syncTerm();
     }
-    function reset() {
+    function reset(force = false) {
+        if (state.busy && !force) return false;
+        if (!force && formGuard && !formGuard.confirmDiscard()) return false;
+        ++state.detailGeneration;
+        ++state.batchGeneration;
+        ++state.offeringGeneration;
         state.current = null; state.requestKey = null;
-        el('setupDefinition').reset();
+        form.reset();
         el('setupExisting').value = '';
         el('setupCampus').value = ''; el('setupYear').value = '';
         syncTerm(); emptySubjects(); status();
+        lastExisting = '';
+        formGuard?.markClean();
+        if (state.refsReady) void loadBatches().catch(err => notify(err.message, true));
+        return true;
     }
     function emptySubjects() {
         const body = el('setupSubjectRows'); body.replaceChildren();
@@ -69,16 +84,32 @@
         if (!body.children.length) emptySubjects();
     }
     async function definitions() {
+        const generation = ++state.definitionsGeneration;
         const query = new URLSearchParams({ search: el('setupFind').value.trim(), page: '1', pageSize: '50' });
         const data = await api('/api/assessment-administration/assessments/page?' + query);
+        if (generation !== state.definitionsGeneration) return;
         state.definitions = data.items || [];
         fillSelect('setupExisting', state.definitions, 'reference',
-            x => `${x.code} — ${x.name} (${Number(x.state) === 1 ? 'Draft' : 'In workflow'})`, 'New assessment');
+            x => `${x.code} — ${x.name} (${Number(x.state) === 1 ? 'Draft' : 'In workflow'})`, 'New assessment', true);
+        if (state.current) {
+            const reference = String(state.current.reference);
+            if (!state.definitions.some(x => String(x.reference) === reference))
+                el('setupExisting').add(new Option(`${state.current.code} — ${state.current.name} (selected)`, reference));
+            el('setupExisting').value = reference;
+        }
         el('setupCount').textContent = `${data.totalCount || 0} assessments · Showing first 50. Search by code to refine.`;
     }
     async function loadDetail(reference) {
-        if (!reference) { reset(); return; }
-        const detail = await api('/api/assessment-administration/assessments/' + encodeURIComponent(reference));
+        const generation = ++state.detailGeneration;
+        if (!reference) { reset(true); return true; }
+        const before = window.EduOSFormGuard?.fingerprint(form);
+        form.inert = true;
+        let detail;
+        try { detail = await api('/api/assessment-administration/assessments/' + encodeURIComponent(reference)); }
+        finally {
+            if (generation === state.detailGeneration) form.inert = state.busy || !state.refsReady;
+        }
+        if (generation !== state.detailGeneration || before !== window.EduOSFormGuard?.fingerprint(form)) return false;
         state.current = detail; state.requestKey = null;
         for (const [id, key] of [['setupName', 'name'], ['setupCode', 'code'],
             ['setupStart', 'startDate'], ['setupEnd', 'endDate'], ['setupRemarks', 'remarks']])
@@ -89,10 +120,13 @@
         syncYears(); el('setupYear').value = String(detail.academicYearId);
         syncTerm(); el('setupTerm').value = detail.academicTermId ? String(detail.academicTermId) : '';
         el('setupCgpa').checked = !!detail.countsTowardCgpa;
-        status(); renderSubjects();
+        lastExisting = String(reference);
+        status(); renderSubjects(); formGuard?.markClean();
+        void loadBatches().catch(err => notify(err.message, true));
+        return true;
     }
     async function saveAssessment() {
-        if (state.busy) return;
+        if (state.busy || !state.refsReady) return;
         const campusId = Number(el('setupCampus').value), academicYearId = Number(el('setupYear').value);
         const startDate = el('setupStart').value, endDate = el('setupEnd').value;
         const attemptMode = Number(el('setupAttemptMode').value), type = Number(el('setupType').value);
@@ -104,7 +138,7 @@
         if (attemptMode !== 0 && (!countsTowardCgpa || type !== 1 || !el('setupScheme').value)) {
             notify('Retake/improvement must be a credit-weighted terminal exam with a grade scheme.', true); return;
         }
-        state.requestKey ||= crypto.randomUUID(); state.busy = true; status();
+        state.requestKey ||= crypto.randomUUID(); state.busy = true; form.inert = true; status();
         const body = { clientRequestId: state.requestKey,
             campusId, academicYearId, academicTermId: el('setupTerm').value ? Number(el('setupTerm').value) : null,
             gradeSchemeId: el('setupScheme').value ? Number(el('setupScheme').value) : null,
@@ -116,12 +150,18 @@
                 (state.current ? '/' + encodeURIComponent(state.current.reference) : ''),
             state.current ? 'PUT' : 'POST', body);
             state.requestKey = null;
-            await loadDetail(detail.reference);
-            notify('Assessment draft saved. Add applicable subject offerings below.');
-            await definitions();
-            el('setupExisting').value = detail.reference;
+            formGuard?.markClean();
+            try {
+                if (!await loadDetail(detail.reference))
+                    throw new Error('A newer editor request replaced the detail lookup.');
+                await definitions();
+                el('setupExisting').value = detail.reference;
+                notify('Assessment draft saved. Add applicable subject offerings below.');
+            } catch (refreshError) {
+                notify('Assessment saved, but details/register could not refresh. Reload the saved code before further edits. ' + refreshError.message, true);
+            }
         } catch (err) { notify(err.message + ' Retry the same request after checking fields.', true); }
-        finally { state.busy = false; status(); }
+        finally { state.busy = false; form.inert = !state.refsReady; status(); }
     }
     async function loadReferences() {
         const [referenceData, schemePage] = await Promise.all([
@@ -135,27 +175,39 @@
         fillSelect('setupCampus', state.campuses, 'id', x => x.name, 'Select campus');
         fillSelect('setupScheme', state.schemes, 'id', x => `${x.code} — ${x.name}`, 'Select grade scheme');
         syncYears();
+        state.refsReady = true; form.inert = state.busy;
+        el('setupExisting').disabled = false;
+        formGuard?.markClean(); status();
     }
     async function loadBatches() {
+        const generation = ++state.batchGeneration;
+        const campusId = el('setupCampus').value, yearId = el('setupYear').value;
         const query = new URLSearchParams({ search: el('setupBatchSearch').value.trim(), page: '1', pageSize: '50' });
-        if (el('setupCampus').value) query.set('campusId', el('setupCampus').value);
-        if (el('setupYear').value) query.set('academicYearId', el('setupYear').value);
+        if (campusId) query.set('campusId', campusId);
+        if (yearId) query.set('academicYearId', yearId);
         const data = await api('/api/assessment-administration/setup/batches?' + query);
+        if (generation !== state.batchGeneration || campusId !== el('setupCampus').value || yearId !== el('setupYear').value) return;
         state.batches = data.items || [];
         fillSelect('setupBatch', state.batches, 'id', x => `${x.code} — ${x.name}`, 'Select batch');
+        ++state.offeringGeneration;
         fillSelect('setupOffering', [], 'reference', x => x.code, 'Select batch first');
     }
     async function loadOfferings() {
+        const generation = ++state.offeringGeneration;
         const batchId = Number(el('setupBatch').value);
         if (!batchId) { fillSelect('setupOffering', [], 'reference', x => x.code, 'Select batch'); return; }
         const query = new URLSearchParams({ search: el('setupOfferingSearch').value.trim(), page: '1', pageSize: '50' });
         const data = await api(`/api/assessment-administration/setup/batches/${batchId}/offerings?` + query);
+        if (generation !== state.offeringGeneration || batchId !== Number(el('setupBatch').value)) return;
         state.offerings = data.items || [];
         fillSelect('setupOffering', state.offerings, 'reference',
             x => `${x.code} — ${x.subjectName}`, 'Select subject');
     }
     async function addSubject() {
         if (state.busy || !state.current || Number(state.current.state) !== 1) return;
+        if (formGuard?.isDirty()) {
+            notify('Save or discard assessment definition changes before adding a subject.', true); return;
+        }
         const batch = state.batches.find(x => String(x.id) === el('setupBatch').value);
         const reference = el('setupOffering').value;
         const fullMarks = Number(el('setupFull').value), passMarks = Number(el('setupPass').value);
@@ -182,9 +234,19 @@
     el('setupFindForm').addEventListener('submit', event => {
         event.preventDefault(); void definitions().catch(err => notify(err.message, true));
     });
-    el('setupNew').addEventListener('click', reset);
+    el('setupNew').addEventListener('click', () => { reset(); });
     el('setupExisting').addEventListener('change', () => {
-        void loadDetail(el('setupExisting').value).catch(err => notify(err.message, true));
+        const reference = el('setupExisting').value;
+        if (state.busy || (formGuard && !formGuard.confirmDiscard())) {
+            el('setupExisting').value = lastExisting; return;
+        }
+        void loadDetail(reference).then(loaded => {
+            if (!loaded && el('setupExisting').value === reference)
+                el('setupExisting').value = lastExisting;
+        }).catch(err => {
+            if (el('setupExisting').value === reference) el('setupExisting').value = lastExisting;
+            notify(err.message, true);
+        });
     });
     el('setupYear').addEventListener('change', () => { syncTerm(); void loadBatches().catch(err => notify(err.message, true)); });
     el('setupCampus').addEventListener('change', () => {
@@ -197,4 +259,5 @@
     el('setupAddSubject').addEventListener('click', () => { void addSubject(); });
     void Promise.all([loadReferences(), definitions()]).then(() => loadBatches())
         .catch(err => notify(err.message, true));
+    status();
 })();

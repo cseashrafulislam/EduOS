@@ -4,7 +4,9 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false };
+    const form = el('certificateTemplateForm');
+    const formGuard = window.EduOSFormGuard?.create(form);
+    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, editLoading: false, listGeneration: 0 };
     const notice = (text, error = false) => {
         const box = el('certificateTemplateNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -46,24 +48,35 @@
         el('certificateTemplateNext').disabled = state.page * state.pageSize >= state.total;
     }
     async function load() {
+        const generation = ++state.listGeneration;
         const q = new URLSearchParams({ page: String(state.page), pageSize: String(state.pageSize),
             search: el('certificateTemplateSearch').value.trim() });
         try {
             const data = await api('/api/assessment-administration/certificate-templates?' + q);
+            if (generation !== state.listGeneration) return false;
             state.rows = data.items || []; state.total = data.totalCount || 0; render();
-        } catch (e) { notice(e.message, true); }
+            return true;
+        } catch (e) { if (generation === state.listGeneration) notice(e.message, true); }
+        return false;
     }
-    function clear() {
-        el('certificateTemplateForm').reset();
+    function clear(force = false) {
+        if ((state.busy || state.editLoading) && !force) return false;
+        if (!force && formGuard && !formGuard.confirmDiscard()) return false;
+        form.reset();
         el('certificateTemplateId').value = '';
         el('certificateTemplateVersion').value = '';
         el('certificateTemplateActive').checked = true;
         el('certificateTemplateFormTitle').textContent = 'New template';
+        formGuard?.markClean();
+        return true;
     }
     async function edit(row) {
-        if (row.isLocked || state.busy) return;
+        if (row.isLocked || state.busy || state.editLoading ||
+            (formGuard && !formGuard.confirmDiscard())) return;
+        state.editLoading = true; form.inert = true;
         try {
             const data = await api('/api/assessment-administration/certificate-templates/' + row.id);
+            if (data.isLocked) throw new Error('Issued templates cannot be edited.');
             el('certificateTemplateId').value = data.id;
             el('certificateTemplateVersion').value = data.rowVersion;
             el('certificateTemplateCode').value = data.code;
@@ -72,12 +85,14 @@
             el('certificateTemplateActive').checked = data.isActive;
             el('certificateTemplateDefault').checked = data.isDefault;
             el('certificateTemplateFormTitle').textContent = 'Edit template ' + data.code;
-            el('certificateTemplateForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            formGuard?.markClean();
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (e) { notice(e.message, true); }
+        finally { state.editLoading = false; form.inert = false; }
     }
     async function save(event) {
         event.preventDefault();
-        if (state.busy) return;
+        if (state.busy || state.editLoading) return;
         const id = el('certificateTemplateId').value;
         const htmlTemplate = el('certificateTemplateBody').value.trim();
         if (!htmlTemplate || htmlTemplate.length > 50000 || /[<>]/.test(htmlTemplate)) {
@@ -92,13 +107,17 @@
         };
         if (!body.code || !body.name || body.code.length > 50 || body.name.length > 150 ||
             (id && !body.rowVersion)) { notice('Enter a valid code, name and version.', true); return; }
-        state.busy = true; el('certificateTemplateSave').disabled = true;
+        state.busy = true; form.inert = true; el('certificateTemplateSave').disabled = true;
         try {
             await api('/api/assessment-administration/certificate-templates' + (id ? '/' + encodeURIComponent(id) : ''),
                 id ? 'PUT' : 'POST', body);
-            notice('Certificate template saved.'); clear(); state.page = 1; await load();
-        } catch (e) { notice(e.message + ' Reload the template if it was changed.', true); await load(); }
-        finally { state.busy = false; el('certificateTemplateSave').disabled = false; }
+            clear(true); state.page = 1;
+            if (await load()) notice('Certificate template saved.');
+            else notice('Template saved, but the register could not refresh. Search before another save.', true);
+        } catch (e) {
+            await load();
+            notice(e.message + ' Check the register before retrying; the write may already have succeeded.', true);
+        } finally { state.busy = false; form.inert = false; el('certificateTemplateSave').disabled = false; }
     }
     function csv() {
         const safe = value => /^[=+@\-\t\r]/.test(String(value ?? '')) ? "'" + String(value) : value;
@@ -112,8 +131,8 @@
         a.download = 'certificate-templates-page-' + state.page + '.csv';
         document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
-    el('certificateTemplateForm').addEventListener('submit', save);
-    el('certificateTemplateClear').addEventListener('click', clear);
+    form.addEventListener('submit', save);
+    el('certificateTemplateClear').addEventListener('click', () => clear());
     el('certificateTemplateRefresh').addEventListener('click', () => { state.page = 1; load(); });
     el('certificateTemplatePrev').addEventListener('click', () => { if (state.page > 1) { state.page--; load(); } });
     el('certificateTemplateNext').addEventListener('click', () => { if (state.page * state.pageSize < state.total) { state.page++; load(); } });
