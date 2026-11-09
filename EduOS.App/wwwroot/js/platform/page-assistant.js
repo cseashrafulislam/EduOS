@@ -151,6 +151,51 @@
             reset();
             if (!currentContext()) { message(t('Your session changed. Reload the page.', 'সেশন পরিবর্তিত হয়েছে। পেজটি রিফ্রেশ করুন।')); return; }
             const requested = query.value.trim();
+            const filters = hostWindow.EduOSFilterDraft;
+            const draft = filters?.parseCommand(requested);
+            if (draft) {
+                const matches = fieldsOnPage(doc).filter(x => filters.isSafeTarget(x.node));
+                const hit = matchLabel(matches, draft.label);
+                if (hit.kind !== 'match') {
+                    message(t('Enter a unique visible search-field label.', 'সঠিক ও নির্দিষ্ট খোঁজার ঘরের নাম লিখুন।'));
+                    return;
+                }
+                const target = hit.entry.node;
+                const previous = String(target.value || '');
+                pending = target;
+                message(t(`Preview: ${hit.entry.labels[0]} = "${draft.value}". Nothing has changed.`,
+                    `আগে দেখুন: ${hit.entry.labels[0]} = "${draft.value}"। এখনো কিছু বদলায়নি।`));
+                action(t('Apply search draft', 'খোঁজার লেখা বসান'), () => {
+                    if (!currentContext() || pending !== target || !target.isConnected ||
+                        !isAvailableField(target) || !filters.isSafeTarget(target) ||
+                        String(target.value || '') !== previous) {
+                        reset(); message(t('Session or field changed. Search again.', 'সেশন বা ঘর বদলেছে। আবার খুঁজুন।'));
+                        return;
+                    }
+                    if (!filters.applyDraft(target, draft.value, hostWindow)) {
+                        reset(); message(t('Search draft was rejected.', 'খোঁজার লেখা গ্রহণ করা হয়নি।'));
+                        return;
+                    }
+                    reset();
+                    message(t('Search draft applied. Review or undo, then press Search on the page.',
+                        'লেখা বসেছে। যাচাই বা ফেরত নিয়ে পেজের খুঁজুন চাপুন।'));
+                    action(t('Undo draft', 'লেখা ফেরত নিন'), () => {
+                        if (!currentContext() || !isAvailableField(target) ||
+                            !filters.isSafeTarget(target) || String(target.value || '') !== draft.value) {
+                            reset(); message(t('Undo unavailable after field/session changes.', 'ঘর বা সেশন বদলেছে, ফেরানো যাচ্ছে না।'));
+                            return;
+                        }
+                        const undone = filters.applyDraft(target, previous, hostWindow);
+                        reset(); message(undone ? t('Previous filter restored.', 'আগের লেখা ফিরে এসেছে।')
+                            : t('Could not restore the old filter.', 'আগের লেখা ফেরানো যায়নি।'));
+                    });
+                    action(t('Focus search field', 'খোঁজার ঘরে যান'), () => {
+                        if (!currentContext() || !isAvailableField(target) || !filters.isSafeTarget(target)) return;
+                        dialog.close(); target.scrollIntoView({ behavior: 'smooth', block: 'center' }); target.focus();
+                    });
+                });
+                return;
+            }
             const field = matchRequestedLabel(fieldsOnPage(doc), requested);
             const nav = matchRequestedLabel(linksInSidebar(doc), requested);
             if (field.kind === 'ambiguous' || nav.kind === 'ambiguous' ||

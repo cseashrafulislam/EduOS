@@ -1100,8 +1100,8 @@
                                 aria-label="@(currentCulture == "bn-BD" ? "সহকারী বন্ধ করুন" : "Close assistant")">×</button>
                     </div>
                     <p class="small text-muted mb-3">@(currentCulture == "bn-BD"
-                        ? "মেনু, ঘরের নাম বা হাজিরা-সংক্রান্ত প্রশ্ন লিখুন। ডিভাইসে আগে থেকে থাকা ভয়েস ব্যবহার করা যায়। যাচাই ছাড়া কোনো ফর্ম বা রিপোর্ট পরিবর্তন হবে না।"
-                        : "Type a menu/field label or an attendance question. Installed on-device voice is optional. Nothing is filled, posted or changed automatically.")</p>
+                        ? "মেনু, ঘরের নাম বা হাজিরা-সংক্রান্ত প্রশ্ন লিখুন। যেমন: শিক্ষার্থী খুঁজুন: রহিম। স্থানীয় ভয়েস ঐচ্ছিক; খোঁজার লেখা বসাতে অনুমোদন লাগে এবং ফেরানো যায়। কোনো ERP লেনদেন পোস্ট হয় না।"
+                        : "Type a menu/field label or an attendance question. Try: filter Search Students by Rahim. On-device speech is optional. Search drafts require confirmation, can be undone and never post ERP transactions.")</p>
                     <label class="form-label fw-semibold" for="pageAssistantQuery">@(currentCulture == "bn-BD" ? "পেজ, ঘর বা প্রশ্ন" : "Page, field or question")</label>
                     <div class="page-assistant-controls">
                         <input class="form-control" id="pageAssistantQuery" type="search" maxlength="512"
@@ -1219,6 +1219,7 @@
     <script src="~/js/sidebar-navigation.js" asp-append-version="true"></script>
     <script src="~/js/platform/ui-shell.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-assistant.js" asp-append-version="true"></script>
+    <script src="~/js/platform/page-assistant-filter-draft.js" asp-append-version="true"></script>
     <script src="~/js/platform/ai-voice-attendance-preview.js" asp-append-version="true"></script>
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/feature-discovery.js" asp-append-version="true"></script>

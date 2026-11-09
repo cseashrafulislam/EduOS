@@ -150,6 +150,12 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - Existing student fee receipt/invoice summaries remain **tenant-admin-only**; BDT-only values are shown as student receipt and due amounts, not as general-ledger cash or income. Principal and Accountant users use their separately authorized fee ledger until an auditable campus-allocation definition exists.
 - Added role/campus/tenant revocation regression cases in `DashboardServiceTests`. Full .NET build, SQL Server integration, authenticated mobile/browser UX and independent Task E QA are still required; this is not Batch 2 UAT sign-off.
 
+### 4.12. Batch 3 started: UX-06 confirmed bilingual search drafts (2026-11-09)
+
+- The on-device/local-only Page Assistant now previews explicitly allowlisted low-risk search filters via English `filter Search Students by Rahim` or Bangla `শিক্ষার্থী খুঁজুন: রহিম`. A separate confirmation applies only to a visible search textbox; Undo restores the prior filter while the session and field remain unchanged. No domain form, financial, approval, grade, attendance, payroll, GL or stock transaction is submitted or modified.
+- Pilot-enabled only on Student directory search and Admissions intake/applicant/document search. Other controls fail closed, with ambiguous-label detection, maxlength, live DOM, visibility, tenant/session and stale-value checks. Local speech/typed fallback and backend attendance preview remain unchanged.
+- New adapter/unit contracts are included. This is a Batch 3 vertical implementation slice, NOT complete all-page C3; authenticated browser/.NET/SQL and independent QA still require execution.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:

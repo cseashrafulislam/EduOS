@@ -93,7 +93,7 @@
         <div class="row g-2 mb-3">
             <div class="col-md-8">
                 <label for="intakeFormSearch" class="form-label">@(bn ? "ফরম খুঁজুন" : "Find admission form")</label>
-                <input id="intakeFormSearch" type="search" class="form-control" maxlength="120"
+                <input id="intakeFormSearch" data-assistant-filter="true" type="search" class="form-control" maxlength="120"
                        placeholder="@(bn ? "নাম বা কোড লিখুন" : "Search by title or code")" autocomplete="off" />
             </div>
             <div class="col-md-4">
@@ -234,7 +234,7 @@
             </div>
             <form id="admissionFilters" class="admission-filters" role="search">
                 <label class="visually-hidden" for="applicationSearch">@T["SearchApplications"]</label>
-                <input class="form-control" id="applicationSearch" maxlength="100" placeholder="@T["SearchApplications"]" />
+                <input class="form-control" id="applicationSearch" data-assistant-filter="true" maxlength="100" placeholder="@T["SearchApplications"]" />
                 <label class="visually-hidden" for="statusFilter">@T["FilterStatus"]</label>
                 <select class="form-select" id="statusFilter">
                     <option value="">@T["AllStatuses"]</option>
@@ -295,7 +295,7 @@
                     <div class="row g-2 align-items-end mb-2">
                         <div class="col-sm-7">
                             <label class="form-label" for="applicantDocumentSearch">@(bn ? "নথির ধরন বা ফাইলের নাম খুঁজুন" : "Find document type or filename")</label>
-                            <input id="applicantDocumentSearch" type="search" class="form-control form-control-sm" maxlength="120" autocomplete="off" />
+                            <input id="applicantDocumentSearch" data-assistant-filter="true" type="search" class="form-control form-control-sm" maxlength="120" autocomplete="off" />
                         </div>
                         <div class="col-sm-5">
                             <label class="form-label" for="applicantDocumentPageSize">@(bn ? "প্রতি পাতায় নথি" : "Documents per page")</label>
