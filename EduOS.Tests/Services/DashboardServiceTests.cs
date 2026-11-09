@@ -73,6 +73,44 @@ public sealed class DashboardServiceTests
         revoked.Data.TotalDues.Should().BeNull();
     }
     [Fact]
+    public async Task Dashboard_outstanding_excludes_drafts_deleted_paid_and_other_tenants()
+    {
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(Options(),
+            new HttpContextAccessor { HttpContext = http });
+        db.Tenants.AddRange(
+            new Tenant { Id = 41, Name = "Finance dashboard", Code = "DASH-FIN-41", Email = "finance41@example.test" },
+            new Tenant { Id = 42, Name = "Other school", Code = "DASH-FIN-42", Email = "finance42@example.test" });
+        db.Users.Add(new ApplicationUser { Id = 99, UserName = "finance-admin" });
+        db.TenantMemberships.Add(new TenantMembership { Id = 1, TenantId = 41,
+            UserId = 99, Status = MembershipStatus.Active });
+        db.Roles.Add(new ApplicationRole { Id = 2, TenantId = 41,
+            Name = "TenantAdmin", NormalizedName = "TENANTADMIN" });
+        db.UserRoles.Add(new IdentityUserRole<long> { UserId = 99, RoleId = 2 });
+        // Seed mixed-tenant fixtures outside request scope; request-time security stays tenant 41.
+        await db.SaveChangesAsync();
+        var invoices = new[]
+        {
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-ISSUED", State = InvoiceState.Issued, DueAmount = 800m },
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-PARTIAL", State = InvoiceState.PartiallyPaid, DueAmount = 150m },
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-DRAFT", State = InvoiceState.Draft, DueAmount = 300m },
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-PAID", State = InvoiceState.Paid, DueAmount = 10m },
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-CANCELLED", State = InvoiceState.Cancelled, DueAmount = 200m },
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-REFUNDED", State = InvoiceState.Refunded, DueAmount = 50m },
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-DELETED", State = InvoiceState.Issued, DueAmount = 900m, IsDeleted = true },
+            new StudentInvoice { TenantId = 41, InvoiceNumber = "FIN-USD", State = InvoiceState.Issued, DueAmount = 700m, CurrencyCode = "USD" },
+            new StudentInvoice { TenantId = 42, InvoiceNumber = "FIN-OTHER-TENANT", State = InvoiceState.Issued, DueAmount = 1200m }
+        };
+        db.StudentInvoices.AddRange(invoices);
+        await db.SaveChangesAsync();
+        http.Items["TenantId"] = 41L;
+        var result = await CreateService(db, new TestCurrentUser(41), liveSecurity: true).GetDashboardAsync();
+        result.StatusCode.Should().Be(200);
+        result.Data!.FinancialSummaryAvailable.Should().BeTrue();
+        result.Data.TotalDues.Should().Be(950m);
+    }
+
+    [Fact]
     public async Task Principal_operations_are_tenant_and_campus_scoped_and_revoked_roles_fail_closed()
     {
         var http = new DefaultHttpContext();

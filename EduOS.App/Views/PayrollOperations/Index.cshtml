@@ -30,7 +30,7 @@
                 <thead><tr><th>Run</th><th>Period</th><th>Campus</th><th>Employees</th><th>Gross (BDT)</th><th>Deductions (BDT)</th><th>Net (BDT)</th><th>State</th><th>Policy</th><th>Action</th></tr></thead>
                 <tbody id="payrollRunRows"></tbody>
             </table></div>
-            <div class="card-footer d-flex align-items-center gap-2"><button id="payrollRunPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="payrollRunPageLabel" aria-live="polite"></span><button id="payrollRunNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+            <div class="card-footer d-flex align-items-center gap-2"><button id="payrollRunPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="payrollRunPageLabel" aria-live="polite"></span><button id="payrollRunNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button><button id="payrollExportRuns" type="button" class="btn btn-sm btn-outline-success ms-auto" disabled title="Only the visible payroll-run page is exported">Export page CSV</button></div>
         </section>
         <section id="payrollCancellationPanel" class="card card-body mb-3 d-none" aria-labelledby="payrollCancellationTitle">
             <div class="d-flex align-items-center gap-2 mb-2">
@@ -115,4 +115,4 @@
     #payrollSlipPrintArea {display:block !important;position:absolute;inset:0 auto auto 0;width:100%;padding:24px;background:white;color:black;}
 }
 </style>
-@section Scripts { <script src="~/js/payroll/index.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/shared/current-page-csv.js" asp-append-version="true"></script><script src="~/js/payroll/index.js" asp-append-version="true"></script> }

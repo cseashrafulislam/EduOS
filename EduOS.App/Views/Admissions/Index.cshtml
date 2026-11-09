@@ -258,6 +258,7 @@
                 <button id="previousPage" class="btn btn-sm btn-outline-secondary" type="button">@T["Previous"]</button>
                 <span id="pageStatus" role="status" aria-live="polite" aria-atomic="true"></span>
                 <button id="nextPage" class="btn btn-sm btn-outline-secondary" type="button">@T["Next"]</button>
+                <button id="applicationExportPage" class="btn btn-sm btn-outline-success" type="button" disabled title="@(bn ? "শুধু বর্তমান পৃষ্ঠার তথ্য" : "Only records on this page")">@(bn ? "এই পৃষ্ঠা CSV" : "Export page CSV")</button>
             </nav>
         </section>
     </div>
@@ -424,6 +425,7 @@
 @section Scripts {
     <script src="~/js/public-admission/retry-keys.js" asp-append-version="true"></script>
     <script src="~/js/admissions/offer-workflow.js" asp-append-version="true"></script>
+    <script src="~/js/shared/current-page-csv.js" asp-append-version="true"></script>
     <script src="~/js/admissions/index.js" asp-append-version="true"></script>
     <script src="~/js/admissions/transcript-draft.js" asp-append-version="true"></script>
 }

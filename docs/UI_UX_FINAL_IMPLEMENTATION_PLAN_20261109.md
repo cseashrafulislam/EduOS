@@ -156,6 +156,14 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - Pilot-enabled only on Student directory search and Admissions intake/applicant/document search. Other controls fail closed, with ambiguous-label detection, maxlength, live DOM, visibility, tenant/session and stale-value checks. Local speech/typed fallback and backend attendance preview remain unchanged.
 - New adapter/unit contracts are included. This is a Batch 3 vertical implementation slice, NOT complete all-page C3; authenticated browser/.NET/SQL and independent QA still require execution.
 
+### 4.13. Batch 2 continuation: bounded operational CSV and published receivables (2026-11-09)
+
+- Admission Applications register (UX-04): added an explicit bilingual **Export page CSV** action. The only exportable records are the current successfully loaded tenant-scoped 10/20/50-item server page, using the same visible application number, applicant, academic level/campus, masked phone, submitted time and status. A search/filter edit, new page request, stale async reply, empty list or failed reload disables export. No hidden contact or document contents are added.
+- Payroll Runs register (UX-04): added a manager-only **Export page CSV** action based solely on the currently authorized server-returned 10-row page. Period, campus/proration filter changes, reloads, stale responses and failed reads invalidate the export. This is a register summary, not an employee-level payroll statement or posted payment confirmation.
+- Reusable CSV encoder escapes delimiter, quotes and line breaks, emits UTF-8 with BOM for Bangla Excel compatibility, validates filenames/column counts and prevents spreadsheet formula execution even after leading whitespace. Tests cover encoding/download contracts and per-page source guards.
+- Tenant-admin Dashboard (UX-05): outstanding BDT amounts now aggregate only non-deleted **Issued** or **PartiallyPaid** invoices with a positive due, rather than including editable Draft or anomalous Paid balances. Cross-tenant and non-BDT invoices are excluded. A focused .NET regression fixture covers the classifications and tenant filter; compilation/execution is NOT RUN here because the .NET execution environment is unavailable.
+- **Status:** These are additional Batch 2 implementation changes. They do **not** establish 100% route-by-route UX-03/04/05/10 completion, authenticated browser/role verification, SQL parity, full C# test execution or independent Task E QA. Existing financial posting, reconciliation and approval workflows were not modified; deploy with rollback/validation of dashboard totals.
+
 ## 5. Mandatory page/module coverage inventory
 
 Create/maintain a machine-readable or Markdown **Route Coverage Matrix** on current Ashraful HEAD. One row per real route and important action, not per guessed module name. Minimum columns:

@@ -3,7 +3,7 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, intakeRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, intakeRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null, listPageRows: null };
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -59,6 +59,12 @@
         initializeAdmissionOfferUi();
         document.getElementById('previousPage')?.addEventListener('click', () => changePage(-1));
         document.getElementById('nextPage')?.addEventListener('click', () => changePage(1));
+        document.getElementById('applicationExportPage')?.addEventListener('click', exportApplicationPage);
+        for (const id of ['applicationSearch', 'statusFilter']) {
+            const element = document.getElementById(id);
+            element?.addEventListener('input', () => { state.listPageRows = null; updatePagination(); });
+            element?.addEventListener('change', () => { state.listPageRows = null; updatePagination(); });
+        }
         await loadOptions();
         if (feature === 'all' || feature === 'forms') await loadIntakeForms();
         if (feature === 'all' || feature === 'applications') await loadApplications();
@@ -885,6 +891,7 @@
         const list = document.getElementById('applicationList');
         if (!list) return;
         const requestNumber = ++state.listRequest;
+        state.listPageRows = null;
         updatePagination(true);
         list.setAttribute('aria-busy', 'true');
         list.replaceChildren(statusMessage(i18n.loading));
@@ -906,6 +913,9 @@
                 return;
             }
             renderApplications(payload.data.items);
+            // Export only the exact authorized page returned for unchanged filters.
+            if (search === valueOf('applicationSearch') && status === positiveInteger(valueOf('statusFilter')))
+                state.listPageRows = payload.data.items;
             updatePagination();
         } catch {
             if (requestNumber !== state.listRequest) return;
@@ -921,6 +931,17 @@
         } finally {
             if (requestNumber === state.listRequest) list.removeAttribute('aria-busy');
         }
+    }
+
+    function exportApplicationPage() {
+        const items = state.listPageRows;
+        if (!Array.isArray(items) || !items.length) return;
+        const rows = items.map(item => [item.applicationNumber, item.applicantName,
+            item.academicLevelName, item.campusName, item.maskedMobile,
+            formatDate(item.submittedAtUtc), statusName(item.state)]);
+        if (!window.EduOSPageCsv) return showAlert('danger', 'Export is unavailable. Reload this page.');
+        window.EduOSPageCsv.download(`admissions-page-${state.page}.csv`,
+            ['Application no', 'Applicant', 'Academic level', 'Campus', 'Masked mobile', 'Submitted', 'Status'], rows);
     }
 
     function renderApplications(items) {
@@ -1532,6 +1553,8 @@
         const next = document.getElementById('nextPage');
         if (previous) previous.disabled = loading || state.page <= 1;
         if (next) next.disabled = loading || state.page >= state.totalPages;
+        const exportButton = document.getElementById('applicationExportPage');
+        if (exportButton) exportButton.disabled = loading || !state.listPageRows?.length;
         const label = document.getElementById('pageStatus');
         if (label) label.textContent = loading
             ? (i18n.loading || (bangla ? 'লোড হচ্ছে' : 'Loading'))

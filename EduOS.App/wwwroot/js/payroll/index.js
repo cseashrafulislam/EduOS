@@ -8,7 +8,7 @@ const state = {runPage:1, runPages:1, detailPage:1, detailPages:1, slipPage:1, s
     selected:null, requestId:null, requestPeriod:null, busy:false,
     runRequest:0, detailRequest:0, slipRequest:0,
     paymentEmployee:null, paymentRequestId:null, paymentBusy:false, bankLoadToken:0,
-    cancelRun:null};
+    cancelRun:null, runPageRows:null};
 const cell = value => {const td=document.createElement('td');td.textContent=value==null?'':String(value);return td;};
 const money = value => Number(value||0).toLocaleString('en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});
 const status = value => ({1:'Draft',2:'Calculated',3:'Approved',4:'Posted',5:'Cancelled'}[value] ||
@@ -141,6 +141,8 @@ async function recordPayment(e) {
 async function loadRuns() {
     if(!admin)return;
     const request=++state.runRequest, requestedPage=state.runPage;
+    state.runPageRows=null;
+    el('payrollExportRuns').disabled=true;
     const body=el('payrollRunRows');body.setAttribute('aria-busy','true');
     try {
         const {year,month}=period();
@@ -170,15 +172,30 @@ async function loadRuns() {
             tr.append(controls);body.append(tr);
         }
         if(!data.items?.length)empty(body,10,'No payroll runs for this period.');
+        state.runPageRows=Array.isArray(data.items)?data.items:[];
+        el('payrollExportRuns').disabled=state.runPageRows.length===0;
         pageInfo('payrollRun',state.runPage,state.runPages,data.totalCount||0);
     } catch(e){if(request===state.runRequest)notice(e.message,true);}
     finally{if(request===state.runRequest)body.removeAttribute('aria-busy');}
 }
 function invalidateRunRegister() {
     ++state.runRequest;state.runPage=1;state.runPages=1;
+    state.runPageRows=null;
+    el('payrollExportRuns').disabled=true;
     const body=el('payrollRunRows');body.replaceChildren();body.removeAttribute('aria-busy');
     pageInfo('payrollRun',1,1,0);
     el('payrollRunPageLabel').textContent='Filters changed · select Load runs';
+}
+function exportRunPage() {
+    if(!admin || !Array.isArray(state.runPageRows) || !state.runPageRows.length)return;
+    if(!window.EduOSPageCsv)return notice('Export is unavailable. Reload the page.',true);
+    const rows=state.runPageRows.map(row=>[row.runNumber,row.month+'/'+row.year,
+        row.campusId??'Institution-wide',row.employeeCount,money(row.grossAmount),
+        money(row.deductionAmount),money(row.netAmount),status(row.state),
+        row.prorationModeCode||'FullMonthOnly']);
+    window.EduOSPageCsv.download('payroll-runs-'+el('payrollYear').value+'-'+el('payrollMonth').value+
+        '-page-'+state.runPage+'.csv',
+        ['Run','Period','Campus','Employees','Gross BDT','Deductions BDT','Net BDT','State','Policy'],rows);
 }
 function openCancellation(row) {
     if(state.busy)return;
@@ -334,6 +351,7 @@ if(admin) {
     const now=new Date();el('payrollYear').value=String(now.getFullYear());
     el('payrollMonth').value=String(now.getMonth()+1);
     el('payrollLoad').addEventListener('click',()=>{state.runPage=1;loadRuns();});
+    el('payrollExportRuns').addEventListener('click',exportRunPage);
     el('payrollGenerate').addEventListener('click',generate);
     api('/api/institution-onboarding/campus-list').then(campuses=>{
         const select=el('payrollCampus');

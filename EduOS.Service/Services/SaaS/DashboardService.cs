@@ -180,8 +180,9 @@ public sealed class DashboardService : IDashboardService
                         x.CurrencyCode == "BDT" && x.PaymentDate >= monthStart && x.PaymentDate < nextMonth)
                     .SumAsync(x => (decimal?)x.Amount) ?? 0m;
                 totalDues = await _invoices.GetQueryable().AsNoTracking()
-                    .Where(x => x.TenantId == tenantId && x.State != InvoiceState.Cancelled &&
-                        x.State != InvoiceState.Refunded && x.CurrencyCode == "BDT" && x.DueAmount > 0m)
+                    .Where(x => x.TenantId == tenantId && !x.IsDeleted &&
+                        (x.State == InvoiceState.Issued || x.State == InvoiceState.PartiallyPaid) &&
+                        x.CurrencyCode == "BDT" && x.DueAmount > 0m)
                     .SumAsync(x => (decimal?)x.DueAmount) ?? 0m;
             }
 
