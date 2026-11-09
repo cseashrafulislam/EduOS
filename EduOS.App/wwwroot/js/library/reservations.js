@@ -5,8 +5,21 @@
     if (!root) return;
     const staff = root.dataset.staff === 'true', state = {
         mine: 1, queue: 1, book: '', key: crypto.randomUUID(), search: 0,
-        queueRequest: 0, mineRequest: 0, studentRequest: 0, studentPage: 1
+        queueRequest: 0, mineRequest: 0, studentRequest: 0, studentPage: 1, exportRequest: 0
     };
+    const createForm = el('reservationCreate');
+    const createGuard = window.EduOSFormGuard?.create(createForm);
+    const originalTenant = document.body?.dataset.authTenantId || '';
+    const originalSession = document.body?.dataset.authSessionReference || '';
+    const sameSession = () => !window.EduOSSessionTransitionPending?.() &&
+        (document.body?.dataset.authTenantId || '') === originalTenant &&
+        (document.body?.dataset.authSessionReference || '') === originalSession;
+    let createSaving = false, catalogReady = false, studentReady = !staff;
+    let createFingerprint = '';
+    function updateCreateButton() {
+        el('reservationCreateButton').disabled = createSaving || !catalogReady ||
+            (staff && !!el('reservationStudentSearch').value.trim() && !studentReady);
+    }
     const stateNames = { 1: 'Pending', 2: 'Fulfilled', 3: 'Cancelled', 4: 'Expired' };
     function alertUser(text, ok = false) {
         const target = el('reservationAlert');
@@ -45,7 +58,11 @@
         el(prefix + 'Page').textContent = 'Page ' + page + ' of ' + Math.max(1, data?.totalPages || 1);
     }
     async function searchBooks() {
+        if (createSaving) return;
         const sequence = ++state.search;
+        catalogReady = false;
+        el('reservationBook').disabled = true;
+        updateCreateButton();
         try {
             const data = await api('/api/library/catalog?' + new URLSearchParams({
                 search: el('reservationQuery').value.trim(), page: 1, pageSize: 50
@@ -59,11 +76,22 @@
             if ([...select.options].some(option => option.value === previous || option.value === deepLink))
                 select.value = [...select.options].some(x => x.value === previous) ? previous : deepLink;
             state.book = select.value;
+            catalogReady = true;
+            select.disabled = false;
+            updateCreateButton();
             if (staff) await loadQueue();
-        } catch (error) { alertUser(error.message); }
+        } catch (error) {
+            if (sequence !== state.search) return;
+            catalogReady = true;
+            el('reservationBook').disabled = false;
+            updateCreateButton();
+            alertUser(error.message);
+        }
     }
     async function loadStudents(page = 1) {
-        if (!staff) return;
+        if (!staff || createSaving) return;
+        studentReady = false;
+        updateCreateButton();
         const search = el('reservationStudentSearch').value.trim();
         if (search.length < 2 || search.length > 100) {
             el('reservationStudentStatus').textContent = 'Enter at least 2 characters of a student name or code.';
@@ -72,6 +100,7 @@
         const sequence = ++state.studentRequest;
         const select = el('reservationStudent'), more = el('reservationStudentMore');
         more.hidden = true;
+        select.disabled = true;
         if (page === 1) select.replaceChildren(new Option('My linked student account', ''));
         el('reservationStudentStatus').textContent = 'Searching active students…';
         try {
@@ -83,13 +112,18 @@
                 `${student.studentCode} — ${student.studentName}`, student.studentReference)));
             state.studentPage = page;
             more.hidden = !data?.hasNextPage;
+            studentReady = true;
+            select.disabled = false;
+            updateCreateButton();
             el('reservationStudentStatus').textContent = data?.totalCount
                 ? `${data.totalCount} matching active student(s). Select the correct student below.`
                 : 'No active students matched. Try the beginning of a name or code.';
         } catch (error) {
             if (sequence === state.studentRequest) {
                 more.hidden = true;
+                select.disabled = true;
                 el('reservationStudentStatus').textContent = 'Student search unavailable.';
+                updateCreateButton();
                 alertUser(error.message);
             }
         }
@@ -135,6 +169,7 @@
         const button = el('reservationMineCsv');
         if (!button || button.disabled) return;
         button.disabled = true;
+        const request = ++state.exportRequest;
         try {
             const params = mineQuery();
             params.set('language', document.documentElement.lang?.toLowerCase().startsWith('bn') ? 'bn-BD' : 'en-BD');
@@ -145,13 +180,17 @@
                 const error = await response.json().catch(() => null);
                 throw Error(error?.message || 'Reservation export denied.');
             }
-            const url = URL.createObjectURL(await response.blob());
+            const file = await response.blob();
+            if (request !== state.exportRequest || !sameSession() ||
+                mineQuery().get('status') !== params.get('status') ||
+                mineQuery().get('page') !== params.get('page')) return;
+            const url = URL.createObjectURL(file);
             try {
                 const link = document.createElement('a');
                 link.href = url; link.download = 'my-library-reservations-page.csv';
                 document.body.append(link); link.click(); link.remove();
             } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
-        } catch (error) { alertUser(error.message); }
+        } catch (error) { if (request === state.exportRequest && sameSession()) alertUser(error.message); }
         finally { button.disabled = false; }
     }
     async function loadQueue() {
@@ -216,38 +255,60 @@
         }
     }
     el('reservationSearch').addEventListener('submit', e => { e.preventDefault(); searchBooks(); });
-    el('reservationBook').addEventListener('change', () => { state.queue = 1; state.key = crypto.randomUUID(); loadQueue(); });
+    el('reservationBook').addEventListener('change', () => { state.queue = 1; loadQueue(); });
     if (staff) {
         el('reservationStudentSearchForm').addEventListener('submit', e => { e.preventDefault(); loadStudents(); });
         el('reservationStudentMore').addEventListener('click', () => loadStudents(state.studentPage + 1));
         el('reservationStudentSearch').addEventListener('input', () => {
             ++state.studentRequest;
+            studentReady = !el('reservationStudentSearch').value.trim();
             el('reservationStudent').replaceChildren(new Option('My linked student account', ''));
+            el('reservationStudent').disabled = !studentReady;
             el('reservationStudentMore').hidden = true;
             el('reservationStudentStatus').textContent = 'Search to choose an active student.';
-            state.key = crypto.randomUUID();
+            updateCreateButton();
         });
-        el('reservationStudent').addEventListener('change', () => { state.key = crypto.randomUUID(); });
     }
     el('reservationCreate').addEventListener('submit', async e => {
         e.preventDefault();
+        if (createSaving || !catalogReady || !sameSession() ||
+            (staff && !!el('reservationStudentSearch').value.trim() && !studentReady)) return;
         const book = el('reservationBook').value;
         if (!book) { alertUser('Choose a book.'); return; }
         if (staff && el('reservationStudentSearch').value.trim() && !el('reservationStudent').value) {
             alertUser('Select a student from the search results, or clear the search to use your linked student account.');
             return;
         }
-        const button = el('reservationCreateButton'); button.disabled = true;
+        const payload = {
+            bookReference: book,
+            studentReference: staff ? (el('reservationStudent').value || '00000000-0000-0000-0000-000000000000')
+                : '00000000-0000-0000-0000-000000000000'
+        };
+        const fingerprint = JSON.stringify(payload);
+        if (fingerprint !== createFingerprint) {
+            createFingerprint = fingerprint;
+            state.key = crypto.randomUUID();
+        }
+        const button = el('reservationCreateButton');
+        createSaving = true; createForm.inert = true;
+        el('reservationSearch').inert = true;
+        if (staff) el('reservationStudentSearchForm').inert = true;
+        button.disabled = true;
         try {
             await api('/api/library/reservations', 'POST', {
-                clientRequestId: state.key, bookReference: book,
-                studentReference: staff ? (el('reservationStudent').value || '00000000-0000-0000-0000-000000000000')
-                    : '00000000-0000-0000-0000-000000000000'
+                clientRequestId: state.key, ...payload
             });
-            state.key = crypto.randomUUID(); alertUser('Reservation placed.', true);
+            state.key = crypto.randomUUID(); createFingerprint = '';
+            createGuard?.markClean(); alertUser('Reservation placed.', true);
             await Promise.all([loadMine(), staff ? loadQueue() : Promise.resolve()]);
         } catch (error) { alertUser(error.message); }
-        finally { button.disabled = false; }
+        finally {
+            createSaving = false;
+            createForm.inert = false;
+            el('reservationSearch').inert = false;
+            if (staff) el('reservationStudentSearchForm').inert = false;
+            updateCreateButton();
+        }
     });
     el('reservationMineRefresh').addEventListener('click', loadMine);
     el('reservationMineStatus').addEventListener('change', () => { state.mine = 1; loadMine(); });

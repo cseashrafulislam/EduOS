@@ -56,22 +56,36 @@
         cell.colSpan = columns; tr.append(cell); target.append(tr);
     }
     let myPage = 1, myTotal = 1, myRequestId = crypto.randomUUID(), queuePage = 1, queueTotal = 1;
-    let myLookup = 0, queueLookup = 0, decision = null, bedPage = 1;
+    let myLookup = 0, queueLookup = 0, decision = null;
+    let optionsLookup = 0, optionsReady = false, mySaving = false, decisionSaving = false, decisionLookup = 0;
+    let myAttemptFingerprint = '';
+    const myForm = node('hostelApplicationSubmit'), decisionForm = node('hostelApplicationDecision');
+    const myGuard = myForm && window.EduOSFormGuard?.create(myForm);
+    const decisionGuard = decisionForm && window.EduOSFormGuard?.create(decisionForm);
 
     async function loadOptions() {
         if (!node('hostelApplicationOption')) return;
+        const lookup = ++optionsLookup;
+        optionsReady = false;
+        const selector = node('hostelApplicationOption');
+        selector.disabled = true;
+        node('hostelApplicationSubmitButton').disabled = true;
         try {
             const result = await api('/api/hostel/applications/options?page=1&pageSize=50');
-            const selector = node('hostelApplicationOption'); selector.replaceChildren();
+            if (lookup !== optionsLookup) return;
+            selector.replaceChildren();
             const placeholder = document.createElement('option'); placeholder.value = '';
             placeholder.textContent = bn ? 'হোস্টেল নির্বাচন করুন' : 'Select eligible hostel'; selector.append(placeholder);
             (result.items || []).forEach(item => {
                 const choice = document.createElement('option'); choice.value = item.enrollmentReference + '|' + item.hostelReference;
                 choice.textContent = item.campusName + ' · ' + item.hostelName; selector.append(choice);
             });
+            optionsReady = (result.items || []).length > 0;
+            selector.disabled = !optionsReady;
+            node('hostelApplicationSubmitButton').disabled = !optionsReady;
             if (!result.items?.length) status('hostelApplicationStatus', bn ? 'সক্রিয় শিক্ষার্থী তালিকায় নেই।' : 'No eligible active student enrollment.');
             if (result.totalPages > 1) status('hostelApplicationStatus', bn ? 'প্রথম ৫০টি হোস্টেল দেখানো হচ্ছে।' : 'Showing first 50 eligible hostels.');
-        } catch (error) { status('hostelApplicationStatus', error.message, true); }
+        } catch (error) { if (lookup === optionsLookup) status('hostelApplicationStatus', error.message, true); }
     }
 
     async function loadMine() {
@@ -146,7 +160,8 @@
                 { rowVersion: item.rowVersion, ...extra });
             status(target, bn ? 'সফলভাবে হালনাগাদ হয়েছে।' : 'Application updated.');
             await Promise.all([loadMine(), loadQueue()]);
-        } catch (error) { status(target, error.message, true); }
+            return true;
+        } catch (error) { status(target, error.message, true); return false; }
     }
 
     async function accept(item) {
@@ -167,7 +182,9 @@
     }
 
     async function chooseDecision(item, action) {
-        decision = { item, action }; bedPage = 1;
+        if (decisionSaving || (decisionGuard && !decisionGuard.confirmDiscard())) return;
+        const lookup = ++decisionLookup;
+        decision = { item, action };
         const form = node('hostelApplicationDecision'); form.classList.remove('d-none');
         node('hostelApplicationDecisionTitle').textContent = action === 'offer' ?
             (bn ? 'শর্তসাপেক্ষ বেড অফার' : 'Non-binding bed offer') : (bn ? 'আবেদন প্রত্যাখ্যান' : 'Reject application');
@@ -175,27 +192,38 @@
         node('hostelApplicationOfferHours').closest('.col-md-2').classList.toggle('d-none', action !== 'offer');
         node('hostelApplicationReason').value = '';
         node('hostelApplicationReason').required = action === 'reject';
+        const selector = node('hostelApplicationOfferedBed');
+        selector.replaceChildren(new Option(bn ? 'বেড লোড হচ্ছে…' : 'Loading eligible beds…', ''));
+        selector.disabled = action === 'offer';
+        node('hostelApplicationDecisionSave').disabled = action === 'offer';
+        decisionGuard?.markClean();
         if (action === 'offer') {
             try {
                 const params = new URLSearchParams({ page: '1', pageSize: '100', search: item.hostelName,
                     startDate: item.startDate });
                 const response = await api('/api/hostel/available-beds?' + params);
-                const selector = node('hostelApplicationOfferedBed'); selector.replaceChildren();
+                if (lookup !== decisionLookup || decision?.item.id !== item.id || decision.action !== action) return;
+                selector.replaceChildren();
                 const empty = document.createElement('option'); empty.value = ''; empty.textContent = 'Choose bed'; selector.append(empty);
                 (response.items || []).filter(b => b.hostelName === item.hostelName).forEach(b => {
                     const opt = document.createElement('option'); opt.value = b.bedId;
                     opt.textContent = b.hostelName + ' · ' + b.roomNumber + ' / ' + b.bedNumber; selector.append(opt);
                 });
+                selector.disabled = selector.options.length < 2;
+                node('hostelApplicationDecisionSave').disabled = selector.disabled;
                 if (response.totalPages > 1) status('hostelApplicationQueueStatus',
                     bn ? 'প্রথম ১০০টি বেড দেখানো হয়েছে; প্রয়োজন হলে বর্তমান Allocation page থেকে বেড নির্বাচন করুন।' :
                         'First 100 matching beds shown; narrow hostel inventory if needed.');
-            } catch (error) { status('hostelApplicationQueueStatus', error.message, true); }
+            } catch (error) {
+                if (lookup === decisionLookup) status('hostelApplicationQueueStatus', error.message, true);
+            }
         }
         form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     async function submitDecision(event) {
-        event.preventDefault(); if (!decision) return;
+        event.preventDefault();
+        if (!decision || decisionSaving || !event.currentTarget.reportValidity()) return;
         const { item, action } = decision;
         const extra = { reason: node('hostelApplicationReason').value.trim() || null };
         if (action === 'offer') {
@@ -205,30 +233,50 @@
                 status('hostelApplicationQueueStatus', 'Choose an active bed and valid expiry.', true); return;
             }
         }
-        await change(item, action, extra);
-        decision = null; node('hostelApplicationDecision').classList.add('d-none');
+        decisionSaving = true;
+        decisionForm.inert = true;
+        try {
+            if (!await change(item, action, extra)) return;
+            ++decisionLookup;
+            decision = null;
+            decisionForm.classList.add('d-none');
+            decisionGuard?.markClean();
+        } finally {
+            decisionSaving = false;
+            decisionForm.inert = false;
+        }
     }
 
     if (node('hostelApplicationSelf')) {
         node('hostelApplicationStart').value = today();
+        myGuard?.markClean();
         node('hostelApplicationSubmit').addEventListener('submit', async event => {
-            event.preventDefault(); if (!event.currentTarget.reportValidity()) return;
+            event.preventDefault();
+            if (mySaving || !optionsReady || !event.currentTarget.reportValidity()) return;
             const selected = node('hostelApplicationOption').value.split('|');
             const start = node('hostelApplicationStart').value, end = node('hostelApplicationEnd').value;
             if (selected.length !== 2 || (end && end < start) ||
                 (end && (Date.parse(end + 'T00:00:00Z') - Date.parse(start + 'T00:00:00Z')) / 86400000 > 89)) {
                 status('hostelApplicationStatus', 'Choose a hostel and valid stay of up to 90 days.', true); return;
             }
-            const submit = node('hostelApplicationSubmitButton'); submit.disabled = true;
+            const payload = { studentEnrollmentReference: selected[0], hostelReference: selected[1],
+                startDate: start, endDate: end || null, note: node('hostelApplicationNote').value.trim() || null };
+            const fingerprint = JSON.stringify(payload);
+            if (myAttemptFingerprint !== fingerprint) {
+                myAttemptFingerprint = fingerprint;
+                myRequestId = crypto.randomUUID();
+            }
+            const submit = node('hostelApplicationSubmitButton');
+            mySaving = true; myForm.inert = true; submit.disabled = true;
             try {
-                await api('/api/hostel/applications', 'POST', { clientRequestId: myRequestId,
-                    studentEnrollmentReference: selected[0], hostelReference: selected[1],
-                    startDate: start, endDate: end || null, note: node('hostelApplicationNote').value.trim() || null });
-                myRequestId = crypto.randomUUID(); node('hostelApplicationNote').value = '';
+                await api('/api/hostel/applications', 'POST', { clientRequestId: myRequestId, ...payload });
+                myRequestId = crypto.randomUUID(); myAttemptFingerprint = '';
+                node('hostelApplicationNote').value = '';
+                myGuard?.markClean();
                 status('hostelApplicationStatus', bn ? 'আবেদন জমা হয়েছে।' : 'Application submitted.');
                 myPage = 1; await loadMine();
             } catch (error) { status('hostelApplicationStatus', error.message, true); }
-            finally { submit.disabled = false; }
+            finally { mySaving = false; myForm.inert = false; submit.disabled = !optionsReady; }
         });
         node('hostelApplicationMinePrev').addEventListener('click', () => { if (myPage > 1) { myPage--; loadMine(); } });
         node('hostelApplicationMineNext').addEventListener('click', () => { if (myPage < myTotal) { myPage++; loadMine(); } });
@@ -240,7 +288,10 @@
         node('hostelApplicationQueueNext').addEventListener('click', () => { if (queuePage < queueTotal) { queuePage++; loadQueue(); } });
         node('hostelApplicationDecision').addEventListener('submit', submitDecision);
         node('hostelApplicationDecisionCancel').addEventListener('click', () => {
+            if (decisionSaving || (decisionGuard && !decisionGuard.confirmDiscard())) return;
+            ++decisionLookup;
             decision = null; node('hostelApplicationDecision').classList.add('d-none');
+            decisionGuard?.markClean();
         });
         node('hostelApplicationCsv').addEventListener('click', () => {
             const p = queueParams(); p.delete('pageSize');

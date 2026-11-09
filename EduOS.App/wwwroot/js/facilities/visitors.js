@@ -84,10 +84,23 @@
     let requestEpoch = 0;
     let pendingCreateId = crypto.randomUUID();
     const commandIds = new Map();
+    const inFlightActions = new Set();
+    const createForm = $('fvCreate'), policyForm = $('fvPolicyRequest');
+    const createGuard = createForm && window.EduOSFormGuard?.create(createForm);
+    const policyGuard = policyForm && window.EduOSFormGuard?.create(policyForm);
+    let creating = false, requestingPolicy = false, hostReady = false;
+    let lastCreateFingerprint = '', lastPolicyFingerprint = '';
     const button = (name, action, row, handler) => {
         const b = document.createElement('button');
         b.type = 'button'; b.className = 'btn btn-outline-primary btn-sm';
-        b.textContent = name; b.addEventListener('click', () => handler(row, action)); return b;
+        b.textContent = name;
+        b.addEventListener('click', async () => {
+            if (b.disabled) return;
+            b.disabled = true;
+            try { await handler(row, action); }
+            finally { b.disabled = false; }
+        });
+        return b;
     };
     const act = async (row, action) => {
         const reason = action === 'redactrequest' ? 'Visitor retention period expired' :
@@ -104,7 +117,9 @@
                 'ঘটনা বা আইনগত সিদ্ধান্তের জন্য ১০–২০০ অক্ষরের কারণ লিখুন।')); return;
         }
         const key = [row.id, action, row.rowVersion, badgeCode, reason].join('|');
+        if (inFlightActions.has(key)) return;
         if (!commandIds.has(key)) commandIds.set(key, crypto.randomUUID());
+        inFlightActions.add(key);
         try {
             await api('/api/facilities/visitors/' + row.id + '/' + action, 'POST', {
                 clientCommandId: commandIds.get(key), rowVersion: row.rowVersion,
@@ -115,6 +130,7 @@
             $('fvReason').value = ''; $('fvBadge').value = '';
             await load();
         } catch (e) { status(e.message); }
+        finally { inFlightActions.delete(key); }
     };
     const history = async (row, card) => {
         const existing = card.querySelector('[data-visitor-history]');
@@ -230,35 +246,53 @@
         if (!select) return;
         // Duplicate change/blur events for the same campus must not erase
         // a host already chosen from an authoritative lookup.
-        if (campus === lastHostCampus && select.options.length > 1) return;
+        if (campus === lastHostCampus && hostReady && select.options.length > 1) return;
         lastHostCampus = campus;
         const epoch = ++hostEpoch;
+        hostReady = false;
+        select.disabled = true;
         select.replaceChildren(new Option(label('Select host', 'হোস্ট নির্বাচন'), ''));
-        if (!campus) return;
+        if (!Number.isSafeInteger(campus) || campus <= 0) return;
         try {
             const data = await api('/api/facilities/visitors/hosts?campusId=' + campus);
-            if (epoch !== hostEpoch) return;
+            if (epoch !== hostEpoch || Number($('fvCampus').value) !== campus) return;
             for (const h of data.items || [])
                 select.add(new Option(h.displayName + ' (#' + h.userId + ')', String(h.userId)));
+            hostReady = select.options.length > 1;
+            select.disabled = !hostReady;
         } catch (e) { if (epoch === hostEpoch) status(e.message); }
     };
     $('fvCampus')?.addEventListener('change', hosts);
     $('fvRefresh').addEventListener('click', load);
     $('fvCreate')?.addEventListener('submit', async e => {
         e.preventDefault();
+        if (creating || !hostReady || !createForm.reportValidity()) return;
+        const start = utc('fvStart'), end = utc('fvEnd');
+        if (!start || !end || new Date(end) <= new Date(start)) {
+            status(label('Visit end must be later than start.', 'ভিজিটের শেষ সময় শুরুর পরে হতে হবে।'));
+            return;
+        }
+        const payload = {
+            campusId: Number($('fvCampus').value), hostUserId: Number($('fvHost').value),
+            visitorName: $('fvName').value.trim(), purpose: $('fvPurpose').value.trim(),
+            visitStartUtc: start, visitEndUtc: end
+        };
+        const fingerprint = JSON.stringify(payload);
+        if (fingerprint !== lastCreateFingerprint) {
+            lastCreateFingerprint = fingerprint;
+            pendingCreateId = crypto.randomUUID();
+        }
+        creating = true; createForm.inert = true;
         try {
             await api('/api/facilities/visitors', 'POST', {
-                clientRequestId: pendingCreateId,
-                campusId: Number($('fvCampus').value),
-                hostUserId: Number($('fvHost').value),
-                visitorName: $('fvName').value.trim(),
-                purpose: $('fvPurpose').value.trim(),
-                visitStartUtc: utc('fvStart'), visitEndUtc: utc('fvEnd')
+                clientRequestId: pendingCreateId, ...payload
             });
-            pendingCreateId = crypto.randomUUID();
+            pendingCreateId = crypto.randomUUID(); lastCreateFingerprint = '';
             $('fvName').value = ''; $('fvPurpose').value = '';
+            createGuard?.markClean();
             await load();
         } catch (err) { status(err.message); }
+        finally { creating = false; createForm.inert = false; }
     });
 
     // A PII-free campus occupancy snapshot is desk-only and server authorized.
@@ -284,6 +318,7 @@
     });
 
     let policyEpoch = 0, pendingPolicyId = crypto.randomUUID();
+    const policyReviewIds = new Map();
     const loadPolicies = async () => {
         const campusId = Number($('fvPolicyCampus')?.value || 0);
         if (!Number.isSafeInteger(campusId) || campusId <= 0) {
@@ -314,18 +349,26 @@
                         btn.textContent = decision === 'approve'
                             ? label('Approve', 'অনুমোদন') : label('Reject', 'প্রত্যাখ্যান');
                         btn.addEventListener('click', async () => {
+                            if (btn.disabled) return;
                             const reason = $('fvPolicyReviewReason')?.value.trim() || '';
                             if (reason.length < 10) {
                                 status(label('Enter a 10-character independent review reason.',
                                     'পর্যালোচনার কমপক্ষে ১০ অক্ষরের কারণ দিন।')); return;
                             }
-                            const commandId = crypto.randomUUID();
+                            const reviewKey = ['policy', row.id, decision, row.rowVersion, reason].join('|');
+                            if (inFlightActions.has(reviewKey)) return;
+                            if (!policyReviewIds.has(reviewKey)) policyReviewIds.set(reviewKey, crypto.randomUUID());
+                            const commandId = policyReviewIds.get(reviewKey);
+                            inFlightActions.add(reviewKey);
+                            btn.disabled = true;
                             try {
                                 await api('/api/facilities/visitors/policies/' + row.id + '/' + decision,
                                     'POST', { clientCommandId: commandId, rowVersion: row.rowVersion, reason });
+                                policyReviewIds.delete(reviewKey);
                                 $('fvPolicyReviewReason').value = '';
                                 await loadPolicies();
                             } catch (error) { status(error.message); }
+                            finally { btn.disabled = false; inFlightActions.delete(reviewKey); }
                         });
                         controls.append(btn);
                     }
@@ -340,18 +383,27 @@
     $('fvPolicyLoad')?.addEventListener('click', loadPolicies);
     $('fvPolicyRequest')?.addEventListener('submit', async event => {
         event.preventDefault();
+        if (requestingPolicy || !policyForm.reportValidity()) return;
+        const payload = {
+            campusId: Number($('fvPolicyCampus').value), policyCode: $('fvPolicyCode').value,
+            proposedValue: $('fvPolicyValue').value.trim(), reason: $('fvPolicyReason').value.trim()
+        };
+        const fingerprint = JSON.stringify(payload);
+        if (fingerprint !== lastPolicyFingerprint) {
+            lastPolicyFingerprint = fingerprint;
+            pendingPolicyId = crypto.randomUUID();
+        }
+        requestingPolicy = true; policyForm.inert = true;
         try {
             await api('/api/facilities/visitors/policies', 'POST', {
-                clientRequestId: pendingPolicyId,
-                campusId: Number($('fvPolicyCampus').value),
-                policyCode: $('fvPolicyCode').value,
-                proposedValue: $('fvPolicyValue').value.trim(),
-                reason: $('fvPolicyReason').value.trim()
+                clientRequestId: pendingPolicyId, ...payload
             });
-            pendingPolicyId = crypto.randomUUID();
+            pendingPolicyId = crypto.randomUUID(); lastPolicyFingerprint = '';
             $('fvPolicyReason').value = '';
+            policyGuard?.markClean();
             await loadPolicies();
         } catch (error) { status(error.message); }
+        finally { requestingPolicy = false; policyForm.inert = false; }
     });
 
     // Never release a CSV after tenant/session change, or after a newer export request.
