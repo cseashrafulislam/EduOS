@@ -1,4 +1,5 @@
 import { catalog, el, canManage, notice } from './assets-api.js';
+import { registerGuard } from './assets-form-guards.js';
 export let locations = [];
 export async function loadReferenceCatalogs() {
     if (!canManage) return;
@@ -14,6 +15,8 @@ export async function loadReferenceCatalogs() {
 }
 export function editAsset(row) {
     if (!canManage) return;
+    if (el('assetForm').inert) { notice('Finish the asset save before switching records.'); return; }
+    if (!registerGuard.confirmDiscard()) return;
     const fields = { assetReference: row.reference, assetVersion: row.rowVersion, assetTag: row.assetTag,
         assetName: row.name, assetCategory: row.assetCategoryId, assetLocation: row.inventoryLocationId,
         assetItem: row.inventoryItemId, assetSerial: row.serialNumber, assetPurchaseDate: row.purchaseDate,
@@ -21,5 +24,6 @@ export function editAsset(row) {
     Object.entries(fields).forEach(([id, value]) => { el(id).value = value ?? ''; });
     el('assetActive').checked = row.isActive;
     el('assetCampus').value = row.campusId ?? locations.find(x => x.id === row.inventoryLocationId)?.campusId ?? '';
+    registerGuard.markClean();
     el('assetForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }

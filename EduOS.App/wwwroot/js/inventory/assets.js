@@ -9,7 +9,17 @@ import { bindMaintenanceForm } from './assets-maintenance-form.js';
 import { bindMaintenanceHistory } from './assets-maintenance-history.js';
 import { bindMaintenanceDue } from './assets-maintenance-due.js';
 import { bindCapitalizationReadiness, showCapitalizationReadiness } from './asset-capitalization-readiness.js';
+import { registerGuard, categoryGuard } from './assets-form-guards.js';
 if (root) {
+    let registerTouched = false, categoryTouched = false;
+    if (canManage) {
+        for (const kind of ['input', 'change'])
+            el('assetForm').addEventListener(kind, () => { registerTouched = true; });
+    }
+    if (categoryGuard) {
+        for (const kind of ['input', 'change'])
+            el('assetCategoryForm').addEventListener(kind, () => { categoryTouched = true; });
+    }
     let categories = [], page = 1, pages = 1;
     async function loadCategories() {
         try {
@@ -50,5 +60,9 @@ if (root) {
     el('assetNext').addEventListener('click', () => { if (page < pages) { page++; loadAssets(); } });
     bindCategories(loadCategories); bindAssetForm(loadAssets);
     bindAssignmentForm(loadAssets); bindTransferForm(loadAssets); bindMaintenanceForm(); bindMaintenanceHistory(); bindMaintenanceDue(); bindCapitalizationReadiness();
-    Promise.all([loadCategories(), loadReferenceCatalogs()]).then(loadAssets).catch(error => notice(error.message));
+    Promise.all([loadCategories(), loadReferenceCatalogs()]).then(() => {
+        if (canManage && !registerTouched) registerGuard.markClean();
+        if (categoryGuard && !categoryTouched) categoryGuard.markClean();
+        return loadAssets();
+    }).catch(error => notice(error.message));
 }

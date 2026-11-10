@@ -6,9 +6,13 @@ export const root = document.getElementById('assetWorkspace');
 export const canManage = root?.dataset.canManage === 'true';
 export const canCategory = root?.dataset.canCategory === 'true';
 const pending = new Map();
-export function requestKey(name) {
-    if (!pending.has(name)) pending.set(name, crypto.randomUUID());
-    return pending.get(name);
+export function requestKey(name, immutableCommand = null) {
+    const fingerprint = JSON.stringify(immutableCommand);
+    const previous = pending.get(name);
+    if (previous?.fingerprint === fingerprint) return previous.id;
+    const id = crypto.randomUUID();
+    pending.set(name, { id, fingerprint });
+    return id;
 }
 export function clearKey(name) { pending.delete(name); }
 export function notice(message, success = false) {
@@ -26,7 +30,10 @@ export function addButton(cell, label, onClick) {
     button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
     button.textContent = label; button.addEventListener('click', onClick); cell.append(button);
 }
-export const dateToday = () => new Date().toISOString().slice(0, 10);
+export const dateToday = () => {
+    const value = new Date();
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+};
 export function money(value) {
     if (value === '') return null;
     if (!/^(0|[1-9]\d{0,8})(\.\d{1,2})?$/.test(String(value)))

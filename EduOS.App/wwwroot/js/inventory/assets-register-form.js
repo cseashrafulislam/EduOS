@@ -1,17 +1,27 @@
 import { api, el, canManage, notice, money } from './assets-api.js';
 import { locations } from './assets-register.js';
+import { registerGuard } from './assets-form-guards.js';
 export function bindAssetForm(reload) {
     if (!canManage) return;
+    const form = el('assetForm');
+    let saving = false;
+    const clear = () => {
+        form.reset(); el('assetReference').value = ''; el('assetVersion').value = '';
+        registerGuard.markClean();
+    };
     el('assetNew').addEventListener('click', () => {
-        el('assetForm').reset(); el('assetReference').value = ''; el('assetVersion').value = '';
+        if (saving || !registerGuard.confirmDiscard()) return;
+        clear();
     });
     el('assetLocation').addEventListener('change', () => {
         const loc = locations.find(x => String(x.id) === el('assetLocation').value);
         if (loc?.campusId) el('assetCampus').value = loc.campusId;
     });
-    el('assetForm').addEventListener('submit', async event => {
+    form.addEventListener('submit', async event => {
         event.preventDefault();
+        if (saving) return;
         const reference = el('assetReference').value;
+        saving = true; form.inert = true;
         try {
             const body = {
                 assetTag: el('assetTag').value.trim(), name: el('assetName').value.trim(),
@@ -24,7 +34,9 @@ export function bindAssetForm(reload) {
                 isActive: el('assetActive').checked, rowVersion: el('assetVersion').value || null
             };
             await api(reference ? '/' + encodeURIComponent(reference) : '', reference ? 'PUT' : 'POST', body);
-            el('assetNew').click(); await reload(); notice('Asset saved.', true);
+            clear(); notice('Asset saved.', true);
+            try { await reload(); } catch (_) { notice('Asset saved; list refresh failed. Reload the register.'); }
         } catch (error) { notice(error.message); }
+        finally { saving = false; form.inert = false; }
     });
 }

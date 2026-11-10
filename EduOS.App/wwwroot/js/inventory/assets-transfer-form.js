@@ -1,18 +1,21 @@
 import { api, el, canManage, notice, requestKey, clearKey } from './assets-api.js';
 import { selected, loadHistory } from './assets-custody.js';
+import { transferGuard } from './assets-form-guards.js';
 
 export function bindTransferForm(reload) {
     if (!canManage) return;
     const form = el('assetTransferForm');
     const submit = el('assetTransferSubmit');
-    form.addEventListener('input', () => clearKey('transfer'));
+    let saving = false;
     el('assetTransferCancel').addEventListener('click', () => {
+        if (saving || !transferGuard.confirmDiscard()) return;
         form.classList.add('d-none');
         clearKey('transfer');
+        form.reset(); transferGuard.markClean();
     });
     form.addEventListener('submit', async event => {
         event.preventDefault();
-        if (!selected || form.classList.contains('d-none') || submit.disabled) return;
+        if (saving || !selected || form.classList.contains('d-none') || submit.disabled) return;
         const id = Number(el('assetTransferAssignmentId').value);
         const raw = el('assetTransferTarget').value.trim();
         const type = el('assetTransferType').value;
@@ -26,7 +29,6 @@ export function bindTransferForm(reload) {
             return;
         }
         const body = {
-            clientRequestId: requestKey('transfer'),
             rowVersion: el('assetTransferVersion').value,
             transferredOn: el('assetTransferredOn').value,
             employeeReference: type === 'employee' ? raw : null,
@@ -34,18 +36,20 @@ export function bindTransferForm(reload) {
             organizationUnitId: targetId,
             reason: el('assetTransferReason').value.trim()
         };
-        submit.disabled = true;
+        body.clientRequestId = requestKey('transfer', { assignmentId: id, ...body });
+        saving = true; submit.disabled = true; form.inert = true;
         try {
             await api('/assignments/' + encodeURIComponent(id) + '/transfer', 'POST', body);
             clearKey('transfer');
             form.classList.add('d-none');
-            await loadHistory();
-            await reload();
+            form.reset(); transferGuard.markClean();
             notice('Asset custody transferred.', true);
+            try { await loadHistory(); await reload(); }
+            catch (_) { notice('Transfer saved; register refresh failed. Reload before the next action.'); }
         } catch (error) {
             notice(error.message);
         } finally {
-            submit.disabled = false;
+            saving = false; submit.disabled = false; form.inert = false;
         }
     });
 }

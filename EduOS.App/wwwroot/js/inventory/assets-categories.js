@@ -1,4 +1,5 @@
 import { api, el, td, canCategory, addButton, notice } from './assets-api.js';
+import { categoryGuard } from './assets-form-guards.js';
 export function fillCategories(rows) {
     const select = el('assetCategory'); if (!select) return;
     select.replaceChildren(new Option('Select category', ''));
@@ -12,9 +13,12 @@ export function renderCategories(rows) {
         if (canCategory) {
             const cell = document.createElement('td');
             addButton(cell, 'Edit', () => {
+                if (el('assetCategoryForm').inert) { notice('Finish the category save before switching records.'); return; }
+                if (!categoryGuard.confirmDiscard()) return;
                 el('assetCategoryId').value = row.id; el('assetCategoryVersion').value = row.rowVersion;
                 el('assetCategoryCode').value = row.code; el('assetCategoryName').value = row.name;
                 el('assetCategoryActive').checked = row.isActive;
+                categoryGuard.markClean();
             });
             tr.append(cell);
         }
@@ -23,15 +27,26 @@ export function renderCategories(rows) {
 }
 export function bindCategories(reload) {
     if (!canCategory) return;
-    el('assetCategoryForm').addEventListener('submit', async event => {
+    const form = el('assetCategoryForm');
+    let saving = false;
+    el('assetCategoryNew').addEventListener('click', () => {
+        if (saving || !categoryGuard.confirmDiscard()) return;
+        form.reset(); el('assetCategoryId').value = ''; el('assetCategoryVersion').value = '';
+        categoryGuard.markClean();
+    });
+    form.addEventListener('submit', async event => {
         event.preventDefault();
+        if (saving) return;
         const id = el('assetCategoryId').value;
         const body = { code: el('assetCategoryCode').value.trim(), name: el('assetCategoryName').value.trim(),
             isActive: el('assetCategoryActive').checked, rowVersion: el('assetCategoryVersion').value || null };
+        saving = true; form.inert = true;
         try {
             await api('/categories' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);
-            el('assetCategoryForm').reset(); el('assetCategoryId').value = ''; el('assetCategoryVersion').value = '';
-            await reload(); notice('Category saved.', true);
+            form.reset(); el('assetCategoryId').value = ''; el('assetCategoryVersion').value = '';
+            categoryGuard.markClean(); notice('Category saved.', true);
+            try { await reload(); } catch (_) { notice('Category saved; catalog refresh failed. Reload before editing.'); }
         } catch (error) { notice(error.message); }
+        finally { saving = false; form.inert = false; }
     });
 }
