@@ -3,7 +3,8 @@
 const root=document.getElementById('bonusWorkspace');if(!root)return;
 const el=id=>document.getElementById(id);
 const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value;
-const state={page:1,pages:1,requestId:null,requestKey:null,busy:false,employeeRequest:0,registerRequest:0};
+const state={page:1,pages:1,requestId:null,requestKey:null,busy:false,accessRevoked:false,
+ employeeRequest:0,registerRequest:0,selectedEmployee:'',acknowledgedCommand:null};
 const form=el('bonusCreate'),formGuard=globalThis.EduOSFormGuard?.create(form);
 const bn=(document.documentElement.lang||'').toLowerCase().startsWith('bn');
 const t=(en,bd)=>bn?bd:en;
@@ -18,23 +19,42 @@ async function api(url,method='GET',body){
  const response=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers,
    ...(body===undefined?{}:{body:JSON.stringify(body)})});
  const data=await response.json().catch(()=>null);
- if(!response.ok||!data?.success)throw Error(data?.message||'Bonus request failed.');
+ if(!response.ok||!data?.success){const error=Error(data?.message||'Bonus request failed.');
+  error.statusCode=response.status;throw error;}
  return data.data;
 }
+function handleError(error){
+ if([401,403].includes(error.statusCode)){
+  state.accessRevoked=true;++state.employeeRequest;++state.registerRequest;
+  el('bonusRows').replaceChildren();el('bonusEmployee').replaceChildren(option('',t('Access unavailable','অ্যাক্সেস নেই')));
+  form.reset();el('bonusEmployeeSearch').value='';el('bonusEmployee').disabled=true;
+  state.selectedEmployee='';state.requestId=null;state.requestKey=null;
+  formGuard?.markClean();root.inert=true;
+ }
+ notice(error.message,true);
+}
+function mayDiscard(){return !formGuard?.isDirty()||formGuard.confirmDiscard();}
 async function searchEmployees(){
- if(state.busy)return;
+ if(state.busy||state.accessRevoked||!mayDiscard())return;
  const term=el('bonusEmployeeSearch').value.trim();
  if(term.length<2||term.length>100){notice(t('Enter 2–100 characters to search.','খোঁজার জন্য ২–১০০ অক্ষর লিখুন।'),true);return;}
+ const draftBefore=JSON.stringify([el('bonusEmployee').value,el('bonusDate').value,
+  el('bonusAmount').value,el('bonusReason').value]);
  const request=++state.employeeRequest,select=el('bonusEmployee');
- select.disabled=true;select.replaceChildren(option('',t('Searching…','খোঁজা হচ্ছে…')));
+ el('bonusFind').disabled=true;
  try{
   const data=await api('/api/hr-payroll/employee-options?'+new URLSearchParams({search:term,page:'1',pageSize:'50'}));
-  if(request!==state.employeeRequest||term!==el('bonusEmployeeSearch').value.trim())return;
+  if(request!==state.employeeRequest||state.accessRevoked||term!==el('bonusEmployeeSearch').value.trim())return;
+  const draftNow=JSON.stringify([select.value,el('bonusDate').value,el('bonusAmount').value,el('bonusReason').value]);
+  if(draftNow!==draftBefore&&!mayDiscard())return;
+  form.reset();el('bonusDate').value=localDate();state.selectedEmployee='';
+  state.requestId=null;state.requestKey=null;formGuard?.markClean();
   select.replaceChildren(option('',t('Select employee','কর্মী নির্বাচন করুন')));
   for(const employee of data.items||[])select.append(option(employee.reference,employee.fullName+' ('+employee.employeeCode+')'));
   select.disabled=!data.items?.length;
   if(data.totalCount>50)notice(t('Showing 50 employees. Narrow the search.','৫০ জন কর্মী দেখানো হচ্ছে। আরও নির্দিষ্ট করে খুঁজুন।'));
- }catch(e){if(request===state.employeeRequest)notice(e.message,true);}
+ }catch(e){if(request===state.employeeRequest)handleError(e);}
+ finally{if(request===state.employeeRequest)el('bonusFind').disabled=false;}
 }
 function render(data){
  const body=el('bonusRows');body.replaceChildren();
@@ -49,6 +69,7 @@ function render(data){
  el('bonusPrev').disabled=state.page<=1;el('bonusNext').disabled=state.page>=state.pages;
 }
 async function load(){
+ if(state.accessRevoked)return false;
  const request=++state.registerRequest;
  const q=new URLSearchParams({page:String(state.page),pageSize:'20'});
  const year=el('bonusYear').value,month=el('bonusMonth').value;
@@ -61,9 +82,9 @@ async function load(){
  const scope=q.toString();
  try{
   const result=await api('/api/hr-payroll/bonuses?'+q);
-  if(request!==state.registerRequest||scope!==currentFilterScope())return false;
+  if(request!==state.registerRequest||scope!==currentFilterScope()||state.accessRevoked)return false;
   render(result);return true;
- }catch(e){if(request===state.registerRequest)notice(e.message,true);return false;}
+ }catch(e){if(request===state.registerRequest)handleError(e);return false;}
 }
 function currentFilterScope(){
  const q=new URLSearchParams({page:String(state.page),pageSize:'20'});
@@ -76,15 +97,28 @@ function currentFilterScope(){
  return q.toString();
 }
 el('bonusFind').addEventListener('click',searchEmployees);
+el('bonusEmployeeSearchForm').addEventListener('submit',e=>{e.preventDefault();searchEmployees();});
 el('bonusEmployeeSearch').addEventListener('input',()=>{
- ++state.employeeRequest;el('bonusEmployee').replaceChildren(option('',t('Search for an employee','কর্মী খুঁজুন')));
- el('bonusEmployee').disabled=true;
+ ++state.employeeRequest;el('bonusFind').disabled=false;
 });
-el('bonusFilter').addEventListener('submit',e=>{e.preventDefault();state.page=1;load();});
-el('bonusPrev').addEventListener('click',()=>{if(state.page>1){state.page--;load();}});
-el('bonusNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;load();}});
+el('bonusEmployee').addEventListener('change',()=>{
+ const next=el('bonusEmployee').value;
+ if(state.busy||state.accessRevoked)return;
+ if(state.selectedEmployee&&next!==state.selectedEmployee&&
+  (el('bonusAmount').value.trim()||el('bonusReason').value.trim())&&
+  !confirm(t('Changing employees will clear the amount and reason. Continue?',
+   'কর্মী পরিবর্তন করলে বোনাসের পরিমাণ ও কারণ মুছে যাবে। চালিয়ে যাবেন?'))){
+  el('bonusEmployee').value=state.selectedEmployee;return;
+ }
+ if(next!==state.selectedEmployee){el('bonusAmount').value='';el('bonusReason').value='';}
+ state.selectedEmployee=next;
+});
+el('bonusFilter').addEventListener('submit',e=>{e.preventDefault();if(state.busy||state.accessRevoked)return;
+ state.page=1;load();});
+el('bonusPrev').addEventListener('click',()=>{if(!state.busy&&!state.accessRevoked&&state.page>1){state.page--;load();}});
+el('bonusNext').addEventListener('click',()=>{if(!state.busy&&!state.accessRevoked&&state.page<state.pages){state.page++;load();}});
 el('bonusCreate').addEventListener('submit',async e=>{
- e.preventDefault();if(state.busy||!e.currentTarget.reportValidity())return;
+ e.preventDefault();if(state.busy||state.accessRevoked||!e.currentTarget.reportValidity())return;
  const employee=el('bonusEmployee').value,date=el('bonusDate').value,amountText=el('bonusAmount').value.trim();
  const amount=Number(amountText),reason=el('bonusReason').value.trim()||null;
  if(el('bonusEmployee').disabled||!employee||!/^\d{4}-\d{2}-\d{2}$/.test(date)||
@@ -93,22 +127,29 @@ el('bonusCreate').addEventListener('submit',async e=>{
  }
  const key=JSON.stringify([employee,date,amountText,reason]);
  if(state.requestKey!==key){state.requestKey=key;state.requestId=crypto.randomUUID();}
+ if(state.acknowledgedCommand===key){notice(t('This bonus was recorded. Clear draft to start another bonus, including an intentional identical entry.',
+  'এই বোনাস নথিভুক্ত হয়েছে। নতুন বোনাস দিতে ড্রাফট পরিষ্কার করুন।'),true);return;}
  if(!confirm(t('Record this bonus for a future payroll calculation? Existing payroll runs cannot be changed.','ভবিষ্যৎ বেতন হিসাবের জন্য এই বোনাস নথিভুক্ত করবেন? বিদ্যমান বেতন রান পরিবর্তন হবে না।')))return;
- ++state.employeeRequest;state.busy=true;el('bonusSave').disabled=true;form.inert=true;
+ ++state.employeeRequest;state.busy=true;el('bonusSave').disabled=true;form.inert=true;root.inert=true;
  try{
   await api('/api/hr-payroll/bonuses','POST',{clientRequestId:state.requestId,employeeReference:employee,
     bonusDate:date,amount,reason});
-  state.requestId=null;state.requestKey=null;el('bonusAmount').value='';el('bonusReason').value='';
+  state.acknowledgedCommand=key;state.requestId=null;state.requestKey=null;
+  el('bonusAmount').value='';el('bonusReason').value='';
   formGuard?.markClean();state.page=1;
   if(await load())notice(t('Bonus recorded. Generate payroll after all bonuses are entered.','বোনাস নথিভুক্ত হয়েছে। সব বোনাসের পরে বেতন হিসাব তৈরি করুন।'));
-  else notice(t('Bonus was recorded, but the register did not refresh. Reload before further changes.','বোনাস নথিভুক্ত হয়েছে, কিন্তু তালিকা হালনাগাদ হয়নি। পরের পরিবর্তনের আগে পৃষ্ঠা রিলোড করুন।'),true);
- }catch(error){notice(error.message+t(' Keep the form unchanged for a safe retry.','নিরাপদে আবার চেষ্টা করতে ফর্ম অপরিবর্তিত রাখুন।'),true);}
- finally{state.busy=false;el('bonusSave').disabled=false;form.inert=false;}
+  else if(!state.accessRevoked)notice(t('Bonus was recorded; register refresh unavailable. Reload to verify.','বোনাস নথিভুক্ত হয়েছে; তালিকা হালনাগাদ হয়নি। যাচাই করতে রিলোড করুন।'));
+  else notice(t('Bonus recorded; register access has expired. Sign in again.','বোনাস নথিভুক্ত হয়েছে; নিবন্ধনে প্রবেশাধিকার শেষ। আবার সাইন ইন করুন।'));
+ }catch(error){handleError(error);if(!state.accessRevoked)notice(error.message+
+  t(' Check the bonus register before retrying this exact draft.','একই ড্রাফট পুনরায় পাঠানোর আগে বোনাস তালিকা যাচাই করুন।'),true);}
+ finally{state.busy=false;el('bonusSave').disabled=false;form.inert=false;
+  if(!state.accessRevoked)root.inert=false;}
 });
 el('bonusClear').addEventListener('click',()=>{
- if(state.busy||formGuard&&!formGuard.confirmDiscard())return;
+ if(state.busy||state.accessRevoked||formGuard&&!formGuard.confirmDiscard())return;
  ++state.employeeRequest;form.reset();el('bonusEmployee').replaceChildren(option('',t('Search for an employee','কর্মী খুঁজুন')));
  el('bonusEmployee').disabled=true;el('bonusDate').value=localDate();
+ state.selectedEmployee='';state.acknowledgedCommand=null;
  state.requestId=null;state.requestKey=null;formGuard?.markClean();
 });
 const today=new Date();el('bonusYear').value=String(today.getFullYear());
