@@ -8,6 +8,10 @@
     const form=el('readmissionForm');
     const guard=window.EduOSFormGuard?.create(form);
     const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value||'';
+    const identity=[document.body?.dataset?.authTenantId||'',document.body?.dataset?.authSessionReference||''];
+    const sameSession=()=>identity[0]===(document.body?.dataset?.authTenantId||'')&&
+        identity[1]===(document.body?.dataset?.authSessionReference||'')&&
+        window.EduOSSessionTransitionPending?.()!==true;
     const guid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     function notice(message,success=false) {
         const box=el('readmissionAlert');
@@ -32,7 +36,7 @@
     }
     async function search(event) {
         event.preventDefault();
-        if(state.saving || (guard?.isDirty() && !guard.confirmDiscard()))return;
+        if(!sameSession()||state.saving || (guard?.isDirty() && !guard.confirmDiscard()))return;
         const query=val('readmissionQuery');
         if(query.length<2)return notice('Enter at least two characters.');
         reset();++state.optionsRequest;
@@ -40,7 +44,7 @@
         const box=el('readmissionMatches');box.textContent='Searching...';
         try {
             const data=await api('/api/students?'+new URLSearchParams({search:query,page:1,pageSize:20}));
-            if(request!==state.searchRequest)return;
+            if(request!==state.searchRequest||!sameSession())return;
             box.replaceChildren();
             if(!data?.items?.length){box.textContent='No matching students.';return;}
             for(const item of data.items) {
@@ -49,17 +53,18 @@
                 button.textContent=item.studentCode+' — '+item.fullName+' ('+item.status+')';
                 button.addEventListener('click',()=>load(item.reference));box.append(button);
             }
-        } catch(error){if(request===state.searchRequest){box.textContent='';notice(error.message);}}
+        } catch(error){if(request===state.searchRequest&&sameSession()){box.textContent='';notice(error.message);}}
     }
     async function load(reference) {
         if(!guid.test(reference))return notice('Invalid student reference.');
-        if(state.saving || (guard?.isDirty() && !guard.confirmDiscard()))return;
+        if(!sameSession()||state.saving || (guard?.isDirty() && !guard.confirmDiscard()))return;
         reset();
         const request=++state.optionsRequest;
         try {
             const options=await api('/api/students/'+encodeURIComponent(reference)+'/readmission/options');
-            if(request!==state.optionsRequest)return;
+            if(request!==state.optionsRequest||!sameSession())return;
             if(!options||!Array.isArray(options.targets))throw Error('Readmission options unavailable.');
+            if(options.studentReference!==reference)throw Error('Student reference mismatch. Reload and retry.');
             state.options=options;
             el('readmissionStudent').textContent=options.studentCode+' — '+options.previousStatus;
             const select=el('readmissionBatch');select.replaceChildren();
@@ -71,11 +76,11 @@
             el('readmissionRoll').value='';el('readmissionReason').value='';
             guard?.markClean();
             el('readmissionEditor').classList.remove('d-none');
-        } catch(error){if(request===state.optionsRequest)notice(error.message);}
+        } catch(error){if(request===state.optionsRequest&&sameSession())notice(error.message);}
     }
     async function submit(event) {
         event.preventDefault();
-        if(state.saving||!state.options)return;
+        if(!sameSession()||state.saving||!state.options)return;
         const batch=Number(val('readmissionBatch')),roll=val('readmissionRoll'),reason=val('readmissionReason');
         if(!state.options.targets.some(x=>x.academicBatchId===batch)||!roll||roll.length>50||
             !reason||reason.length>450)return notice('Select an eligible batch and enter roll and reason.');
@@ -93,9 +98,10 @@
         try {
             const result=await api('/api/students/'+encodeURIComponent(reference)+
                 '/readmission','POST',request);
+            if(!sameSession())return;
             notice(result?.alreadyProcessed?'Readmission already recorded.':'Student readmitted successfully.',true);
             reset();
-        } catch(error){notice(error.message+' Retry unchanged details with the same request ID.');}
+        } catch(error){if(sameSession())notice(error.message+' Retry unchanged details with the same request ID.');}
         finally{state.saving=false;form.inert=false;el('readmissionSubmit').disabled=false;}
     }
     el('readmissionSearch').addEventListener('submit',search);

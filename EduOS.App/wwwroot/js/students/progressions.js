@@ -2,7 +2,12 @@
     'use strict';
     const el = id => document.getElementById(id);
     const val = id => el(id)?.value?.trim() || '';
-    const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const identity = [document.body?.dataset?.authTenantId || '',
+        document.body?.dataset?.authSessionReference || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
     const state = {
         options: null, requestId: null, requestFingerprint: null, saving: false, reference: null,
         lookupPending: 0, selectionPending: 0, historyPending: 0,
@@ -60,6 +65,7 @@
 
     async function searchStudents(event) {
         event?.preventDefault();
+        if (!sameSession() || state.saving) return;
         const search = val('promotionSearch');
         if (search.length < 2 || search.length > 100) {
             status('promotionSearchStatus', 'Enter 2–100 characters.', true);
@@ -71,7 +77,7 @@
         try {
             const query = new URLSearchParams({ search, page: '1', pageSize: '20' });
             const data = await api('/api/students?' + query);
-            if (request !== state.lookupPending) return;
+            if (request !== state.lookupPending || !sameSession()) return;
             if (!Array.isArray(data?.items)) throw Error('Student search returned an invalid result.');
             for (const item of data.items) {
                 if (!guid.test(item.reference)) continue;
@@ -87,13 +93,13 @@
                 ? 'Select a student. Showing up to 20 matches; refine your search if needed.'
                 : 'No matching students found.');
         } catch (error) {
-            if (request === state.lookupPending)
+            if (request === state.lookupPending && sameSession())
                 status('promotionSearchStatus', error.message || 'Student search failed.', true);
         }
     }
 
     async function selectStudent(reference, internal = false) {
-        if (!guid.test(reference) || (state.saving && !internal)) return;
+        if (!sameSession() || !guid.test(reference) || (state.saving && !internal)) return;
         if (promotionGuard?.isDirty() && !internal && !promotionGuard.confirmDiscard()) return;
         el('promotionForm').reset();
         promotionGuard?.markClean();
@@ -112,7 +118,7 @@
         loadHistory(1);
         try {
             const student = await api('/api/students/' + encodeURIComponent(reference));
-            if (request !== state.selectionPending || reference !== state.reference) return;
+            if (request !== state.selectionPending || reference !== state.reference || !sameSession()) return;
             status('promotionSelectionStatus', [student.studentCode, student.fullName, student.status]
                 .filter(Boolean).join(' · '));
             if (student.status !== 'Active') {
@@ -122,8 +128,9 @@
             }
             try {
                 const data = await api('/api/students/' + encodeURIComponent(reference) + '/promotions/options');
-                if (request !== state.selectionPending || reference !== state.reference) return;
+                if (request !== state.selectionPending || reference !== state.reference || !sameSession()) return;
                 if (!data || !Array.isArray(data.targets)) throw Error('Promotion options unavailable.');
+                if (data.studentReference !== reference) throw Error('Student reference mismatch. Reload and retry.');
                 state.options = data;
                 el('promotionStudentSummary').textContent =
                     'Student: ' + (data.studentCode || '') + ' · Current enrollment #' + data.sourceEnrollmentId;
@@ -144,11 +151,11 @@
                 promotionGuard?.markClean();
                 el('promotionEditor').classList.remove('d-none');
             } catch (error) {
-                if (request === state.selectionPending)
+                if (request === state.selectionPending && sameSession())
                     status('promotionSelectionStatus', error.message || 'Promotion options unavailable.', true);
             }
         } catch (error) {
-            if (request === state.selectionPending)
+            if (request === state.selectionPending && sameSession())
                 status('promotionSelectionStatus', error.message || 'Student unavailable.', true);
         }
     }
@@ -192,19 +199,19 @@
 
     async function loadHistory(page) {
         const reference = state.reference;
-        if (!reference) return;
+        if (!reference || !sameSession()) return;
         const request = ++state.historyPending;
         status('promotionHistoryStatus', 'Loading progression history…');
         try {
             const query = new URLSearchParams({ page: String(page), pageSize: '20' });
             const data = await api('/api/students/' + encodeURIComponent(reference) +
                 '/promotions/history?' + query);
-            if (request !== state.historyPending || reference !== state.reference) return;
+            if (request !== state.historyPending || reference !== state.reference || !sameSession()) return;
             if (!data || !Array.isArray(data.items)) throw Error('History returned an invalid result.');
             renderHistory(data);
             status('promotionHistoryStatus', 'Rows show the original enrollment rolls and placement IDs.');
         } catch (error) {
-            if (request !== state.historyPending || reference !== state.reference) return;
+            if (request !== state.historyPending || reference !== state.reference || !sameSession()) return;
             el('promotionHistoryRows').replaceChildren();
             el('promotionHistoryPrevious').disabled = true;
             el('promotionHistoryNext').disabled = true;
@@ -214,7 +221,7 @@
 
     async function submitProgression(event) {
         event.preventDefault();
-        if (state.saving || !state.options || !state.reference) return;
+        if (!sameSession() || state.saving || !state.options || !state.reference) return;
         const selected = state.options.targets.find(x =>
             String(x.academicBatchId) === val('promotionTarget'));
         const roll = val('promotionRoll');
@@ -245,7 +252,7 @@
         try {
             const data = await api('/api/students/' + encodeURIComponent(reference) +
                 '/promotions', 'POST', request);
-            if (reference !== state.reference) return;
+            if (reference !== state.reference || !sameSession()) return;
             notice(data?.alreadyProcessed
                 ? 'Progression already recorded; no duplicate created.'
                 : 'Student progression recorded.', true);
@@ -257,7 +264,7 @@
             promotionGuard?.markClean();
             await selectStudent(reference, true);
         } catch (error) {
-            if (reference === state.reference)
+            if (reference === state.reference && sameSession())
                 notice(error.message || 'Progression failed. Retry with the same request.');
         } finally {
             state.saving = false;

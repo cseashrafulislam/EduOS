@@ -100,3 +100,67 @@ test('readmission keeps retry key for uncertain identical POST and rotates only 
         'changed command must get a different retry key');
     assert.equal(get('readmissionForm').inert, false);
 });
+
+test('promotion accepts actual 36-character student references, rejects stale tenant responses', async () => {
+    const elements = new Map();
+    const events = {};
+    const studentReference = '00000000-0000-4000-8000-000000000001';
+    const create = tag => ({ tagName: tag.toUpperCase(), value: '', children: [],
+        disabled: false, hidden: false, handlers: {}, dataset: {}, textContent: '',
+        classList: { add() { this.owner.hidden = true; }, remove() { this.owner.hidden = false; },
+            toggle(_className, enabled) { this.owner.hasError = !!enabled; } },
+        addEventListener(type, callback) { this.handlers[type] = callback; },
+        append(...values) { this.children.push(...values); },
+        replaceChildren(...values) { this.children = values; },
+        reset() {}, focus() {}
+    });
+    const get = id => {
+        if (!elements.has(id)) {
+            const element = create('div');
+            element.classList.owner = element;
+            elements.set(id, element);
+        }
+        return elements.get(id);
+    };
+    const document = {
+        body: { dataset: { authTenantId: '1', authSessionReference: 'session-one' } },
+        getElementById: get, createElement: tag => {
+            const element = create(tag); element.classList.owner = element; return element;
+        }, addEventListener: (type, handler) => { events[type] = handler; },
+        querySelector: () => ({ value: 'csrf' })
+    };
+    const calls = [];
+    let resolveOptions;
+    const fetch = async url => {
+        calls.push(String(url));
+        if (String(url).includes('/promotions/options')) return new Promise(resolve => { resolveOptions = resolve; });
+        let data;
+        if (String(url).includes('/promotions/history')) data = {
+            page: 1, totalPages: 1, totalCount: 0, items: [], hasPreviousPage: false, hasNextPage: false
+        };
+        else if (String(url).endsWith('/' + studentReference)) data = {
+            studentCode: 'S001', fullName: 'Student One', status: 'Active'
+        };
+        else throw Error('Unexpected request: ' + url);
+        return { ok: true, async json() { return { success: true, data }; } };
+    };
+    const window = { EduOSFormGuard: { create: () => ({
+        isDirty: () => false, confirmDiscard: () => true, markClean() {}
+    }) }, EduOSSessionTransitionPending: () => false };
+    vm.runInNewContext(read('EduOS.App/wwwroot/js/students/progressions.js'), {
+        window, document, fetch, crypto: { randomUUID: () => studentReference },
+        URLSearchParams, location: { search: '?studentReference=' + studentReference }
+    });
+    events.DOMContentLoaded();
+    for (let i = 0; i < 30; i++) await Promise.resolve();
+    assert.ok(calls.some(url => url.includes('/promotions/options')),
+        'a normal UUID must reach the authorized options endpoint');
+    document.body.dataset.authTenantId = '2';
+    resolveOptions({ ok: true, async json() { return { success: true, data: {
+        studentReference, studentCode: 'S001', sourceEnrollmentId: 1,
+        targets: [{ academicBatchId: 10, name: 'Year 2' }]
+    } }; } });
+    for (let i = 0; i < 30; i++) await Promise.resolve();
+    assert.equal(get('promotionEditor').hidden, true,
+        'old institution options must never open a new institution editor');
+});

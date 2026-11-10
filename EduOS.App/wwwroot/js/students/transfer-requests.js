@@ -10,6 +10,11 @@
     const transferGuard = window.EduOSFormGuard?.create(transferForm);
     const destinationForm = el('destinationEnrollmentForm');
     const destinationGuard = window.EduOSFormGuard?.create(destinationForm);
+    const identity = [document.body?.dataset?.authTenantId || '',
+        document.body?.dataset?.authSessionReference || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
     const value = id => el(id).value.trim();
     const guid = () => crypto.randomUUID();
     function notice(message, error = false) {
@@ -40,13 +45,13 @@
     const isOpen = state => [2, 3, 4].includes(Number(state)) ||
         ['Submitted', 'SourceApproved', 'DestinationAccepted'].includes(String(state));
     function refreshButtons() {
-        el('transferSubmit').disabled = state.busy || !state.eligibility ||
+        el('transferSubmit').disabled = !sameSession() || state.busy || !state.eligibility ||
             state.openRequest || !value('transferReason');
-        el('transferRefresh').disabled = state.busy || !state.reference;
+        el('transferRefresh').disabled = !sameSession() || state.busy || !state.reference;
     }
     async function search(event) {
         event.preventDefault();
-        if (state.busy) return;
+        if (state.busy || !sameSession()) return;
         const query = value('transferSearch');
         if (query.length < 2) return notice('Enter at least two characters.', true);
         const generation = ++state.searchGeneration;
@@ -54,7 +59,7 @@
         box.textContent = 'Searching...';
         try {
             const data = await api('/api/students?' + new URLSearchParams({ search: query, page: 1, pageSize: 20 }));
-            if (generation !== state.searchGeneration) return;
+            if (generation !== state.searchGeneration || !sameSession()) return;
             box.replaceChildren();
             if (!data?.items?.length) { box.textContent = 'No matching students.'; return; }
             for (const student of data.items) {
@@ -65,14 +70,14 @@
                 box.append(button);
             }
         } catch (error) {
-            if (generation !== state.searchGeneration) return;
+            if (generation !== state.searchGeneration || !sameSession()) return;
             box.textContent = ''; notice(error.message, true);
         }
     }
     async function selectStudent(reference, internal = false) {
-        if (state.busy && !internal) return;
+        if (!sameSession() || (state.busy && !internal)) return false;
         const changed = state.reference !== reference;
-        if (changed && transferGuard?.isDirty() && !transferGuard.confirmDiscard()) return;
+        if (changed && transferGuard?.isDirty() && !transferGuard.confirmDiscard()) return false;
         const generation = ++state.studentGeneration;
         if (changed) {
             transferForm.reset();
@@ -86,12 +91,16 @@
         try {
             const rows = await api('/api/student-transfer-requests/students/' +
                 encodeURIComponent(reference) + '/requests');
-            if (generation !== state.studentGeneration || state.reference !== reference) return;
+            if (generation !== state.studentGeneration || state.reference !== reference || !sameSession()) {
+                refreshButtons(); return false;
+            }
             renderHistory(rows || []);
             try {
                 const eligibility = await api('/api/student-transfer-requests/students/' +
                     encodeURIComponent(reference) + '/eligibility');
-                if (generation !== state.studentGeneration || state.reference !== reference) return;
+                if (generation !== state.studentGeneration || state.reference !== reference || !sameSession()) {
+                    refreshButtons(); return false;
+                }
                 if (eligibility.studentReference !== reference) throw new Error('Student reference mismatch.');
                 state.eligibility = eligibility;
                 el('transferSelected').classList.remove('d-none');
@@ -100,14 +109,17 @@
                     ' · Campus ID: ' + eligibility.campusId;
                 notice(state.openRequest ? 'Existing open transfer request. Review its status below.' :
                     'Student eligible to submit a transfer request.');
+                refreshButtons();
+                return true;
             } catch (error) {
-                if (generation === state.studentGeneration) notice(error.message, true);
+                if (generation === state.studentGeneration && sameSession()) notice(error.message, true);
             }
         } catch (error) {
-            if (generation !== state.studentGeneration) return;
+            if (generation !== state.studentGeneration || !sameSession()) return false;
             renderHistory([]); notice(error.message, true);
         }
         refreshButtons();
+        return false;
     }
     function renderHistory(items) {
         const body = el('transferHistory');
@@ -169,20 +181,26 @@
         }
     }
     async function completeTransfer(item) {
-        if (state.busy || !confirm('Complete only after the source final Transfer exit and TC have been issued. Continue?')) return;
+        if (!sameSession() || state.busy || !confirm('Complete only after the source final Transfer exit and TC have been issued. Continue?')) return;
         state.busy = true; refreshButtons();
+        let committed = false;
         try {
             await api('/api/student-transfer-requests/' + encodeURIComponent(item.reference) + '/complete', {
                 method: 'POST', body: JSON.stringify({ rowVersion: item.rowVersion })
             });
-            await selectStudent(state.reference);
-            notice('Transfer completed and its certificate linked.');
-        } catch (error) { notice(error.message, true); }
+            committed = true;
+            const refreshed = await selectStudent(state.reference, true);
+            if (sameSession()) notice(refreshed ? 'Transfer completed and its certificate linked.' :
+                'Transfer completed, but status refresh failed. Reload before taking another action.', !refreshed);
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Transfer completed, but status refresh failed. Reload to verify.' :
+                error.message, true);
+        }
         finally { state.busy = false; refreshButtons(); }
     }
     async function submit(event) {
         event.preventDefault();
-        if (state.busy || !state.eligibility || state.openRequest) return;
+        if (!sameSession() || state.busy || !state.eligibility || state.openRequest) return;
         const destination = value('transferDestination');
         if (destination && (!Number.isSafeInteger(Number(destination)) || Number(destination) <= 0))
             return notice('Destination tenant ID must be a positive integer.', true);
@@ -201,27 +219,38 @@
         payload.clientRequestId = state.requestId;
         state.busy = true; refreshButtons();
         transferForm.inert = true;
+        let committed = false;
         try {
             await api('/api/student-transfer-requests', { method: 'POST', body: JSON.stringify(payload) });
+            committed = true;
             state.requestId = null;
             state.requestFingerprint = null;
             transferForm.reset();
             transferGuard?.markClean();
-            await selectStudent(selected.studentReference, true);
-            notice('Transfer request submitted. Source approval is required.');
-        } catch (error) { notice(error.message, true); }
+            const refreshed = await selectStudent(selected.studentReference, true);
+            if (sameSession()) notice(refreshed ? 'Transfer request submitted. Source approval is required.' :
+                'Transfer request saved, but status refresh failed. Reload before submitting again.', !refreshed);
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Transfer request saved, but status refresh failed. Reload to verify.' :
+                error.message + ' If the result is uncertain, retry unchanged details with the same request ID.', true);
+        }
         finally { state.busy = false; transferForm.inert = false; refreshButtons(); }
     }
     async function review(item, approve) {
-        if (state.busy || !confirm((approve ? 'Approve' : 'Reject') +
+        if (!sameSession() || state.busy || !confirm((approve ? 'Approve' : 'Reject') +
             ' this source transfer request? This does not close enrollment.')) return;
         state.busy = true; refreshButtons();
+        let committed = false;
         try {
             await api('/api/student-transfer-requests/' + encodeURIComponent(item.reference) + '/review',
                 { method: 'POST', body: JSON.stringify({ approve, rowVersion: item.rowVersion }) });
-            await selectStudent(state.reference);
-            notice(approve ? 'Source approved. Destination acceptance is a separate workflow.' : 'Transfer request rejected.');
-        } catch (error) { notice(error.message, true); }
+            committed = true;
+            const refreshed = await selectStudent(state.reference, true);
+            if (sameSession()) notice(refreshed ? (approve ? 'Source approved. Destination acceptance is a separate workflow.' :
+                'Transfer request rejected.') : 'Review recorded, but status refresh failed. Reload to verify.', !refreshed);
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Review recorded, but status refresh failed. Reload to verify.' : error.message, true);
+        }
         finally { state.busy = false; refreshButtons(); }
     }
     el('transferSearchForm').addEventListener('submit', search);
@@ -236,7 +265,7 @@
     let destinationBusy = false;
     let destinationSelected = null;
     function selectDestinationEnrollment(item) {
-        if (destinationBusy) return;
+        if (destinationBusy || !sameSession()) return;
         if (destinationSelected?.reference === item.reference) {
             el('destinationStudentReference').focus();
             return;
@@ -253,7 +282,7 @@
     }
     async function linkDestinationEnrollment(event) {
         event.preventDefault();
-        if (destinationBusy || !destinationSelected) return;
+        if (!sameSession() || destinationBusy || !destinationSelected) return;
         const studentReference = value('destinationStudentReference');
         const enrollmentReference = value('destinationEnrollmentReference');
         if (!validGuid(studentReference) || !validGuid(enrollmentReference))
@@ -271,13 +300,16 @@
                     studentReference, enrollmentReference, rowVersion: destinationSelected.rowVersion
                 })
             });
+            if (!sameSession()) return;
             destinationSelected = null;
             destinationForm.reset();
             destinationGuard?.markClean();
             el('destinationEnrollmentForm').classList.add('d-none');
             linked = true;
             notice('Destination enrollment linked. The source institution can now issue its final transfer exit and complete the transfer.');
-        } catch (error) { notice(error.message, true); }
+        } catch (error) {
+            if (sameSession()) notice(error.message + ' If the result is uncertain, refresh the inbox before retrying.', true);
+        }
         finally {
             destinationBusy = false; destinationForm.inert = false;
             el('destinationEnrollmentSubmit').disabled = false;
@@ -295,6 +327,7 @@
         tbody.replaceChildren(row);
     }
     function renderDestination(items) {
+        if (!sameSession()) return;
         const tbody = el('destinationRows');
         tbody.replaceChildren();
         if (!items.length) return destinationMessage('No incoming source-approved transfers.');
@@ -345,7 +378,7 @@
         }
     }
     async function confirmDestinationEnrollment(item) {
-        if (destinationBusy || !confirm('Verify the linked student has an active current enrollment now? Confirmation expires after 10 minutes.')) return;
+        if (!sameSession() || destinationBusy || !confirm('Verify the linked student has an active current enrollment now? Confirmation expires after 10 minutes.')) return;
         destinationBusy = true;
         ++state.destinationGeneration;
         el('destinationRefresh').disabled = true;
@@ -354,8 +387,10 @@
                 encodeURIComponent(item.reference) + '/confirm-enrollment', {
                 method: 'POST', body: JSON.stringify({ rowVersion: item.rowVersion })
             });
-            notice('Destination enrollment confirmed for 10 minutes. Source may now finalize after exit and TC.');
-        } catch (error) { notice(error.message, true); }
+            if (sameSession()) notice('Destination enrollment confirmed for 10 minutes. Source may now finalize after exit and TC.');
+        } catch (error) {
+            if (sameSession()) notice(error.message + ' Refresh the inbox before retrying an uncertain confirmation.', true);
+        }
         finally {
             destinationBusy = false;
             el('destinationRefresh').disabled = false;
@@ -363,21 +398,21 @@
         }
     }
     async function refreshDestination() {
-        if (destinationBusy) return;
+        if (destinationBusy || !sameSession()) return;
         const generation = ++state.destinationGeneration;
         el('destinationRefresh').disabled = true;
         try {
             const items = await api('/api/student-transfer-requests/destination/inbox');
-            if (generation !== state.destinationGeneration) return;
+            if (generation !== state.destinationGeneration || !sameSession()) return;
             renderDestination(Array.isArray(items) ? items : []);
         } catch (error) {
-            if (generation === state.destinationGeneration) destinationMessage(error.message);
+            if (generation === state.destinationGeneration && sameSession()) destinationMessage(error.message);
         } finally {
             if (generation === state.destinationGeneration) el('destinationRefresh').disabled = false;
         }
     }
     async function decideDestination(item, accept) {
-        if (destinationBusy || !confirm((accept ? 'Accept' : 'Reject') +
+        if (!sameSession() || destinationBusy || !confirm((accept ? 'Accept' : 'Reject') +
             ' the incoming transfer from institution #' + item.sourceTenantId +
             '? This does not create an enrollment or transfer personal records.')) return;
         destinationBusy = true;
@@ -389,9 +424,11 @@
                 method: 'POST',
                 body: JSON.stringify({ accept, rowVersion: item.rowVersion })
             });
-            notice(accept ? 'Destination handoff accepted. Enrollment and completion are separate steps.' :
+            if (sameSession()) notice(accept ? 'Destination handoff accepted. Enrollment and completion are separate steps.' :
                 'Incoming handoff rejected.');
-        } catch (error) { notice(error.message, true); }
+        } catch (error) {
+            if (sameSession()) notice(error.message + ' Refresh the inbox before retrying an uncertain decision.', true);
+        }
         finally {
             destinationBusy = false;
             el('destinationRefresh').disabled = false;
