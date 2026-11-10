@@ -22,6 +22,12 @@
     </div></div>
     <div class="card mb-3"><div class="card-body">
         <h3 class="h5">Employee annual entitlement</h3>
+        <form id="leaveEntitlementEmployeeSearchForm" class="row g-2 align-items-end mb-2">
+            <div class="col-9 col-md-7"><label for="leaveEntitlementEmployeeSearch" class="form-label">Find employee / কর্মী খুঁজুন</label>
+                <input id="leaveEntitlementEmployeeSearch" class="form-control" minlength="2" maxlength="100" autocomplete="off" placeholder="Employee code or name / নাম বা কোড" required /></div>
+            <div class="col-3 col-md-2"><button type="submit" id="leaveEntitlementEmployeeFind" class="btn btn-outline-secondary w-100">Find / খুঁজুন</button></div>
+            <p id="leaveEntitlementEmployeeSearchStatus" role="status" class="col-12 small text-muted mb-0" aria-live="polite"></p>
+        </form>
         <form id="leaveEntitlementEmployeeForm" class="row g-2 align-items-end mb-3">
             <div class="col-md-7"><label for="leaveEntitlementEmployee" class="form-label">Employee</label><select id="leaveEntitlementEmployee" class="form-select" required><option value="">Choose employee</option></select></div>
             <div class="col-md-3"><label for="leaveEntitlementYear" class="form-label">Year</label><input id="leaveEntitlementYear" class="form-control" type="number" min="2000" max="9999" required /></div>
@@ -52,5 +58,6 @@
     </div></div>
 </section>
 @section Scripts {
+    <script src="~/js/platform/form-guard.js" asp-append-version="true"></script>
     <script src="~/js/hr/leave-entitlements.js" asp-append-version="true"></script>
 }
