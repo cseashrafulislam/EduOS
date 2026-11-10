@@ -16,11 +16,12 @@
         @if (canCreate)
         {
             <form id="countStartForm" class="border rounded p-2 mb-3">
+                <input type="hidden" id="countSelectedState" value="" />
                 <h4 class="h6">@(bn ? "নতুন গণনা খুলুন" : "Open a new count")</h4>
                 <div class="row g-2">
                     <div class="col-md-3"><label class="form-label" for="countLocation">@(bn ? "স্টোর" : "Store")</label><select class="form-select" id="countLocation" required></select></div>
                     <div class="col-md-3"><label class="form-label" for="countItemSearch">@(bn ? "পণ্য খুঁজুন" : "Search item")</label><input class="form-control" id="countItemSearch" maxlength="100" autocomplete="off" /></div>
-                    <div class="col-md-3"><label class="form-label" for="countItem">@(bn ? "পণ্য" : "Item")</label><select class="form-select" id="countItem" required></select></div>
+                    <div class="col-md-3"><label class="form-label" for="countItem">@(bn ? "পণ্য" : "Item")</label><select class="form-select" id="countItem"></select></div>
                     <div class="col-md-3"><label class="form-label" for="countLot">@(bn ? "লট / ব্যাচ" : "Lot / batch")</label><input class="form-control" id="countLot" maxlength="100" autocomplete="off" /></div>
                     <div class="col-12"><button class="btn btn-outline-primary btn-sm" type="button" id="countAddLine">@(bn ? "পণ্য যুক্ত" : "Add item/lot")</button></div>
                     <div class="col-12"><ul id="countSelectedLines" class="list-group small" aria-live="polite"></ul></div>

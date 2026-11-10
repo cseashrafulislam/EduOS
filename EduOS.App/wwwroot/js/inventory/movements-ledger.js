@@ -1,8 +1,10 @@
 import { el, api, notice, td } from './movements-api.js';
+import { commandKey, refreshAfterCommit } from './movements-form-safety.js';
 
 export function initLedger() {
-    let page = 1, last = 1, releaseTarget = null, fulfilTarget = null, fulfilRequestId = null;
-    const pendingReversals = new Map(), pendingReceipts = new Map();
+    let page = 1, last = 1, releaseTarget = null, fulfilTarget = null, releasing = false, fulfilling = false;
+    const pendingReversals = new Map(), pendingReceipts = new Map(), receiving = new Set();
+    const fulfilKeys = commandKey();
     const bn = document.documentElement.lang?.toLowerCase().startsWith('bn');
     const releaseDialog = el('inventoryReleaseDialog');
     const releaseForm = el('inventoryReleaseForm');
@@ -11,16 +13,30 @@ export function initLedger() {
     const fulfilForm = el('inventoryFulfilForm');
     const fulfilRows = el('inventoryFulfilLines');
     const fulfilSubmit = el('inventoryFulfilSubmit');
+    const releaseGuard = releaseForm && window.EduOSFormGuard?.create(releaseForm);
+    const fulfilGuard = fulfilForm && window.EduOSFormGuard?.create(fulfilForm);
+    const receiveForm = el('transferReceiveForm');
+    const receiveGuard = receiveForm && window.EduOSFormGuard?.create(receiveForm);
 
-    el('inventoryFulfilCancel')?.addEventListener('click', () => fulfilDialog.close());
+    function allowDialogClose(guard, busy) {
+        if (busy) return false;
+        return !guard || guard.confirmDiscard();
+    }
+
+    el('inventoryFulfilCancel')?.addEventListener('click', () => {
+        if (allowDialogClose(fulfilGuard, fulfilling)) fulfilDialog.close();
+    });
+    fulfilDialog?.addEventListener('cancel', event => {
+        if (!allowDialogClose(fulfilGuard, fulfilling)) event.preventDefault();
+    });
     fulfilDialog?.addEventListener('close', () => {
         fulfilTarget = null;
-        fulfilRequestId = null;
         fulfilRows.replaceChildren();
+        fulfilGuard?.markClean();
     });
     fulfilForm?.addEventListener('submit', async event => {
         event.preventDefault();
-        if (!fulfilTarget || !fulfilForm.reportValidity()) return;
+        if (fulfilling || !fulfilTarget || !fulfilForm.reportValidity()) return;
         const lines = [];
         for (const input of fulfilRows.querySelectorAll('input[data-line-no]')) {
             const quantity = Number(input.value);
@@ -31,21 +47,19 @@ export function initLedger() {
             if (quantity > 0) lines.push({ lineNo: Number(input.dataset.lineNo), quantity });
         }
         if (!lines.length) return notice(bn ? 'অন্তত একটি পরিমাণ দিন।' : 'Enter at least one quantity.');
-        fulfilSubmit.disabled = true;
+        const target = fulfilTarget, action = target.transfer ? 'fulfill-transfer' : 'fulfill-issue';
+        const body = { rowVersion: target.rowVersion, lines };
+        fulfilling = true; fulfilForm.inert = true;
         try {
-            await api('movements/' + fulfilTarget.reference +
-                (fulfilTarget.transfer ? '/fulfill-transfer' : '/fulfill-issue'), 'POST', {
-                clientRequestId: fulfilRequestId,
-                rowVersion: fulfilTarget.rowVersion,
-                lines
-            });
+            await api('movements/' + target.reference + '/' + action, 'POST',
+                { clientRequestId: fulfilKeys.for(target.reference + '/' + action, body), ...body });
+            fulfilKeys.clear(); fulfilGuard?.markClean();
             fulfilDialog.close();
-            notice(fulfilTarget.transfer
+            await refreshAfterCommit(load, target.transfer
                 ? (bn ? 'আংশিক ট্রান্সফার ডিসপ্যাচ হয়েছে।' : 'Partial transfer dispatched; destination receipt required.')
-                : (bn ? 'আংশিক ইস্যু পোস্ট হয়েছে।' : 'Reserved issue fulfilment posted.'), true);
-            await load();
+                : (bn ? 'আংশিক ইস্যু পোস্ট হয়েছে।' : 'Reserved issue fulfilment posted.'), notice);
         } catch (error) { notice(error.message); }
-        finally { fulfilSubmit.disabled = false; }
+        finally { fulfilling = false; fulfilForm.inert = false; }
     });
     function openFulfil(row) {
         const remaining = (row.lines || []).filter(line => line.quantity > (line.fulfilledQuantity || 0));
@@ -58,7 +72,6 @@ export function initLedger() {
         fulfilSubmit.textContent = fulfilTarget.transfer
             ? (bn ? 'ডিসপ্যাচ পোস্ট' : 'Post dispatch')
             : (bn ? 'ইস্যু পোস্ট' : 'Post issue');
-        fulfilRequestId = crypto.randomUUID();
         fulfilRows.replaceChildren();
         for (const line of remaining) {
             const wrapper = document.createElement('div');
@@ -82,33 +95,39 @@ export function initLedger() {
             wrapper.append(label, input);
             fulfilRows.append(wrapper);
         }
+        fulfilGuard?.markClean();
         fulfilDialog.showModal();
         fulfilRows.querySelector('input')?.focus();
     }
 
-    el('inventoryReleaseCancel')?.addEventListener('click', () => releaseDialog.close());
+    el('inventoryReleaseCancel')?.addEventListener('click', () => {
+        if (allowDialogClose(releaseGuard, releasing)) releaseDialog.close();
+    });
+    releaseDialog?.addEventListener('cancel', event => {
+        if (!allowDialogClose(releaseGuard, releasing)) event.preventDefault();
+    });
     releaseDialog?.addEventListener('close', () => {
         releaseTarget = null;
         if (releaseForm) releaseForm.reset();
+        releaseGuard?.markClean();
     });
     releaseForm?.addEventListener('submit', async event => {
         event.preventDefault();
-        if (!releaseTarget || !releaseForm.reportValidity()) return;
+        if (releasing || !releaseTarget || !releaseForm.reportValidity()) return;
         const target = releaseTarget;
-        releaseSubmit.disabled = true;
+        releasing = true; releaseForm.inert = true;
         try {
             await api('movements/' + target.reference + '/release', 'POST', {
                 rowVersion: target.rowVersion,
                 reason: el('inventoryReleaseReason').value.trim()
             });
-            releaseDialog.close();
-            notice(bn ? 'রিজার্ভেশন বাতিল হয়েছে।' : 'Reservation released.', true);
-            await load();
+            releaseGuard?.markClean(); releaseDialog.close();
+            await refreshAfterCommit(load, bn ? 'রিজার্ভেশন বাতিল হয়েছে।' : 'Reservation released.', notice);
         } catch (error) { notice(error.message); }
-        finally { releaseSubmit.disabled = false; }
+        finally { releasing = false; releaseForm.inert = false; }
     });
 
-    async function receive(reference) {
+    async function receive(reference, fromManual = false) {
         if (/^IM-[0-9a-f]{32}$/i.test(reference)) {
             const hex = reference.slice(3);
             reference = [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16),
@@ -116,19 +135,26 @@ export function initLedger() {
         }
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reference))
             return notice(bn ? 'সঠিক ডিসপ্যাচ রেফারেন্স দিন।' : 'Enter a valid dispatch reference.');
+        reference = reference.toLowerCase();
+        if (receiving.has(reference)) return;
         if (!pendingReceipts.has(reference)) pendingReceipts.set(reference, crypto.randomUUID());
+        receiving.add(reference);
+        if (receiveForm) receiveForm.inert = true;
         try {
             await api('movements/transfers/' + reference + '/receive', 'POST',
                 { clientRequestId: pendingReceipts.get(reference) });
             pendingReceipts.delete(reference);
-            notice(bn ? 'স্টক গ্রহণ সম্পন্ন।' : 'Transfer stock received.', true);
-            await load();
+            if (fromManual && receiveForm) {
+                receiveForm.reset(); receiveGuard?.markClean();
+            }
+            await refreshAfterCommit(load, bn ? 'স্টক গ্রহণ সম্পন্ন।' : 'Transfer stock received.', notice);
         } catch (e) { notice(e.message); }
+        finally { receiving.delete(reference); if (receiveForm) receiveForm.inert = false; }
     }
 
     el('transferReceiveForm')?.addEventListener('submit', event => {
         event.preventDefault();
-        receive(el('transferDispatchReference').value.trim());
+        receive(el('transferDispatchReference').value.trim(), true);
     });
 
     async function load() {
@@ -204,12 +230,11 @@ export function initLedger() {
                         const reason = prompt(bn ? 'রিভার্সের কারণ (কমপক্ষে ১০ অক্ষর):' :
                             'Reason for compensating reversal (at least 10 characters):');
                         if (!reason) return;
-                        if (!pendingReversals.has(row.reference)) pendingReversals.set(row.reference, crypto.randomUUID());
+                        if (!pendingReversals.has(row.reference)) pendingReversals.set(row.reference, commandKey());
                         try {
-                            await api('movements/' + row.reference + '/reverse', 'POST', {
-                                clientRequestId: pendingReversals.get(row.reference),
-                                rowVersion: row.rowVersion, reason
-                            });
+                            const body = { rowVersion: row.rowVersion, reason };
+                            await api('movements/' + row.reference + '/reverse', 'POST',
+                                { clientRequestId: pendingReversals.get(row.reference).for(row.reference + '/reverse', body), ...body });
                             pendingReversals.delete(row.reference);
                             notice(bn ? 'রিভার্স সম্পন্ন।' : 'Compensating reversal posted.', true);
                             await load();

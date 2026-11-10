@@ -8,8 +8,10 @@ const view = fs.readFileSync(path.join(root, 'Views/InventoryMovements/_Adjustme
 const ledger = fs.readFileSync(path.join(root, 'wwwroot/js/inventory/movements-ledger.js'), 'utf8');
 test('stock adjustments use dedicated CSRF-protected API and independent approval', () => {
     assert.match(script, /api\('movements\/adjustments', 'POST'/);
-    assert.match(script, /clientRequestId: requestId/);
-    assert.match(script, /requestId = crypto\.randomUUID\(\)/);
+    assert.match(script, /clientRequestId: keys\.for\('adjustment', body\)/);
+    assert.match(script, /keys\.clear\(\); form\.reset\(\)/);
+    assert.match(script, /if \(saving\) return/);
+    assert.match(script, /form\.inert = true/);
     assert.match(ledger, /row\.sourceType === 'ManualAdjustment'/);
     assert.match(ledger, /row\.createdByUserId/);
 });

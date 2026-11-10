@@ -6,6 +6,7 @@
 <div class="card mb-3"><div class="card-body">
     <h3 class="h5">Create stock movement draft</h3>
     <form id="movementForm" class="row g-2">
+        <input type="hidden" id="movementDraftState" value="" />
         <div class="col-md-2"><label for="movementType" class="form-label">Movement</label><select id="movementType" class="form-select"><option value="Receipt">Receipt</option><option value="Issue">Issue</option><option value="Transfer">Instant transfer</option><option value="TransferDispatch">Transfer dispatch (in transit)</option>@if (facilityModuleEnabled) { <option value="FacilityWorkOrder">@(bn ? "রক্ষণাবেক্ষণ যন্ত্রাংশ ইস্যু" : "Work-order parts issue")</option> }</select></div>
         <div class="col-md-3 d-none" id="movementFacilityGroup"><label for="movementFacilityRequest" class="form-label">@(bn ? "অনুমোদিত সার্ভিস অনুরোধ আইডি" : "Approved service request ID")</label><input id="movementFacilityRequest" class="form-control" type="number" min="1" step="1" /></div>
         <div class="col-md-3"><label for="movementFrom" class="form-label">From location</label><select id="movementFrom" class="form-select"></select></div>

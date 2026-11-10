@@ -1,5 +1,5 @@
 import { el, notice, td } from './movements-api.js';
-export function createLineEditor() {
+export function createLineEditor(onChange = () => {}) {
     const lines = [];
     function render() {
         const body = el('movementDraftLines'); body.replaceChildren();
@@ -8,7 +8,7 @@ export function createLineEditor() {
             [line.label, line.lotOrBatchNo, line.quantity, line.unitCost].forEach(x => tr.append(td(x)));
             const action = td(''), button = document.createElement('button');
             button.type = 'button'; button.className = 'btn btn-outline-danger btn-sm'; button.textContent = 'Remove';
-            button.addEventListener('click', () => { lines.splice(i, 1); render(); });
+            button.addEventListener('click', () => { lines.splice(i, 1); render(); onChange(lines); });
             action.append(button); tr.append(action); body.append(tr);
         });
     }
@@ -19,7 +19,7 @@ export function createLineEditor() {
             !/^\d{1,8}(\.\d{1,4})?$/.test(cost)) return notice('Select an item and valid quantity/cost.');
         lines.push({ inventoryItemId: Number(item.value), label: item.selectedOptions[0].textContent,
             quantity: Number(quantity), unitCost: Number(cost), lotOrBatchNo: el('movementLot').value.trim() });
-        render();
+        render(); onChange(lines);
     });
-    return { lines, clear: () => { lines.length = 0; render(); } };
+    return { lines, clear: () => { lines.length = 0; render(); onChange(lines); } };
 }

@@ -1,4 +1,5 @@
 import { api, el, td, fill, catalogs, activeLocations, notice, root } from './movements-api.js';
+import { commandKey, refreshAfterCommit } from './movements-form-safety.js';
 
 export const validQuantity = value => /^\d{1,12}(?:\.\d{1,6})?$/.test(String(value)) &&
     Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 999999999999;
@@ -47,8 +48,11 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
     const canCreate = root.dataset.create === 'true';
     const canReview = root.dataset.post === 'true';
     const currentUserId = Number(root.dataset.userId);
-    let page = 1, last = 1, selected = null, loadSequence = 0;
-    let startRequestId = crypto.randomUUID(), submitRequestId = crypto.randomUUID(), reviewRequestId = crypto.randomUUID();
+    let page = 1, last = 1, selected = null, loadSequence = 0, detailSequence = 0, reviewing = false;
+    const startKeys = commandKey(), submitKeys = commandKey(), reviewKeys = commandKey();
+    const startForm = el('countStartForm'), submitForm = el('countSubmitForm'), reviewForm = el('countReviewForm');
+    const submitGuard = submitForm && window.EduOSFormGuard?.create(submitForm);
+    const reviewGuard = reviewForm && window.EduOSFormGuard?.create(reviewForm);
     const items = [], locationNames = new Map();
     const locations = await activeLocations();
     locations.forEach(location => locationNames.set(location.id, location.code + ' — ' + location.name));
@@ -83,7 +87,7 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
             const row = make('tr'), cell = td(bn ? 'কোনো গণনা নেই।' : 'No counts found.');
             cell.colSpan = 5; row.append(cell); tbody.append(row);
         }
-        if (preferredReference) await show(preferredReference);
+        if (preferredReference) await show(preferredReference, true);
         else if (selected) {
             const inPage = result.items.some(count => count.reference === selected.reference);
             if (inPage) await show(selected.reference);
@@ -121,8 +125,19 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
         }
     }
 
-    async function show(reference) {
+    async function show(reference, afterCommit = false) {
+        if (!afterCommit && selected) {
+            if (submitForm?.inert || reviewForm?.inert) return;
+            const relevant = [submitForm?.classList.contains('d-none') ? null : submitGuard,
+                reviewForm?.classList.contains('d-none') ? null : reviewGuard].filter(Boolean);
+            if (relevant.some(guard => guard.isDirty()) && !relevant.every(guard => guard.confirmDiscard())) return;
+        }
+        const generation = ++detailSequence;
         const count = await api('movements/counts/' + reference);
+        if (generation !== detailSequence) return;
+        if (!afterCommit && selected && (submitForm?.inert || reviewForm?.inert ||
+            (submitForm && !submitForm.classList.contains('d-none') && submitGuard?.isDirty()) ||
+            (reviewForm && !reviewForm.classList.contains('d-none') && reviewGuard?.isDirty()))) return;
         selected = count;
         el('countDetail').classList.remove('d-none');
         el('countDetailHeading').textContent = count.stateCode + ' · ' + count.reference;
@@ -158,6 +173,7 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
                 !canReview || count.createdByUserId === currentUserId);
             if (reviewer && count.stateCode === 'Submitted') reviewFields(count);
         }
+        submitGuard?.markClean(); reviewGuard?.markClean();
     }
 
     el('countExportCsv').addEventListener('click', () => { if (selected) exportCountCsv(selected); });
@@ -177,18 +193,23 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
         fill(el('countLocation'), locations, bn ? 'স্টোর বাছুন' : 'Select store');
         const first = await catalogs('', locations);
         fill(el('countItem'), first.items, bn ? 'পণ্য বাছুন' : 'Select item');
-        let debounce;
+        const startGuard = window.EduOSFormGuard?.create(startForm);
+        let debounce, searchSequence = 0, starting = false, submitting = false;
         el('countItemSearch').addEventListener('input', () => {
+            const generation = ++searchSequence;
             clearTimeout(debounce);
             debounce = setTimeout(async () => {
                 try {
                     const found = await catalogs(el('countItemSearch').value.trim(), locations);
+                    if (generation !== searchSequence) return;
                     fill(el('countItem'), found.items, bn ? 'পণ্য বাছুন' : 'Select item');
-                } catch (error) { notice(error.message); }
+                } catch (error) { if (generation === searchSequence) notice(error.message); }
             }, 350);
         });
         function drawItems() {
             const list = el('countSelectedLines'); list.replaceChildren();
+            el('countSelectedState').value = JSON.stringify(items.map(({ inventoryItemId, lotOrBatchNo }) =>
+                ({ inventoryItemId, lotOrBatchNo })));
             items.forEach((item, index) => {
                 const li = make('li', 'list-group-item d-flex justify-content-between align-items-center',
                     `${item.inventoryItemId} · ${item.label} / ${item.lotOrBatchNo || '—'}`);
@@ -208,48 +229,66 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
         });
         el('countStartForm').addEventListener('submit', async event => {
             event.preventDefault();
+            if (starting) return;
             if (!items.length) { notice(bn ? 'আগে অন্তত একটি পণ্য যুক্ত করুন।' : 'Add at least one item.'); return; }
             if (!el('countStartForm').reportValidity()) return;
-            const button = el('countStart'); button.disabled = true;
+            const body = { locationId: Number(el('countLocation').value),
+                blind: el('countBlind').checked, reason: el('countStartReason').value.trim(),
+                lines: items.map(x => ({ inventoryItemId: x.inventoryItemId, lotOrBatchNo: x.lotOrBatchNo })) };
+            starting = true; startForm.inert = true;
             try {
-                const count = await api('movements/counts', 'POST', {
-                    clientRequestId: startRequestId, locationId: Number(el('countLocation').value),
-                    blind: el('countBlind').checked, reason: el('countStartReason').value.trim(),
-                    lines: items.map(x => ({ inventoryItemId: x.inventoryItemId, lotOrBatchNo: x.lotOrBatchNo }))
-                });
-                startRequestId = crypto.randomUUID(); submitRequestId = crypto.randomUUID();
+                const count = await api('movements/counts', 'POST',
+                    { clientRequestId: startKeys.for('count/start', body), ...body });
+                startKeys.clear(); submitKeys.clear();
                 items.length = 0; drawItems(); el('countStartReason').value = '';
                 el('countLocationFilter').value = ''; el('countStateFilter').value = ''; page = 1;
-                notice(bn ? 'গণনা খোলা হয়েছে।' : 'Count opened.', true);
-                await load(count.reference);
+                startGuard?.markClean();
+                await refreshAfterCommit(() => load(count.reference), bn ? 'গণনা খোলা হয়েছে।' : 'Count opened.', notice);
             } catch (error) { notice(error.message); }
-            finally { button.disabled = false; }
+            finally { starting = false; startForm.inert = false; }
         });
         el('countSubmitForm').addEventListener('submit', async event => {
-            event.preventDefault(); if (!selected || selected.stateCode !== 'Draft') return;
+            event.preventDefault(); if (submitting || !selected || selected.stateCode !== 'Draft') return;
             const measured = [...el('countDraftLines').querySelectorAll('[data-count-measured-line]')];
             if (!measured.every(x => validQuantity(x.value.trim()))) {
                 notice(bn ? 'সব লাইনে ০ সহ বৈধ পরিমাণ দিন।' : 'Enter an explicit valid quantity on every line, including zero.'); return;
             }
-            const button = el('countSubmit'); button.disabled = true;
+            const reference = selected.reference;
+            const body = { rowVersion: selected.rowVersion,
+                lines: measured.map(x => ({ lineNo: Number(x.dataset.countMeasuredLine), countedQuantity: Number(x.value) })) };
+            submitting = true; submitForm.inert = true;
             try {
-                const count = await api('movements/counts/' + selected.reference + '/submit', 'POST', {
-                    clientRequestId: submitRequestId, rowVersion: selected.rowVersion,
-                    lines: measured.map(x => ({ lineNo: Number(x.dataset.countMeasuredLine), countedQuantity: Number(x.value) }))
-                });
-                submitRequestId = crypto.randomUUID(); reviewRequestId = crypto.randomUUID();
-                notice(bn ? 'গণনা অনুমোদনের জন্য জমা হয়েছে।' : 'Count submitted for approval.', true);
-                await load(count.reference);
+                const count = await api('movements/counts/' + reference + '/submit', 'POST',
+                    { clientRequestId: submitKeys.for(reference + '/submit', body), ...body });
+                submitKeys.clear(); reviewKeys.clear(); submitGuard?.markClean();
+                await refreshAfterCommit(() => load(count.reference),
+                    bn ? 'গণনা অনুমোদনের জন্য জমা হয়েছে।' : 'Count submitted for approval.', notice);
             } catch (error) { notice(error.message); }
-            finally { button.disabled = false; }
+            finally { submitting = false; submitForm.inert = false; }
         });
     }
 
     if (canReview && el('countReviewForm')) {
-        el('countVarianceMode').addEventListener('change', () => { if (selected) reviewFields(selected); });
-        el('countDecision').addEventListener('change', () => { if (selected) reviewFields(selected); });
+        let previousMode = el('countVarianceMode').value, previousDecision = el('countDecision').value;
+        function reviewOptionsChanged(event) {
+            if (reviewing) { event.target.value = event.target.id === 'countDecision' ? previousDecision : previousMode; return; }
+            const enteredCorrection = [...el('countCorrections').querySelectorAll('input')].some(input =>
+                input.value.trim() && input.value.trim() !== '0');
+            if (enteredCorrection && !window.confirm(bn ?
+                'পার্থক্য নীতি পাল্টালে সংশোধিত লাইনের তথ্য মুছে যাবে। চালিয়ে যাবেন?' :
+                'Changing the decision or variance policy discards entered corrections. Continue?')) {
+                event.target.value = event.target.id === 'countDecision' ? previousDecision : previousMode;
+                return;
+            }
+            previousMode = el('countVarianceMode').value;
+            previousDecision = el('countDecision').value;
+            if (selected) reviewFields(selected);
+        }
+        el('countVarianceMode').addEventListener('change', reviewOptionsChanged);
+        el('countDecision').addEventListener('change', reviewOptionsChanged);
         el('countReviewForm').addEventListener('submit', async event => {
-            event.preventDefault(); if (!selected || selected.stateCode !== 'Submitted') return;
+            event.preventDefault();
+            if (reviewing || !selected || selected.stateCode !== 'Submitted' || !reviewForm.reportValidity()) return;
             const mode = el('countVarianceMode').value, decision = el('countDecision').value;
             const corrections = [];
             if (decision === 'Approve') {
@@ -269,18 +308,19 @@ export async function initPhysicalCounts(refreshLedger = () => {}) {
                             receiptUnitCost: costRaw ? Number(costRaw) : null, reason });
                 }
             }
-            const button = el('countReviewSubmit'); button.disabled = true;
+            const reference = selected.reference;
+            const body = { rowVersion: selected.rowVersion, decision, varianceMode: mode,
+                reason: el('countReviewReason').value.trim(), corrections };
+            reviewing = true; reviewForm.inert = true;
             try {
-                const count = await api('movements/counts/' + selected.reference + '/review', 'POST', {
-                    clientRequestId: reviewRequestId, rowVersion: selected.rowVersion,
-                    decision, varianceMode: mode, reason: el('countReviewReason').value.trim(), corrections
-                });
-                reviewRequestId = crypto.randomUUID(); el('countReviewReason').value = '';
-                notice(decision === 'Approve' ? (bn ? 'পার্থক্য স্টক লেজারে পোস্ট হয়েছে।' : 'Variance posted to the stock ledger.') :
-                    (bn ? 'গণনা বাতিল, স্টক অপরিবর্তিত।' : 'Count rejected; stock unchanged.'), true);
-                await Promise.all([load(count.reference), refreshLedger()]);
+                const count = await api('movements/counts/' + reference + '/review', 'POST',
+                    { clientRequestId: reviewKeys.for(reference + '/review', body), ...body });
+                reviewKeys.clear(); el('countReviewReason').value = ''; reviewGuard?.markClean();
+                await refreshAfterCommit(() => Promise.all([load(count.reference), refreshLedger()]),
+                    decision === 'Approve' ? (bn ? 'পার্থক্য স্টক লেজারে পোস্ট হয়েছে।' : 'Variance posted to the stock ledger.') :
+                        (bn ? 'গণনা বাতিল, স্টক অপরিবর্তিত।' : 'Count rejected; stock unchanged.'), notice);
             } catch (error) { notice(error.message); }
-            finally { button.disabled = false; }
+            finally { reviewing = false; reviewForm.inert = false; }
         });
     }
     await load();
