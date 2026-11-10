@@ -89,7 +89,8 @@ public sealed class StudentGuardianRelationshipWorkspaceContractTests
         script.Should().Contain("api(url, 'PUT'");
         script.Should().Contain("textContent");
         script.Should().NotContain("innerHTML");
-        save.Should().Contain("clientRequestId: state.requestId");
+        save.Should().Contain("payload.clientRequestId = state.requestId")
+            .And.Contain("state.requestFingerprint = fingerprint");
         save.Should().Contain("canReceiveSms: $('guardianSms').checked");
         entry.Should().Contain("RequestVerificationToken: token");
         entry.Should().Contain("credentials: 'same-origin'");

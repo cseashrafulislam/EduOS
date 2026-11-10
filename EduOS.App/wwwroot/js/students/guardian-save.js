@@ -6,6 +6,7 @@ export function setupGuardianSave({ $, api, state, render, notice }) {
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (state.busy || state.selecting || state.requiresRefresh || !state.sameSession() || !state.student) return;
+        if (state.hasPendingInlineDraft?.()) return notice('Finish or cancel the unsaved guardian relationship edit first.', true);
         if (!form.reportValidity()) return;
         const payload = {
             studentReference: state.student.studentReference,

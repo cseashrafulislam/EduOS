@@ -110,39 +110,64 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
         const cancel = document.createElement('button');
         cancel.type = 'button'; cancel.className = 'btn btn-outline-secondary btn-sm';
         cancel.textContent = 'Cancel';
-        cancel.addEventListener('click', () => editor.classList.add('d-none'));
         actions.append(save, cancel); editor.append(actions);
+        const resetEditor = () => {
+            relation.value = guardian.relationCode;
+            for (const [field, value] of [[primary, guardian.isPrimary], [sms, guardian.canReceiveSms],
+                [email, guardian.canReceiveEmail], [pickup, guardian.isAuthorizedPickup],
+                [financial, guardian.isFinancialContact], [emergency, guardian.isEmergencyContact]])
+                field.checked = value;
+            editor.classList.add('d-none'); editorEntry.guard?.markClean();
+        };
+        const editorEntry = state.registerInline?.('active', editor, resetEditor) || { guard: null };
+        cancel.addEventListener('click', () => {
+            if (!state.busy && (!editorEntry.guard?.isDirty() || editorEntry.guard.confirmDiscard())) resetEditor();
+        });
         edit.addEventListener('click', () => {
-            for (const open of box.querySelectorAll('form')) open.classList.add('d-none');
+            if (state.busy || state.selecting || state.requiresRefresh || !state.sameSession()) return;
+            if (!state.discardInline('active', editorEntry)) return;
             editor.classList.remove('d-none');
         });
         editor.addEventListener('submit', async event => {
             event.preventDefault();
-            if (state.busy || !state.student) return;
+            if (state.busy || state.selecting || state.requiresRefresh || !state.sameSession() ||
+                !state.student || !editor.reportValidity()) return;
+            if (state.hasPendingInlineDraft?.(editorEntry))
+                return notice('Finish or cancel the other unsaved guardian action first.', true);
             if (guardian.isPrimary && !primary.checked &&
                 !state.student.guardians.some(x => x.linkId !== guardian.linkId && x.isPrimary)) {
                 notice('Assign another primary guardian before removing the only primary.', true);
                 return;
             }
-            state.busy = true; save.disabled = true; edit.disabled = true;
+            state.busy = true; editor.inert = true; save.disabled = true; edit.disabled = true;
+            state.refreshActions();
+            let updated;
             try {
                 const reference = state.student.studentReference;
                 const url = '/api/student-guardians/students/' + encodeURIComponent(reference) +
                     '/links/' + encodeURIComponent(String(guardian.linkId));
-                const updated = await api(url, 'PUT', {
+                updated = await api(url, 'PUT', {
                     relationCode: relation.value, isPrimary: primary.checked,
                     canReceiveSms: sms.checked, canReceiveEmail: email.checked,
                     isAuthorizedPickup: pickup.checked,
                     isFinancialContact: financial.checked, isEmergencyContact: emergency.checked,
                     rowVersion: guardian.rowVersion
                 });
-                state.busy = false;
+            } catch (error) {
+                if (state.sameSession()) notice(error.message + ' Refresh to reconcile an uncertain relationship update.', true);
+                return;
+            } finally { if (!updated) { state.busy = false; editor.inert = false; save.disabled = false; edit.disabled = false; state.refreshActions(); } }
+            if (!state.sameSession()) { state.busy = false; editor.inert = false; state.refreshActions(); return; }
+            editorEntry.guard?.markClean();
+            try {
+                state.busy = false; state.requiresRefresh = false;
                 render(updated);
                 notice('Guardian relationship updated.');
             } catch (error) {
-                notice(error.message + ' Refresh the student before retrying a conflict.', true);
+                state.requiresRefresh = true;
+                notice('Relationship saved, but its display did not refresh. Refresh before another change.', true);
             } finally {
-                state.busy = false; save.disabled = false; edit.disabled = false;
+                state.busy = false; editor.inert = false; save.disabled = false; edit.disabled = false; state.refreshActions();
             }
         });
         const unlinkForm = document.createElement('form');
@@ -162,37 +187,58 @@ export function renderGuardianLinks({ $, api, state, render, notice }) {
         const cancelUnlink = document.createElement('button');
         cancelUnlink.type = 'button'; cancelUnlink.className = 'btn btn-outline-secondary btn-sm';
         cancelUnlink.textContent = 'Keep guardian';
-        cancelUnlink.addEventListener('click', () => unlinkForm.classList.add('d-none'));
         unlinkActions.append(confirmUnlink, cancelUnlink);
         unlinkForm.append(unlinkLabel, unlinkActions);
+        const resetUnlink = () => {
+            unlinkReason.value = '';
+            unlinkForm.classList.add('d-none'); unlinkEntry.guard?.markClean();
+        };
+        const unlinkEntry = state.registerInline?.('active', unlinkForm, resetUnlink) || { guard: null };
+        cancelUnlink.addEventListener('click', () => {
+            if (!state.busy && (!unlinkEntry.guard?.isDirty() || unlinkEntry.guard.confirmDiscard())) resetUnlink();
+        });
         unlink.addEventListener('click', () => {
-            if (state.busy) return;
+            if (state.busy || state.selecting || state.requiresRefresh || !state.sameSession()) return;
             if (guardian.isPrimary && !guardians.some(x => x.linkId !== guardian.linkId && x.isPrimary)) {
                 notice('Assign another primary guardian before unlinking this one.', true);
                 return;
             }
-            for (const open of box.querySelectorAll('form')) open.classList.add('d-none');
+            if (!state.discardInline('active', unlinkEntry)) return;
             unlinkForm.classList.remove('d-none');
             unlinkReason.focus();
         });
         unlinkForm.addEventListener('submit', async event => {
             event.preventDefault();
-            if (state.busy || !state.student || !unlinkForm.reportValidity()) return;
-            state.busy = true; confirmUnlink.disabled = true; unlink.disabled = true; edit.disabled = true;
+            if (state.busy || state.selecting || state.requiresRefresh || !state.sameSession() ||
+                !state.student || !unlinkForm.reportValidity()) return;
+            if (state.hasPendingInlineDraft?.(unlinkEntry))
+                return notice('Finish or cancel the other unsaved guardian action first.', true);
+            state.busy = true; unlinkForm.inert = true; confirmUnlink.disabled = true;
+            unlink.disabled = true; edit.disabled = true; state.refreshActions();
+            let updated;
             try {
                 const url = '/api/student-guardians/students/' +
                     encodeURIComponent(state.student.studentReference) + '/links/' +
                     encodeURIComponent(String(guardian.linkId)) + '/unlink';
-                const updated = await api(url, 'POST', {
+                updated = await api(url, 'POST', {
                     rowVersion: guardian.rowVersion, reason: unlinkReason.value.trim()
                 });
-                state.busy = false;
+            } catch (error) {
+                if (state.sameSession()) notice(error.message + ' Verify the link before retrying an uncertain revocation.', true);
+                return;
+            } finally { if (!updated) { state.busy = false; unlinkForm.inert = false; confirmUnlink.disabled = false; unlink.disabled = false; edit.disabled = false; state.refreshActions(); } }
+            if (!state.sameSession()) { state.busy = false; unlinkForm.inert = false; state.refreshActions(); return; }
+            unlinkEntry.guard?.markClean();
+            try {
+                state.busy = false; state.requiresRefresh = false;
                 render(updated);
                 notice('Guardian relationship revoked. Portal access for this student has ended.');
             } catch (error) {
-                notice(error.message + ' Refresh the student before retrying a conflict.', true);
+                state.requiresRefresh = true;
+                notice('Guardian was revoked, but the display could not refresh. Refresh before another change.', true);
             } finally {
-                state.busy = false; confirmUnlink.disabled = false; unlink.disabled = false; edit.disabled = false;
+                state.busy = false; unlinkForm.inert = false; confirmUnlink.disabled = false;
+                unlink.disabled = false; edit.disabled = false; state.refreshActions();
             }
         });
         card.append(heading, permissions, editor, unlinkForm);

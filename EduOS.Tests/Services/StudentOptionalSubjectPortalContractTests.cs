@@ -51,7 +51,7 @@ public sealed class StudentOptionalSubjectPortalContractTests
         view.Should().Contain("subjectsLinkedStudents");
         view.Should().Contain("@Html.AntiForgeryToken()");
         script.Should().Contain("if(canManage&&(item.state===1");
-        script.Should().Contain("if(!canManage)return;");
+        script.Should().Contain("if(!canManage||!sameSession())return;");
         script.Should().Contain("'/api/portal/students'");
         script.Should().Contain("RequestVerificationToken:token");
         script.Should().Contain("textContent");

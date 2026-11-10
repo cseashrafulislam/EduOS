@@ -18,7 +18,7 @@ if (root) {
         window.EduOSSessionTransitionPending?.() !== true;
     const state = { student: null, requestId: null, requestFingerprint: null,
         busy: false, selecting: false, requiresRefresh: false, searchVersion: 0,
-        selectionVersion: 0, guards: [], sameSession };
+        selectionVersion: 0, guards: [], inline: { active: [], revoked: [] }, sameSession };
     const notice = (message, error = false) => {
         const box = $('guardianNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-info');
@@ -49,6 +49,30 @@ if (root) {
         state.updateContactAction?.();
     }
     state.refreshActions = refreshActions;
+    state.clearInline = scope => {
+        for (const entry of state.inline[scope]) {
+            entry.guard?.dispose();
+            state.guards = state.guards.filter(item => item !== entry.guard);
+        }
+        state.inline[scope] = [];
+    };
+    state.registerInline = (scope, form, close) => {
+        const guard = window.EduOSFormGuard?.create(form);
+        const entry = { form, guard, close };
+        state.inline[scope].push(entry);
+        if (guard) state.guards.push(guard);
+        return entry;
+    };
+    state.hasPendingInlineDraft = except => Object.values(state.inline).some(entries =>
+        entries.some(entry => entry !== except && entry.guard?.isDirty()));
+    state.discardInline = (scope = null, except = null) => {
+        const entries = (scope ? state.inline[scope] : Object.values(state.inline).flat())
+            .filter(entry => entry !== except && !entry.form.classList.contains('d-none'));
+        const dirty = entries.find(entry => entry.guard?.isDirty());
+        if (dirty && !dirty.guard.confirmDiscard()) return false;
+        for (const entry of entries) entry.close();
+        return true;
+    };
     state.confirmStudentSwitch = () => {
         if (state.busy || state.selecting || !sameSession()) return false;
         const dirty = state.guards.find(guard => guard?.isDirty());
@@ -78,12 +102,14 @@ if (root) {
         }
         $('guardianSelected').textContent = student.studentName + ' (' + student.studentCode + ')';
         refreshActions();
+        state.clearInline('active');
         renderGuardianLinks({ $, api, state, render, notice });
         revokedPaging.refresh(student.studentReference);
         guardianHistory.refresh();
     }
     $('guardianRefresh').addEventListener('click', async () => {
         if (!state.student || state.busy || state.selecting || !sameSession()) return;
+        if (!state.discardInline()) return;
         const reference = state.student.studentReference;
         const request = ++state.selectionVersion;
         try {

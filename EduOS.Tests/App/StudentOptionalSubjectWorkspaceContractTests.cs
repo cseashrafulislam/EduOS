@@ -19,7 +19,8 @@ public sealed class StudentOptionalSubjectWorkspaceContractTests
         service.Should().Contain("student.UserId != _user.UserId")
             .And.Contain("guardian.UserId == _user.UserId");
         js.Should().Contain("studentEnrollmentReference").And.Contain("subjectOfferingReference")
-            .And.Contain("clientRequestId:requestId").And.Contain("rowVersion:item.rowVersion")
+            .And.Contain("payload.clientRequestId=requestId").And.Contain("requestFingerprint=fingerprint")
+            .And.Contain("rowVersion:item.rowVersion")
             .And.Contain("RequestVerificationToken");
     }
 

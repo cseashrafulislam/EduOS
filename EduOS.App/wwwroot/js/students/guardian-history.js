@@ -21,6 +21,7 @@ export function setupGuardianHistory({ $, api, state }) {
         $('guardianHistoryPage').textContent = 'Page ' + page + ' of ' + totalPages + ' (' + total + ' events)';
     }
     async function load(resetPage) {
+        if (state.sameSession && !state.sameSession()) return;
         if (resetPage) page = 1;
         const reference = state.student?.studentReference;
         if (!reference) { empty('Select a student to view history.'); return; }
@@ -32,7 +33,8 @@ export function setupGuardianHistory({ $, api, state }) {
             const query = new URLSearchParams({ page: String(page), pageSize: '20' });
             const result = await api('/api/student-guardians/students/' +
                 encodeURIComponent(reference) + '/history?' + query);
-            if (ticket !== requestNumber || state.student?.studentReference !== reference) return;
+            if (ticket !== requestNumber || state.student?.studentReference !== reference ||
+                (state.sameSession && !state.sameSession())) return;
             const entries = Array.isArray(result?.items) ? result.items : [];
             totalPages = Math.max(1, Number(result?.totalPages) || 1);
             rows.replaceChildren();
@@ -50,7 +52,7 @@ export function setupGuardianHistory({ $, api, state }) {
             }
             paging(result?.totalCount || 0);
         } catch (error) {
-            if (ticket === requestNumber) {
+            if (ticket === requestNumber && (!state.sameSession || state.sameSession())) {
                 empty('Could not load guardian relationship history.');
                 alert.className = 'alert alert-danger'; alert.textContent = error.message;
             }
@@ -59,10 +61,10 @@ export function setupGuardianHistory({ $, api, state }) {
         }
     }
     previous.addEventListener('click', () => {
-        if (!loading && page > 1) { page--; load(false); }
+        if (!loading && page > 1 && (!state.sameSession || state.sameSession())) { page--; load(false); }
     });
     next.addEventListener('click', () => {
-        if (!loading && page < totalPages) { page++; load(false); }
+        if (!loading && page < totalPages && (!state.sameSession || state.sameSession())) { page++; load(false); }
     });
     return { refresh: () => load(true) };
 }

@@ -7,6 +7,7 @@ export function setupGuardianReuse({ $, api, state, render, notice }) {
         event.preventDefault();
         if (state.busy || state.selecting || state.requiresRefresh || !state.sameSession() ||
             !state.student || !form.reportValidity()) return;
+        if (state.hasPendingInlineDraft?.()) return notice('Finish or cancel the unsaved guardian relationship edit first.', true);
         const guardianReference = $('guardianExistingReference').value.trim();
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(guardianReference)) {
             notice('Enter a valid guardian reference from a linked student.', true);

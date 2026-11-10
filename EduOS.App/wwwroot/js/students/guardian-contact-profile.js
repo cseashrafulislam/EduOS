@@ -66,6 +66,7 @@ export function setupGuardianContact({ $, api, state, render, notice }) {
         event.preventDefault();
         if (selected.busy || state.busy || state.selecting || state.requiresRefresh || !state.sameSession() ||
             !form.reportValidity() || !selected.student || !selected.guardian) return;
+        if (state.hasPendingInlineDraft?.()) return notice('Finish or cancel the unsaved guardian relationship edit first.', true);
         if (state.student?.studentReference !== selected.student) { clear(); return; }
         const student = selected.student, guardian = selected.guardian, seq = selected.sequence;
         const payload = {
