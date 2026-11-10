@@ -2,8 +2,10 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { state, el, api, notice, reload } = vm;
+    const { state, el, api, notice, reload, sameSession, guard, mayReplace } = vm;
     let page = 1, total = 0, rows = [], loaded = false, generation = 0;
+    let editSaving = false, editSequence = 0;
+    const editGuard = guard('batchEditForm');
     const pageSize = 20;
     const text = (tag, value) => {
         const n = document.createElement(tag);
@@ -30,7 +32,12 @@
         }
     }
     async function openEditor(id) {
+        if (!sameSession() || editSaving || !mayReplace('batchEditForm')) return;
+        const ticket = ++editSequence, form = el('batchEditForm');
+        form.inert = true;
+        try {
         const row = await api('/api/academic-setup/batches/' + encodeURIComponent(id));
+        if (ticket !== editSequence || !sameSession()) return;
         el('batchEditId').value = row.id;
         el('batchEditVersion').value = row.rowVersion;
         el('batchEditName').value = row.name;
@@ -39,8 +46,9 @@
         el('batchEditOrder').value = row.displayOrder;
         el('batchEditContext').textContent = [row.code, row.campusName, row.academicYearName,
             row.academicProgramName, row.academicLevelName].filter(Boolean).join(' · ');
-        el('batchEditForm').classList.remove('d-none');
-        el('batchEditForm').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        form.classList.remove('d-none'); editGuard?.markClean();
+        form.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } finally { if (ticket === editSequence) form.inert = false; }
     }
     function render() {
         const body = el('batchRegisterRows');
@@ -62,7 +70,7 @@
             edit.addEventListener('click', async () => {
                 edit.disabled = true;
                 try { await openEditor(row.id); }
-                catch (error) { notice(error.message, true); }
+                catch (error) { if (sameSession()) notice(error.message, true); }
                 finally { edit.disabled = false; }
             });
             action.append(edit); tr.append(action); body.append(tr);
@@ -76,7 +84,7 @@
     async function load() {
         const current = ++generation;
         const data = await api('/api/academic-setup/batches?' + filters());
-        if (current !== generation) return;
+        if (current !== generation || !sameSession()) return;
         rows = data.items || []; total = data.totalCount || 0;
         loaded = true; render();
     }
@@ -104,16 +112,21 @@
     el('batchNext').addEventListener('click', () => {
         if (page * pageSize < total) { page++; load().catch(e => notice(e.message, true)); }
     });
-    el('batchEditCancel').addEventListener('click', () => el('batchEditForm').classList.add('d-none'));
+    el('batchEditCancel').addEventListener('click', () => {
+        if (editSaving || !mayReplace('batchEditForm')) return;
+        el('batchEditForm').classList.add('d-none'); editGuard?.markClean();
+    });
     el('batchEditForm').addEventListener('submit', async event => {
         event.preventDefault();
-        const button = event.currentTarget.querySelector('button[type="submit"]');
+        const form = event.currentTarget, button = form.querySelector('button[type="submit"]');
+        if (editSaving || !sameSession() || !form.reportValidity()) return;
         const capacity = Number(value('batchEditCapacity')), displayOrder = Number(value('batchEditOrder'));
         if (!Number.isInteger(capacity) || !Number.isInteger(displayOrder) ||
             capacity < Number(el('batchEditCapacity').min) || capacity > 100000 || displayOrder < 0) {
             notice('Capacity cannot decrease; enter valid non-negative values.', true); return;
         }
-        button.disabled = true;
+        editSaving = true; button.disabled = true; form.inert = true;
+        let committed = false;
         try {
             await api('/api/academic-setup/batches/' + encodeURIComponent(value('batchEditId')), {
                 method: 'PUT', body: JSON.stringify({
@@ -121,11 +134,14 @@
                     rowVersion: value('batchEditVersion')
                 })
             });
-            el('batchEditForm').classList.add('d-none');
-            await Promise.all([load(), reload()]);
-            notice('Section metadata saved.');
-        } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            form.classList.add('d-none'); editGuard?.markClean();
+            try { await Promise.all([load(), reload()]); notice('Section metadata saved.'); }
+            catch { notice('Section saved, but the directory did not refresh. Reload the page.', true); }
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Section saved, but the display failed.' : error.message, true);
+        } finally { editSaving = false; button.disabled = false; form.inert = false; }
     });
     window.addEventListener('eduos:academic-reloaded', () => {
         refreshFilters();

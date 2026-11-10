@@ -2,8 +2,10 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { el, api, notice, reload } = vm;
+    const { el, api, notice, reload, sameSession, guard, mayReplace } = vm;
     let page = 1, total = 0, rows = [], pending = false, sequence = 0;
+    let editSequence = 0, departmentSequence = 0;
+    const editGuard = guard('programmeEditForm');
     const cell = (tr, value) => {
         const td = document.createElement('td');
         td.textContent = String(value ?? '');
@@ -15,7 +17,7 @@
         const ticket = ++sequence;
         const result = await api('/api/academic-setup/programmes?page=' + page +
             '&pageSize=20&search=' + encodeURIComponent(el('programmeSearch').value.trim()));
-        if (ticket !== sequence) return;
+        if (ticket !== sequence || !sameSession()) return;
         rows = result.items || [];
         total = result.totalCount || 0;
         const body = el('programmeRows');
@@ -33,7 +35,7 @@
             edit.addEventListener('click', async () => {
                 edit.disabled = true;
                 try { await editProgramme(row.id); }
-                catch (error) { notice(error.message, true); }
+                catch (error) { if (sameSession()) notice(error.message, true); }
                 finally { edit.disabled = false; }
             });
             action.append(edit); body.append(tr);
@@ -47,10 +49,7 @@
         el('programmePrev').disabled = page <= 1;
         el('programmeNext').disabled = page * 20 >= total;
     }
-    async function loadDepartments(selectedId = null) {
-        const search = el('programmeDepartmentSearch').value.trim();
-        const result = await api('/api/academic-setup/departments?page=1&pageSize=100&search=' +
-            encodeURIComponent(search));
+    function renderDepartments(result, selectedId) {
         const select = el('programmeEditDepartment');
         select.replaceChildren(new Option('No department', ''));
         for (const row of result.items || [])
@@ -61,11 +60,28 @@
             select.add(new Option('Current department #' + selectedId + ' (search to change)', String(selectedId)));
         select.value = selectedId ? String(selectedId) : '';
     }
+    async function loadDepartments(selectedId = null) {
+        const ticket = ++departmentSequence;
+        const search = el('programmeDepartmentSearch').value.trim();
+        const result = await api('/api/academic-setup/departments?page=1&pageSize=100&search=' +
+            encodeURIComponent(search));
+        if (ticket !== departmentSequence || !sameSession()) return;
+        const clean = !editGuard?.isDirty();
+        renderDepartments(result, selectedId);
+        if (clean) editGuard?.markClean();
+    }
     async function editProgramme(id) {
+        if (!sameSession() || pending || !mayReplace('programmeEditForm')) return;
+        const ticket = ++editSequence, form = el('programmeEditForm');
+        form.inert = true;
+        try {
         const row = await api('/api/academic-setup/programmes/' + encodeURIComponent(id));
-        el('programmeEditForm').reset();
+        const result = await api('/api/academic-setup/departments?page=1&pageSize=100');
+        if (ticket !== editSequence || !sameSession()) return;
+        ++departmentSequence;
+        form.reset();
         el('programmeDepartmentSearch').value = '';
-        await loadDepartments(row.academicDepartmentId);
+        renderDepartments(result, row.academicDepartmentId);
         const fields = {
             programmeEditId: row.id, programmeEditVersion: row.rowVersion,
             programmeEditCode: row.code, programmeEditName: row.name,
@@ -76,8 +92,10 @@
         for (const [key, value] of Object.entries(fields)) el(key).value = value ?? '';
         el('programmeEditActive').checked = row.isActive;
         el('programmeEditAdmissions').checked = row.isAdmissionOpen;
-        el('programmeEditForm').classList.remove('d-none');
-        el('programmeEditForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        form.classList.remove('d-none');
+        editGuard?.markClean();
+        form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } finally { if (ticket === editSequence) form.inert = false; }
     }
     el('programmeSearchButton').addEventListener('click', () => { page = 1; safeRefresh(); });
     el('programmeSearch').addEventListener('keydown', e => {
@@ -90,11 +108,13 @@
     el('programmeDepartmentSearchButton').addEventListener('click', () =>
         loadDepartments(Number(el('programmeEditDepartment').value) || null)
             .catch(e => notice(e.message, true)));
-    el('programmeEditCancel').addEventListener('click', () =>
-        el('programmeEditForm').classList.add('d-none'));
+    el('programmeEditCancel').addEventListener('click', () => {
+        if (pending || !mayReplace('programmeEditForm')) return;
+        el('programmeEditForm').classList.add('d-none'); editGuard?.markClean();
+    });
     el('programmeEditForm').addEventListener('submit', async event => {
         event.preventDefault();
-        if (pending) return;
+        if (pending || !sameSession() || !event.currentTarget.reportValidity()) return;
         const id = Number(el('programmeEditId').value);
         const body = {
             rowVersion: el('programmeEditVersion').value,
@@ -114,18 +134,24 @@
             body.displayOrder < 0 || (!body.isActive && body.isAdmissionOpen)) {
             notice('Check programme name, duration, status and version.', true); return;
         }
-        pending = true;
+        pending = true; event.currentTarget.inert = true;
         const button = el('programmeEditSave');
         button.disabled = true;
+        let committed = false;
         try {
             await api('/api/academic-setup/programmes/' + encodeURIComponent(id), {
                 method: 'PUT', body: JSON.stringify(body)
             });
-            el('programmeEditForm').classList.add('d-none');
-            await reload();
-            notice('Programme metadata updated. Campus allocation and curriculum remain unchanged.');
-        } catch (error) { notice(error.message, true); }
-        finally { pending = false; button.disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            el('programmeEditForm').classList.add('d-none'); editGuard?.markClean();
+            try {
+                await reload();
+                notice('Programme metadata updated. Campus allocation and curriculum remain unchanged.');
+            } catch { notice('Programme saved, but the directory did not refresh. Reload the page.', true); }
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Programme saved, but the display failed.' : error.message, true);
+        } finally { pending = false; button.disabled = false; event.currentTarget.inert = false; }
     });
     el('programmeCsv').addEventListener('click', () => {
         if (!rows.length) return;

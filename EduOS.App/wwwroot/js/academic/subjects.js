@@ -2,9 +2,11 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { el, api, notice } = vm;
+    const { el, api, notice, sameSession, guard, mayReplace } = vm;
     const size = 20;
     let page = 1, total = 0, rows = [], loaded = false, generation = 0;
+    let editSaving = false, editSequence = 0;
+    const editGuard = guard('subjectEditForm');
     const value = id => el(id).value.trim();
     const cell = value => {
         const td = document.createElement('td');
@@ -28,9 +30,12 @@
             edit.className = 'btn btn-sm btn-outline-primary';
             edit.textContent = 'Edit';
             edit.addEventListener('click', async () => {
-                edit.disabled = true;
+                if (!sameSession() || editSaving || !mayReplace('subjectEditForm')) return;
+                const ticket = ++editSequence, form = el('subjectEditForm');
+                edit.disabled = true; form.inert = true;
                 try {
                     const row = await api('/api/academic-setup/subjects/' + encodeURIComponent(subject.id));
+                    if (ticket !== editSequence || !sameSession()) return;
                     el('subjectEditId').value = row.id;
                     el('subjectEditVersion').value = row.rowVersion;
                     el('subjectEditCode').textContent = row.code;
@@ -38,10 +43,10 @@
                     el('subjectEditShortName').value = row.shortName || '';
                     el('subjectEditCredits').value = row.defaultCreditHours;
                     el('subjectEditActive').checked = row.isActive;
-                    el('subjectEditForm').classList.remove('d-none');
-                    el('subjectEditForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                } catch (error) { notice(error.message, true); }
-                finally { edit.disabled = false; }
+                    form.classList.remove('d-none'); editGuard?.markClean();
+                    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } catch (error) { if (sameSession()) notice(error.message, true); }
+                finally { edit.disabled = false; if (ticket === editSequence) form.inert = false; }
             });
             action.append(edit); tr.append(action); body.append(tr);
         });
@@ -56,7 +61,7 @@
         const params = new URLSearchParams({ page: String(page), pageSize: String(size) });
         if (value('subjectSearch')) params.set('search', value('subjectSearch'));
         const result = await api('/api/academic-setup/subjects?' + params);
-        if (current !== generation) return;
+        if (current !== generation || !sameSession()) return;
         rows = result.items || [];
         total = result.totalCount || 0;
         loaded = true;
@@ -92,16 +97,21 @@
     el('subjectNext').addEventListener('click', () => {
         if (page * size < total) { page++; load().catch(x => notice(x.message, true)); }
     });
-    el('subjectEditCancel').addEventListener('click', () => el('subjectEditForm').classList.add('d-none'));
+    el('subjectEditCancel').addEventListener('click', () => {
+        if (editSaving || !mayReplace('subjectEditForm')) return;
+        el('subjectEditForm').classList.add('d-none'); editGuard?.markClean();
+    });
     el('subjectEditForm').addEventListener('submit', async event => {
         event.preventDefault();
         const form = event.currentTarget, button = form.querySelector('button[type="submit"]');
+        if (editSaving || !sameSession() || !form.reportValidity()) return;
         const credits = Number(value('subjectEditCredits'));
         if (!Number.isFinite(credits) || credits < 0 || credits > 1000) {
             notice('Credit hours must be between 0 and 1000.', true);
             return;
         }
-        button.disabled = true;
+        editSaving = true; button.disabled = true; form.inert = true;
+        let committed = false;
         try {
             await api('/api/academic-setup/subjects/' + encodeURIComponent(value('subjectEditId')), {
                 method: 'PUT',
@@ -113,12 +123,14 @@
                     rowVersion: value('subjectEditVersion')
                 })
             });
-            form.classList.add('d-none');
-            await vm.reload();
-            await load();
-            notice('Academic subject saved.');
-        } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            form.classList.add('d-none'); editGuard?.markClean();
+            try { await vm.reload(); await load(); notice('Academic subject saved.'); }
+            catch { notice('Subject saved, but the directory did not refresh. Reload the page.', true); }
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Subject saved, but the display failed.' : error.message, true);
+        } finally { editSaving = false; button.disabled = false; form.inert = false; }
     });
     const subjectsActive = () => document.getElementById('academicManagement')?.dataset.activeFeature === 'subjects';
     window.addEventListener('eduos:academic-reloaded', () => {

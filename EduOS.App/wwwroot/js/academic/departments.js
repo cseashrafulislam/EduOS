@@ -2,25 +2,31 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { el, api, notice } = vm;
-    let page = 1, total = 0, rows = [], pending = false;
+    const { el, api, notice, sameSession, guard, mayReplace } = vm;
+    let page = 1, total = 0, rows = [], pending = false, generation = 0, departmentLookup = 0;
+    const formGuard = guard('departmentForm');
     const cell = (tr, value) => {
         const td = document.createElement('td');
         td.textContent = String(value ?? '');
         tr.append(td);
         return td;
     };
-    const reset = () => {
+    const reset = (force = false) => {
+        if (!force && (pending || !mayReplace('departmentForm'))) return false;
         el('departmentForm').reset();
         el('departmentId').value = '';
         el('departmentVersion').value = '';
         el('departmentCode').disabled = false;
         el('departmentActive').checked = true;
         el('departmentSave').textContent = 'Create Department';
+        formGuard?.markClean();
+        return true;
     };
     async function refresh() {
+        const ticket = ++generation;
         const result = await api('/api/academic-setup/departments?page=' + page +
             '&pageSize=20&search=' + encodeURIComponent(el('departmentSearch').value.trim()));
+        if (ticket !== generation || !sameSession()) return;
         rows = result.items || [];
         total = result.totalCount || 0;
         const body = el('departmentRows');
@@ -34,7 +40,7 @@
             edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-primary';
             edit.textContent = 'Edit';
             edit.addEventListener('click', () => {
-                reset();
+                if (!sameSession() || !reset()) return;
                 el('departmentId').value = row.id;
                 el('departmentVersion').value = row.rowVersion;
                 el('departmentName').value = row.name;
@@ -43,6 +49,7 @@
                 el('departmentDescription').value = row.description || '';
                 el('departmentActive').checked = row.isActive;
                 el('departmentSave').textContent = 'Update Department';
+                formGuard?.markClean();
                 el('departmentForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
             td.append(edit); body.append(tr);
@@ -57,12 +64,16 @@
         el('departmentNext').disabled = page * 20 >= total;
     }
     async function refreshProgrammeDepartments() {
+        const ticket = ++departmentLookup;
         const result = await api('/api/academic-setup/departments?page=1&pageSize=100');
+        if (ticket !== departmentLookup || !sameSession()) return;
+        const programmeGuard = guard('programForm'), clean = !programmeGuard?.isDirty();
         const select = el('programDepartment'), previous = select.value;
         select.replaceChildren(new Option('No department', ''));
         for (const row of result.items || [])
             if (row.isActive) select.add(new Option(row.name + ' (' + row.code + ')', String(row.id)));
         if ([...select.options].some(x => x.value === previous)) select.value = previous;
+        if (clean) programmeGuard?.markClean();
     }
     const safeRefresh = () => refresh().catch(e => notice(e.message, true));
     el('departmentSearchButton').addEventListener('click', () => { page = 1; safeRefresh(); });
@@ -73,10 +84,10 @@
     el('departmentNext').addEventListener('click', () => {
         if (page * 20 < total) { page++; safeRefresh(); }
     });
-    el('departmentCancel').addEventListener('click', reset);
+    el('departmentCancel').addEventListener('click', () => reset());
     el('departmentForm').addEventListener('submit', async e => {
         e.preventDefault();
-        if (pending) return;
+        if (pending || !sameSession() || !e.currentTarget.reportValidity()) return;
         const id = Number(el('departmentId').value) || 0;
         const body = {
             name: el('departmentName').value.trim(),
@@ -89,17 +100,23 @@
             body.code.length > 30 || (body.description || '').length > 500) {
             notice('Enter a valid department name, code and description.', true); return;
         }
-        pending = true; el('departmentSave').disabled = true;
+        pending = true; el('departmentSave').disabled = true; e.currentTarget.inert = true;
+        let committed = false;
         try {
             await api(id ? '/api/academic-setup/departments/' + id :
                 '/api/academic-setup/departments', {
                 method: id ? 'PUT' : 'POST', body: JSON.stringify(body)
             });
-            reset(); page = 1;
-            await Promise.all([refresh(), refreshProgrammeDepartments()]);
-            notice('Academic department saved.');
-        } catch (error) { notice(error.message, true); }
-        finally { pending = false; el('departmentSave').disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            reset(true); page = 1;
+            try {
+                await Promise.all([refresh(), refreshProgrammeDepartments()]);
+                notice('Academic department saved.');
+            } catch { notice('Department saved, but the directory did not refresh. Reload the page.', true); }
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Department saved, but the display failed.' : error.message, true);
+        } finally { pending = false; el('departmentSave').disabled = false; e.currentTarget.inert = false; }
     });
     el('departmentCsv').addEventListener('click', () => {
         if (!rows.length) return;

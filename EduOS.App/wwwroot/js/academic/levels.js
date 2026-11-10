@@ -2,9 +2,11 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { state, el, api, notice, reload } = vm;
+    const { state, el, api, notice, reload, sameSession, guard, mayReplace } = vm;
     const pageSize = 20;
     let page = 1, total = 0, rows = [], loaded = false, generation = 0;
+    let editSaving = false, editSequence = 0;
+    const editGuard = guard('levelEditForm');
     const value = id => el(id).value.trim();
     const node = (tag, value) => {
         const x = document.createElement(tag);
@@ -33,9 +35,13 @@
             const action = document.createElement('td'), button = node('button', 'Edit');
             button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
             button.addEventListener('click', async () => {
-                button.disabled = true;
+                if (!sameSession() || editSaving || !mayReplace('levelEditForm')) return;
+                const ticket = ++editSequence;
+                const form = el('levelEditForm');
+                button.disabled = true; form.inert = true;
                 try {
                     const row = await api('/api/academic-setup/levels/' + encodeURIComponent(level.id));
+                    if (ticket !== editSequence || !sameSession()) return;
                     el('levelEditId').value = row.id;
                     el('levelEditVersion').value = row.rowVersion;
                     el('levelEditContext').textContent = row.code + ' · ' +
@@ -47,8 +53,9 @@
                     el('levelEditTerminal').checked = row.isTerminalLevel;
                     el('levelEditActive').checked = row.isActive;
                     el('levelEditForm').classList.remove('d-none');
-                } catch (error) { notice(error.message, true); }
-                finally { button.disabled = false; }
+                    editGuard?.markClean();
+                } catch (error) { if (sameSession()) notice(error.message, true); }
+                finally { button.disabled = false; if (ticket === editSequence) form.inert = false; }
             });
             action.append(button); tr.append(action); body.append(tr);
         });
@@ -64,7 +71,7 @@
         if (value('levelSearch')) params.set('search', value('levelSearch'));
         if (value('levelProgramFilter')) params.set('academicProgramId', value('levelProgramFilter'));
         const result = await api('/api/academic-setup/levels?' + params);
-        if (current !== generation) return;
+        if (current !== generation || !sameSession()) return;
         rows = result.items || []; total = result.totalCount || 0;
         loaded = true; render();
     }
@@ -94,10 +101,14 @@
     el('levelNext').addEventListener('click', () => {
         if (page * pageSize < total) { page++; load().catch(x => notice(x.message, true)); }
     });
-    el('levelEditCancel').addEventListener('click', () => el('levelEditForm').classList.add('d-none'));
+    el('levelEditCancel').addEventListener('click', () => {
+        if (editSaving || !mayReplace('levelEditForm')) return;
+        el('levelEditForm').classList.add('d-none'); editGuard?.markClean();
+    });
     el('levelEditForm').addEventListener('submit', async e => {
         e.preventDefault();
         const form = e.currentTarget, button = form.querySelector('button[type="submit"]');
+        if (editSaving || !sameSession() || !form.reportValidity()) return;
         const levelNo = Number(value('levelEditNumber')), order = Number(value('levelEditOrder'));
         const isPromotable = el('levelEditPromotable').checked;
         const isTerminalLevel = el('levelEditTerminal').checked;
@@ -105,7 +116,8 @@
             !Number.isInteger(order) || order < 0 || (isPromotable && isTerminalLevel)) {
             notice('Check level number, display order and progression flags.', true); return;
         }
-        button.disabled = true;
+        editSaving = true; button.disabled = true; form.inert = true;
+        let committed = false;
         try {
             await api('/api/academic-setup/levels/' + encodeURIComponent(value('levelEditId')), {
                 method: 'PUT', body: JSON.stringify({
@@ -114,11 +126,14 @@
                     rowVersion: value('levelEditVersion')
                 })
             });
-            form.classList.add('d-none');
-            await reload(); await load();
-            notice('Academic level saved.');
-        } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            form.classList.add('d-none'); editGuard?.markClean();
+            try { await reload(); await load(); notice('Academic level saved.'); }
+            catch { notice('Level saved, but the directory did not refresh. Reload the page.', true); }
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Level saved, but the display failed.' : error.message, true);
+        } finally { editSaving = false; button.disabled = false; form.inert = false; }
     });
     const classesActive = () => document.getElementById('academicManagement')?.dataset.activeFeature === 'classes';
     window.addEventListener('eduos:academic-reloaded', () => {
