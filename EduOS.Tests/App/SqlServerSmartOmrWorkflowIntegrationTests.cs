@@ -31,6 +31,19 @@ namespace EduOS.Tests.App;
 public sealed class SqlServerSmartOmrWorkflowIntegrationTests
 {
     [Fact]
+    public async Task Independent_tenant_contexts_retain_their_own_request_identity()
+    {
+        // HttpContextAccessor has a process-wide AsyncLocal holder. Constructing a new
+        // instance and assigning HttpContext for each parallel test context clears
+        // the other's holder, unlike a real request's singleton accessor.
+        var options = new DbContextOptionsBuilder<EduOSDbContext>().Options;
+        await using var first = TenantDb(options, 17);
+        await using var second = TenantDb(options, 23);
+        Assert.Equal(17, first.CurrentTenantId);
+        Assert.Equal(23, second.CurrentTenantId);
+    }
+
+    [Fact]
     public async Task Capture_review_post_is_atomic_retry_safe_and_tenant_scoped()
     {
         var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
@@ -330,9 +343,14 @@ public sealed class SqlServerSmartOmrWorkflowIntegrationTests
 
     private static EduOSDbContext TenantDb(DbContextOptions<EduOSDbContext> options, long tenant)
     {
-        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        var accessor = new IsolatedHttpContextAccessor { HttpContext = new DefaultHttpContext() };
         accessor.HttpContext.Items["TenantId"] = tenant;
         return new EduOSDbContext(options, accessor);
+    }
+
+    private sealed class IsolatedHttpContextAccessor : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; }
     }
 
     private static async Task<Seeded> SeedAsync(DbContextOptions<EduOSDbContext> options)

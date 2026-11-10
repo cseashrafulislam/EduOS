@@ -7,6 +7,13 @@
     const continueButton = document.getElementById('continueBtn');
     const yearModal = document.getElementById('academicYearModal');
     const termModal = document.getElementById('termModal');
+    const identity = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset.authTenantId || '') &&
+        identity[1] === (document.body?.dataset.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
+    let yearGuard, termGuard, savingYear = false, savingTerm = false, completing = false;
+    let structureTicket = 0, yearEditTicket = 0, termEditTicket = 0;
+    const deleting = new Set();
     let editedYearRowVersion = '';
     let editedTermRowVersion = '';
 
@@ -14,6 +21,10 @@
         if (!list) return;
         document.getElementById('academicYearForm')?.addEventListener('submit', saveYear);
         document.getElementById('termForm')?.addEventListener('submit', saveTerm);
+        yearGuard = window.EduOSFormGuard?.create(document.getElementById('academicYearForm'));
+        termGuard = window.EduOSFormGuard?.create(document.getElementById('termForm'));
+        if (yearGuard) window.EduOSFormGuard.protectModal(yearModal, yearGuard, () => savingYear);
+        if (termGuard) window.EduOSFormGuard.protectModal(termModal, termGuard, () => savingTerm);
         list.addEventListener('click', handleListAction);
         continueButton?.addEventListener('click', completeStep);
         yearModal?.addEventListener('hidden.bs.modal', resetYearForm);
@@ -23,6 +34,7 @@
 
     async function saveYear(event) {
         event.preventDefault();
+        if (savingYear || !sameSession()) return;
         clearErrors();
         const data = {
             id: positiveInteger(valueOf('yearId')),
@@ -47,25 +59,34 @@
         if (!valid) return;
 
         const button = document.getElementById('saveYearBtn');
+        savingYear = true;
+        let committed = false;
         setLoading(button, true);
         try {
             const response = await sendJson('/api/institution-onboarding/academic-year', 'POST', data);
+            if (!sameSession()) return;
             if (!response.ok) {
                 showAlert('danger', responseMessage(response, i18n.saveFailed));
                 return;
             }
+            committed = true;
+            yearGuard?.markClean();
             closeModal(yearModal);
-            await loadAcademicStructure();
-            showAlert('success', i18n.yearSaved);
+            const refreshed = await loadAcademicStructure();
+            if (sameSession()) showAlert(refreshed ? 'success' : 'danger', refreshed
+                ? i18n.yearSaved : 'Academic year saved, but the list could not refresh. Retry loading.');
         } catch {
-            showAlert('danger', i18n.networkError);
+            if (sameSession()) showAlert('danger', committed
+                ? 'Academic year saved, but the list could not refresh. Retry loading.' : i18n.networkError);
         } finally {
+            savingYear = false;
             setLoading(button, false);
         }
     }
 
     async function saveTerm(event) {
         event.preventDefault();
+        if (savingTerm || !sameSession()) return;
         clearErrors();
         const data = {
             id: positiveInteger(valueOf('termId')),
@@ -91,25 +112,34 @@
         if (!valid) return;
 
         const button = document.getElementById('saveTermBtn');
+        savingTerm = true;
+        let committed = false;
         setLoading(button, true);
         try {
             const response = await sendJson('/api/institution-onboarding/academic-term', 'POST', data);
+            if (!sameSession()) return;
             if (!response.ok) {
                 showAlert('danger', responseMessage(response, i18n.saveFailed));
                 return;
             }
+            committed = true;
+            termGuard?.markClean();
             closeModal(termModal);
-            await loadAcademicStructure();
-            showAlert('success', i18n.termSaved);
+            const refreshed = await loadAcademicStructure();
+            if (sameSession()) showAlert(refreshed ? 'success' : 'danger', refreshed
+                ? i18n.termSaved : 'Academic term saved, but the list could not refresh. Retry loading.');
         } catch {
-            showAlert('danger', i18n.networkError);
+            if (sameSession()) showAlert('danger', committed
+                ? 'Academic term saved, but the list could not refresh. Retry loading.' : i18n.networkError);
         } finally {
+            savingTerm = false;
             setLoading(button, false);
         }
     }
 
     async function loadAcademicStructure() {
-        if (!list) return;
+        if (!list || !sameSession()) return false;
+        const ticket = ++structureTicket;
         list.setAttribute('aria-busy', 'true');
         try {
             const [yearsResponse, termsResponse, campusesResponse] = await Promise.all([
@@ -122,16 +152,20 @@
                 || !Array.isArray(campusesResponse.data)) {
                 throw new Error('Invalid academic structure response');
             }
+            if (ticket !== structureTicket || !sameSession()) return false;
             renderYears(yearsResponse.data, termsResponse.data, campusesResponse.data);
             populateYearSelect(yearsResponse.data);
             populateCampusSelect(campusesResponse.data);
             if (continueButton) continueButton.disabled = yearsResponse.data.length === 0;
+            return true;
         } catch (error) {
+            if (ticket !== structureTicket || !sameSession()) return false;
             console.warn('EduOS academic structure was unavailable.', error);
             renderLoadError();
             if (continueButton) continueButton.disabled = true;
+            return false;
         } finally {
-            list.removeAttribute('aria-busy');
+            if (ticket === structureTicket && sameSession()) list.removeAttribute('aria-busy');
         }
     }
 
@@ -247,6 +281,7 @@
     function populateYearSelect(years) {
         const select = document.getElementById('termYearId');
         if (!select) return;
+        const selected = select.value;
         const placeholder = document.createElement('option');
         placeholder.value = '';
         placeholder.textContent = i18n.selectAcademicYear || '';
@@ -257,11 +292,13 @@
             return option;
         });
         select.replaceChildren(placeholder, ...options);
+        if (options.some(option => option.value === selected)) select.value = selected;
     }
 
     function populateCampusSelect(campuses) {
         const select = document.getElementById('yearCampusId');
         if (!select) return;
+        const selected = select.value;
         const placeholder = document.createElement('option');
         placeholder.value = '';
         placeholder.textContent = 'All campuses (institution-wide)';
@@ -272,6 +309,7 @@
             return option;
         });
         select.replaceChildren(placeholder, ...options);
+        if (options.some(option => option.value === selected)) select.value = selected;
     }
 
     function cycleLabel(value) {
@@ -280,6 +318,7 @@
     }
 
     async function handleListAction(event) {
+        if (!sameSession()) return;
         const button = event.target.closest('button[data-action]');
         if (!button) return;
         const yearCard = button.closest('[data-record-id]');
@@ -296,8 +335,11 @@
     }
 
     async function editYear(id) {
+        if (!sameSession() || (yearGuard?.isDirty() && !yearGuard.confirmDiscard())) return;
+        const ticket = ++yearEditTicket;
         try {
             const response = await fetchJson(`/api/institution-onboarding/academic-year/${encodeURIComponent(id)}`);
+            if (ticket !== yearEditTicket || !sameSession()) return;
             if (!response.ok || !response.data) throw new Error('Invalid academic year response');
             const year = response.data;
             editedYearRowVersion = year.rowVersion || '';
@@ -312,15 +354,19 @@
             setValue('yearEndDate', dateInputValue(year.endDate));
             const current = document.getElementById('isCurrent');
             if (current) current.checked = Boolean(year.isCurrent);
+            yearGuard?.markClean();
             openModal(yearModal);
         } catch {
-            showAlert('danger', i18n.itemLoadFailed);
+            if (ticket === yearEditTicket && sameSession()) showAlert('danger', i18n.itemLoadFailed);
         }
     }
 
     async function editTerm(id) {
+        if (!sameSession() || (termGuard?.isDirty() && !termGuard.confirmDiscard())) return;
+        const ticket = ++termEditTicket;
         try {
             const response = await fetchJson(`/api/institution-onboarding/academic-term/${encodeURIComponent(id)}`);
+            if (ticket !== termEditTicket || !sameSession()) return;
             if (!response.ok || !response.data) throw new Error('Invalid academic term response');
             const term = response.data;
             resetTermForm();
@@ -338,58 +384,77 @@
             if (active) active.checked = Boolean(term.isActive);
             const label = document.getElementById('termYearLabel');
             if (label) label.textContent = term.academicYearName || '';
+            termGuard?.markClean();
             openModal(termModal);
         } catch {
-            showAlert('danger', i18n.itemLoadFailed);
+            if (ticket === termEditTicket && sameSession()) showAlert('danger', i18n.itemLoadFailed);
         }
     }
 
     function openAddTerm(yearId, yearName) {
+        if (!sameSession() || (termGuard?.isDirty() && !termGuard.confirmDiscard())) return;
+        ++termEditTicket;
         resetTermForm();
         setValue('termYearId', yearId);
         const label = document.getElementById('termYearLabel');
         if (label) label.textContent = String(i18n.forYear || '').replace('{name}', yearName);
+        termGuard?.markClean();
         openModal(termModal);
     }
 
     async function deleteYear(id) {
+        if (!sameSession()) return;
         if (!window.confirm(i18n.deleteYearConfirm || '')) return;
         const rowVersion = list?.querySelector(`[data-record-id="${id}"]`)?.dataset.rowVersion || '';
         await deleteRecord(`/api/institution-onboarding/academic-year/${encodeURIComponent(id)}?rowVersion=${encodeURIComponent(rowVersion)}`);
     }
 
     async function deleteTerm(id) {
+        if (!sameSession()) return;
         if (!window.confirm(i18n.deleteTermConfirm || '')) return;
         const rowVersion = list?.querySelector(`[data-term-id="${id}"]`)?.dataset.rowVersion || '';
         await deleteRecord(`/api/institution-onboarding/academic-term/${encodeURIComponent(id)}?rowVersion=${encodeURIComponent(rowVersion)}`);
     }
 
     async function deleteRecord(url) {
+        if (deleting.has(url) || !sameSession()) return;
+        deleting.add(url);
+        let committed = false;
         try {
             const response = await sendJson(url, 'DELETE');
+            if (!sameSession()) return;
             if (!response.ok) {
                 showAlert('danger', responseMessage(response, i18n.deleteFailed));
                 return;
             }
-            await loadAcademicStructure();
-            showAlert('success', i18n.deleted);
+            committed = true;
+            const refreshed = await loadAcademicStructure();
+            if (sameSession()) showAlert(refreshed ? 'success' : 'danger', refreshed
+                ? i18n.deleted : 'Record removed, but the list could not refresh. Retry loading.');
         } catch {
-            showAlert('danger', i18n.networkError);
+            if (sameSession()) showAlert('danger', committed
+                ? 'Record removed, but the list could not refresh. Retry loading.' : i18n.networkError);
+        } finally {
+            deleting.delete(url);
         }
     }
 
     async function completeStep() {
+        if (completing || !sameSession()) return;
+        completing = true;
         setLoading(continueButton, true);
         try {
             const response = await sendJson('/api/onboarding/complete-step', 'POST', { stage: 6, skipped: false });
+            if (!sameSession()) return;
             if (!response.ok) {
                 showAlert('danger', responseMessage(response, i18n.stepFailed));
                 return;
             }
             window.location.assign('/Account/ModuleSetup');
         } catch {
-            showAlert('danger', i18n.networkError);
+            if (sameSession()) showAlert('danger', i18n.networkError);
         } finally {
+            completing = false;
             setLoading(continueButton, false);
         }
     }
@@ -441,19 +506,23 @@
     }
 
     function resetYearForm() {
+        ++yearEditTicket;
         editedYearRowVersion = '';
         document.getElementById('academicYearForm')?.reset();
         setValue('yearId', '');
         clearErrors();
+        yearGuard?.markClean();
     }
 
     function resetTermForm() {
+        ++termEditTicket;
         editedTermRowVersion = '';
         document.getElementById('termForm')?.reset();
         setValue('termId', '');
         const label = document.getElementById('termYearLabel');
         if (label) label.textContent = '';
         clearErrors();
+        termGuard?.markClean();
     }
 
     function valueOf(id) {

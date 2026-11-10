@@ -2,8 +2,8 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { el, state, api, notice } = vm;
-    let page = 1, total = 0, rows = [], sequence = 0;
+    const { el, state, api, notice, sameSession } = vm;
+    let page = 1, total = 0, rows = [], sequence = 0, detailTicket = 0;
     const size = 20;
     const cell = (tr, value) => {
         const td = document.createElement('td');
@@ -16,8 +16,9 @@
         b.type = 'button'; b.className = 'btn btn-sm btn-outline-primary me-1';
         b.textContent = label;
         b.addEventListener('click', async () => {
+            if (b.disabled || !sameSession()) return;
             b.disabled = true;
-            try { await action(); } catch (e) { notice(e.message, true); }
+            try { await action(); } catch (e) { if (sameSession()) notice(e.message, true); }
             finally { b.disabled = false; }
         });
         return b;
@@ -31,13 +32,15 @@
     }
     async function load() {
         const ticket = ++sequence;
+        ++detailTicket;
+        el('curriculumDetails').classList.add('d-none');
         const query = new URLSearchParams({ page: String(page), pageSize: String(size) });
         const search = el('curriculumSearch').value.trim();
         if (search) query.set('search', search);
         if (el('curriculumProgramFilter').value) query.set('academicProgramId', el('curriculumProgramFilter').value);
         if (el('curriculumEffectiveOn').value) query.set('effectiveOn', el('curriculumEffectiveOn').value);
         const data = await api('/api/academic-setup/curricula?' + query);
-        if (ticket !== sequence) return;
+        if (ticket !== sequence || !sameSession()) return;
         rows = data.items || []; total = data.totalCount || 0;
         const target = el('curriculumRows');
         target.replaceChildren();
@@ -57,10 +60,16 @@
             if (x.isActive && !x.isCurrent)
                 actions.append(button('Activate', async () => {
                     if (!confirm('Activate ' + x.name + '? Previous versions remain in history.')) return;
+                    if (!sameSession()) return;
                     await api('/api/academic-setup/curricula/' + x.id + '/activate?rowVersion=' +
                         encodeURIComponent(x.rowVersion), { method: 'PUT' });
-                    await vm.reload();
-                    notice('Curriculum activated.');
+                    if (!sameSession()) return;
+                    try { await vm.reload(); }
+                    catch (e) {
+                        if (sameSession()) notice('Curriculum activated, but the display could not refresh.', true);
+                        return;
+                    }
+                    if (sameSession()) notice('Curriculum activated.');
                 }));
             target.append(tr);
         });
@@ -73,7 +82,10 @@
         el('curriculumNext').disabled = page * size >= total;
     }
     async function details(id) {
+        if (!sameSession()) return;
+        const ticket = ++detailTicket;
         const data = await api('/api/academic-setup/curricula/' + id);
+        if (ticket !== detailTicket || !sameSession()) return;
         const host = el('curriculumDetails');
         host.replaceChildren();
         const heading = document.createElement('h3');
@@ -110,6 +122,7 @@
         return '"' + s.replace(/"/g, '""') + '"';
     };
     el('curriculumCsv').addEventListener('click', () => {
+        if (!sameSession()) return;
         const lines = [['Code', 'Name', 'Programme', 'Version', 'Effective from', 'Effective to',
             'Current', 'Active', 'Subjects', 'Offerings', 'Enrollments', 'Mapping status'], ...rows.map(x => [x.code, x.name,
             programName(x.academicProgramId), x.versionNo, x.effectiveFrom, x.effectiveTo,
@@ -121,17 +134,20 @@
         link.click(); URL.revokeObjectURL(url);
     });
     el('curriculumSearchForm').addEventListener('submit', event => {
-        event.preventDefault(); page = 1; load().catch(e => notice(e.message, true));
+        event.preventDefault();
+        if (!sameSession()) return;
+        page = 1; load().catch(e => { if (sameSession()) notice(e.message, true); });
     });
     el('curriculumPrevious').addEventListener('click', () => {
-        if (page > 1) { page--; load().catch(e => notice(e.message, true)); }
+        if (sameSession() && page > 1) { page--; load().catch(e => { if (sameSession()) notice(e.message, true); }); }
     });
     el('curriculumNext').addEventListener('click', () => {
-        if (page * size < total) { page++; load().catch(e => notice(e.message, true)); }
+        if (sameSession() && page * size < total) { page++; load().catch(e => { if (sameSession()) notice(e.message, true); }); }
     });
     let mappingTicket = 0;
     async function refreshMappingEligibility() {
         const ticket = ++mappingTicket;
+        if (!sameSession()) return;
         const id = Number(el('curriculumSelection').value);
         const save = el('curriculumMappingSubmit'), info = el('curriculumMappingNotice');
         save.disabled = true;
@@ -139,24 +155,25 @@
         if (!id) return;
         try {
             const detail = await api('/api/academic-setup/curricula/' + id);
-            if (ticket !== mappingTicket || Number(el('curriculumSelection').value) !== id) return;
+            if (ticket !== mappingTicket || !sameSession() || Number(el('curriculumSelection').value) !== id) return;
             save.disabled = detail.isSubjectMappingLocked;
             info.textContent = detail.isSubjectMappingLocked
                 ? detail.subjectMappingLockReason
                 : 'Mapping is open. New subjects are validated again when saved.';
         } catch (e) {
-            if (ticket !== mappingTicket) return;
+            if (ticket !== mappingTicket || !sameSession()) return;
             info.textContent = 'Unable to check mapping eligibility: ' + e.message;
         }
     }
     el('curriculumSelection').addEventListener('change', () => {
-        refreshMappingEligibility().catch(e => notice(e.message, true));
+        refreshMappingEligibility().catch(e => { if (sameSession()) notice(e.message, true); });
     });
     window.addEventListener('eduos:academic-reloaded', () => {
-        programOptions(); load().catch(e => notice(e.message, true));
-        refreshMappingEligibility().catch(e => notice(e.message, true));
+        if (!sameSession()) return;
+        programOptions(); load().catch(e => { if (sameSession()) notice(e.message, true); });
+        refreshMappingEligibility().catch(e => { if (sameSession()) notice(e.message, true); });
     });
     programOptions();
-    load().catch(e => notice(e.message, true));
-    refreshMappingEligibility().catch(e => notice(e.message, true));
+    load().catch(e => { if (sameSession()) notice(e.message, true); });
+    refreshMappingEligibility().catch(e => { if (sameSession()) notice(e.message, true); });
 })();
