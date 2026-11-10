@@ -36,7 +36,16 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-    const state = { selected: null, requestId: null, saving: false };
+    const state = { selected: null, requestId: null, requestFingerprint: null,
+        saving: false, searchRequest: 0, selectionRequest: 0 };
+    const exitForm = el('lifecycleExitForm');
+    const exitGuard = window.EduOSFormGuard?.create(exitForm);
+    const identity = [document.body?.dataset?.authTenantId || '',
+        document.body?.dataset?.authSessionReference || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
+    const validGuid = text => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text);
     const value = id => el(id).value.trim();
     function alert(message, error = false) {
         const box = el('lifecycleAlert');
@@ -74,19 +83,26 @@
         return state.requestId;
     }
     function canProcess() {
-        return !state.saving && state.selected?.status === 'Active' &&
+        return sameSession() && !state.saving && state.selected?.status === 'Active' &&
             Boolean(state.selected.rowVersion) && Boolean(value('lifecycleReason')) &&
             Boolean(value('lifecycleExitType'));
     }
-    function refresh() { el('lifecycleSubmit').disabled = !canProcess(); }
+    function refresh() {
+        el('lifecycleSubmit').disabled = !canProcess();
+        el('lifecycleSearchSubmit').disabled = state.saving || !sameSession();
+    }
     async function search(event) {
         event?.preventDefault();
+        if (state.saving || !sameSession()) return;
         const query = value('lifecycleSearchText');
-        if (query.length < 2) return alert(tr('Enter at least two characters to search.', 'খুঁজতে অন্তত দুইটি অক্ষর লিখুন।'), true);
+        if (query.length < 2 || query.length > 100)
+            return alert(tr('Enter 2–100 characters to search.', 'খুঁজতে ২–১০০টি অক্ষর লিখুন।'), true);
+        const request = ++state.searchRequest;
         const box = el('lifecycleMatches');
         box.textContent = tr('Searching...', 'খোঁজা হচ্ছে...');
         try {
             const page = await api('/api/students?' + new URLSearchParams({ search: query, page: 1, pageSize: 20 }));
+            if (request !== state.searchRequest || !sameSession()) return;
             box.replaceChildren();
             if (!page?.items?.length) { box.textContent = tr('No matching students.', 'মিলে যাওয়া শিক্ষার্থী নেই।'); return; }
             for (const item of page.items) {
@@ -96,14 +112,28 @@
                 button.addEventListener('click', () => selectStudent(item.reference));
                 box.append(button);
             }
-        } catch (e) { box.textContent = ''; alert(e.message, true); }
+        } catch (e) {
+            if (request === state.searchRequest && sameSession()) { box.textContent = ''; alert(e.message, true); }
+        }
     }
-    async function selectStudent(reference) {
-        state.selected = null; state.requestId = null; refresh();
+    async function selectStudent(reference, internal = false) {
+        if (!sameSession() || (state.saving && !internal) || !validGuid(reference)) return false;
+        if (!internal && exitGuard?.isDirty() && !exitGuard.confirmDiscard()) return false;
+        const request = ++state.selectionRequest;
+        state.selected = null; state.requestId = null; state.requestFingerprint = null;
+        exitForm.reset(); exitGuard?.markClean();
+        el('lifecycleStudent').classList.add('d-none');
+        el('lifecycleHistory').replaceChildren();
+        refresh();
         try {
-            const details = await api('/api/students/' + encodeURIComponent(reference));
-            const history = await api('/api/students/exit/' + encodeURIComponent(reference) + '/history');
+            const [details, history] = await Promise.all([
+                api('/api/students/' + encodeURIComponent(reference)),
+                api('/api/students/exit/' + encodeURIComponent(reference) + '/history')
+            ]);
+            if (request !== state.selectionRequest || !sameSession()) { refresh(); return false; }
             if (details.reference !== reference) throw new Error(tr('Unexpected student reference returned.', 'অপ্রত্যাশিত শিক্ষার্থী রেফারেন্স পাওয়া গেছে।'));
+            if (!Array.isArray(history) || history.some(x => x.studentReference && x.studentReference !== reference))
+                throw new Error(tr('Student exit history did not match this student.', 'শিক্ষার্থীর প্রস্থানের ইতিহাস মেলেনি।'));
             state.selected = details;
             el('lifecycleStudent').classList.remove('d-none');
             el('lifecycleName').textContent = details.fullName;
@@ -111,9 +141,13 @@
             el('lifecycleStatus').textContent = statusLabel(details.status);
             el('lifecycleCurrent').textContent = (details.enrollments || []).length +
                 tr(' enrollment history rows (up to 100).', 'টি ভর্তির ইতিহাস (সর্বোচ্চ ১০০)।');
-            renderHistory(history || []);
+            renderHistory(history);
             refresh();
-        } catch (e) { alert(e.message, true); }
+            return true;
+        } catch (e) {
+            if (request === state.selectionRequest && sameSession()) alert(e.message, true);
+            refresh(); return false;
+        }
     }
     function renderHistory(items) {
         const body = el('lifecycleHistory');
@@ -155,24 +189,39 @@
         if (!confirm(tr('Finalize ', 'চূড়ান্ত করুন: ') + statusLabel(exitType) + tr(' for ', ' — ') + chosen.studentCode +
             tr('? This closes the current enrollment and cannot be silently undone.', '? বর্তমান ভর্তি বন্ধ হবে; নীরবে ফিরিয়ে আনা যাবে না।'))) return;
         const payload = {
-            clientRequestId: requestId(), studentReference: chosen.reference,
+            studentReference: chosen.reference,
             exitType, reason, conductRemark, studentRowVersion: chosen.rowVersion
         };
-        state.saving = true; refresh();
+        const fingerprint = JSON.stringify(payload);
+        if (state.requestFingerprint !== fingerprint) state.requestId = null;
+        state.requestFingerprint = fingerprint;
+        payload.clientRequestId = requestId();
+        state.saving = true; exitForm.inert = true; refresh();
+        let committed = false;
         try {
             const result = await api('/api/students/exit', { method: 'POST', body: JSON.stringify(payload) });
-            state.requestId = null;
-            await selectStudent(chosen.reference);
-            alert(tr('Student exit completed.', 'শিক্ষার্থী প্রস্থান সম্পন্ন হয়েছে।') + (result.certificateNo ? tr(' Transfer certificate: ', ' স্থানান্তর সনদ: ') + result.certificateNo : ''));
-        } catch (e) { alert(e.message, true); }
-        finally { state.saving = false; refresh(); }
+            committed = true;
+            if (!sameSession()) return;
+            state.requestId = null; state.requestFingerprint = null;
+            exitForm.reset(); exitGuard?.markClean();
+            const refreshed = await selectStudent(chosen.reference, true);
+            if (sameSession()) alert(refreshed
+                ? tr('Student exit completed.', 'শিক্ষার্থী প্রস্থান সম্পন্ন হয়েছে।') +
+                    (result.certificateNo ? tr(' Transfer certificate: ', ' স্থানান্তর সনদ: ') + result.certificateNo : '')
+                : tr('Student exit saved, but status refresh failed. Reload to verify.', 'শিক্ষার্থীর প্রস্থান সংরক্ষিত হয়েছে, কিন্তু অবস্থা রিফ্রেশ হয়নি। যাচাই করতে রিলোড করুন।'), !refreshed);
+        } catch (e) {
+            if (sameSession()) alert(committed
+                ? tr('Student exit saved, but status refresh failed. Reload to verify.', 'শিক্ষার্থীর প্রস্থান সংরক্ষিত হয়েছে; রিলোড করে যাচাই করুন।')
+                : e.message + tr(' Retry unchanged details with the same request ID.', ' একই তথ্য দিয়ে আগের অনুরোধ নম্বরেই আবার চেষ্টা করুন।'), true);
+        } finally { state.saving = false; exitForm.inert = false; refresh(); }
     }
     el('lifecycleStudentSearch').addEventListener('submit', search);
     el('lifecycleExitForm').addEventListener('submit', submit);
+    el('lifecycleSearchText').addEventListener('input', () => { ++state.searchRequest; });
     for (const id of ['lifecycleExitType', 'lifecycleReason', 'lifecycleConduct']) {
-        el(id).addEventListener('input', () => { state.requestId = null; refresh(); });
-        el(id).addEventListener('change', () => { state.requestId = null; refresh(); });
+        el(id).addEventListener('input', refresh);
+        el(id).addEventListener('change', refresh);
     }
     const preselected = new URLSearchParams(location.search).get('studentReference');
-    if (preselected && /^[0-9a-f-]{36}$/i.test(preselected)) selectStudent(preselected);
+    if (preselected && validGuid(preselected)) selectStudent(preselected);
 })();

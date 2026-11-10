@@ -502,7 +502,8 @@ test('student final-exit page bilingual labels and reviewed manual preserve API/
         assert.ok(view.includes('id="' + id + '"'));
     for (const type of ['Transfer', 'Completed', 'Dropout']) assert.ok(view.includes('value="' + type + '"'));
     assert.match(client, /RequestVerificationToken: token/);
-    assert.ok(client.includes('clientRequestId: requestId()'));
+    assert.match(client, /payload\.clientRequestId = requestId\(\)/);
+    assert.match(client, /requestFingerprint !== fingerprint/);
     assert.match(service, /Outstanding fees must be settled/);
     assert.equal(statusLabel('Active', true), 'সক্রিয়');
     assert.equal(statusLabel('TC', true), 'স্থানান্তরিত');

@@ -21,7 +21,7 @@
                     <h2 class="h5">@(bn ? "শিক্ষার্থী খুঁজুন" : "Find student")</h2>
                     <form id="lifecycleStudentSearch" class="input-group mb-3">
                         <input id="lifecycleSearchText" class="form-control" maxlength="100" placeholder="@(bn ? "শিক্ষার্থীর নাম বা কোড" : "Student name or code")" aria-label="@(bn ? "শিক্ষার্থী খোঁজা" : "Student search")" />
-                        <button class="btn btn-outline-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button>
+                        <button id="lifecycleSearchSubmit" class="btn btn-outline-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button>
                     </form>
                     <div id="lifecycleMatches" class="list-group mb-3">@(bn ? "প্রক্রিয়ার জন্য একজন শিক্ষার্থী খুঁজুন।" : "Search for a student to process.")</div>
                     <div id="lifecycleStudent" class="border rounded p-3 d-none">
@@ -77,5 +77,6 @@
     </div>
 </div>
 @section Scripts {
+    <script src="~/js/platform/form-guard.js" asp-append-version="true"></script>
     <script src="~/js/students/lifecycle.js" asp-append-version="true"></script>
 }
