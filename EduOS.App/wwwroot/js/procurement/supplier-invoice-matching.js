@@ -10,6 +10,8 @@
   x.className = 'btn btn-outline-secondary btn-sm w-100 text-start mb-1'; x.addEventListener('click',onClick); return x; };
  const token = document.querySelector('meta[name="request-verification-token"]')?.content;
  const params = value => '?' + new URLSearchParams(value).toString();
+ const localDate = () => {const day = new Date(); return [day.getFullYear(),
+  String(day.getMonth()+1).padStart(2,'0'),String(day.getDate()).padStart(2,'0')].join('-');};
  const currency = value => Number(value).toLocaleString(bn ? 'bn-BD' : 'en-BD',
   {minimumFractionDigits:2, maximumFractionDigits:2});
  function status(message, isError = true) { const x = $('simStatus');
@@ -21,14 +23,21 @@
   const response = await fetch(url, {method, credentials:'same-origin', cache:'no-store', headers,
    ...(payload === undefined ? {} : {body:JSON.stringify(payload)})});
   const data = await response.json().catch(() => null);
-  if (!response.ok || !data?.success) throw new Error(data?.message || 'Request failed / অনুরোধ ব্যর্থ');
+  if (!response.ok || !data?.success) {
+   const error=new Error(data?.message || 'Request failed / অনুরোধ ব্যর্থ');
+   error.statusCode=response.status;throw error;
+  }
   return data.data;
  }
  $('simHelp').addEventListener('click', () => { const x = $('simGuidance');
   x.classList.toggle('d-none'); $('simHelp').setAttribute('aria-expanded', String(!x.classList.contains('d-none'))); });
  let selected = null, searchSeq = 0, pending = false;
+ const draftForm = $('simPreviewForm');
+ const draftGuard = draftForm?.elements && window.EduOSFormGuard?.create(draftForm);
+ function canDiscardDraft(){return !selected || !draftGuard?.isDirty() || draftGuard.confirmDiscard();}
  $('simSearchForm').addEventListener('submit', async e => {
-  e.preventDefault(); const seq = ++searchSeq;
+  e.preventDefault(); if(pending || !canDiscardDraft())return;
+  const seq = ++searchSeq;
   selected = null; $('simPreviewForm').classList.add('d-none'); $('simResult').classList.add('d-none');
   $('simOrderResults').replaceChildren();
   try {
@@ -43,7 +52,9 @@
   } catch (err) { if (seq === searchSeq) status(err.message); }
  });
  async function choose(id) {
+  if(pending || !canDiscardDraft())return;
   const seq = ++searchSeq;
+  selected=null;saveKey=null;
   $('simOrderResults').replaceChildren(); $('simRows').replaceChildren();
   $('simPreviewForm').classList.add('d-none'); $('simResult').classList.add('d-none');
   try {
@@ -58,9 +69,12 @@
      state:'Posted',page,pageSize:100})); receipts.push(...(more.items || []));
    }
    if (seq !== searchSeq) return;
-   selected = po; $('simOrderTitle').textContent = `${po.orderNumber} · Campus ${po.campusId}`;
+   selected = po;saveKey=null;$('simOrderTitle').textContent = `${po.orderNumber} · Campus ${po.campusId}`;
    for (const receipt of receipts) for (const line of receipt.lines || []) addLine(receipt,line);
-   $('simMode').value = 'Automatic'; adjustMode();
+   $('simMode').value = 'Automatic';lastMode='Automatic';adjustMode();
+   for(const id of ['simInvoiceNo','simInvoiceDate','simDueDate','simReason'])if($(id))$(id).value='';
+   if($('simInvoiceDate'))$('simInvoiceDate').value=localDate();
+   draftGuard?.markClean();
    if (!receipts.length) status('No accepted deliveries yet / কোনো অনুমোদিত পণ্য গ্রহণ নেই');
    $('simPreviewForm').classList.remove('d-none');
   } catch (err) { if (seq === searchSeq) status(err.message); }
@@ -83,6 +97,7 @@
   reason.setAttribute('aria-label','Price variance reason for receipt line '+line.lineNo);
   reasonCell.append(reason); tr.append(reasonCell); $('simRows').append(tr);
  }
+ let lastMode='Automatic';
  function adjustMode() {
   const mode = $('simMode').value; const automatic = mode === 'Automatic';
   $('simAmountTitle').textContent = mode === 'ManualFinal' ? 'Final unit price / চূড়ান্ত মূল্য' :
@@ -94,7 +109,17 @@
   }
   $('simResult').classList.add('d-none');
  }
- $('simMode').addEventListener('change',adjustMode);
+ $('simMode').addEventListener('change',()=>{
+  const overrides=[...$('simRows').children].some(tr=>{
+   const price=tr.querySelector('.sim-price'),reason=tr.querySelector('.sim-reason');
+   const defaultPrice=lastMode==='ManualFinal'?tr.dataset.poPrice:'0';
+   return reason.value.trim()||(!price.disabled&&price.value!==defaultPrice);
+  });
+  if(overrides&&draftGuard?.isDirty()&&!draftGuard.confirmDiscard()){
+   $('simMode').value=lastMode;return;
+  }
+  lastMode=$('simMode').value;adjustMode();
+ });
  function collectLines() {
   const priceMode = $('simMode').value, lines = [];
   for (const tr of $('simRows').children) {
@@ -116,8 +141,10 @@
  $('simPreviewForm').addEventListener('submit', async e => {
   e.preventDefault(); if (pending || !selected) return;
   try {
-   pending = true; $('simRun').disabled = true;
-   const preview = await api('/api/procurement/supplier-invoices/preview','POST',collectLines());
+   const command=collectLines(),scope=searchSeq;
+   pending = true; draftForm.inert=true;$('simRun').disabled = true;
+   const preview = await api('/api/procurement/supplier-invoices/preview','POST',command);
+   if(scope!==searchSeq)return;
    $('simSummary').textContent = `${preview.orderNumber} · BDT ${currency(preview.proposedAmount)} · `+
     `Stock value difference BDT ${currency(preview.differenceFromStockValue)} · `+
     (preview.requiresIndependentFinanceReview ? 'Finance review needed' : 'No detected price variance') +
@@ -133,25 +160,50 @@
    $('simResult').classList.remove('d-none');
    status('Matching preflight completed; this is not an approved invoice or payable.',false);
   } catch (err) { $('simResult').classList.add('d-none'); status(err.message); }
-  finally { pending = false; $('simRun').disabled = false; }
+  finally { pending = false;draftForm.inert=false;$('simRun').disabled = false; }
  });
 
  const base = '/api/procurement/supplier-invoices';
  const canMake = root.dataset.maker === 'true';
  const canReview = root.dataset.reviewer === 'true';
  const currentUser = Number(root.dataset.userId);
- let page = 1, pages = 1, listSeq = 0, openInvoice = null, options = null;
+ let page = 1, pages = 1, listSeq = 0, detailSeq = 0, openInvoice = null;
  let saveKey = null, submitKey = null, reviewKey = null, reversalKey = null;
+ let reviewSignature = null, reversalSignature = null;
  const detailDialog = $('simDetailDialog'), reviewDialog = $('simReviewDialog'), reversalDialog = $('simReversalDialog'),
   contraReviewDialog = $('simContraReviewDialog');
- const close = dialog => { if (dialog.open) dialog.close(); };
+ const dialogEditors=[['simReviewDialog','simReviewForm'],
+  ['simReversalDialog','simReversalForm'],['simContraReviewDialog','simContraReviewForm']];
+ const guards={};
+ for(const [dialogId,formId] of dialogEditors){const form=$(formId);
+  if(form?.elements&&window.EduOSFormGuard)guards[formId]=window.EduOSFormGuard.create(form);
+  $(dialogId)?.addEventListener('cancel',e=>{
+   if(pending||guards[formId]?.isDirty()&&!guards[formId].confirmDiscard())e.preventDefault();
+   else guards[formId]?.markClean();
+  });
+ }
+ function close(dialog,force=false){
+  const formId=dialogEditors.find(x=>$(x[0])===dialog)?.[1];
+  if(!force&&(pending||guards[formId]?.isDirty()&&!guards[formId].confirmDiscard()))return false;
+  guards[formId]?.markClean();if(dialog.open)dialog.close();return true;
+ }
+ function clearUnauthorized(){
+  ++searchSeq;++detailSeq;selected=null;openInvoice=null;saveKey=null;submitKey=null;
+  reviewKey=null;reversalKey=null;reviewSignature=null;reversalSignature=null;
+  $('simOrderResults').replaceChildren();$('simRows').replaceChildren();
+  draftForm.classList.add('d-none');$('simResult').classList.add('d-none');
+  draftGuard?.markClean();close(detailDialog,true);
+  for(const [dialogId] of dialogEditors)close($(dialogId),true);
+ }
+ function signatureKey(body,previous,key){const signature=JSON.stringify(body);
+  return {signature,key:signature===previous?key:crypto.randomUUID()};}
  const action = (label, callback) => { const x = button(label,callback);
   x.className = 'btn btn-outline-primary btn-sm'; return x; };
  async function loadInvoices() {
   const seq = ++listSeq;
   try {
    const data = await api(base+params({page,pageSize:25,state:$('simState').value}));
-   if (seq !== listSeq) return;
+   if (seq !== listSeq) return false;
    pages = data.totalPages || 1; $('simInvoiceRows').replaceChildren();
    for (const invoice of data.items || []) {
     const tr = el('tr');
@@ -164,7 +216,16 @@
     'No supplier invoices / কোনো ইনভয়েস নেই'); cell.colSpan = 6; tr.append(cell); $('simInvoiceRows').append(tr); }
    $('simPage').textContent = `${page} / ${pages}`;
    $('simPrev').disabled = page<=1; $('simNext').disabled = page>=pages;
-  } catch (err) { if (seq===listSeq) status(err.message); }
+   return true;
+  } catch (err) {
+   if(seq===listSeq){
+    $('simInvoiceRows').replaceChildren();$('simPage').textContent='—';
+    $('simPrev').disabled=true;$('simNext').disabled=true;
+    if([401,403].includes(err.statusCode))clearUnauthorized();
+    status(err.message);
+   }
+   return false;
+  }
  }
  $('simInvoiceFilters').addEventListener('submit', e=>{ e.preventDefault(); page=1;loadInvoices(); });
  $('simPrev').addEventListener('click',()=>{ if(page>1){page--;loadInvoices();} });
@@ -184,19 +245,24 @@
  }
  if (canMake) $('simSave')?.addEventListener('click', async()=>{
   if (pending) return;
-  pending=true; $('simSave').disabled=true;
+  pending=true;draftForm.inert=true;$('simSave').disabled=true;
   try {
    const saved = await api(base,'POST',invoiceDraft());
-   saveKey = null; status('Invoice draft saved. GL unchanged.',false); await loadInvoices(); await detail(saved.reference);
+   saveKey = null;draftGuard?.markClean();
+   await afterWrite(saved.reference,'Invoice draft saved. GL unchanged.');
   } catch (err) { status(err.message); }
-  finally { pending=false; $('simSave').disabled=false; }
+  finally { pending=false;draftForm.inert=false;$('simSave').disabled=false; }
  });
- ['simMode','simInvoiceNo','simInvoiceDate','simDueDate','simReason'].forEach(id=>
-  $(id)?.addEventListener('input',()=>{saveKey=null;}));
- $('simRows').addEventListener('input',()=>{saveKey=null;});
+ ['simMode','simInvoiceNo','simInvoiceDate','simDueDate','simReason'].forEach(id=>{
+  for(const type of ['input','change'])$(id)?.addEventListener(type,()=>{saveKey=null;});
+ });
+ for(const type of ['input','change'])$('simRows').addEventListener(type,()=>{saveKey=null;});
  async function detail(reference) {
+  const seq=++detailSeq;
   try {
-   openInvoice = await api(base+'/'+reference); submitKey=null; reviewKey=null; reversalKey=null;
+   const loaded=await api(base+'/'+reference);
+   if(seq!==detailSeq)return false;
+   openInvoice=loaded;submitKey=null;reviewKey=null;reversalKey=null;
    const x = openInvoice;
    $('simDetailSummary').textContent = `${x.supplierInvoiceNumber} · ${x.orderNumber} · Campus ${x.campusId} · `+
     `${x.stateCode} · BDT ${currency(x.totalAmount)} · Stock BDT ${currency(x.stockValue)} · `+
@@ -228,22 +294,26 @@
    }
    if (x.journalReference) actions.append(el('small','GL: '+x.journalReference));
    detailDialog.showModal();
-  } catch (err) {status(err.message);}
+   return true;
+  } catch (err) {if(seq===detailSeq){openInvoice=null;status(err.message);}return false;}
  }
- $('simDetailClose').addEventListener('click',()=>close(detailDialog));
+ async function afterWrite(reference,message){
+  const listOk=await loadInvoices(),detailOk=await detail(reference);
+  status(message+(!listOk||!detailOk?' Register refresh incomplete; reload to verify the saved state.':''),false);
+ }
+ $('simDetailClose').addEventListener('click',()=>{if(pending)return;++detailSeq;close(detailDialog);});
+ detailDialog.addEventListener('cancel',e=>{if(pending)e.preventDefault();else ++detailSeq;});
  async function submitInvoice(){
   if (pending || !openInvoice) return;
-  submitKey ||= crypto.randomUUID(); pending=true;
+  const source=openInvoice;submitKey ||= crypto.randomUUID();pending=true;
   try {
-   const x = await api(base+'/'+openInvoice.reference+'/submit','POST',
-    {clientRequestId:submitKey,rowVersion:openInvoice.rowVersion});
-   close(detailDialog); status('Invoice submitted to independent Finance reviewer.',false);
-   await loadInvoices(); await detail(x.reference);
+   const x = await api(base+'/'+source.reference+'/submit','POST',
+    {clientRequestId:submitKey,rowVersion:source.rowVersion});
+   submitKey=null;close(detailDialog,true);
+   await afterWrite(x.reference,'Invoice submitted to independent Finance reviewer.');
   }catch(err){status(err.message);}finally{pending=false;}
  }
- async function loadOptions(){ if(options) return options;
-  options = await api(base+'/options'); return options;
- }
+ async function loadOptions(){return api(base+'/options');}
  function setOptions(selectId, items){ const x=$(selectId); x.replaceChildren(new Option('Select / নির্বাচন করুন',''));
   for(const a of items)x.append(new Option(`${a.code||a.name} · ${a.name}${a.type?' ('+a.type+')':''}`,String(a.id)));
  }
@@ -251,56 +321,69 @@
  $('simDecision').addEventListener('change',updateDecision);
  async function openReview(){
   if (!openInvoice || pending) return;
+  const seq=detailSeq,source=openInvoice;
   try {
    const data=await loadOptions();
+   if(seq!==detailSeq||openInvoice?.reference!==source.reference)return;
    setOptions('simPeriod',data.periods);
    setOptions('simAssetAccount',data.accounts.filter(x=>x.type==='Asset'));
    setOptions('simPayableAccount',data.accounts.filter(x=>x.type==='Liability'));
    setOptions('simVarianceAccount',data.accounts.filter(x=>x.type==='Expense'));
-   $('simReviewForm').reset(); updateDecision(); reviewKey=crypto.randomUUID();reviewDialog.showModal();
+   $('simReviewForm').reset();updateDecision();reviewKey=null;reviewSignature=null;
+   guards.simReviewForm?.markClean();reviewDialog.showModal();
   }catch(err){status(err.message);}
  }
  $('simReviewClose').addEventListener('click',()=>close(reviewDialog));
  $('simReviewCancel').addEventListener('click',()=>close(reviewDialog));
  $('simReviewForm').addEventListener('submit',async e=>{
   e.preventDefault();if(!openInvoice||pending)return;
-  const decision=$('simDecision').value;
-  pending=true;$('simReviewSubmit').disabled=true;
+  const source=openInvoice,decision=$('simDecision').value;
+  pending=true;$('simReviewSubmit').disabled=true;$('simReviewForm').inert=true;
   try{
-   const body={clientRequestId:reviewKey,rowVersion:openInvoice.rowVersion,decision,
+   const body={rowVersion:source.rowVersion,decision,
     reason:$('simReviewReason').value.trim(),accountingPeriodId:Number($('simPeriod').value)||0,
     inventoryAccountId:Number($('simAssetAccount').value)||0,
     payableAccountId:Number($('simPayableAccount').value)||0,
     priceVarianceAccountId:Number($('simVarianceAccount').value)||0};
-   const updated=await api(base+'/'+openInvoice.reference+'/review','POST',body);
-   close(reviewDialog);close(detailDialog);status('Finance decision recorded; '+updated.stateCode,false);
-   await loadInvoices();await detail(updated.reference);
-  }catch(err){status(err.message);}finally{pending=false;$('simReviewSubmit').disabled=false;}
+   const key=signatureKey({reference:source.reference,...body},reviewSignature,reviewKey);
+   reviewSignature=key.signature;reviewKey=key.key;
+   const updated=await api(base+'/'+source.reference+'/review','POST',
+    {clientRequestId:reviewKey,...body});
+   reviewKey=null;reviewSignature=null;close(reviewDialog,true);close(detailDialog,true);
+   await afterWrite(updated.reference,'Finance decision recorded; '+updated.stateCode);
+  }catch(err){status(err.message);}finally{pending=false;$('simReviewSubmit').disabled=false;$('simReviewForm').inert=false;}
  });
  async function openReversal(){
+  if(!openInvoice||pending)return;
+  const seq=detailSeq,source=openInvoice;
   try{
-   const data=await loadOptions();setOptions('simReversalPeriod',data.periods);
-   $('simReversalForm').reset(); $('simReversalDate').value=new Date().toISOString().slice(0,10);
-   reversalKey=crypto.randomUUID();reversalDialog.showModal();
+   const data=await loadOptions();
+   if(seq!==detailSeq||openInvoice?.reference!==source.reference)return;
+   setOptions('simReversalPeriod',data.periods);
+   $('simReversalForm').reset();$('simReversalDate').value=localDate();
+   reversalKey=null;reversalSignature=null;guards.simReversalForm?.markClean();reversalDialog.showModal();
   }catch(err){status(err.message);}
  }
  $('simReversalClose').addEventListener('click',()=>close(reversalDialog));
  $('simReversalCancel').addEventListener('click',()=>close(reversalDialog));
  $('simReversalForm').addEventListener('submit',async e=>{
   e.preventDefault();if(!openInvoice||pending)return;
-  pending=true;$('simReversalSubmit').disabled=true;
+  const source=openInvoice;pending=true;$('simReversalSubmit').disabled=true;$('simReversalForm').inert=true;
   try{
-   const updated=await api(base+'/'+openInvoice.reference+'/reversal','POST',{
-    clientRequestId:reversalKey,rowVersion:openInvoice.rowVersion,
+   const body={rowVersion:source.rowVersion,
     accountingPeriodId:Number($('simReversalPeriod').value),reversalDate:$('simReversalDate').value,
-    reason:$('simReversalReason').value.trim()});
-   close(reversalDialog);close(detailDialog);status('Unposted payable contra submitted; reviewer required.',false);
-   await loadInvoices();await detail(updated.reference);
-  }catch(err){status(err.message);}finally{pending=false;$('simReversalSubmit').disabled=false;}
+    reason:$('simReversalReason').value.trim()};
+   const key=signatureKey({reference:source.reference,...body},reversalSignature,reversalKey);
+   reversalSignature=key.signature;reversalKey=key.key;
+   const updated=await api(base+'/'+source.reference+'/reversal','POST',
+    {clientRequestId:reversalKey,...body});
+   reversalKey=null;reversalSignature=null;close(reversalDialog,true);close(detailDialog,true);
+   await afterWrite(updated.reference,'Unposted payable contra submitted; reviewer required.');
+  }catch(err){status(err.message);}finally{pending=false;$('simReversalSubmit').disabled=false;$('simReversalForm').inert=false;}
  });
  function openContraReview(){
   if(!openInvoice?.reversalJournalRowVersion||pending)return;
-  $('simContraReviewForm').reset();contraReviewDialog.showModal();
+  $('simContraReviewForm').reset();guards.simContraReviewForm?.markClean();contraReviewDialog.showModal();
  }
  $('simContraReviewClose').addEventListener('click',()=>close(contraReviewDialog));
  $('simContraReviewCancel').addEventListener('click',()=>close(contraReviewDialog));
@@ -309,14 +392,13 @@
   const x=openInvoice,approve=$('simContraDecision').value==='Approve',
    reason=$('simContraReason').value.trim();
   if(reason.length<10||reason.length>800)return;
-  pending=true;$('simContraReviewSubmit').disabled=true;
+  pending=true;$('simContraReviewSubmit').disabled=true;$('simContraReviewForm').inert=true;
   try{
    const updated=await api(base+'/'+x.reference+'/reversal/review','POST',
     {rowVersion:x.reversalJournalRowVersion,approve,reason});
-   close(contraReviewDialog);close(detailDialog);
-   status(approve?'Compensating GL reversal posted.':'Reversal rejected; payable unchanged.',false);
-   await loadInvoices();await detail(updated.reference);
-  }catch(err){status(err.message);}finally{pending=false;$('simContraReviewSubmit').disabled=false;}
+   close(contraReviewDialog,true);close(detailDialog,true);
+   await afterWrite(updated.reference,approve?'Compensating GL reversal posted.':'Reversal rejected; payable unchanged.');
+  }catch(err){status(err.message);}finally{pending=false;$('simContraReviewSubmit').disabled=false;$('simContraReviewForm').inert=false;}
  });
  loadInvoices();
 })();

@@ -23,6 +23,7 @@ function harness(kind, DateCtor = Date, failGets = new Set()) {
   click(){this.listeners.click?.();}
  }
  const elements={},handlers={},posts=[],gets=[];
+ let nextKey=0;
  const get=id=>elements[id]??(elements[id]=new Element(id));
  get('supplierSettlement').dataset={maker:kind==='review'?'false':'true',
   reviewer:kind==='review'?'true':'false'};
@@ -32,7 +33,8 @@ function harness(kind, DateCtor = Date, failGets = new Set()) {
  const window={addEventListener:(name,callback)=>handlers[name]=callback};
  const fetch=async(url,options)=>{
   if(options?.method==='POST')
-   return await new Promise((resolve,reject)=>posts.push({url,resolve,reject}));
+   return await new Promise((resolve,reject)=>posts.push({url,resolve,reject,
+    body:JSON.parse(options.body)}));
   gets.push(url);
   if([...failGets].some(part=>url.includes(part)))
    return {ok:false,status:403,json:async()=>({success:false,message:'Access revoked'})};
@@ -45,7 +47,7 @@ function harness(kind, DateCtor = Date, failGets = new Set()) {
   return {ok:true,json:async()=>({success:true,data})};
  };
  vm.runInNewContext(source,{document,window,fetch,URLSearchParams,
-  crypto:{randomUUID:()=> 'test-request-key'},Date:DateCtor,
+  crypto:{randomUUID:()=> 'settlement-key-'+(++nextKey)},Date:DateCtor,
   Option:class {constructor(name,value){this.name=name;this.value=value;}}});
  const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
  const select=async reference=>{
@@ -159,4 +161,37 @@ test('forbidden settlement command clears sensitive selected invoice without rep
  assert.equal(h.get('ssRows').children.length,0);
  assert.equal(h.get('ssForm').classList.contains('d-none'),true);
  assert.match(h.get('ssStatus').textContent,/Campus denied/);
+});
+
+test('uncertain supplier settlement retries reuse the same key; edited payload gets another',async()=>{
+ const h=harness('maker');
+ await h.select('A');
+ h.get('ssAmount').value='25';
+ h.get('ssReason').value='Current approved bank payment evidence';
+ let task=h.submit('ssForm');await h.flush();
+ h.posts[0].reject(Error('Network unavailable'));await task;
+ task=h.submit('ssForm');await h.flush();
+ assert.equal(h.posts[1].body.clientRequestId,h.posts[0].body.clientRequestId);
+ h.posts[1].reject(Error('Still uncertain'));await task;
+ h.get('ssAmount').value='26'; // Deliberately omit input event: request must match the submitted payload.
+ task=h.submit('ssForm');await h.flush();
+ assert.notEqual(h.posts[2].body.clientRequestId,h.posts[1].body.clientRequestId);
+ assert.equal(h.posts[2].body.amount,26);
+ assert.equal(h.get('ssForm').inert,true);
+ h.posts[2].resolve(h.success());await task;
+ assert.equal(h.get('ssForm').inert,false);
+});
+
+test('withdrawal retries are bound to the exact reason and source row version',async()=>{
+ const h=harness('withdraw');await h.select('A');h.action();
+ h.get('ssWithdrawReason').value='Wrong approval evidence';
+ let task=h.submit('ssWithdrawForm');await h.flush();
+ h.posts[0].reject(Error('Timeout'));await task;
+ task=h.submit('ssWithdrawForm');await h.flush();
+ assert.equal(h.posts[0].body.clientRequestId,h.posts[1].body.clientRequestId);
+ h.posts[1].reject(Error('Timeout'));await task;
+ h.get('ssWithdrawReason').value='Different withdrawal reason';
+ task=h.submit('ssWithdrawForm');await h.flush();
+ assert.notEqual(h.posts[1].body.clientRequestId,h.posts[2].body.clientRequestId);
+ h.posts[2].resolve(h.success());await task;
 });
