@@ -244,10 +244,12 @@
     }
     async function searchItems() {
         const requestEpoch = ++itemSearchEpoch;
-        const query = new URLSearchParams({ page:'1', pageSize:'25', search:$('prItemTerm').value.trim() });
+        const term = $('prItemTerm').value.trim();
+        const query = new URLSearchParams({ page:'1', pageSize:'25', search:term });
         try {
             const data = await api('/api/inventory/catalog/items?' + query);
-            if (requestEpoch !== itemSearchEpoch || picker.hidden || !dialog.open) return;
+            if (requestEpoch !== itemSearchEpoch || picker.hidden || !dialog.open ||
+                $('prItemTerm').value.trim() !== term) return;
             const list = $('prItemResults'); list.replaceChildren();
             for (const item of data.items || []) {
                 if (!item.isActive || !item.isStockTracked) continue;

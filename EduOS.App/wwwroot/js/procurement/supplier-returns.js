@@ -8,6 +8,8 @@
     const token = document.querySelector('meta[name="request-verification-token"]')?.content;
     let reference = '', invoice = null, page = 1, totalPages = 1, seq = 0,
         pending = false, requestKey = null;
+    const form = el('srForm');
+    const draftGuard = form && window.EduOSFormGuard?.create(form);
     function status(message, isError = false) {
         const box = el('srStatus'); box.className = 'alert alert-' + (isError ? 'danger' : 'info');
         box.textContent = message;
@@ -67,6 +69,7 @@
                     if (!reason || reason.trim().length < 10) throw new Error('Independent reason required.');
                     await api('/' + reference + '/returns/' + row.reference + '/review', 'POST',
                         { rowVersion: row.rowVersion, approve: word === 'APPROVE', reason: reason.trim() });
+                    return { mutated: true };
                 });
             body.append(tr);
         }
@@ -80,7 +83,12 @@
     }
     async function execute(callback) {
         if (pending) return; pending = true;
-        try { await callback(); if (reference) await loadReturns();
+        try { const result = await callback();
+            try { if (reference) await loadReturns(); }
+            catch (readError) {
+                if (!result?.mutated) throw readError;
+                status('Return review saved; refresh failed: ' + readError.message); return;
+            }
             status('Updated source-linked credit evidence / ক্রেডিট তথ্য হালনাগাদ হয়েছে'); }
         catch (error) { status(error.message, true); }
         finally { pending = false; }
@@ -92,42 +100,50 @@
     el('srLoad').addEventListener('click', () => execute(async () => {
         const value = el('srInvoice').value.trim();
         if (!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(value)) throw new Error('Valid invoice GUID required.');
+        if (invoice && draftGuard?.isDirty() && !draftGuard.confirmDiscard()) {
+            el('srInvoice').value = reference; return;
+        }
         reference = value; invoice = null; ++seq; page = 1; requestKey = null;
         el('srWorkspace').classList.add('d-none');
         const [source, options] = await Promise.all([api('/' + value), api('/options')]);
         if (reference !== value) return;
         if (source.stateCode !== 'Posted') throw new Error('Only an approved, posted supplier invoice can be returned.');
         invoice = source;
+        if (form) form.reset();
         el('srInvoiceSummary').textContent = source.supplierInvoiceNumber + ' · Campus ' +
             source.campusId + ' · Gross payable BDT ' + source.totalAmount;
         setOptions('srLine', source.lines || [], x => 'Line ' + x.lineNo + ' · Item ' +
             x.inventoryItemId + ' · Lot ' + x.lotOrBatchNo + ' · Qty ' + x.quantity +
             ' · BDT ' + x.invoiceUnitPrice);
         setAccounts(options);
+        el('srDate').value = localDate(); draftGuard?.markClean();
         el('srWorkspace').classList.remove('d-none'); await loadReturns();
     }));
-    el('srForm')?.addEventListener('submit', event => {
-        event.preventDefault(); execute(async () => {
-            if (!invoice) throw new Error('Load a posted source invoice first.');
-            requestKey ||= crypto.randomUUID();
-            await api('/' + reference + '/returns', 'POST', {
-                clientRequestId: requestKey, invoiceRowVersion: invoice.rowVersion,
-                supplierInvoiceLineId: Number(el('srLine').value),
-                quantity: Number(el('srQuantity').value), mode: el('srMode').value,
-                manualFinalCredit: Number(el('srManual').value),
-                manualCreditCorrection: Number(el('srCorrection').value),
-                accountingPeriodId: Number(el('srPeriod').value), returnDate: el('srDate').value,
-                varianceAccountId: el('srVariance').value ? Number(el('srVariance').value) : null,
-                refundReceivableAccountId: el('srRefund').value ? Number(el('srRefund').value) : null,
-                supplierReturnReference: el('srReference').value.trim(),
-                reason: el('srReason').value.trim()
-            });
-            requestKey = null;
-        });
+    form?.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (pending || !invoice || !form.reportValidity()) return;
+        const source = invoice, selected = reference;
+        const body = {
+            invoiceRowVersion: source.rowVersion, supplierInvoiceLineId: Number(el('srLine').value),
+            quantity: Number(el('srQuantity').value), mode: el('srMode').value,
+            manualFinalCredit: Number(el('srManual').value), manualCreditCorrection: Number(el('srCorrection').value),
+            accountingPeriodId: Number(el('srPeriod').value), returnDate: el('srDate').value,
+            varianceAccountId: el('srVariance').value ? Number(el('srVariance').value) : null,
+            refundReceivableAccountId: el('srRefund').value ? Number(el('srRefund').value) : null,
+            supplierReturnReference: el('srReference').value.trim(), reason: el('srReason').value.trim()
+        };
+        requestKey ||= crypto.randomUUID();pending = true;form.inert = true;
+        try {
+            await api('/' + selected + '/returns', 'POST', { clientRequestId: requestKey, ...body });
+            requestKey = null;form.reset();el('srDate').value = localDate();draftGuard?.markClean();
+            try { await loadReturns();status('Return submitted for independent review; no stock/GL posted yet.'); }
+            catch (readError) { status('Return submitted; the register could not be refreshed: ' + readError.message); }
+        } catch (error) { status(error.message, true); }
+        finally { pending = false;form.inert = false; }
     });
     for (const id of ['srLine', 'srQuantity', 'srDate', 'srPeriod', 'srMode',
         'srManual', 'srCorrection', 'srVariance', 'srRefund', 'srReference', 'srReason'])
-        el(id)?.addEventListener('input', () => { requestKey = null; });
+        for (const type of ['input','change']) el(id)?.addEventListener(type, () => { requestKey = null; });
     el('srPrev').addEventListener('click', () => execute(async () => {
         if (page > 1) { --page; await loadReturns(); }
     }));
@@ -137,6 +153,7 @@
     const now = new Date();
     el('srDate').value = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'),
         String(now.getDate()).padStart(2, '0')].join('-');
+    draftGuard?.markClean();
     const fromQuery = new URLSearchParams(location.search).get('invoice');
     if (fromQuery) { el('srInvoice').value = fromQuery; el('srLoad').click(); }
 })();

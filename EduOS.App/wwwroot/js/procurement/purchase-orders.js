@@ -131,7 +131,9 @@ async function lookup(kind) {
  try {
   const url=(isReq?'/api/procurement/requisitions':'/api/procurement/suppliers')+
    params({page:1,pageSize:25,campusId:campus,state:'Approved',search:term});
-  const data=await api(url);if(seq!==lookupEpoch[kind] || !createDialog.open)return;
+  const data=await api(url);
+  if(seq!==lookupEpoch[kind] || !createDialog.open ||
+   $(isReq?'poReqSearch':'poSupplierSearch').value.trim()!==term)return;
   for(const item of data.items || []) {
    const name=isReq?item.requestNumber+' · '+item.purpose:item.supplierCode+' · '+item.name;
    target.append(button('selected',()=> {

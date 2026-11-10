@@ -105,10 +105,12 @@
   if (pending) return;
   if (chosenPo && guarded.get(createDialog)?.isDirty() && !guarded.get(createDialog).confirmDiscard()) return;
   const seq = ++searchSeq;
+  const draftSnapshot=window.EduOSFormGuard?.fingerprint($('grCreateForm'));
   try {
    const po = await api('/api/procurement/purchase-orders/' + item.id);
    const data = await api('/api/inventory/catalog/locations' + params({page:1,pageSize:100,campusId:po.campusId}));
-   if (seq !== searchSeq || pending || !createDialog.open) return;
+   if (seq !== searchSeq || pending || !createDialog.open ||
+    (draftSnapshot && window.EduOSFormGuard.fingerprint($('grCreateForm'))!==draftSnapshot)) return;
    if (po.stateCode !== 'Approved') throw new Error('Selected PO is no longer approved.');
    chosenPo = po; $('grPoSelected').textContent = `${po.orderNumber} · Campus ${po.campusId}`;
    $('grPoResults').replaceChildren(); $('grLocation').replaceChildren(new Option('Select a campus store',''));
