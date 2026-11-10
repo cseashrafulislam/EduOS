@@ -11,7 +11,13 @@
  const params = obj => '?' + new URLSearchParams(Object.entries(obj).filter(([, v]) => v !== '' && v !== undefined && v !== null)).toString();
  const el = (tag, value) => { const x = document.createElement(tag); if (value !== undefined) x.textContent = String(value ?? ''); return x; };
  const num = value => Number(value).toLocaleString(bn ? 'bn-BD' : 'en-US', {maximumFractionDigits:6});
- const close = dialog => { if (dialog.open) dialog.close(); };
+ const guarded = new Map();
+ const close = (dialog,force=false) => {
+  const guard=guarded.get(dialog);
+  if (!force && (pending || (guard && !guard.confirmDiscard()))) return false;
+  if (dialog.open) dialog.close();
+  return true;
+ };
  const btn = (label, handler, css = 'btn-outline-primary') => {
   const x = el('button', label); x.type = 'button'; x.className = 'btn btn-sm ' + css;
   x.addEventListener('click', handler); return x;
@@ -30,9 +36,21 @@
   $('grAlert').className = 'alert alert-' + (success ? 'success' : 'danger');
   $('grAlert').textContent = String(message);
  }
- let page = 1, totalPages = 1, loadSeq = 0, searchSeq = 0, pending = false;
- let chosenPo = null, receipt = null, createRequestId = null, submitRequestId = null, reviewRequestId = null;
+ let page = 1, totalPages = 1, loadSeq = 0, searchSeq = 0, detailSeq = 0, pending = false;
+ let chosenPo = null, receipt = null;
+ const retryKeys = new Map();
+ function requestKey(action,body) {
+  const signature=JSON.stringify(body), existing=retryKeys.get(action);
+  if (existing?.signature===signature) return existing.key;
+  const key=crypto.randomUUID();retryKeys.set(action,{signature,key});return key;
+ }
  const createDialog = $('grCreateDialog'), detailDialog = $('grDetailDialog'), reviewDialog = $('grReviewDialog');
+ guarded.set(createDialog,window.EduOSFormGuard?.create($('grCreateForm')));
+ guarded.set(reviewDialog,window.EduOSFormGuard?.create($('grReviewForm')));
+ for (const [dialog,guard] of guarded) {
+  dialog.addEventListener('cancel',event=>{if(pending || (guard && !guard.confirmDiscard()))event.preventDefault();});
+  dialog.addEventListener('close',()=>guard?.markClean());
+ }
  async function load() {
   const seq = ++loadSeq;
   try {
@@ -64,7 +82,7 @@
  if (maker) $('grNew')?.addEventListener('click', () => {
   $('grCreateForm').reset(); $('grPoSelected').textContent = ''; $('grPoResults').replaceChildren();
   $('grCreateLines').replaceChildren(); $('grLocation').replaceChildren(new Option('Select approved order first',''));
-  chosenPo = null; createRequestId = crypto.randomUUID(); createDialog.showModal();
+  chosenPo = null; guarded.get(createDialog)?.markClean();createDialog.showModal();
  });
  async function searchOrders() {
   const seq = ++searchSeq;
@@ -84,11 +102,13 @@
  $('grFindPo').addEventListener('click', searchOrders);
  $('grPoSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); searchOrders(); } });
  async function chooseOrder(item) {
+  if (pending) return;
+  if (chosenPo && guarded.get(createDialog)?.isDirty() && !guarded.get(createDialog).confirmDiscard()) return;
   const seq = ++searchSeq;
   try {
    const po = await api('/api/procurement/purchase-orders/' + item.id);
    const data = await api('/api/inventory/catalog/locations' + params({page:1,pageSize:100,campusId:po.campusId}));
-   if (seq !== searchSeq || !createDialog.open) return;
+   if (seq !== searchSeq || pending || !createDialog.open) return;
    if (po.stateCode !== 'Approved') throw new Error('Selected PO is no longer approved.');
    chosenPo = po; $('grPoSelected').textContent = `${po.orderNumber} · Campus ${po.campusId}`;
    $('grPoResults').replaceChildren(); $('grLocation').replaceChildren(new Option('Select a campus store',''));
@@ -106,10 +126,11 @@
     lot.className = 'form-control form-control-sm'; lot.setAttribute('aria-label', 'Lot for item ' + line.inventoryItemId);
     lotCell.append(lot); tr.append(lotCell); $('grCreateLines').append(tr);
    }
+   guarded.get(createDialog)?.markClean();
   } catch (e) { if (seq === searchSeq) alert(e.message); }
  }
  $('grCreateForm').addEventListener('submit', async e => {
-  e.preventDefault(); if (pending) return;
+  e.preventDefault(); if (pending || !$('grCreateForm').reportValidity()) return;
   if (!chosenPo) { alert('Select an approved PO.'); return; }
   const lines = [];
   for (const [i, tr] of [...$('grCreateLines').children].entries()) {
@@ -119,18 +140,23 @@
     quantity, lotOrBatchNo:inputs[1].value.trim()});
   }
   if (!lines.length) { alert('Enter at least one positive delivered quantity.'); return; }
+  const body={purchaseOrderId:chosenPo.id,locationId:Number($('grLocation').value),
+   reason:$('grReason').value.trim(),lines};
   try {
-   pending = true; $('grCreateSave').disabled = true;
-   const saved = await api(base, 'POST', {clientRequestId:createRequestId,purchaseOrderId:chosenPo.id,
-    locationId:Number($('grLocation').value),reason:$('grReason').value.trim(),lines});
-   close(createDialog); alert('Draft saved. Stock unchanged.',true); await load(); await showDetail(saved.reference);
+   pending = true; $('grCreateForm').inert = true;
+   const saved = await api(base, 'POST', {clientRequestId:requestKey('create',body),...body});
+   retryKeys.delete('create');guarded.get(createDialog)?.markClean();close(createDialog,true);
+   await load(); await showDetail(saved.reference);alert('Draft saved. Stock unchanged.',true);
   } catch (error) { alert(error.message); }
-  finally { pending = false; $('grCreateSave').disabled = false; }
+  finally { pending = false; $('grCreateForm').inert = false; }
  });
 
  async function showDetail(reference) {
+  const seq=++detailSeq;
   try {
-   receipt = await api(base + '/' + reference); submitRequestId = null; reviewRequestId = null;
+   const updated=await api(base + '/' + reference);
+   if (seq!==detailSeq || $('grReviewForm').inert) return;
+   receipt=updated;
    const own = Number(receipt.createdByUserId) === userId;
    $('grDetailSummary').textContent = `${receipt.orderNumber} · Store ${receipt.locationId} · ${receipt.stateCode} · Maker ${receipt.createdByUserId ?? '—'} · Checker ${receipt.reviewedByUserId ?? '—'} · ${receipt.reason}`;
    $('grDetailLines').replaceChildren();
@@ -148,16 +174,19 @@
  }
  async function submit() {
   if (pending || !receipt || receipt.stateCode !== 'Draft') return;
-  submitRequestId ||= crypto.randomUUID(); pending = true;
+  const target=receipt, body={rowVersion:target.rowVersion};pending = true;
   try {
-   const updated = await api(base + '/' + receipt.reference + '/submit','POST',
-    {clientRequestId:submitRequestId,rowVersion:receipt.rowVersion});
-   close(detailDialog); alert('Submitted for independent review.',true); await load(); await showDetail(updated.reference);
+   const updated = await api(base + '/' + target.reference + '/submit','POST',
+    {clientRequestId:requestKey(target.reference+'/submit',body),...body});
+   retryKeys.delete(target.reference+'/submit');close(detailDialog,true);
+   await load();await showDetail(updated.reference);alert('Submitted for independent review.',true);
   } catch (e) { alert(e.message); } finally { pending = false; }
  }
  function openReview() {
   if (!receipt || receipt.stateCode !== 'Submitted' || Number(receipt.createdByUserId) === userId) return;
-  reviewRequestId = crypto.randomUUID(); $('grReviewForm').reset(); renderValuations(); reviewDialog.showModal();
+  ++detailSeq;$('grReviewForm').reset();
+  previousDecision=$('grDecision').value;previousMode=$('grMode').value;renderValuations();
+  guarded.get(reviewDialog)?.markClean();reviewDialog.showModal();
  }
  function renderValuations() {
   const approve = $('grDecision').value === 'Approve', mode = $('grMode').value;
@@ -178,10 +207,20 @@
    reasonCell.append(reason); tr.append(reasonCell); $('grValuationLines').append(tr);
   }
  }
- $('grDecision').addEventListener('change',renderValuations);
- $('grMode').addEventListener('change',renderValuations);
+ let previousDecision=$('grDecision').value,previousMode=$('grMode').value;
+ function changeValuationMode(event) {
+  const edited=[...$('grValuationLines').querySelectorAll('input')].some(input=>
+   input.value.trim() && input.value.trim()!=='0');
+  if (edited && !window.confirm(bn ? 'মূল্য সংশোধন মুছে যাবে। চালিয়ে যাবেন?' :
+   'Changing review options discards entered valuations. Continue?')) {
+   event.target.value=event.target.id==='grDecision'?previousDecision:previousMode;return;
+  }
+  previousDecision=$('grDecision').value;previousMode=$('grMode').value;renderValuations();
+ }
+ $('grDecision').addEventListener('change',changeValuationMode);
+ $('grMode').addEventListener('change',changeValuationMode);
  $('grReviewForm').addEventListener('submit', async e => {
-  e.preventDefault(); if (pending || !receipt) return;
+  e.preventDefault(); if (pending || !receipt || !$('grReviewForm').reportValidity()) return;
   const decision = $('grDecision').value, valuationMode = $('grMode').value;
   const valuations = [];
   if (decision === 'Approve' && valuationMode !== 'Automatic') {
@@ -193,15 +232,17 @@
    }
   }
   if (decision === 'Approve' && !window.confirm('Accept delivery and permanently increase stock?')) return;
-  pending = true; $('grReviewSave').disabled = true;
+  const target=receipt,body={rowVersion:target.rowVersion,decision,valuationMode,
+   reason:$('grReviewReason').value.trim(),valuations};
+  pending = true; $('grReviewForm').inert = true;
   try {
-   const updated = await api(base + '/' + receipt.reference + '/review','POST',
-    {clientRequestId:reviewRequestId,rowVersion:receipt.rowVersion,decision,valuationMode,
-     reason:$('grReviewReason').value.trim(),valuations});
-   close(reviewDialog); close(detailDialog);
+   const action=target.reference+'/review';
+   const updated = await api(base + '/' + target.reference + '/review','POST',
+    {clientRequestId:requestKey(action,body),...body});
+   retryKeys.delete(action);guarded.get(reviewDialog)?.markClean();close(reviewDialog,true);close(detailDialog,true);
+   await load();await showDetail(updated.reference);
    alert(updated.stateCode === 'Posted' ? 'Delivery approved: Inventory ledger posted.' : 'Delivery rejected; stock unchanged.',true);
-   await load(); await showDetail(updated.reference);
-  } catch (error) { alert(error.message); } finally { pending = false; $('grReviewSave').disabled = false; }
+  } catch (error) { alert(error.message); } finally { pending = false; $('grReviewForm').inert = false; }
  });
  load();
 })();

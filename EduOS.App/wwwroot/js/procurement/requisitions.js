@@ -34,8 +34,19 @@
     const canCheck = root.dataset.checker === 'true';
     const currentUser = Number(root.dataset.userId);
     let page = 1, totalPages = 1, rows = [], selectedItemLine = null, epoch = 0, busy = false;
+    let itemSearchEpoch = 0, draftSignature = '';
     let pendingOnly = false, historyEpoch = 0, historyPage = 1, historyPages = 1, historyId = null;
     const dialog = $('prDialog'), picker = $('prItemDialog');
+    const draftGuard = window.EduOSFormGuard?.create($('prForm'));
+    function closeForm(force = false) {
+        if (!force && (busy || (draftGuard && !draftGuard.confirmDiscard()))) return false;
+        historyEpoch++; historyId = null;
+        if (dialog.open) dialog.close();
+        return true;
+    }
+    dialog.addEventListener('cancel', event => {
+        if (busy || (draftGuard && !draftGuard.confirmDiscard())) event.preventDefault();
+    });
     const notice = (message, ok = false) => {
         const box = $('prAlert');
         box.className = 'alert alert-' + (ok ? 'success' : 'danger');
@@ -121,6 +132,7 @@
         wrapper.querySelector('.pr-qty').value = data.quantity ?? 1;
         wrapper.querySelector('.pr-price').value = data.estimatedUnitPrice ?? 0;
         wrapper.querySelector('.pr-pick').addEventListener('click', () => {
+            ++itemSearchEpoch;
             selectedItemLine = wrapper.querySelector('.pr-item');
             $('prItemTerm').value = ''; picker.hidden = false; searchItems();
         });
@@ -135,14 +147,18 @@
         $('prSave').hidden = !enabled; $('prAddLine').hidden = !enabled;
     }
     function newDraft() {
+        if (busy || (dialog.open && draftGuard && !draftGuard.confirmDiscard())) return;
         historyEpoch++; historyId = null; $('prHistory').hidden = true;
         $('prHistoryButton').hidden = true;
         $('prForm').reset(); $('prId').value = ''; $('prVersion').value = '';
         $('prRequestId').value = crypto.randomUUID();
         $('prFormCampus').value = $('prCampus').value;
-        $('prLines').replaceChildren(); addLine(); picker.hidden = true; setEditable(true); dialog.showModal();
+        draftSignature='';++itemSearchEpoch;selectedItemLine=null;
+        $('prLines').replaceChildren(); addLine(); picker.hidden = true; setEditable(true);
+        draftGuard?.markClean();dialog.showModal();
     }
     async function openDetail(id) {
+        if (busy || (dialog.open && draftGuard && !draftGuard.confirmDiscard())) return;
         const currentHistoryEpoch = ++historyEpoch;
         historyId = null; $('prHistory').hidden = true; $('prHistoryButton').hidden = true;
         try {
@@ -157,6 +173,7 @@
             picker.hidden = true; setEditable(r.stateCode === 'Draft' && canMake && r.createdBy === currentUser &&
                 !!r.clientRequestId);
             historyId = r.id; historyPage = 1; $('prHistoryButton').hidden = false;
+            ++itemSearchEpoch;selectedItemLine=null;draftSignature='';draftGuard?.markClean();
             dialog.showModal();
         } catch (err) { notice(err.message); }
     }
@@ -188,21 +205,26 @@
     }
     async function save(event) {
         event.preventDefault();
-        if (busy) return;
+        if (busy || !$('prForm').reportValidity()) return;
         const lines = Array.from($('prLines').querySelectorAll('.pr-line')).map(row => ({
             inventoryItemId:Number(row.querySelector('.pr-item').value),
             quantity:Number(row.querySelector('.pr-qty').value),
             estimatedUnitPrice:Number(row.querySelector('.pr-price').value)
         }));
         const id = $('prId').value;
-        const body = { clientRequestId:$('prRequestId').value, campusId:Number($('prFormCampus').value),
-            purpose:$('prPurpose').value.trim(), rowVersion:$('prVersion').value || null, lines };
-        busy = true; $('prSave').disabled = true;
+        const body = { campusId:Number($('prFormCampus').value), purpose:$('prPurpose').value.trim(),
+            rowVersion:$('prVersion').value || null, lines };
+        const signature=JSON.stringify(body);
+        if (!id && draftSignature && draftSignature!==signature) $('prRequestId').value=crypto.randomUUID();
+        if (!id) draftSignature=signature;
+        busy = true; $('prForm').inert = true;
         try {
-            await api(id ? '/' + id : '', id ? 'PUT' : 'POST', body);
-            dialog.close(); notice(t('saved'), true); await load();
+            await api(id ? '/' + id : '', id ? 'PUT' : 'POST',
+                {clientRequestId:$('prRequestId').value,...body});
+            draftSignature='';draftGuard?.markClean();closeForm(true);
+            await load();notice(t('saved'), true);
         } catch (err) { notice(err.message); }
-        finally { busy = false; $('prSave').disabled = false; }
+        finally { busy = false; $('prForm').inert = false; }
     }
     async function transition(row, action) {
         if (busy) return;
@@ -221,9 +243,11 @@
         finally { busy = false; }
     }
     async function searchItems() {
+        const requestEpoch = ++itemSearchEpoch;
         const query = new URLSearchParams({ page:'1', pageSize:'25', search:$('prItemTerm').value.trim() });
         try {
             const data = await api('/api/inventory/catalog/items?' + query);
+            if (requestEpoch !== itemSearchEpoch || picker.hidden || !dialog.open) return;
             const list = $('prItemResults'); list.replaceChildren();
             for (const item of data.items || []) {
                 if (!item.isActive || !item.isStockTracked) continue;
@@ -232,7 +256,7 @@
                     picker.hidden = true;
                 }));
             }
-        } catch (err) { notice(err.message); }
+        } catch (err) { if (requestEpoch === itemSearchEpoch) notice(err.message); }
     }
     $('prHelp').addEventListener('click', () => {
         const hidden = $('prHelpText').classList.toggle('d-none');
@@ -261,14 +285,15 @@
     $('prHistoryNext').addEventListener('click', () => { if (historyPage < historyPages) { historyPage++; loadHistory(); } });
     $('prAddLine').addEventListener('click', () => addLine());
     $('prForm').addEventListener('submit', save);
-    $('prClose').addEventListener('click', () => { historyEpoch++; historyId = null; dialog.close(); });
-    $('prDismiss').addEventListener('click', () => { historyEpoch++; historyId = null; dialog.close(); });
-    dialog.addEventListener('close', () => { historyEpoch++; historyId = null; $('prHistory').hidden = true; });
+    $('prClose').addEventListener('click', () => closeForm());
+    $('prDismiss').addEventListener('click', () => closeForm());
+    dialog.addEventListener('close', () => { historyEpoch++; historyId = null;
+        ++itemSearchEpoch;selectedItemLine=null;draftGuard?.markClean();$('prHistory').hidden = true; });
     $('prItemSearchButton').addEventListener('click', searchItems);
     $('prItemClose').addEventListener('click', () => { picker.hidden = true; });
     window.addEventListener('pageshow', e => { if (e.persisted) {
         epoch++; historyEpoch++; historyId = null; rows = []; render();
-        dialog.close(); $('prHistory').hidden = true; load();
+        closeForm(true); $('prHistory').hidden = true; load();
     } });
     load();
     // Read-only deep link from Central Work Center. The source GET rechecks
