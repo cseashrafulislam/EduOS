@@ -9,6 +9,12 @@
     <div id="employeeAttendanceAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body">
         <h3 class="h5">Record attendance</h3>
+        <form id="employeeAttendanceEmployeeSearchForm" class="row g-2 align-items-end mb-3">
+            <div class="col-md-7"><label for="employeeAttendanceEmployeeSearch" class="form-label">Find employee by code/name</label>
+                <input id="employeeAttendanceEmployeeSearch" class="form-control" minlength="2" maxlength="100" autocomplete="off" required /></div>
+            <div class="col-md-2"><button id="employeeAttendanceEmployeeFind" type="submit" class="btn btn-outline-secondary w-100">Find</button></div>
+            <p id="employeeAttendanceEmployeeSearchStatus" class="col-12 small text-muted mb-0" role="status" aria-live="polite"></p>
+        </form>
         <form id="employeeAttendanceForm" class="row g-2 align-items-end">
             <div class="col-lg-4"><label class="form-label" for="employeeAttendanceEmployee">Employee</label><select id="employeeAttendanceEmployee" class="form-select" required><option value="">Choose employee</option></select></div>
             <div class="col-lg-2"><label class="form-label" for="employeeAttendanceDate">Date</label><input type="date" id="employeeAttendanceDate" class="form-control" required /></div>
@@ -37,11 +43,12 @@
             <input id="employeeAttendanceCorrectionId" type="hidden" /><input id="employeeAttendanceCorrectionVersion" type="hidden" />
             <div class="col-lg-3"><label for="employeeAttendanceCorrectionState" class="form-label">New status</label><select id="employeeAttendanceCorrectionState" class="form-select"><option value="1">Present</option><option value="2">Absent</option><option value="3">Late</option><option value="4">Leave</option><option value="5">Excused</option></select></div>
             <div class="col-lg-7"><label for="employeeAttendanceCorrectionReason" class="form-label">Reason</label><input id="employeeAttendanceCorrectionReason" class="form-control" maxlength="1000" required /></div>
-            <div class="col-lg-2"><button class="btn btn-warning w-100" type="submit">Correct</button></div>
+            <div class="col-lg-2 d-flex gap-2"><button class="btn btn-warning flex-fill" type="submit">Correct</button><button id="employeeAttendanceCorrectionClose" class="btn btn-outline-secondary" type="button">Close</button></div>
         </form>
     </div></section>
     <section class="card d-none" id="employeeAttendanceHistoryCard"><div class="card-body"><h3 class="h5">Correction history</h3><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Changed at (UTC)</th><th>Previous</th><th>New</th><th>Reason</th><th>User ID</th></tr></thead><tbody id="employeeAttendanceHistoryRows"></tbody></table></div></div></section>
 </section>
 @section Scripts {
+    <script src="~/js/platform/form-guard.js" asp-append-version="true"></script>
     <script src="~/js/hr/employee-attendance.js" asp-append-version="true"></script>
 }
