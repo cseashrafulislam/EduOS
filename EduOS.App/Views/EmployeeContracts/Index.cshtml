@@ -58,7 +58,7 @@
                 <input id="contractPdf" class="form-control" type="file" accept="application/pdf,.pdf" required />
                 <button type="submit" class="btn btn-sm btn-primary mt-2" id="contractPdfAttach">Secure upload &amp; attach</button>
             </form>
-            <div id="contractEvidenceReview" class="d-none">
+            <form id="contractEvidenceReview" class="d-none">
                 <p class="small text-muted">Open the private PDF preview and compare signatures against your offline identity verification. The uploader cannot approve the document.</p>
                 <label for="contractPdfNote" class="form-label">Reviewer note (required for rejection)</label>
                 <input id="contractPdfNote" class="form-control" maxlength="500" />
@@ -66,9 +66,12 @@
                     <button id="contractPdfApprove" type="button" class="btn btn-sm btn-success">Verify signed PDF</button>
                     <button id="contractPdfReject" type="button" class="btn btn-sm btn-outline-danger">Reject PDF</button>
                 </div>
-            </div>
+            </form>
             <div class="mt-2"><button id="contractEvidenceClose" type="button" class="btn btn-sm btn-outline-secondary">Close evidence</button></div>
         </section>
     </div>
 </section>
-@section Scripts { <script src="~/js/hr/employee-contracts.js" asp-append-version="true"></script> }
+@section Scripts {
+    <script src="~/js/platform/form-guard.js" asp-append-version="true"></script>
+    <script src="~/js/hr/employee-contracts.js" asp-append-version="true"></script>
+}
