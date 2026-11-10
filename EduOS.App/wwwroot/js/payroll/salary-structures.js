@@ -2,7 +2,9 @@
 'use strict';
 const root=document.getElementById('salaryWorkspace');if(!root)return;
 const el=id=>document.getElementById(id),token=root.querySelector('input[name="__RequestVerificationToken"]')?.value;
-const state={components:[],page:1,pages:1,history:[],requestId:null,busy:false,searchSerial:0};
+const state={components:[],page:1,pages:1,history:[],requestId:null,requestFingerprint:'',
+ busy:false,accessRevoked:false,searchSerial:0,historySerial:0,lastEmployee:''};
+const form=el('salaryForm'),formGuard=window.EduOSFormGuard?.create(form);
 const option=(value,label)=>{const x=document.createElement('option');x.value=String(value);x.textContent=label;return x;};
 const cell=value=>{const x=document.createElement('td');x.textContent=value==null?'':String(value);return x;};
 function notice(message,error=false){const x=el('salaryNotice');x.className='alert '+(error?'alert-danger':'alert-success');x.textContent=message;}
@@ -13,10 +15,39 @@ async function api(url,method='GET',body){
  const response=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers,
   ...(body===undefined?{}:{body:JSON.stringify(body)})});
  const json=await response.json().catch(()=>null);
- if(!response.ok||!json?.success)throw Error(json?.message||'Salary request failed.');
+ if(!response.ok||!json?.success){const error=Error(json?.message||'Salary request failed.');
+  error.statusCode=response.status;throw error;}
  return json.data;
 }
-function clearRequest(){state.requestId=null;}
+function clearRequest(){state.requestId=null;state.requestFingerprint='';}
+function requestIdFor(command){
+ const fingerprint=JSON.stringify(command);
+ if(!state.requestId||state.requestFingerprint!==fingerprint){
+  state.requestId=crypto.randomUUID();state.requestFingerprint=fingerprint;
+ }
+ return state.requestId;
+}
+function clearHistory(){
+ ++state.historySerial;state.history=[];state.pages=1;
+ el('salaryHistory').replaceChildren();el('salaryPage').textContent='Select an employee.';
+ el('salaryPrev').disabled=true;el('salaryNext').disabled=true;
+}
+function handleError(error){
+ if([401,403].includes(error.statusCode)){
+  state.accessRevoked=true;++state.searchSerial;clearHistory();clearRequest();
+  state.components=[];el('salaryEmployee').replaceChildren(option('','Access unavailable'));
+  el('salaryLines').replaceChildren();el('salaryEffective').value='';
+  formGuard?.markClean();
+  root.inert=true;
+ }
+ notice(error.message,true);
+}
+function confirmDiscard(){return !formGuard?.isDirty()||formGuard.confirmDiscard();}
+function resetDraft(){
+ el('salaryLines').replaceChildren();el('salaryEffective').value='';clearRequest();
+ if(state.components.some(x=>x.isActive)){addLine();ensureStatutoryLines();}
+ formGuard?.markClean();
+}
 function refreshEstimate(){
  const rows=[...el('salaryLines').querySelectorAll('tr')];
  const components=new Map(state.components.map(x=>[String(x.id),x]));
@@ -99,20 +130,24 @@ function addLine(componentId='',amount='',method='Manual',percentage=null,basedO
 async function components(){
  state.components=await api('/api/hr-payroll/salary-components');
  if(!state.components.some(x=>x.isActive))notice('No active salary components. Configure them before registering salary structures.',true);
- else {addLine();ensureStatutoryLines();}
+ else resetDraft();
 }
 async function find(){
+ if(state.accessRevoked||state.busy||!confirmDiscard())return;
  const term=el('salaryEmployeeSearch').value.trim();
- if(term.length<2){notice('Enter at least two characters to find an employee.',true);return;}
+ if(term.length<2||term.length>100){notice('Enter 2–100 characters to find an employee.',true);return;}
  const serial=++state.searchSerial;
+ el('salaryFind').disabled=true;
  try{
   const data=await api('/api/hr-payroll/employee-options?'+new URLSearchParams({search:term,page:'1',pageSize:'50'}));
-  if(serial!==state.searchSerial)return;
+  if(serial!==state.searchSerial||el('salaryEmployeeSearch').value.trim()!==term)return;
+  if(!confirmDiscard())return;
+  state.lastEmployee='';state.page=1;resetDraft();clearHistory();
   const select=el('salaryEmployee');select.replaceChildren(option('','Select employee'));
   for(const row of data.items||[])select.append(option(row.reference,row.fullName+' ('+row.employeeCode+')'));
   if(data.totalCount>50)notice('Only the first 50 employees are shown. Narrow your search.');
-  el('salaryHistory').replaceChildren();el('salaryPage').textContent='Select an employee.';
- }catch(e){notice(e.message,true);}
+ }catch(e){if(serial===state.searchSerial)handleError(e);}
+ finally{if(serial===state.searchSerial)el('salaryFind').disabled=false;}
 }
 function render(data){
  const body=el('salaryHistory');body.replaceChildren();state.history=data.items||[];
@@ -126,9 +161,10 @@ function render(data){
    cell(Number(row.grossMonthlyAmount).toFixed(2)),cell(details));
   const action=document.createElement('td'),copy=document.createElement('button');copy.type='button';copy.className='btn btn-sm btn-outline-primary';copy.textContent='Copy components';
   copy.onclick=()=>{
+   if(state.busy||state.accessRevoked||!confirmDiscard())return;
    const missing=(row.lines||[]).filter(x=>!state.components.some(c=>c.id===x.salaryComponentId&&c.isActive));
    if(missing.length){notice('This structure contains inactive components. Configure replacements before copying.',true);return;}
-   el('salaryLines').replaceChildren();
+   el('salaryLines').replaceChildren();el('salaryEffective').value='';
    for(const line of row.lines||[])addLine(line.salaryComponentId,line.amount,line.calculationMethodCode,line.percentage,line.basedOnSalaryComponentId);
    ensureStatutoryLines();refreshEstimate();
    clearRequest();notice('Components copied. Select a new effective date before saving.');
@@ -140,18 +176,37 @@ function render(data){
  el('salaryPrev').disabled=state.page<=1;el('salaryNext').disabled=state.page>=state.pages;
 }
 async function load(){
- const reference=el('salaryEmployee').value;if(!reference){el('salaryHistory').replaceChildren();return;}
- try{render(await api('/api/hr-payroll/salary-structures/'+encodeURIComponent(reference)+'?'+new URLSearchParams({page:String(state.page),pageSize:'10'})));}
- catch(e){notice(e.message,true);}
+ const reference=el('salaryEmployee').value;
+ const serial=++state.historySerial,page=state.page;
+ if(!reference){clearHistory();return;}
+ state.history=[];el('salaryHistory').replaceChildren();el('salaryPage').textContent='Loading salary history…';
+ el('salaryPrev').disabled=true;el('salaryNext').disabled=true;
+ try{
+  const data=await api('/api/hr-payroll/salary-structures/'+encodeURIComponent(reference)+'?'+
+   new URLSearchParams({page:String(page),pageSize:'10'}));
+  if(serial===state.historySerial&&reference===el('salaryEmployee').value&&page===state.page)render(data);
+ }catch(error){
+  if(serial===state.historySerial&&reference===el('salaryEmployee').value&&page===state.page){
+   el('salaryPage').textContent='Salary history unavailable. Select the employee to retry.';
+   throw error;
+  }
+ }
 }
-el('salaryFind').addEventListener('click',find);
-el('salaryEmployee').addEventListener('change',()=>{state.page=1;clearRequest();load();});
-el('salaryAdd').addEventListener('click',()=>{addLine();clearRequest();});
-el('salaryPrev').addEventListener('click',()=>{if(state.page>1){state.page--;load();}});
-el('salaryNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;load();}});
+el('salaryFind').addEventListener('click',()=>find().catch(handleError));
+el('salaryEmployeeSearch').addEventListener('input',()=>{++state.searchSerial;el('salaryFind').disabled=false;});
+el('salaryEmployee').addEventListener('change',()=>{
+ if(state.accessRevoked||state.busy||!confirmDiscard()){
+  el('salaryEmployee').value=state.lastEmployee;return;
+ }
+ state.lastEmployee=el('salaryEmployee').value;state.page=1;resetDraft();clearHistory();
+ load().catch(handleError);
+});
+el('salaryAdd').addEventListener('click',()=>{if(state.busy||state.accessRevoked)return;addLine();clearRequest();});
+el('salaryPrev').addEventListener('click',()=>{if(!state.busy&&state.page>1){state.page--;load().catch(handleError);}});
+el('salaryNext').addEventListener('click',()=>{if(!state.busy&&state.page<state.pages){state.page++;load().catch(handleError);}});
 el('salaryEffective').addEventListener('change',clearRequest);
 el('salaryForm').addEventListener('submit',async event=>{
- event.preventDefault();if(state.busy||!event.currentTarget.reportValidity())return;
+ event.preventDefault();if(state.accessRevoked||state.busy||!event.currentTarget.reportValidity())return;
  const employee=el('salaryEmployee').value,date=el('salaryEffective').value;
  if(!employee||!/^\d{4}-\d{2}-\d{2}$/.test(date)){notice('Select an employee and effective date.',true);return;}
  const lines=[...el('salaryLines').querySelectorAll('tr')].map(tr=>{
@@ -177,14 +232,24 @@ el('salaryForm').addEventListener('submit',async event=>{
  const deductions=lines.filter(x=>types.get(x.salaryComponentId)===2).reduce((a,x)=>a+x.amount,0);
  if(earnings<=0||deductions>earnings){notice('Earnings must be positive and cover deductions.',true);return;}
  if(!confirm('Save a new effective-dated salary structure? An existing current structure will be closed.'))return;
- state.requestId??=crypto.randomUUID();state.busy=true;el('salarySave').disabled=true;
+ const command={employeeReference:employee,effectiveFrom:date,effectiveTo:null,lines};
+ const requestId=requestIdFor(command);
+ state.busy=true;root.inert=true;el('salarySave').disabled=true;
+ let committed=false;
  try{
-  await api('/api/hr-payroll/salary-structures','POST',{clientRequestId:state.requestId,
-   employeeReference:employee,effectiveFrom:date,effectiveTo:null,lines});
-  state.requestId=null;state.page=1;await load();notice('Salary structure saved. Historical entries remain available.');
- }catch(e){notice(e.message+' Check history before retrying an uncertain submission.',true);}
- finally{state.busy=false;el('salarySave').disabled=false;}
+  await api('/api/hr-payroll/salary-structures','POST',{clientRequestId:requestId,...command});
+  committed=true;formGuard?.markClean();state.page=1;
+  try{await load();notice('Salary structure saved. Historical entries remain available.');}
+  catch(readError){if([401,403].includes(readError.statusCode))handleError(readError);
+   notice('Salary structure saved. History refresh unavailable: '+readError.message);}
+ }catch(error){handleError(error);
+  if(!committed&&!state.accessRevoked)
+   notice(error.message+' Check history before retrying the unchanged submission.',true);
+ }finally{
+  state.busy=false;root.inert=state.accessRevoked;
+  el('salarySave').disabled=state.accessRevoked;
+ }
 });
-components().catch(e=>notice(e.message,true));
+components().catch(handleError);
 if(window.bootstrap?.Popover)root.querySelectorAll('[data-bs-toggle="popover"]').forEach(x=>bootstrap.Popover.getOrCreateInstance(x));
 })();
