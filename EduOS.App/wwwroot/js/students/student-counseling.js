@@ -16,9 +16,22 @@
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
     const state = { student: '', selected: null, busy: false, locked: false, page: 1, total: 0,
-        requestId: null, policy: null, policyRequestId: null, redactionRequestId: null, notificationRequestId: null };
+        policy: null, policyCampus: '' };
     const val = id => $(id)?.value?.trim() || '';
     const guid = () => crypto.randomUUID();
+    const retryKeys = new Map();
+    const guard = formId => window.EduOSFormGuard.create($(formId));
+    const intakeGuard = guard('caseSubmitForm');
+    const actionGuard = staff ? guard('caseActionForm') : null;
+    const redactGuard = staff ? guard('caseRedactForm') : null;
+    const policyGuard = admin ? guard('casePolicyForm') : null;
+    function retryId(slot, payload) {
+        const fingerprint = JSON.stringify(payload);
+        const previous = retryKeys.get(slot);
+        if (previous?.fingerprint === fingerprint) return previous.id;
+        const id = guid(); retryKeys.set(slot, { fingerprint, id });
+        return id;
+    }
     function notice(text, danger = false) {
         const box = $('caseNotice'); box.textContent = text;
         box.className = 'alert ' + (danger ? 'alert-danger' : 'alert-info');
@@ -27,8 +40,8 @@
         if (state.locked) return false;
         if (safeSession()) return true;
         state.locked = true; state.busy = true;
-        state.student = ''; state.selected = null; state.requestId = null;
-        state.policy = null; state.policyRequestId = null; state.redactionRequestId = null;
+        state.student = ''; state.selected = null; retryKeys.clear();
+        state.policy = null;
         for (const field of root.querySelectorAll('input,select,textarea'))
             if (field.type !== 'hidden') field.value = '';
         $('caseStudents').replaceChildren(); $('myCases').replaceChildren();
@@ -55,7 +68,10 @@
         $('caseSubmit').disabled = state.busy || !state.student || val('caseSummary').length < 10;
         $('caseMineRefresh').disabled = state.busy;
         if (aggregateAccess) $('caseAggregateLoad').disabled = state.busy || !val('caseAggregateMonth');
-        if (admin || staff) $('casePolicyLoad').disabled = state.busy || !val('casePolicyCampus');
+        if (admin || staff) {
+            $('casePolicyLoad').disabled = state.busy || !val('casePolicyCampus');
+            $('casePolicyCampus').disabled = state.busy;
+        }
         if (admin) {
             $('casePolicySubmit').disabled = state.busy || !val('casePolicyCampus');
             $('casePolicyPendingLoad').disabled = state.busy;
@@ -96,12 +112,13 @@
             throw Error(json?.message || T('Request failed. Check access and refresh.', 'অনুরোধ ব্যর্থ। অনুমতি যাচাই করে রিফ্রেশ করুন।'));
         return json.data;
     }
-    async function run(work) {
-        if (state.busy) return;
+    async function run(work, form = null) {
+        if (state.busy || !checkSession()) return false;
         state.busy = true; controls();
-        try { await work(); }
-        catch (error) { notice(error.message, true); }
-        finally { state.busy = false; controls(); }
+        if (form) form.inert = true;
+        try { await work(); return true; }
+        catch (error) { notice(error.message, true); return false; }
+        finally { if (form) form.inert = false; state.busy = false; controls(); }
     }
     function node(tag, value, css = '') {
         const n = document.createElement(tag); n.textContent = String(value ?? '');
@@ -111,8 +128,13 @@
         const button = node('button', label, 'btn btn-sm btn-outline-primary');
         button.type = 'button';
         button.addEventListener('click', () => {
+            if (state.busy || !checkSession()) return;
+            if (state.selected?.reference === item.reference) return;
+            if (!actionGuard.confirmDiscard() || !redactGuard.confirmDiscard()) return;
             state.selected = item;
-            state.redactionRequestId = null; state.notificationRequestId = null;
+            for (const slot of ['case-action', 'case-redact', 'case-guardian', 'case-assign']) retryKeys.delete(slot);
+            $('caseActionForm').reset(); actionGuard.markClean();
+            $('caseRedactForm').reset(); redactGuard.markClean();
             $('caseSelected').textContent = item.reference + ' · ' + item.state;
             $('casePrivatePanel').classList.add('d-none');
             $('casePrivateSummary').textContent = '';
@@ -153,8 +175,12 @@
                 const btn = node('button', record.studentName + ' · ' + record.studentCode,
                     'list-group-item list-group-item-action');
                 btn.type = 'button'; btn.addEventListener('click', () => {
+                    if (state.busy || !checkSession() || state.student === record.studentReference) return;
+                    if (!intakeGuard.confirmDiscard()) return;
                     state.student = record.studentReference;
-                    state.requestId = null; $('caseStudent').value = record.studentName;
+                    retryKeys.delete('case-intake');
+                    $('caseSubmitForm').reset(); $('caseStudent').value = record.studentName;
+                    intakeGuard.markClean();
                     box.replaceChildren(); controls();
                 }); box.append(btn);
             }
@@ -214,13 +240,11 @@
         });
     }
     function currentCampus() { return Number(val('casePolicyCampus')); }
-    async function loadPolicyRaw() {
+    async function loadPolicyRaw(populateEditor = true) {
         const campus = currentCampus();
         if (!Number.isSafeInteger(campus) || campus <= 0) return;
-        state.policy = null;
-        $('casePolicyDetails').textContent = T('No approved campus policy. Independent approval required.',
-            'অনুমোদিত নীতি নেই। স্বতন্ত্র অনুমোদন আবশ্যক।');
         const policy = await api('/api/student-counseling/policy/' + campus);
+        if (currentCampus() !== campus) return;
         state.policy = policy;
         const info = $('casePolicyDetails'); info.replaceChildren();
         info.append(node('strong', T('Retention after closure: ', 'বন্ধের পর সংরক্ষণ: ') +
@@ -229,7 +253,7 @@
             T('No legal hold is currently recorded.', 'বর্তমানে আইনি সংরক্ষণ নেই।'), 'mt-2 mb-1'));
         info.append(node('p', T('Emergency guidance: ', 'জরুরি নির্দেশনা: ') +
             (bn ? policy.emergencyGuidanceBn : policy.emergencyGuidanceEn), 'mb-0 text-break'));
-        if (admin) {
+        if (admin && populateEditor) {
             $('caseRetentionDays').value = String(policy.retentionDays);
             $('caseLegalHold').checked = policy.legalHold;
             $('caseEmergencyEn').value = policy.emergencyGuidanceEn;
@@ -237,13 +261,18 @@
         }
     }
     async function loadPolicy() {
+        if (admin && !policyGuard.confirmDiscard()) return;
         await run(async () => {
             try { await loadPolicyRaw(); }
             catch (error) {
                 if (!error.message.includes('not been independently approved')) throw error;
                 state.policy = null;
+                $('casePolicyDetails').textContent = T('No approved campus policy. Independent approval required.',
+                    'অনুমোদিত নীতি নেই। স্বতন্ত্র অনুমোদন আবশ্যক।');
+                if (admin) $('casePolicyForm').reset();
             }
-        });
+            if (admin) { policyGuard.markClean(); retryKeys.delete('case-policy'); }
+        }, admin ? $('casePolicyForm') : null);
     }
     function decisionRow(item, kind) {
         const entry = node('div', '', 'list-group-item');
@@ -263,7 +292,6 @@
             const button = node('button', approve ? T('Approve', 'অনুমোদন') : T('Reject', 'বাতিল'),
                 'btn btn-sm me-2 ' + (approve ? 'btn-outline-success' : 'btn-outline-danger'));
             button.type = 'button';
-            let id = null;
             button.addEventListener('click', () => run(async () => {
                 const reason = input.value.trim();
                 if (reason.length < 10) throw Error(T('Provide at least 10 characters of reasoning.',
@@ -273,14 +301,15 @@
                     'এই মেয়াদোত্তীর্ণ কেসের গোপন বিবরণ স্থায়ীভাবে অপসারণ করবেন? ফিরিয়ে আনা যাবে না।'))) return;
                 const path = kind === 'policy' ? '/policy-requests/' + item.reference + '/review' :
                     '/' + item.reference + '/redaction/review';
+                const payload = { rowVersion: item.rowVersion, reason, approve };
+                const slot = kind + '-review:' + item.reference;
                 await api('/api/student-counseling' + path, 'POST', {
-                    requestId: id || (id = guid()), rowVersion: item.rowVersion,
-                    reason, approve
+                    ...payload, requestId: retryId(slot, payload)
                 });
-                entry.remove(); id = null;
+                entry.remove(); retryKeys.delete(slot);
                 notice(T('Independent decision recorded.', 'স্বতন্ত্র সিদ্ধান্ত সংরক্ষিত।'));
                 if (kind === 'policy' && currentCampus() === item.campusId) {
-                    try { await loadPolicyRaw(); } catch (_) { state.policy = null; }
+                    try { await loadPolicyRaw(false); } catch (_) { state.policy = null; }
                 }
                 if (kind === 'redaction' && state.selected?.reference === item.reference)
                     state.selected = await api('/api/student-counseling/' + item.reference);
@@ -328,23 +357,26 @@
     async function submit(event) {
         event.preventDefault();
         if (!state.student) return;
-        await run(async () => {
-            const result = await api('/api/student-counseling', 'POST', {
-                requestId: state.requestId || (state.requestId = guid()),
+        const succeeded = await run(async () => {
+            const payload = {
                 studentReference: state.student, privateSummary: val('caseSummary'),
                 urgent: $('caseUrgent').checked,
                 guardianContactConsented: $('caseConsent').checked
+            };
+            const result = await api('/api/student-counseling', 'POST', {
+                ...payload, requestId: retryId('case-intake', payload)
             });
-            state.requestId = null;
+            retryKeys.delete('case-intake');
             $('caseSummary').value = ''; $('caseUrgent').checked = false; $('caseConsent').checked = false;
+            intakeGuard.markClean();
             notice(T('Confidential support requested: ', 'গোপন সহায়তার আবেদন: ') + result.reference);
-        });
-        await mine(); if (staff) await list();
+        }, $('caseSubmitForm'));
+        if (succeeded) { await mine(); if (staff) await list(); }
     }
     const list = () => run(listRaw);
-    async function selectedAction(action, payload) {
-        if (!state.selected) return;
-        await run(async () => {
+    async function selectedAction(action, payload, form = null) {
+        if (!state.selected) return false;
+        return run(async () => {
             const result = await api('/api/student-counseling/' +
                 encodeURIComponent(state.selected.reference) + action, 'POST', payload);
             state.selected = result;
@@ -352,8 +384,10 @@
             $('casePrivatePanel').classList.add('d-none');
             if (officer && result.state !== 'Requested') $('caseCounselorId').disabled = true;
             notice(T('Case action saved.', 'কেস কার্যক্রম সংরক্ষিত হয়েছে।'));
-            await listRaw();
-        });
+            try { await listRaw(); }
+            catch (_) { notice(T('Action saved; case list refresh failed. Refresh before another action.',
+                'কার্যক্রম সংরক্ষিত; তালিকা রিফ্রেশ হয়নি। পরের কার্যক্রমের আগে রিফ্রেশ করুন।'), true); }
+        }, form);
     }
     function appointmentUtc() {
         if (val('caseAction') !== 'Appointment') return null;
@@ -387,24 +421,31 @@
             if (!state.selected || !window.confirm(T(
                 'Send a neutral in-app message only to the original consenting guardian? No case details will be included.',
                 'শুধু মূল সম্মত অভিভাবককে সাধারণ অ্যাপ বার্তা পাঠাবেন? কেস তথ্য থাকবে না।'))) return;
+            const payload = { rowVersion: state.selected.rowVersion };
             selectedAction('/notify-guardian', {
-                requestId: state.notificationRequestId || (state.notificationRequestId = guid()),
-                rowVersion: state.selected.rowVersion
-            }).then(() => { state.notificationRequestId = null; });
+                ...payload, requestId: retryId('case-guardian', { reference: state.selected.reference, ...payload })
+            }).then(success => { if (success) retryKeys.delete('case-guardian'); });
         });
         $('caseRedactReason').addEventListener('input', controls);
         $('caseRedactForm').addEventListener('submit', event => {
             event.preventDefault();
             if (!state.selected || val('caseRedactReason').length < 10) return;
+            const payload = { rowVersion: state.selected.rowVersion, reason: val('caseRedactReason'), approve: false };
             selectedAction('/redaction', {
-                requestId: state.redactionRequestId || (state.redactionRequestId = guid()),
-                rowVersion: state.selected.rowVersion, reason: val('caseRedactReason'), approve: false
-            }).then(() => { if (!state.busy) $('caseRedactReason').value = ''; });
+                ...payload, requestId: retryId('case-redact', { reference: state.selected.reference, ...payload })
+            }, $('caseRedactForm')).then(success => {
+                if (!success) return;
+                retryKeys.delete('case-redact');
+                $('caseRedactReason').value = ''; redactGuard.markClean();
+            });
         });
         if (officer) $('caseAssign').addEventListener('click', () => {
             const id = Number(val('caseCounselorId'));
             if (!Number.isSafeInteger(id) || id <= 0) return notice(T('Valid counselor ID required.', 'সঠিক কাউন্সেলর আইডি দিন।'), true);
-            selectedAction('/assign', { requestId: guid(), rowVersion: state.selected.rowVersion, counselorUserId: id });
+            const payload = { rowVersion: state.selected.rowVersion, counselorUserId: id };
+            selectedAction('/assign', { ...payload,
+                requestId: retryId('case-assign', { reference: state.selected.reference, ...payload })
+            }).then(success => { if (success) retryKeys.delete('case-assign'); });
         });
         if (officer) $('caseCounselorId').addEventListener('change', controls);
         $('caseActionForm').addEventListener('submit', event => {
@@ -412,12 +453,16 @@
             if (!state.selected || !val('caseNote')) return;
             let time;
             try { time = appointmentUtc(); } catch (error) { return notice(error.message, true); }
-            selectedAction('/action', {
-                requestId: guid(), rowVersion: state.selected.rowVersion,
-                action: val('caseAction'), privateNote: val('caseNote'), appointmentAtUtc: time
-            }).then(() => { if (!state.busy) $('caseNote').value = ''; });
+            const payload = { rowVersion: state.selected.rowVersion,
+                action: val('caseAction'), privateNote: val('caseNote'), appointmentAtUtc: time };
+            selectedAction('/action', { ...payload,
+                requestId: retryId('case-action', { reference: state.selected.reference, ...payload })
+            }, $('caseActionForm')).then(success => {
+                if (!success) return;
+                retryKeys.delete('case-action');
+                $('caseActionForm').reset(); actionGuard.markClean();
+            });
         });
-        list();
     }
     $('caseStudentSearchForm').addEventListener('submit', lookup);
     $('caseSubmitForm').addEventListener('submit', submit);
@@ -443,7 +488,13 @@
     if (admin || staff) {
         $('casePolicyLoad').addEventListener('click', loadPolicy);
         $('casePolicyCampus').addEventListener('change', () => {
-            state.policy = null; state.policyRequestId = null;
+            if (state.busy) { $('casePolicyCampus').value = state.policyCampus; return; }
+            if (admin && !policyGuard.confirmDiscard()) {
+                $('casePolicyCampus').value = state.policyCampus; return;
+            }
+            state.policyCampus = val('casePolicyCampus');
+            state.policy = null; retryKeys.delete('case-policy');
+            if (admin) { $('casePolicyForm').reset(); policyGuard.markClean(); }
             $('casePolicyDetails').textContent = T('Select Load to read the approved policy.',
                 'অনুমোদিত নীতি দেখতে লোড চাপুন।');
             controls();
@@ -455,21 +506,28 @@
         $('casePolicyForm').addEventListener('submit', event => {
             event.preventDefault();
             run(async () => {
-                const submitted = await api('/api/student-counseling/policy-requests', 'POST', {
-                    requestId: state.policyRequestId || (state.policyRequestId = guid()),
+                const payload = {
                     campusId: currentCampus(), expectedPolicyRowVersion: state.policy?.rowVersion || '',
                     retentionDays: Number(val('caseRetentionDays')), legalHold: $('caseLegalHold').checked,
                     emergencyGuidanceEn: val('caseEmergencyEn'), emergencyGuidanceBn: val('caseEmergencyBn'),
                     reason: val('casePolicyReason')
+                };
+                const submitted = await api('/api/student-counseling/policy-requests', 'POST', {
+                    ...payload, requestId: retryId('case-policy', payload)
                 });
-                state.policyRequestId = null;
+                retryKeys.delete('case-policy');
                 $('casePolicyReason').value = '';
+                policyGuard.markClean();
                 notice(T('Policy change submitted for independent review: ', 'নীতি পরিবর্তন স্বতন্ত্র যাচাইয়ে পাঠানো হয়েছে: ') +
                     submitted.reference.slice(0, 12));
-            }).then(pendingPolicies);
+            }, $('casePolicyForm')).then(success => { if (success) pendingPolicies(); });
         });
     }
     window.addEventListener('focus', checkSession);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSession(); });
-    (async () => { if (admin || staff) await bootstrapPolicy(); await lookup(); await mine(); })();
+    (async () => {
+        if (admin || staff) await bootstrapPolicy();
+        await lookup(); await mine();
+        if (staff) await list();
+    })();
 })();

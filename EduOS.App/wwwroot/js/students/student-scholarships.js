@@ -12,13 +12,35 @@
     const safeSession = () => session[0] && session[1] &&
         session[0] === document.body.dataset.authTenantId &&
         session[1] === document.body.dataset.authSessionReference;
-    const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, requestId: null, evidenceUploadId: null,
+    const state = { busy: false, locked: false, page: 1, pageSize: 20, total: 0, enrollment: '', selected: null, evidenceUploadId: null,
         reconcilePage: 1, reconcileTotal: 0, creditPage: 1, creditTotal: 0,
-        cash: null, cashPrepareId: null, cashReviewId: null, cashReversalId: null, cashReversalReviewId: null,
+        cash: null, cashLoading: false,
         cashFinanceLoaded: false };
     const guid = () => crypto.randomUUID();
     const val = id => $(id)?.value?.trim() || '';
     const date = value => value ? String(value).slice(0, 10) : '';
+    const todayLocal = () => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    };
+    const retries = new Map();
+    const intakeGuard = window.EduOSFormGuard.create($('aidSubmitForm'));
+    const financeGuard = review ? window.EduOSFormGuard.create($('aidCashPrepareForm')) : null;
+    const auxiliaryFields = ['aidReason', 'aidCashReason', 'aidCashReverseDate', 'aidCashReverseRef', 'aidCashReversePeriod'];
+    const auxiliaryBaseline = {};
+    function markAuxiliaryClean(fields = auxiliaryFields) {
+        for (const field of fields) auxiliaryBaseline[field] = val(field);
+    }
+    const auxiliaryDirty = () => auxiliaryFields.some(field => val(field) !== (auxiliaryBaseline[field] || ''));
+    let financeOptionsPromise = null;
+    let cashLoadGeneration = 0;
+    function retryId(slot, payload) {
+        const fingerprint = JSON.stringify(payload);
+        const previous = retries.get(slot);
+        if (previous?.fingerprint === fingerprint) return previous.id;
+        const id = guid(); retries.set(slot, { fingerprint, id });
+        return id;
+    }
     function notice(message, danger = false) {
         const box = $('aidNotice');
         box.className = 'alert ' + (danger ? 'alert-danger' : 'alert-info');
@@ -28,7 +50,8 @@
         if (state.locked) return false;
         if (safeSession()) return true;
         state.locked = true; state.busy = true; state.enrollment = '';
-        state.selected = null; state.requestId = null; state.evidenceUploadId = null; state.total = 0;
+        state.selected = null; retries.clear(); state.evidenceUploadId = null; state.total = 0;
+        cashLoadGeneration++;
         for (const field of root.querySelectorAll('input,select,textarea'))
             if (field.type !== 'hidden') field.value = '';
         $('aidStudents').replaceChildren(); $('aidRows').replaceChildren();
@@ -78,12 +101,12 @@
         $('aidCashPanel').classList.toggle('d-none', !selectedCash);
         $('aidCashBank').disabled = state.busy || val('aidCashMethod') !== 'Bank';
         $('aidCashLedger').disabled = state.busy || val('aidCashMethod') !== 'Cash';
-        $('aidCashPrepare').disabled = state.busy || !selectedCash || state.selected?.state !== 'Approved' ||
+        $('aidCashPrepare').disabled = state.busy || state.cashLoading || !selectedCash || state.selected?.state !== 'Approved' ||
             (state.cash && state.cash.state !== 'Rejected');
-        $('aidCashConfirm').disabled = $('aidCashReject').disabled = state.busy || !state.cash ||
+        $('aidCashConfirm').disabled = $('aidCashReject').disabled = state.busy || state.cashLoading || !state.cash ||
             state.cash.state !== 'Submitted';
-        $('aidCashReverseRequest').disabled = state.busy || !state.cash || state.cash.state !== 'Posted';
-        $('aidCashReverseConfirm').disabled = $('aidCashReverseReject').disabled = state.busy ||
+        $('aidCashReverseRequest').disabled = state.busy || state.cashLoading || !state.cash || state.cash.state !== 'Posted';
+        $('aidCashReverseConfirm').disabled = $('aidCashReverseReject').disabled = state.busy || state.cashLoading ||
             !state.cash || state.cash.state !== 'ReversalRequested';
     }
     async function api(path, method = 'GET', payload) {
@@ -104,12 +127,13 @@
             throw Error(json?.message || T('Request failed. Reload and retry.', 'অনুরোধ ব্যর্থ। রিলোড করে চেষ্টা করুন।'));
         return json.data;
     }
-    async function run(action) {
-        if (state.busy) return;
+    async function run(action, form = null) {
+        if (state.busy || !checkSession()) return false;
         state.busy = true; refreshControls();
-        try { await action(); }
-        catch (error) { notice(error.message, true); }
-        finally { state.busy = false; refreshControls(); }
+        if (form) form.inert = true;
+        try { await action(); return true; }
+        catch (error) { notice(error.message, true); return false; }
+        finally { if (form) form.inert = false; state.busy = false; refreshControls(); }
     }
     const make = (tag, text, css = '') => {
         const node = document.createElement(tag); node.textContent = String(text ?? '');
@@ -128,12 +152,17 @@
                     ' · ' + row.rollNo, 'list-group-item list-group-item-action');
                 button.type = 'button';
                 button.addEventListener('click', () => {
+                    if (state.busy || !checkSession() || state.enrollment === row.enrollmentReference) return;
+                    if (!intakeGuard.confirmDiscard()) return;
                     state.enrollment = row.enrollmentReference;
+                    $('aidSubmitForm').reset();
+                    $('aidFrom').value = todayLocal();
                     $('aidEnrollment').value = row.studentName + ' / ' + row.rollNo;
-                    state.requestId = null; state.evidenceUploadId = null;
+                    retries.delete('aid-apply'); state.evidenceUploadId = null;
                     $('aidEvidenceFile').value = ''; $('aidEvidence').value = '';
                     $('aidEvidenceStatus').textContent = T('No evidence uploaded for this enrollment.',
                         'এই ভর্তির জন্য কোনো প্রমাণ আপলোড হয়নি।');
+                    intakeGuard.markClean();
                     box.replaceChildren(); refreshControls();
                 });
                 box.append(button);
@@ -142,12 +171,41 @@
     }
     async function rules() {
         await run(async () => {
+            const draft = () => JSON.stringify(['aidEnrollment', 'aidMode', 'aidCashAmount', 'aidFrom',
+                'aidTo', 'aidStatement', 'aidEvidence', 'aidRenewal'].map(val));
+            const before = draft();
             const rows = await api('/api/student-support-directory/aid-rules');
             const select = $('aidRule'); select.replaceChildren(new Option(T('Select approved fee policy', 'ফি নীতি নির্বাচন করুন'), ''));
             for (const rule of rows || []) select.add(new Option(rule.name + ' · ' +
                 rule.value + (rule.isPercentage ? '%' : ' BDT'), String(rule.id)));
+            if (draft() === before && !$('aidEvidenceFile').files?.length) intakeGuard.markClean();
             if (!rows?.length) notice(T('No active fee-assistance policies. Contact Finance.', 'সক্রিয় ফি নীতি নেই। ফাইন্যান্সে যোগাযোগ করুন।'), true);
         });
+    }
+    function selectApplication(row) {
+        if (state.busy || !checkSession()) return;
+        if (state.selected?.reference === row.reference) return;
+        if (state.selected?.reference !== row.reference && review) {
+            const financeDirty = financeGuard.isDirty();
+            if (financeDirty && !financeGuard.confirmDiscard()) return;
+            if (!financeDirty && auxiliaryDirty() &&
+                !window.confirm(T('Discard unsaved review and repayment details for the previous application?',
+                    'পূর্বের আবেদনের অসংরক্ষিত যাচাই ও ফেরতের তথ্য বাদ দেবেন?'))) return;
+            $('aidCashPrepareForm').reset();
+            $('aidCashDate').value = todayLocal();
+            for (const id of ['aidReason', 'aidCashReason', 'aidCashReverseRef']) $(id).value = '';
+            $('aidCashReverseDate').value = todayLocal();
+            $('aidCashReversePeriod').value = '';
+            financeGuard.markClean();
+            markAuxiliaryClean();
+            for (const slot of ['aid-review', 'aid-cash-prepare', 'aid-cash-review',
+                'aid-cash-reverse', 'aid-cash-reverse-review']) retries.delete(slot);
+        }
+        ++cashLoadGeneration;
+        state.selected = row; state.cash = null; state.cashLoading = false;
+        if (review) $('aidCashPrepareForm').inert = false;
+        renderSelected();
+        notice(row.reference + ' · ' + row.state + ' · ' + row.eligibilityStatement);
     }
     function renderSelected() {
         if (!review) return;
@@ -175,10 +233,7 @@
                 const td = document.createElement('td');
                 const button = make('button', T('View', 'দেখুন'), 'btn btn-outline-primary btn-sm');
                 button.type = 'button';
-                button.addEventListener('click', () => {
-                    state.selected = row; state.cash = null; renderSelected();
-                    notice(row.reference + ' · ' + row.state + ' · ' + row.eligibilityStatement);
-                });
+                button.addEventListener('click', () => selectApplication(row));
                 td.append(button); tr.append(td); tbody.append(tr);
             }
             if (!data?.items?.length) {
@@ -198,7 +253,6 @@
             return notice(T('Upload the selected evidence first.', 'নির্বাচিত প্রমাণ আগে আপলোড করুন।'), true);
         await run(async () => {
             const payload = {
-                requestId: state.requestId || (state.requestId = guid()),
                 enrollmentReference: state.enrollment, awardMode: val('aidMode'),
                 discountRuleId: val('aidMode') === 'CashGrant' ? 0 : Number(val('aidRule')),
                 cashAmount: val('aidMode') === 'CashGrant' ? Number(val('aidCashAmount')) : null,
@@ -207,12 +261,20 @@
                 evidenceFileReference: val('aidEvidence') || null,
                 renewalOfReference: val('aidRenewal') || null
             };
-            const result = await api('/api/student-scholarships', 'POST', payload);
-            state.requestId = null; $('aidStatement').value = ''; $('aidEvidence').value = '';
+            const result = await api('/api/student-scholarships', 'POST', {
+                ...payload, requestId: retryId('aid-apply', payload)
+            });
+            retries.delete('aid-apply'); $('aidStatement').value = ''; $('aidEvidence').value = '';
             $('aidCashAmount').value = '';
-            $('aidRenewal').value = ''; notice(T('Submitted for review: ', 'পর্যালোচনার জন্য জমা: ') + result.reference);
-            state.page = 1; await listWithoutBusy();
-        });
+            $('aidRenewal').value = ''; $('aidEvidenceFile').value = '';
+            intakeGuard.markClean();
+            notice(T('Submitted for review: ', 'পর্যালোচনার জন্য জমা: ') + result.reference);
+            state.page = 1;
+            try { await listWithoutBusy(); } catch (_) {
+                notice(T('Submitted successfully. Register refresh failed; refresh before another application.',
+                    'আবেদন সংরক্ষিত হয়েছে। তালিকা রিফ্রেশ ব্যর্থ; পরের আবেদনের আগে রিফ্রেশ করুন।'), true);
+            }
+        }, $('aidSubmitForm'));
     }
     async function uploadEvidence() {
         if (!state.enrollment) return notice(T('Choose an enrollment first.', 'আগে ভর্তি নির্বাচন করুন।'), true);
@@ -239,7 +301,7 @@
             $('aidEvidenceStatus').textContent = T('Verified private evidence ready: ',
                 'যাচাইকৃত ব্যক্তিগত প্রমাণ প্রস্তুত: ') + file.name;
             notice(T('Private evidence uploaded and scanned.', 'ব্যক্তিগত প্রমাণ আপলোড ও পরীক্ষা সম্পন্ন।'));
-        });
+        }, $('aidSubmitForm'));
     }
     async function listWithoutBusy() {
         const data = await api('/api/student-scholarships?' +
@@ -252,9 +314,8 @@
                 date(row.effectiveFrom) + ' – ' + (date(row.effectiveTo) || '∞')]) tr.append(make('td', value));
             const td = document.createElement('td');
             const btn = make('button', T('View', 'দেখুন'), 'btn btn-sm btn-outline-primary');
-            btn.type = 'button'; btn.addEventListener('click', () => {
-                state.selected = row; state.cash = null; renderSelected(); notice(row.reference + ' · ' + row.state + ' · ' + row.eligibilityStatement);
-            }); td.append(btn); tr.append(td); tbody.append(tr);
+            btn.type = 'button'; btn.addEventListener('click', () => selectApplication(row));
+            td.append(btn); tr.append(td); tbody.append(tr);
         }
         if (!data?.items?.length) {
             const tr = document.createElement('tr'); const td = make('td', T('No applications.', 'কোনো আবেদন নেই।'));
@@ -269,19 +330,30 @@
         if (kind !== 'award' && !reason) return notice(T('Document a reason first.', 'আগে কারণ লিখুন।'), true);
         await run(async () => {
             const path = '/api/student-scholarships/' + encodeURIComponent(target.reference);
+            const payload = { rowVersion: target.rowVersion, reason, approve: kind === 'approve' };
             const data = kind === 'award' ? await api(path + '/award', 'POST') :
                 await api(path + (kind === 'cancel' ? '/cancel' : '/decision'), 'POST',
-                    kind === 'cancel' ? { requestId: guid(), rowVersion: target.rowVersion, reason } :
-                        { requestId: guid(), rowVersion: target.rowVersion, reason, approve: kind === 'approve' });
-            state.selected = data; $('aidReason').value = ''; renderSelected();
+                    kind === 'cancel' ? { requestId: retryId('aid-review', { reference: target.reference, kind, rowVersion: target.rowVersion, reason }),
+                        rowVersion: target.rowVersion, reason } :
+                        { ...payload, requestId: retryId('aid-review', { reference: target.reference, kind, ...payload }) });
+            retries.delete('aid-review');
+            state.selected = data; $('aidReason').value = ''; markAuxiliaryClean(['aidReason']); renderSelected();
             notice(T('Saved state: ', 'সংরক্ষিত অবস্থা: ') + data.state);
-            await listWithoutBusy();
+            try { await listWithoutBusy(); } catch (_) {
+                notice(T('Decision saved; register refresh failed.', 'সিদ্ধান্ত সংরক্ষিত; তালিকা রিফ্রেশ হয়নি।'), true);
+            }
         });
     }
     const cashBase = () => '/api/student-scholarships/' + encodeURIComponent(state.selected.reference) + '/cash-disbursement';
     const option = (value, label) => new Option(label, String(value));
     async function cashFinanceOptions() {
         if (state.cashFinanceLoaded) return;
+        if (financeOptionsPromise) return financeOptionsPromise;
+        financeOptionsPromise = loadFinanceOptions();
+        try { await financeOptionsPromise; }
+        finally { financeOptionsPromise = null; }
+    }
+    async function loadFinanceOptions() {
         const [first, periods, banks] = await Promise.all([
             api('/api/finance/accounting/setup/accounts?pageSize=100'),
             api('/api/finance/accounting/setup/periods'),
@@ -319,17 +391,26 @@
     async function loadCash() {
         const selected = state.selected?.reference;
         if (!selected || state.selected?.awardMode !== 'CashGrant') return;
+        const generation = ++cashLoadGeneration;
+        const form = $('aidCashPrepareForm');
+        const hadDraft = financeGuard.isDirty();
+        state.cashLoading = true;
+        $('aidCashStatus').textContent = T('Loading verified Finance status…', 'যাচাইকৃত ফাইন্যান্স অবস্থা লোড হচ্ছে…');
+        refreshControls();
+        form.inert = true;
         try {
             await cashFinanceOptions();
+            if (generation !== cashLoadGeneration || state.selected?.reference !== selected) return;
             const payees = await api('/api/student-scholarships/' + encodeURIComponent(selected) + '/cash-disbursement/payees');
-            if (state.selected?.reference !== selected) return;
+            if (generation !== cashLoadGeneration || state.selected?.reference !== selected) return;
             $('aidCashPayee').replaceChildren();
             for (const payee of payees || []) $('aidCashPayee').add(option(payee.guardianReference || '',
                 payee.type + ' · ' + payee.name));
+            if (!hadDraft) financeGuard.markClean();
             const response = await fetch('/api/student-scholarships/' + encodeURIComponent(selected) +
                 '/cash-disbursement', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
             const result = await response.json().catch(() => null);
-            if (!checkSession() || state.selected?.reference !== selected) return;
+            if (!checkSession() || generation !== cashLoadGeneration || state.selected?.reference !== selected) return;
             if (response.status === 404) state.cash = null;
             else if (response.ok && result?.success) state.cash = result.data;
             else throw Error(result?.message || T('Cash register unavailable.', 'নগদ অনুদানের রেজিস্টার পাওয়া যায়নি।'));
@@ -340,7 +421,12 @@
                 T('No cash instruction yet. Only an approved grant may be prepared.',
                     'এখনো কোনো পেমেন্ট নির্দেশ নেই। শুধু অনুমোদিত অনুদানের নির্দেশ তৈরি করা যাবে।');
             refreshControls();
-        } catch (error) { notice(error.message, true); }
+        } catch (error) { if (generation === cashLoadGeneration) notice(error.message, true); }
+        finally {
+            if (generation === cashLoadGeneration) {
+                form.inert = false; state.cashLoading = false; refreshControls();
+            }
+        }
     }
     async function prepareCash(event) {
         event.preventDefault();
@@ -351,7 +437,6 @@
             const bankId = Number(val('aidCashBank'));
             const bank = state.bankAccounts?.find(x => x.id === bankId);
             const payload = {
-                requestId: state.cashPrepareId || (state.cashPrepareId = guid()),
                 rowVersion: state.selected.rowVersion, method: val('aidCashMethod'),
                 guardianReference: val('aidCashPayee') || null,
                 expenseAccountId: Number(val('aidCashExpense')),
@@ -360,23 +445,25 @@
                 accountingPeriodId: Number(val('aidCashPeriod')),
                 paymentDate: val('aidCashDate'), externalPaymentReference: val('aidCashRef')
             };
-            state.cash = await api(cashBase(), 'POST', payload);
-            state.cashPrepareId = null;
+            state.cash = await api(cashBase(), 'POST', {
+                ...payload, requestId: retryId('aid-cash-prepare', { reference: state.selected.reference, ...payload })
+            });
+            retries.delete('aid-cash-prepare'); financeGuard.markClean();
             notice(T('Instruction saved. A different Finance administrator must verify payment.',
                 'নির্দেশ সংরক্ষিত। অন্য ফাইন্যান্স প্রশাসককে পেমেন্ট যাচাই করতে হবে।'));
             await loadCash();
-        });
+        }, $('aidCashPrepareForm'));
     }
     async function cashReview(confirmPaid) {
         if (!state.cash || !val('aidCashReason'))
             return notice(T('Review reason required.', 'পর্যালোচনার কারণ প্রয়োজন।'), true);
         await run(async () => {
+            const payload = { rowVersion: state.cash.rowVersion, confirmPaid, reason: val('aidCashReason') };
             state.cash = await api(cashBase() + '/review', 'POST', {
-                requestId: state.cashReviewId || (state.cashReviewId = guid()),
-                rowVersion: state.cash.rowVersion, confirmPaid, reason: val('aidCashReason')
+                ...payload, requestId: retryId('aid-cash-review', { reference: state.selected.reference, ...payload })
             });
-            state.cashReviewId = null;
-            $('aidCashReason').value = '';
+            retries.delete('aid-cash-review');
+            $('aidCashReason').value = ''; markAuxiliaryClean(['aidCashReason']);
             state.selected = await api('/api/student-scholarships/' + encodeURIComponent(state.selected.reference));
             notice(T('Cash review saved: ', 'নগদ অনুদান যাচাই সংরক্ষিত: ') + state.cash.state);
             await loadCash(); await listWithoutBusy();
@@ -388,13 +475,16 @@
             return notice(T('Repayment evidence, date, period and reason required.',
                 'ফেরতের প্রমাণ, তারিখ, হিসাবকাল ও কারণ প্রয়োজন।'), true);
         await run(async () => {
-            state.cash = await api(cashBase() + '/reversal', 'POST', {
-                requestId: state.cashReversalId || (state.cashReversalId = guid()),
+            const payload = {
                 rowVersion: state.cash.rowVersion, accountingPeriodId: Number(val('aidCashReversePeriod')),
                 reversalDate: val('aidCashReverseDate'),
                 externalReversalReference: val('aidCashReverseRef'), reason: val('aidCashReason')
+            };
+            state.cash = await api(cashBase() + '/reversal', 'POST', {
+                ...payload, requestId: retryId('aid-cash-reverse', { reference: state.selected.reference, ...payload })
             });
-            state.cashReversalId = null;
+            retries.delete('aid-cash-reverse');
+            markAuxiliaryClean(['aidCashReason', 'aidCashReverseDate', 'aidCashReverseRef', 'aidCashReversePeriod']);
             notice(T('Reversal pending independent confirmation.', 'রিভার্সাল স্বাধীন নিশ্চিতকরণের অপেক্ষায়।'));
             await loadCash();
         });
@@ -403,11 +493,12 @@
         if (!state.cash || !val('aidCashReason'))
             return notice(T('Document review reason first.', 'আগে যাচাইয়ের কারণ লিখুন।'), true);
         await run(async () => {
+            const payload = { rowVersion: state.cash.rowVersion, confirmReversed, reason: val('aidCashReason') };
             state.cash = await api(cashBase() + '/reversal/review', 'POST', {
-                requestId: state.cashReversalReviewId || (state.cashReversalReviewId = guid()),
-                rowVersion: state.cash.rowVersion, confirmReversed, reason: val('aidCashReason')
+                ...payload, requestId: retryId('aid-cash-reverse-review', { reference: state.selected.reference, ...payload })
             });
-            state.cashReversalReviewId = null; $('aidCashReason').value = '';
+            retries.delete('aid-cash-reverse-review'); $('aidCashReason').value = '';
+            markAuxiliaryClean(['aidCashReason']);
             state.selected = await api('/api/student-scholarships/' + encodeURIComponent(state.selected.reference));
             notice(T('Reversal review saved: ', 'রিভার্সাল যাচাই সংরক্ষিত: ') + state.cash.state);
             await loadCash(); await listWithoutBusy();
@@ -522,12 +613,14 @@
         $('aidReconcilePrev').addEventListener('click', () => { if (state.reconcilePage > 1) { state.reconcilePage--; reconcile(); } });
         $('aidReconcileNext').addEventListener('click', () => { if (state.reconcilePage * 30 < state.reconcileTotal) { state.reconcilePage++; reconcile(); } });
     }
-    const today = new Date();
-    $('aidFrom').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    $('aidFrom').value = todayLocal();
     if (review) {
         $('aidCashDate').value = $('aidFrom').value;
         $('aidCashReverseDate').value = $('aidFrom').value;
+        financeGuard.markClean();
+        markAuxiliaryClean();
     }
+    intakeGuard.markClean();
     window.addEventListener('focus', checkSession);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkSession(); });
     (async () => { await rules(); await searchStudent(); await list(); })();
