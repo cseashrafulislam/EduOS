@@ -5,6 +5,18 @@
     const el = id => document.getElementById(id);
     const state = { years: [], terms: [], campuses: [], catalog: null };
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const identity = [document.body?.dataset?.authTenantId || '',
+        document.body?.dataset?.authSessionReference || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
+    const formGuards = new Map();
+    const guard = id => {
+        if (!formGuards.has(id)) formGuards.set(id, window.EduOSFormGuard?.create(el(id)) || null);
+        return formGuards.get(id);
+    };
+    const mayReplace = id => !guard(id)?.isDirty() || guard(id).confirmDiscard();
+    let allocationLookup = 0, allocationSaving = false;
     const field = id => el(id).value.trim();
     const idOf = id => Number(field(id)) || null;
     const checked = id => el(id).checked;
@@ -36,7 +48,20 @@
         return body.data;
     }
     function options(id, values, placeholder, chosen, optional = false) {
-        const select = el(id), selected = chosen === undefined ? select.value : chosen;
+        const select = el(id);
+        if (select.multiple) {
+            const selected = chosen === undefined
+                ? new Set([...select.selectedOptions].map(option => option.value))
+                : new Set((Array.isArray(chosen) ? chosen : [chosen]).map(String));
+            select.replaceChildren();
+            values.forEach(v => {
+                const option = new Option(v.name + (v.code ? ' (' + v.code + ')' : ''), String(v.id));
+                option.selected = selected.has(String(v.id));
+                select.add(option);
+            });
+            return;
+        }
+        const selected = chosen === undefined ? select.value : chosen;
         select.replaceChildren(new Option(placeholder, ''));
         values.forEach(v => select.add(new Option(v.name + (v.code ? ' (' + v.code + ')' : ''), String(v.id))));
         if ([...select.options].some(v => v.value === String(selected))) select.value = String(selected);
@@ -100,17 +125,22 @@
         return control;
     }
     async function archive(kind, row, control) {
+        if (!sameSession()) return;
         if (!confirm('Archive ' + row.name + '? Linked academic records may block removal.')) return;
         control.disabled = true;
+        let committed = false;
         try {
             await api('/api/institution-onboarding/' + kind + '/' + encodeURIComponent(row.id) +
                 '?rowVersion=' + encodeURIComponent(row.rowVersion), { method: 'DELETE' });
-            await reload();
-            notice('Record archived.');
-        } catch (e) { notice(e.message, true); }
+            committed = true;
+            if (!sameSession()) return;
+            try { await reload(); notice('Record archived.'); }
+            catch { notice('Record archived, but the directory could not refresh. Reload the page.', true); }
+        } catch (e) { if (sameSession()) notice(committed ? 'Record archived, but the display failed.' : e.message, true); }
         finally { control.disabled = false; }
     }
     function editYear(row) {
+        if (!sameSession() || !mayReplace('yearForm')) return;
         el('yearForm').reset();
         for (const [id, value] of Object.entries({
             yearId: row.id, yearVersion: row.rowVersion, yearName: row.name, yearCode: row.code,
@@ -118,9 +148,11 @@
         })) el(id).value = value ?? '';
         options('yearCampus', enabled(state.campuses), 'All campuses', row.campusId, true);
         el('yearCurrent').checked = row.isCurrent;
+        guard('yearForm')?.markClean();
         el('yearForm').scrollIntoView({ behavior: 'smooth' });
     }
     function editTerm(row) {
+        if (!sameSession() || !mayReplace('termForm')) return;
         el('termForm').reset();
         for (const [id, value] of Object.entries({
             termId: row.id, termVersion: row.rowVersion, termName: row.name, termCode: row.code,
@@ -128,6 +160,7 @@
         })) el(id).value = value ?? '';
         options('termYear', enabled(state.years), 'Select year', row.academicYearId);
         el('termCurrent').checked = row.isCurrent;
+        guard('termForm')?.markClean();
         el('termForm').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -147,8 +180,11 @@
         primary.disabled = unrestricted;
     }
     async function editProgramAllocation(row) {
+        if (!sameSession() || !mayReplace('programAllocationForm')) return;
+        const sequence = ++allocationLookup;
         const allocation = await api('/api/academic-setup/programmes/' +
             encodeURIComponent(row.id) + '/campuses');
+        if (!sameSession() || sequence !== allocationLookup || guard('programAllocationForm')?.isDirty()) return;
         el('allocationProgramId').value = allocation.academicProgramId;
         el('allocationRowVersion').value = allocation.rowVersion;
         el('allocationProgramName').textContent = allocation.programName + ' (' + allocation.programCode + ')';
@@ -165,6 +201,7 @@
         if (allocation.primaryCampusId)
             el('allocationPrimary').value = String(allocation.primaryCampusId);
         el('programAllocationForm').classList.remove('d-none');
+        guard('programAllocationForm')?.markClean();
         el('programAllocationForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     function render() {
@@ -214,12 +251,19 @@
             api('/api/institution-onboarding/campus-list'),
             api('/api/academic-setup/catalog?take=100')
         ]);
+        if (!sameSession()) return;
+        const previouslyClean = [...formGuards]
+            .filter(([, item]) => item && !item.isDirty())
+            .map(([id]) => id);
         Object.assign(state, { years, terms, campuses, catalog });
         selectLists(); render();
+        // Server-provided dropdown options are not user edits. Preserve a draft
+        // that became dirty while the request was in flight.
+        previouslyClean.forEach(id => guard(id)?.markClean());
         window.dispatchEvent(new Event('eduos:academic-reloaded'));
     }
     window.eduosAcademicManagement = { state, el, field, idOf, enabled, find, findYear,
-        notice, api, reload, options, checked };
+        notice, api, reload, options, checked, sameSession, guard, mayReplace };
     // The server selects one coherent feature surface per authorized route.
     // Do not let a client-side tab switch expose a different editor without
     // navigating to its canonical, bookmarkable feature URL.
@@ -228,10 +272,14 @@
     el('curriculumSelection').addEventListener('change', levelsForCurriculum);
     el('allocationCampuses').addEventListener('change', syncAllocationPrimary);
     el('allocationAllowAll').addEventListener('change', syncAllocationPrimary);
-    el('allocationCancel').addEventListener('click', () =>
-        el('programAllocationForm').classList.add('d-none'));
+    el('allocationCancel').addEventListener('click', () => {
+        if (allocationSaving || !mayReplace('programAllocationForm')) return;
+        el('programAllocationForm').classList.add('d-none');
+        guard('programAllocationForm')?.markClean();
+    });
     el('programAllocationForm').addEventListener('submit', async event => {
         event.preventDefault();
+        if (allocationSaving || !sameSession() || !event.currentTarget.reportValidity()) return;
         const form = event.currentTarget, submit = form.querySelector('button[type="submit"]');
         const allowAllCampuses = el('allocationAllowAll').checked;
         const campusIds = allowAllCampuses ? [] :
@@ -241,7 +289,8 @@
             notice('Select allowed campuses and a primary campus, or explicitly allow all campuses.', true);
             return;
         }
-        submit.disabled = true;
+        allocationSaving = true; submit.disabled = true; form.inert = true;
+        let committed = false;
         try {
             await api('/api/academic-setup/programmes/' +
                 encodeURIComponent(field('allocationProgramId')) + '/campuses', {
@@ -250,13 +299,34 @@
                     primaryCampusId, allowAllCampuses
                 })
             });
+            committed = true;
+            if (!sameSession()) return;
             form.classList.add('d-none');
-            await reload();
-            notice('Programme campus allocation saved.');
-        } catch (error) { notice(error.message, true); }
-        finally { submit.disabled = false; }
+            guard('programAllocationForm')?.markClean();
+            try { await reload(); notice('Programme campus allocation saved.'); }
+            catch { notice('Campus allocation saved, but the directory could not refresh. Reload before another change.', true); }
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Campus allocation saved, but the display failed.' : error.message, true);
+        } finally { allocationSaving = false; submit.disabled = false; form.inert = false; }
     });
-    el('academicRefresh').addEventListener('click', () => reload()
-        .then(() => notice('Academic setup refreshed.')).catch(e => notice(e.message, true)));
+    el('academicRefresh').addEventListener('click', () => {
+        if (!sameSession()) return;
+        const dirty = [...formGuards].filter(([, item]) => item?.isDirty());
+        if (dirty.length && !confirm('Discard unsaved academic form changes and refresh?')) return;
+        for (const [id, item] of dirty) {
+            const form = el(id);
+            form.reset();
+            if (id === 'yearForm' || id === 'termForm') {
+                const kind = id.slice(0, -4);
+                el(kind + 'Id').value = '';
+                el(kind + 'Version').value = '';
+            }
+            if (id === 'programAllocationForm') form.classList.add('d-none');
+            delete form.dataset.requestId;
+            delete form.dataset.requestFingerprint;
+            item.markClean();
+        }
+        reload().then(() => notice('Academic setup refreshed.')).catch(e => notice(e.message, true));
+    });
     reload().catch(e => notice(e.message, true));
 })();

@@ -2,21 +2,41 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { state, el, field, idOf, find, findYear, notice, api, reload, checked } = vm;
+    const { state, el, field, idOf, find, findYear, notice, api, reload, checked,
+        sameSession, guard, mayReplace } = vm;
+    const pending = new WeakSet();
     async function submit(event, operation, successText) {
         event.preventDefault();
         const form = event.currentTarget, button = form.querySelector('button[type="submit"]');
-        button.disabled = true;
+        if (pending.has(form) || !sameSession() || !form.reportValidity()) return;
+        pending.add(form); button.disabled = true; form.inert = true;
+        let committed = false;
         try {
             await operation();
+            committed = true;
+            if (!sameSession()) return;
             form.reset();
+            if (form.id === 'yearForm' || form.id === 'termForm') {
+                const kind = form.id.slice(0, -4);
+                el(kind + 'Id').value = '';
+                el(kind + 'Version').value = '';
+            }
             delete form.dataset.requestId;
-            await reload();
-            notice(successText);
-        } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+            delete form.dataset.requestFingerprint;
+            guard(form.id)?.markClean();
+            try { await reload(); notice(successText); }
+            catch { notice('Saved successfully, but the academic directory could not refresh. Reload before making another change.', true); }
+        } catch (error) {
+            if (sameSession()) notice(committed ? 'Saved successfully, but the display could not refresh.' : error.message, true);
+        } finally { pending.delete(form); button.disabled = false; form.inert = false; }
     }
     function requestId(form) {
+        const fingerprint = window.EduOSFormGuard?.fingerprint(form) ||
+            JSON.stringify([...form.elements].map(x => [x.name || x.id, x.value, x.checked]));
+        if (form.dataset.requestFingerprint !== fingerprint) {
+            delete form.dataset.requestId;
+            form.dataset.requestFingerprint = fingerprint;
+        }
         if (!form.dataset.requestId) {
             if (typeof crypto.randomUUID === 'function') form.dataset.requestId = crypto.randomUUID();
             else {
@@ -39,9 +59,14 @@
         if (!start || !end || start >= end) throw new Error('End date must be after start date.');
     }
     function reset(kind) {
-        el(kind + 'Form').reset();
+        const form = el(kind + 'Form');
+        if (!mayReplace(form.id)) return;
+        form.reset();
         el(kind + 'Id').value = '';
         el(kind + 'Version').value = '';
+        delete form.dataset.requestId;
+        delete form.dataset.requestFingerprint;
+        guard(form.id)?.markClean();
     }
     el('yearForm').addEventListener('submit', async event => submit(event, async () => {
         const startDate = field('yearStart'), endDate = field('yearEnd');
@@ -54,7 +79,6 @@
                 startDate, endDate, isCurrent: checked('yearCurrent'), isActive: true
             })
         });
-        reset('year');
     }, 'Academic year saved.'));
     el('termForm').addEventListener('submit', async event => submit(event, async () => {
         const startDate = field('termStart'), endDate = field('termEnd');
@@ -70,11 +94,15 @@
                 isCurrent: checked('termCurrent'), isActive: true, displayOrder: 0
             })
         });
-        reset('term');
     }, 'Academic term saved.'));
     for (const kind of ['year', 'term'])
         document.querySelector('button[data-reset="' + kind + '"]')
             .addEventListener('click', () => reset(kind));
+
+    // Include the other six editors in the shared unsaved-navigation guard.
+    // Reuse the same guard instance on resets and successful submissions.
+    for (const id of ['yearForm', 'termForm', 'programForm', 'levelForm', 'sectionForm',
+        'subjectForm', 'curriculumForm', 'curriculumSubjectForm']) guard(id);
 
     el('programForm').addEventListener('submit', event => submit(event, async () => {
         const campusIds = [...el('programCampus').selectedOptions]

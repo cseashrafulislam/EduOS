@@ -2,12 +2,15 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { state, el, api, notice, reload } = vm;
+    const { state, el, api, notice, reload, sameSession, guard, mayReplace } = vm;
     const size = 20;
     let page = 1, total = 0, rows = [], loaded = false, generation = 0;
+    let createSaving = false, editSaving = false, editSequence = 0;
+    const createGuard = guard('trackCreateForm'), editGuard = guard('trackEditForm');
     const value = id => el(id).value.trim();
     const cell = text => { const td = document.createElement('td'); td.textContent = String(text ?? ''); return td; };
     function populatePrograms(items) {
+        const wasClean = !createGuard?.isDirty();
         for (const id of ['trackProgramFilter', 'trackCreateProgram']) {
             const select = el(id), selected = select.value;
             select.replaceChildren(new Option(id === 'trackProgramFilter' ? 'All programmes' : 'Institution-wide', ''));
@@ -15,6 +18,7 @@
                 .forEach(x => select.add(new Option(x.name + ' (' + x.code + ')', String(x.id))));
             if ([...select.options].some(x => x.value === selected)) select.value = selected;
         }
+        if (wasClean) createGuard?.markClean();
     }
     function render() {
         const body = el('trackRows');
@@ -31,9 +35,12 @@
             const td = document.createElement('td'), button = document.createElement('button');
             button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'Edit';
             button.addEventListener('click', async () => {
+                if (!sameSession() || editSaving || !mayReplace('trackEditForm')) return;
+                const selection = ++editSequence;
                 button.disabled = true;
                 try {
                     const row = await api('/api/academic-setup/tracks/' + encodeURIComponent(track.id));
+                    if (!sameSession() || selection !== editSequence || editGuard?.isDirty()) return;
                     el('trackEditId').value = row.id;
                     el('trackEditVersion').value = row.rowVersion;
                     el('trackEditContext').textContent = row.code + ' · ' +
@@ -44,7 +51,8 @@
                     el('trackEditDefault').checked = row.isDefault;
                     el('trackEditActive').checked = row.isActive;
                     el('trackEditForm').classList.remove('d-none');
-                } catch (error) { notice(error.message, true); }
+                    editGuard?.markClean();
+                } catch (error) { if (sameSession()) notice(error.message, true); }
                 finally { button.disabled = false; }
             });
             td.append(button); tr.append(td); body.append(tr);
@@ -61,7 +69,7 @@
         if (value('trackSearch')) params.set('search', value('trackSearch'));
         if (value('trackProgramFilter')) params.set('academicProgramId', value('trackProgramFilter'));
         const result = await api('/api/academic-setup/tracks?' + params);
-        if (current !== generation) return;
+        if (current !== generation || !sameSession()) return;
         rows = result.items || []; total = result.totalCount || 0;
         loaded = true; render();
     }
@@ -105,10 +113,12 @@
     el('trackCreateForm').addEventListener('submit', async e => {
         e.preventDefault();
         const form = e.currentTarget;
+        if (createSaving || !sameSession() || !form.reportValidity()) return;
         const button = form.querySelector('button[type="submit"]');
         const order = Number(value('trackCreateOrder'));
         if (!Number.isInteger(order) || order < 0) { notice('Invalid display order.', true); return; }
-        button.disabled = true;
+        createSaving = true; button.disabled = true; form.inert = true;
+        let committed = false;
         try {
             await api('/api/academic-setup/tracks', { method: 'POST', body: JSON.stringify({
                 academicProgramId: value('trackCreateProgram') ? Number(value('trackCreateProgram')) : null,
@@ -116,19 +126,26 @@
                 description: value('trackCreateDescription') || null,
                 isDefault: el('trackCreateDefault').checked, isActive: true, displayOrder: order
             }) });
-            form.reset();
-            await reload(); page = 1; await load();
-            notice('Academic track created.');
-        } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            form.reset(); createGuard?.markClean();
+            try { await reload(); page = 1; await load(); notice('Academic track created.'); }
+            catch { notice('Track created, but the directory did not refresh. Reload the page.', true); }
+        } catch (error) { if (sameSession()) notice(committed ? 'Track created, but the display failed.' : error.message, true); }
+        finally { createSaving = false; button.disabled = false; form.inert = false; }
     });
-    el('trackEditCancel').addEventListener('click', () => el('trackEditForm').classList.add('d-none'));
+    el('trackEditCancel').addEventListener('click', () => {
+        if (editSaving || !mayReplace('trackEditForm')) return;
+        el('trackEditForm').classList.add('d-none'); editGuard?.markClean();
+    });
     el('trackEditForm').addEventListener('submit', async e => {
         e.preventDefault();
         const form = e.currentTarget, button = form.querySelector('button[type="submit"]');
+        if (editSaving || !sameSession() || !form.reportValidity()) return;
         const order = Number(value('trackEditOrder'));
         if (!Number.isInteger(order) || order < 0) { notice('Invalid display order.', true); return; }
-        button.disabled = true;
+        editSaving = true; button.disabled = true; form.inert = true;
+        let committed = false;
         try {
             await api('/api/academic-setup/tracks/' + encodeURIComponent(value('trackEditId')), {
                 method: 'PUT', body: JSON.stringify({
@@ -137,11 +154,13 @@
                     displayOrder: order, rowVersion: value('trackEditVersion')
                 })
             });
-            form.classList.add('d-none');
-            await reload(); await load();
-            notice('Academic track saved.');
-        } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            form.classList.add('d-none'); editGuard?.markClean();
+            try { await reload(); await load(); notice('Academic track saved.'); }
+            catch { notice('Track saved, but the directory did not refresh. Reload the page.', true); }
+        } catch (error) { if (sameSession()) notice(committed ? 'Track saved, but the display failed.' : error.message, true); }
+        finally { editSaving = false; button.disabled = false; form.inert = false; }
     });
     const classesActive = () => document.getElementById('academicManagement')?.dataset.activeFeature === 'classes';
     window.addEventListener('eduos:academic-reloaded', () => {

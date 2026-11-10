@@ -2,16 +2,21 @@
     'use strict';
     const vm = window.eduosAcademicManagement;
     if (!vm) return;
-    const { state, el, api, notice } = vm;
+    const { state, el, api, notice, sameSession, guard, mayReplace } = vm;
+    const formGuard = guard('offeringForm');
     let page = 1, totalPages = 0, visible = [], pending = false, requestId = null;
+    let requestFingerprint = null, activeBatch = el('offeringBatch').value, readGeneration = 0;
     const selectedBatch = () => state.catalog?.batches.find(x => x.id === Number(el('offeringBatch').value));
     const status = message => { el('offeringMessage').textContent = message; };
     const cell = (tr, value) => { const td = document.createElement('td'); td.textContent = String(value ?? ''); tr.append(td); return td; };
-    const reset = () => {
+    const reset = (force = false) => {
+        if (!force && (pending || !mayReplace('offeringForm'))) return false;
         el('offeringForm').reset(); el('offeringReference').value = ''; el('offeringVersion').value = '';
-        el('offeringSave').textContent = 'Create Offering'; requestId = null;
+        el('offeringSave').textContent = 'Create Offering'; requestId = null; requestFingerprint = null;
         el('offeringCode').disabled = false; el('offeringCurriculumSubject').disabled = false;
         el('offeringDelivery').disabled = false;
+        formGuard?.markClean();
+        return true;
     };
     const chooseMapping = () => {
         const batch = selectedBatch(), select = el('offeringCurriculumSubject'), previous = select.value;
@@ -30,10 +35,12 @@
         if ([...select.options].some(x => x.value === previous)) select.value = previous;
     };
     async function refresh() {
+        const generation = ++readGeneration;
         const batch = selectedBatch();
         if (!batch) { visible = []; totalPages = 0; el('offeringRows').replaceChildren(); status('Select a batch.'); return; }
         const result = await api('/api/academic-setup/batches/' + batch.id + '/offerings?page=' + page +
             '&pageSize=20&search=' + encodeURIComponent(el('offeringSearch').value.trim()));
+        if (generation !== readGeneration || !sameSession() || selectedBatch()?.id !== batch.id) return;
         visible = result.items || []; totalPages = result.totalPages || 0;
         const body = el('offeringRows'); body.replaceChildren();
         for (const row of visible) {
@@ -55,12 +62,14 @@
             const edit = document.createElement('button'); edit.type = 'button';
             edit.className = 'btn btn-sm btn-outline-primary'; edit.textContent = 'Edit';
             edit.addEventListener('click', () => {
-                reset(); el('offeringReference').value = row.reference; el('offeringVersion').value = row.rowVersion;
+                if (!sameSession() || !reset()) return;
+                el('offeringReference').value = row.reference; el('offeringVersion').value = row.rowVersion;
                 el('offeringCurriculumSubject').value = String(row.curriculumSubjectId);
                 el('offeringCode').value = row.code; el('offeringCapacity').value = row.capacity;
                 el('offeringDelivery').value = row.deliveryMode; el('offeringActive').checked = row.isActive;
                 el('offeringCode').disabled = true; el('offeringCurriculumSubject').disabled = true;
                 el('offeringDelivery').disabled = true; el('offeringSave').textContent = 'Update Offering';
+                formGuard?.markClean();
                 el('offeringForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
             action.append(edit); body.append(tr);
@@ -73,24 +82,32 @@
     }
     const safeRefresh = async () => { try { await refresh(); } catch (e) { notice(e.message, true); } };
     window.addEventListener('eduos:academic-reloaded', () => {
+        if (!sameSession()) return;
+        const clean = !formGuard?.isDirty();
         const previous = el('offeringBatch').value;
         const select = el('offeringBatch'); select.replaceChildren(new Option('Select batch', ''));
         (state.catalog?.batches || []).forEach(x => select.add(new Option(x.name + ' (' + x.code + ')', String(x.id))));
         if ([...select.options].some(x => x.value === previous)) select.value = previous;
         else if (state.catalog?.batches?.length === 1) select.value = String(state.catalog.batches[0].id);
+        activeBatch = select.value;
         chooseMapping(); page = 1; safeRefresh();
+        if (clean) formGuard?.markClean();
     });
-    el('offeringBatch').addEventListener('change', () => { reset(); chooseMapping(); page = 1; safeRefresh(); });
+    el('offeringBatch').addEventListener('change', () => {
+        if (!sameSession() || !reset()) { el('offeringBatch').value = activeBatch; return; }
+        activeBatch = el('offeringBatch').value;
+        chooseMapping(); formGuard?.markClean(); page = 1; safeRefresh();
+    });
     el('offeringSearchButton').addEventListener('click', () => { page = 1; safeRefresh(); });
     el('offeringSearch').addEventListener('keydown', event => {
         if (event.key === 'Enter') { event.preventDefault(); page = 1; safeRefresh(); }
     });
     el('offeringPrevious').addEventListener('click', () => { if (page > 1) { page--; safeRefresh(); } });
     el('offeringNext').addEventListener('click', () => { if (page < totalPages) { page++; safeRefresh(); } });
-    el('offeringCancel').addEventListener('click', reset);
+    el('offeringCancel').addEventListener('click', () => reset());
     el('offeringForm').addEventListener('submit', async event => {
         event.preventDefault();
-        if (pending) return;
+        if (pending || !sameSession() || !event.currentTarget.reportValidity()) return;
         const batch = selectedBatch(), reference = el('offeringReference').value;
         if (!batch) { notice('Select an academic batch.', true); return; }
         const capacity = Number(el('offeringCapacity').value);
@@ -98,23 +115,34 @@
             notice('Offering capacity must be between 1 and batch capacity (' + batch.capacity + ').', true); return;
         }
         if (!reference && !el('offeringCurriculumSubject').value) { notice('Select a curriculum subject.', true); return; }
-        if (!requestId) requestId = crypto.randomUUID();
         const body = reference ? {
             capacity, isActive: el('offeringActive').checked, rowVersion: el('offeringVersion').value
         } : {
-            clientRequestId: requestId, academicBatchId: batch.id,
+            academicBatchId: batch.id,
             curriculumSubjectId: Number(el('offeringCurriculumSubject').value),
             academicYearId: batch.academicYearId, academicTermId: batch.academicTermId || null,
             code: el('offeringCode').value.trim().toUpperCase(), capacity,
             deliveryMode: Number(el('offeringDelivery').value), isActive: el('offeringActive').checked
         };
-        pending = true; el('offeringSave').disabled = true;
+        if (!reference) {
+            const fingerprint = JSON.stringify(body);
+            if (fingerprint !== requestFingerprint) { requestId = null; requestFingerprint = fingerprint; }
+            if (!requestId) requestId = crypto.randomUUID();
+            body.clientRequestId = requestId;
+        }
+        pending = true; el('offeringSave').disabled = true; event.currentTarget.inert = true;
+        let committed = false;
         try {
             await api(reference ? '/api/academic-setup/offerings/' + encodeURIComponent(reference) :
                 '/api/academic-setup/offerings', { method: reference ? 'PUT' : 'POST', body: JSON.stringify(body) });
-            reset(); page = 1; await refresh(); notice('Subject offering saved.');
-        } catch (e) { notice(e.message, true); }
-        finally { pending = false; el('offeringSave').disabled = false; }
+            committed = true;
+            if (!sameSession()) return;
+            reset(true); page = 1;
+            try { await refresh(); notice('Subject offering saved.'); }
+            catch { notice('Offering saved, but the list did not refresh. Reload before changing it again.', true); }
+        } catch (e) {
+            if (sameSession()) notice(committed ? 'Offering saved, but the display failed.' : e.message, true);
+        } finally { pending = false; el('offeringSave').disabled = false; event.currentTarget.inert = false; }
     });
     el('offeringCsv').addEventListener('click', () => {
         if (!visible.length) return;
