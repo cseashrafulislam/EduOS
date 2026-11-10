@@ -3,7 +3,13 @@
 const root=document.getElementById('studentOptionalSubjects'); if(!root)return;
 const canManage=root.dataset.canManage==='true';
 const el=id=>document.getElementById(id), token=root.querySelector('input[name="__RequestVerificationToken"]').value;
-let student=null, workspace=null, requestId=null, busy=false;
+let student=null, workspace=null, requestId=null, requestFingerprint=null, busy=false;
+let loadVersion=0, searchVersion=0, linkedVersion=0;
+const form=el('subjectsRequestForm'), guard=window.EduOSFormGuard?.create(form);
+const identity=[document.body?.dataset?.authTenantId||'',document.body?.dataset?.authSessionReference||''];
+const sameSession=()=>identity[0]===(document.body?.dataset?.authTenantId||'')&&
+ identity[1]===(document.body?.dataset?.authSessionReference||'')&&
+ window.EduOSSessionTransitionPending?.()!==true;
 const val=id=>el(id).value.trim();
 function notice(message,error=false){const box=el('subjectsNotice');box.className='alert '+(error?'alert-danger':'alert-success');box.textContent=message;}
 async function api(url,body){
@@ -17,14 +23,16 @@ async function api(url,body){
 function refresh(){
  const chosen=(workspace?.offerings||[]).find(x=>x.reference===val('subjectsOffering'));
  const missing=chosen?.missingPrerequisites||[];
- el('subjectsOffering').disabled=busy||!workspace;
- el('subjectsRequestButton').disabled=busy||!workspace||!chosen||chosen.isEligible===false;
+ el('subjectsOffering').disabled=busy||!workspace||!sameSession();
+ el('subjectsRequestButton').disabled=busy||!workspace||!chosen||chosen.isEligible===false||!sameSession();
  el('subjectsEligibility').textContent=missing.length?'Complete prerequisites: '+missing.join(', '):'Eligibility is rechecked on approval.';
  el('subjectsCapacity').textContent=chosen?(chosen.seatsRemaining+' of '+chosen.capacity+' seats remaining'+(chosen.seatsRemaining<=0?' — Full':'')):'Select an elective to check seats.';
 }
 async function load(ref){
+ const version=++loadVersion;
  const data=await api('/api/student-optional-subjects/students/'+encodeURIComponent(ref));
- if(student?.reference!==ref)return;
+ if(student?.reference!==ref||version!==loadVersion||!sameSession())return false;
+ if(data?.studentReference!==ref)throw Error('Student reference mismatch. Reload and retry.');
  workspace=data;el('subjectsStudent').classList.remove('d-none');
  el('subjectsStudentName').textContent=data.studentName;
  el('subjectsStudentDetails').textContent=data.studentCode+' · Roll: '+data.rollNo;
@@ -51,19 +59,27 @@ async function load(ref){
  if(!table.children.length)table.textContent='No registrations.';
  refresh();
  root.dispatchEvent(new CustomEvent('student-subjects:selected',{detail:{reference:ref}}));
+ return true;
 }
 async function choose(item){
- student=item;workspace=null;requestId=null;
+ if(busy||!sameSession())return false;
+ if(guard?.isDirty()&&!guard.confirmDiscard())return false;
+ ++loadVersion;
+ student=item;workspace=null;requestId=null;requestFingerprint=null;
+ form.reset();guard?.markClean();
  root.dispatchEvent(new CustomEvent('student-subjects:selected',{detail:{reference:null}}));
  el('subjectsStudent').classList.add('d-none');
  el('subjectsOffering').replaceChildren(new Option('Loading electives…',''));
  el('subjectsRegistrations').textContent='Loading registrations…';
- refresh();try{await load(item.reference);}catch(e){notice(e.message,true);}
+ refresh();try{return await load(item.reference);}catch(e){if(sameSession())notice(e.message,true);return false;}
 }
 async function loadLinkedStudents(){
+ if(!sameSession())return;
+ const version=++linkedVersion;
  const menu=el('subjectsLinkedStudents');
  try{
   const linked=await api('/api/portal/students');
+  if(version!==linkedVersion||!sameSession())return;
   menu.replaceChildren(new Option('Choose linked student',''));
   for(const item of linked||[]){
    if(!item.reference)continue;
@@ -73,45 +89,79 @@ async function loadLinkedStudents(){
   const match=(linked||[]).find(x=>x.reference===requested)||(linked||[])[0];
   if(match?.reference){menu.value=match.reference;await choose(match);}
   else notice('No student is linked to your account.',true);
- }catch(e){notice(e.message,true);}
+ }catch(e){if(version===linkedVersion&&sameSession())notice(e.message,true);}
 }
 async function search(e){
- e.preventDefault();if(val('subjectsSearch').length<2)return notice('Enter at least two characters.',true);
+ e.preventDefault();if(busy||!sameSession())return;
+ const query=val('subjectsSearch');
+ if(query.length<2||query.length>100)return notice('Enter 2–100 characters.',true);
+ const version=++searchVersion;
  const box=el('subjectsMatches');box.textContent='Searching...';
  try{
-  const p=await api('/api/students?'+new URLSearchParams({search:val('subjectsSearch'),page:1,pageSize:20}));
+  const p=await api('/api/students?'+new URLSearchParams({search:query,page:1,pageSize:20}));
+  if(version!==searchVersion||!sameSession())return;
   box.replaceChildren();
   for(const item of p.items||[]){const btn=document.createElement('button');btn.type='button';btn.className='list-group-item list-group-item-action';btn.textContent=item.fullName+' — '+item.studentCode;btn.addEventListener('click',()=>choose(item));box.append(btn);}
   if(!box.children.length)box.textContent='No students found.';
- }catch(err){notice(err.message,true);}
+ }catch(err){if(version===searchVersion&&sameSession())notice(err.message,true);}
 }
 async function submit(e){
- e.preventDefault();if(busy||!workspace||!val('subjectsOffering'))return;
+ e.preventDefault();if(busy||!workspace||!val('subjectsOffering')||!sameSession())return;
   const chosen=(workspace.offerings||[]).find(x=>x.reference===val('subjectsOffering'));
   if(!chosen||chosen.isEligible===false)return notice('Complete prerequisites and reload the workspace.',true);
- requestId??=crypto.randomUUID();busy=true;refresh();
+ const payload={studentEnrollmentReference:workspace.enrollmentReference,
+  subjectOfferingReference:chosen.reference,remarks:val('subjectsRemarks')||null};
+ const fingerprint=JSON.stringify(payload);
+ if(!requestId||requestFingerprint!==fingerprint)requestId=crypto.randomUUID();
+ requestFingerprint=fingerprint;payload.clientRequestId=requestId;
+ busy=true;form.inert=true;refresh();let committed=false;
  try{
-  await api('/api/academic-enrollments/subjects/requests',{clientRequestId:requestId,studentEnrollmentReference:workspace.enrollmentReference,subjectOfferingReference:val('subjectsOffering'),remarks:val('subjectsRemarks')||null});
-  requestId=null;await load(student.reference);notice('Optional subject requested.');
- }catch(err){notice(err.message,true);}finally{busy=false;refresh();}
+  const ref=student.reference;
+  await api('/api/academic-enrollments/subjects/requests',payload);
+  committed=true;requestId=null;requestFingerprint=null;
+  if(!sameSession())return;
+  form.reset();guard?.markClean();workspace=null;refresh();
+  const refreshed=await load(ref);
+  if(sameSession())notice(refreshed?'Optional subject requested.':
+   'Request saved, but the workspace could not be refreshed. Reload before requesting again.',!refreshed);
+ }catch(err){if(sameSession()){
+  if(committed)workspace=null;
+  notice(committed?'Request saved, but the workspace could not be refreshed. Reload to verify.':
+   err.message+' Retry unchanged details with the same request ID.',true);
+ }}finally{busy=false;form.inert=false;refresh();}
 }
 async function decide(item,decision){
- if(!canManage)return;
- if(busy||!confirm('Confirm subject decision?'))return;busy=true;refresh();
+ if(!canManage||!sameSession())return;
+ if(busy||!confirm('Confirm subject decision?'))return;busy=true;refresh();let committed=false;
  try{
+  const ref=student.reference;
   await api('/api/academic-enrollments/subjects/'+item.id+'/decision',{state:decision,rowVersion:item.rowVersion});
-  await load(student.reference);notice('Decision saved.');
- }catch(err){notice(err.message,true);}finally{busy=false;refresh();}
+  committed=true;workspace=null;refresh();
+  const refreshed=await load(ref);
+  if(sameSession())notice(refreshed?'Decision saved.':'Decision saved, but readback failed. Reload to verify.',!refreshed);
+ }catch(err){if(sameSession()){
+  workspace=null;
+  notice(committed?'Decision saved, but readback failed. Reload to verify.':
+   err.message+' Refresh the current student before retrying an uncertain decision.',true);
+ }}finally{busy=false;refresh();}
 }
-if(canManage)el('subjectsSearchForm').addEventListener('submit',search);
+if(canManage){
+ el('subjectsSearchForm').addEventListener('submit',search);
+ el('subjectsSearch').addEventListener('input',()=>{++searchVersion;});
+}
 else el('subjectsLinkedStudents').addEventListener('change',e=>{
- const ref=e.target.value;if(ref)choose({reference:ref});
- else {student=null;workspace=null;el('subjectsStudent').classList.add('d-none');root.dispatchEvent(new CustomEvent('student-subjects:selected',{detail:{reference:null}}));refresh();}
+ const ref=e.target.value;
+ if(busy||!sameSession()){e.target.value=student?.reference||'';return;}
+ if(ref)void choose({reference:ref}).then(changed=>{if(!changed)e.target.value=student?.reference||'';});
+ else if(!guard?.isDirty()||guard.confirmDiscard()){
+  student=null;workspace=null;requestId=null;requestFingerprint=null;++loadVersion;
+  form.reset();guard?.markClean();el('subjectsStudent').classList.add('d-none');
+  root.dispatchEvent(new CustomEvent('student-subjects:selected',{detail:{reference:null}}));refresh();
+ }else e.target.value=student?.reference||'';
 });
 el('subjectsRequestForm').addEventListener('submit',submit);
-el('subjectsOffering').addEventListener('change',()=>{requestId=null;refresh();});
-el('subjectsRemarks').addEventListener('input',()=>{requestId=null;});
+el('subjectsOffering').addEventListener('change',refresh);
 const ref=new URLSearchParams(location.search).get('studentReference');
-if(canManage&&ref&&/^[0-9a-f-]{36}$/i.test(ref))choose({reference:ref});
+if(canManage&&ref&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ref))choose({reference:ref});
 if(!canManage)loadLinkedStudents();
 })();

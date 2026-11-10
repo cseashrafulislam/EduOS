@@ -3,7 +3,16 @@
     const root = document.getElementById('enrollmentManagement');
     if (!root) return;
     const el = id => document.getElementById(id);
-    const state = { student: null, hasCurrent: false, batches: [], curricula: [], requestId: null };
+    const state = { student: null, hasCurrent: false, batches: [], curricula: [],
+        requestId: null, requestFingerprint: null, saving: false,
+        searchVersion: 0, studentVersion: 0, batchVersion: 0 };
+    const form = el('enrollmentForm');
+    const guard = window.EduOSFormGuard?.create(form);
+    const identity = [document.body?.dataset?.authTenantId || '',
+        document.body?.dataset?.authSessionReference || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const text = id => el(id).value.trim();
     const selectedBatch = () => state.batches.find(x => x.id === Number(text('enrollmentBatch')));
@@ -41,11 +50,14 @@
             hex.slice(16, 20), hex.slice(20)].join('-');
     }
     function canSubmit() {
-        return Boolean(state.student && !state.hasCurrent && selectedBatch() &&
+        return Boolean(sameSession() && !state.saving && state.student && !state.hasCurrent && selectedBatch() &&
             selectedCurriculum() && text('enrollmentRoll') &&
             text('enrollmentDate'));
     }
-    function refreshSubmit() { el('enrollmentSubmit').disabled = !canSubmit(); }
+    function refreshSubmit() {
+        el('enrollmentSubmit').disabled = !canSubmit();
+        el('enrollmentBatchSearchButton').disabled = state.saving || !sameSession();
+    }
     function menu(id, entries, placeholder) {
         const target = el(id), previous = target.value;
         target.replaceChildren(new Option(placeholder, ''));
@@ -55,11 +67,14 @@
     }
     async function searchStudents(event) {
         event?.preventDefault();
+        if (state.saving || !sameSession()) return;
         const search = text('enrollmentStudentSearch');
-        if (search.length < 2) return message('Enter at least two characters.', true);
+        if (search.length < 2 || search.length > 100) return message('Enter 2–100 characters.', true);
+        const request = ++state.searchVersion;
         el('enrollmentStudentResults').replaceChildren();
         try {
             const result = await api('/api/students?' + new URLSearchParams({ search, page: 1, pageSize: 20 }));
+            if (request !== state.searchVersion || !sameSession()) return;
             if (!Array.isArray(result?.items)) throw new Error('Invalid student directory response.');
             if (!result.items.length) {
                 el('enrollmentStudentResults').textContent = 'No matching student found.';
@@ -74,10 +89,18 @@
                 button.addEventListener('click', () => selectStudent(student));
                 el('enrollmentStudentResults').append(button);
             }
-        } catch (e) { message(e.message, true); }
+        } catch (e) { if (request === state.searchVersion && sameSession()) message(e.message, true); }
     }
     async function selectStudent(student) {
-        state.student = student; state.hasCurrent = true; state.requestId = null;
+        if (state.saving || !sameSession() || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(student.reference)) return;
+        if (guard?.isDirty() && !guard.confirmDiscard()) return;
+        const request = ++state.studentVersion;
+        state.student = student; state.hasCurrent = true;
+        state.requestId = null; state.requestFingerprint = null;
+        form.reset(); guard?.markClean();
+        ++curriculumLookupVersion;
+        state.curricula = [];
+        menu('enrollmentCurriculum', [], 'Select applicable current curriculum');
         window.dispatchEvent(new CustomEvent("eduos:enrollment-student-selected", { detail: { reference: student.reference } }));
         el('enrollmentStudentName').textContent = student.fullName;
         el('enrollmentStudentCode').textContent = student.studentCode;
@@ -87,14 +110,14 @@
         try {
             const current = await api('/api/academic-enrollments/students/' +
                 encodeURIComponent(student.reference) + '/current', {}, true);
-            if (state.student?.reference !== student.reference) return;
+            if (request !== state.studentVersion || state.student?.reference !== student.reference || !sameSession()) return;
             state.hasCurrent = Boolean(current);
             el('enrollmentCurrent').textContent = current ?
                 'Current enrollment exists. Close/complete it through the authorized academic progression workflow before creating a new one.' :
                 'No current enrollment. This student can be enrolled if all batch conditions are valid.';
             refreshSubmit();
         } catch (e) {
-            if (state.student?.reference === student.reference) {
+            if (request === state.studentVersion && state.student?.reference === student.reference && sameSession()) {
                 state.hasCurrent = true;
                 el('enrollmentCurrent').textContent = 'Unable to verify enrollment.';
                 message(e.message, true);
@@ -102,15 +125,19 @@
         }
     }
     async function searchBatches() {
+        if (state.saving || !sameSession()) return;
+        if (selectedBatch() && guard?.isDirty() && !guard.confirmDiscard()) return;
         const query = text('enrollmentBatchSearch');
         if (query.length === 1) return message('Search needs at least two characters.', true);
+        const request = ++state.batchVersion;
         try {
             const search = query ? '&search=' + encodeURIComponent(query) : '';
             const catalog = await api('/api/academic-setup/catalog?take=100' + search);
+            if (request !== state.batchVersion || !sameSession()) return;
             state.batches = (catalog.batches || []).filter(x => x.isActive);
             menu('enrollmentBatch', state.batches, 'Select section');
             await refreshCurricula();
-        } catch (e) { message(e.message, true); }
+        } catch (e) { if (request === state.batchVersion && sameSession()) message(e.message, true); }
     }
     let curriculumLookupVersion = 0;
     async function refreshCurricula() {
@@ -126,14 +153,14 @@
         try {
             const curricula = await api('/api/academic-enrollments/batches/' + batch.id +
                 '/curricula?enrollmentDate=' + encodeURIComponent(date));
-            if (version !== curriculumLookupVersion) return;
+            if (version !== curriculumLookupVersion || !sameSession()) return;
             state.curricula = (curricula || []).filter(x => x.isActive && x.isCurrent);
             menu('enrollmentCurriculum', state.curricula, 'Select applicable current curriculum');
             el('enrollmentCurriculumHelp').textContent = state.curricula.length ?
                 'Choose the curriculum effective for this section and date.' :
                 'No current curriculum matches this section and date. Complete academic setup first.';
         } catch (e) {
-            if (version === curriculumLookupVersion) {
+            if (version === curriculumLookupVersion && sameSession()) {
                 el('enrollmentCurriculumHelp').textContent = 'Cannot resolve curriculum: ' + e.message;
                 message(e.message, true);
             }
@@ -142,6 +169,7 @@
     }
     async function enroll(event) {
         event.preventDefault();
+        if (state.saving || !sameSession()) return;
         if (!canSubmit()) return message('Select an eligible student, section, curriculum, roll and date.', true);
         const batch = selectedBatch(), curriculum = selectedCurriculum();
         const date = text('enrollmentDate');
@@ -149,33 +177,37 @@
         if (batch.capacity <= 0) return message('This section has no available capacity configured.', true);
         if (batch.startDate && date < batch.startDate || batch.endDate && date > batch.endDate)
             return message('Enrollment date is outside the section dates.', true);
-        if (!state.requestId) state.requestId = uniqueId();
-        const submit = el('enrollmentSubmit');
-        submit.disabled = true;
+        const payload = { studentReference: state.student.reference,
+            academicBatchId: batch.id, academicCurriculumId: curriculum.id,
+            enrollmentDate: date, rollNo: text('enrollmentRoll'),
+            remarks: text('enrollmentRemarks') || null };
+        const fingerprint = JSON.stringify(payload);
+        if (!state.requestId || state.requestFingerprint !== fingerprint) state.requestId = uniqueId();
+        state.requestFingerprint = fingerprint;
+        payload.clientRequestId = state.requestId;
+        state.saving = true; form.inert = true; refreshSubmit();
         try {
             const created = await api('/api/academic-enrollments', {
-                method: 'POST', body: JSON.stringify({
-                    clientRequestId: state.requestId, studentReference: state.student.reference,
-                    academicBatchId: batch.id, academicCurriculumId: curriculum.id,
-                    enrollmentDate: date, rollNo: text('enrollmentRoll'),
-                    remarks: text('enrollmentRemarks') || null
-                })
+                method: 'POST', body: JSON.stringify(payload)
             });
-            state.hasCurrent = true; state.requestId = null;
-            el('enrollmentCurrent').textContent = 'Enrolled: ' + (created?.rollNo || text('enrollmentRoll')) +
+            if (!sameSession()) return;
+            state.hasCurrent = true; state.requestId = null; state.requestFingerprint = null;
+            guard?.markClean();
+            el('enrollmentCurrent').textContent = 'Enrolled: ' + (created?.rollNo || payload.rollNo) +
                 ' — ' + batch.name;
             message('Student enrollment saved successfully.');
-        } catch (e) { message(e.message, true); }
-        finally { refreshSubmit(); }
+        } catch (e) {
+            if (sameSession()) message(e.message + ' If uncertain, retry unchanged details using the same request ID.', true);
+        } finally { state.saving = false; form.inert = false; refreshSubmit(); }
     }
 
     el('enrollmentStudentSearchForm').addEventListener('submit', searchStudents);
+    el('enrollmentStudentSearch').addEventListener('input', () => { ++state.searchVersion; });
     el('enrollmentBatchSearchButton').addEventListener('click', searchBatches);
-    el('enrollmentBatch').addEventListener('change', () => { state.requestId = null; refreshCurricula(); });
-    el('enrollmentCurriculum').addEventListener('change', () => { state.requestId = null; refreshSubmit(); });
+    el('enrollmentBatch').addEventListener('change', refreshCurricula);
+    el('enrollmentCurriculum').addEventListener('change', refreshSubmit);
     for (const id of ['enrollmentDate', 'enrollmentRoll', 'enrollmentRemarks']) {
         el(id).addEventListener('input', () => {
-            state.requestId = null;
             if (id === 'enrollmentDate') refreshCurricula();
             else refreshSubmit();
         });
