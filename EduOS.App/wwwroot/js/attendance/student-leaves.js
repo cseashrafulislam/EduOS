@@ -24,10 +24,14 @@
     const checkSession = () => {
         if (sameSession()) return;
         state.enrollment = null; ++searchGeneration; ++listGeneration;
+        state.requestId = null; state.uploadId = null; state.attachmentId = null;
+        el('leaveApplyForm').reset(); cleanDraft = draft();
         el('leaveRows').replaceChildren(); el('leaveStudentResults').replaceChildren();
         el('leaveStudentLabel').textContent = '';
         available();
-        throw new Error(t('Institution session changed. Reload the page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'));
+        const message = t('Institution session changed. Reload the page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।');
+        info(message, true);
+        throw new Error(message);
     };
     function info(text, failed = false) {
         const box = el('leaveNotice'); box.className = 'alert ' + (failed ? 'alert-danger' : 'alert-success');

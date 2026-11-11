@@ -111,11 +111,14 @@ test('Leave submission stays single-flight and locks student switch until POST r
 test('Session change invalidates old student record and prevents further actions', async () => {
     const p = page(); await flush();
     (await p.lookup('A1')).events.get('click')(); await flush();
+    p.get('leaveReason').value = 'Private medical note';
     p.document.body.dataset.authTenantId = '26';
     p.dispatch('leaveRefresh', 'click'); await flush();
     assert.equal(p.get('leaveStudentLabel').textContent, '');
     assert.equal(p.get('leaveSubmit').disabled, true);
     assert.equal(p.get('leaveRows').children.length, 0);
+    assert.equal(p.get('leaveReason').value, '');
+    assert.match(p.get('leaveNotice').textContent, /সেশন বদলেছে/);
 });
 
 test('Approve and reject cannot race against the same pending leave row', async () => {
