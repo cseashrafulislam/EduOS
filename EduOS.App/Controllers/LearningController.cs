@@ -28,9 +28,6 @@ public sealed class LearningController : Controller
     public IActionResult CourseContent() => View();
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public IActionResult OfficialBooks() => View("~/Views/Shared/OfficialEducationBooks.cshtml");
-    [HttpGet]
-    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult AssignmentFiles() => View();
     [HttpGet]
     [Authorize(Roles = "TenantAdmin,Principal,Teacher")]
