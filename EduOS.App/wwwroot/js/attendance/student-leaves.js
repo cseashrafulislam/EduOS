@@ -4,19 +4,44 @@
     if (!root) return;
     const el = id => document.getElementById(id);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
-    const state = { enrollment: null, page: 1, pages: 1, studentPage: 1, studentPages: 1, requestId: null, uploadId: null, attachmentId: null, saving: false };
     const val = id => el(id).value.trim();
+    const state = { enrollment: null, page: 1, pages: 1, studentPage: 1, studentPages: 1, requestId: null, uploadId: null, attachmentId: null, saving: false };
+    const originalTenant = document.body?.dataset?.authTenantId || '';
+    const originalSession = document.body?.dataset?.authSessionReference || '';
+    const sameSession = () => !!originalTenant && !!originalSession &&
+        document.body?.dataset?.authTenantId === originalTenant &&
+        document.body?.dataset?.authSessionReference === originalSession;
+    const bn = () => (document.documentElement.lang || '').toLowerCase().startsWith('bn');
+    const t = (en, bd) => bn() ? bd : en;
+    let searchGeneration = 0, listGeneration = 0;
+    const pendingDecisions = new Set();
+    const draft = () => JSON.stringify([val('leaveStart'), val('leaveEnd'), val('leaveReason'),
+        ...Array.from(el('leaveFile').files || []).map(file => [file.name, file.size, file.lastModified])]);
+    let cleanDraft = draft();
+    const discardDraft = () => draft() === cleanDraft || confirm(t(
+        'Discard the unsaved leave application for this student?',
+        'এই শিক্ষার্থীর সংরক্ষণ না করা ছুটির আবেদন বাদ দেবেন?'));
+    const checkSession = () => {
+        if (sameSession()) return;
+        state.enrollment = null; ++searchGeneration; ++listGeneration;
+        el('leaveRows').replaceChildren(); el('leaveStudentResults').replaceChildren();
+        el('leaveStudentLabel').textContent = '';
+        available();
+        throw new Error(t('Institution session changed. Reload the page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পৃষ্ঠা রিলোড করুন।'));
+    };
     function info(text, failed = false) {
         const box = el('leaveNotice'); box.className = 'alert ' + (failed ? 'alert-danger' : 'alert-success');
         box.textContent = text;
     }
     async function api(url, options = {}) {
+        checkSession();
         const response = await fetch(url, {
             credentials: 'same-origin', cache: 'no-store', ...options,
             headers: { Accept: 'application/json', ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
                 ...(options.method && options.method !== 'GET' ? { RequestVerificationToken: token } : {}) }
         });
         const result = await response.json().catch(() => null);
+        checkSession();
         if (!response.ok || result?.success !== true)
             throw new Error(result?.message || 'Request failed; reload and retry.');
         return result.data;
@@ -31,10 +56,12 @@
     function available() { el('leaveSubmit').disabled = state.saving || !state.enrollment; }
     async function searchStudents(pageNumber) {
         if (val('leaveStudentTerm').length < 2) return info('Enter at least two characters.', true);
+        const term = val('leaveStudentTerm'), generation = ++searchGeneration;
         try {
             const page = await api('/api/student-leaves/eligible-enrollments?' + new URLSearchParams({
-                search: val('leaveStudentTerm'), page: pageNumber, pageSize: 20
+                search: term, page: pageNumber, pageSize: 20
             }));
+            if (generation !== searchGeneration || val('leaveStudentTerm') !== term) return;
             state.studentPage = pageNumber;
             state.studentPages = Math.max(1, page.totalPages || 1);
             const list = el('leaveStudentResults'); list.replaceChildren();
@@ -50,21 +77,31 @@
                 state.studentPages + ' · ' + page.totalCount + ' enrollments';
             el('leaveStudentPrevious').disabled = state.studentPage <= 1;
             el('leaveStudentNext').disabled = state.studentPage >= state.studentPages;
-        } catch (e) { info(e.message, true); }
+        } catch (e) { if (generation === searchGeneration) info(e.message, true); }
     }
     function choose(student) {
+        try { checkSession(); } catch (error) { info(error.message, true); return; }
+        if (state.saving) return info(t('Wait for the current application to finish.', 'চলমান আবেদনটি শেষ হওয়া পর্যন্ত অপেক্ষা করুন।'), true);
+        if (state.enrollment?.reference === student.reference) return;
+        if (state.enrollment?.reference !== student.reference && !discardDraft()) return;
+        ++listGeneration;
         state.enrollment = { reference: student.reference, rollNo: student.rollNo };
         state.requestId = null; state.uploadId = null; state.attachmentId = null;
+        el('leaveApplyForm').reset(); cleanDraft = draft();
         el('leaveStudentLabel').textContent = student.fullName + ' / ' + student.studentCode +
             ' / Roll ' + (student.rollNo || '—');
         available(); state.page = 1; load();
     }
     async function load() {
+        const generation = ++listGeneration, enrollment = state.enrollment?.reference || '';
+        const filter = val('leaveFilter'), requestedPage = state.page;
         try {
             const query = new URLSearchParams({ page: state.page, pageSize: 20 });
             if (state.enrollment) query.set('enrollmentReference', state.enrollment.reference);
-            if (val('leaveFilter')) query.set('state', val('leaveFilter'));
+            if (filter) query.set('state', filter);
             const page = await api('/api/student-leaves?' + query);
+            if (generation !== listGeneration || state.enrollment?.reference !== (enrollment || undefined) ||
+                val('leaveFilter') !== filter || state.page !== requestedPage) return;
             state.pages = Math.max(1, page.totalPages || 1);
             const tbody = el('leaveRows'); tbody.replaceChildren();
             for (const row of page.items || []) {
@@ -112,7 +149,8 @@
                 ' · ' + page.totalCount + ' records';
             el('leavePrevious').disabled = state.page <= 1;
             el('leaveNext').disabled = state.page >= state.pages;
-        } catch (e) { info(e.message, true); }
+            return true;
+        } catch (e) { if (generation === listGeneration) info(e.message, true); return false; }
     }
     async function apply(e) {
         e.preventDefault();
@@ -120,6 +158,9 @@
         if (val('leaveEnd') < val('leaveStart')) return info('Leave end date is before start.', true);
         if (!state.requestId) state.requestId = uuid();
         state.saving = true; available();
+        const controls = Array.from(el('leaveApplyForm').querySelectorAll('input,textarea,select,button'));
+        const disabled = controls.map(control => control.disabled);
+        controls.forEach(control => { control.disabled = true; });
         const enrollmentRef = state.enrollment.reference;
         try {
             const file = el('leaveFile').files[0];
@@ -143,16 +184,24 @@
             }) });
             state.requestId = null; state.uploadId = null; state.attachmentId = null;
             el('leaveApplyForm').reset(); state.page = 1;
-            await load(); info('Leave application submitted.');
+            cleanDraft = draft();
+            const refreshed = await load();
+            checkSession();
+            info(refreshed ? t('Leave application submitted.', 'ছুটির আবেদন জমা হয়েছে।') :
+                t('Leave submitted; the list could not refresh. Reload to view it.', 'ছুটি জমা হয়েছে; তালিকা হালনাগাদ হয়নি। দেখতে রিলোড করুন।'));
         } catch (error) { info(error.message, true); }
-        finally { state.saving = false; available(); }
+        finally {
+            controls.forEach((control, i) => { control.disabled = disabled[i]; });
+            state.saving = false; available();
+        }
     }
     async function cancelLeave(row, button) {
+        if (pendingDecisions.has(row.id)) return;
         const reason = prompt('Reason for cancelling this pending leave:', '');
         if (reason === null) return;
         if (!reason.trim() || reason.trim().length > 500)
             return info('Provide a reason (up to 500 characters).', true);
-        button.disabled = true;
+        pendingDecisions.add(row.id); button.disabled = true;
         try {
             await api('/api/student-leaves/' + row.id + '/cancel', {
                 method: 'POST', body: JSON.stringify({
@@ -160,13 +209,15 @@
                 })
             });
             await load(); info('Pending leave cancelled.');
-        } catch (e) { info(e.message, true); button.disabled = false; }
+        } catch (e) { info(e.message, true); }
+        finally { pendingDecisions.delete(row.id); button.disabled = false; }
     }
     async function review(row, decision, button) {
+        if (pendingDecisions.has(row.id)) return;
         const note = prompt('Decision note (optional):', '');
         if (note === null) return;
         if (note.length > 1000) return info('Review note exceeds limit.', true);
-        button.disabled = true;
+        pendingDecisions.add(row.id); button.disabled = true;
         try {
             await api('/api/student-leaves/' + row.id + '/review', {
                 method: 'POST', body: JSON.stringify({
@@ -175,9 +226,13 @@
             });
             await load(); info('Leave reviewed.');
         } catch (e) { info(e.message, true); }
-        finally { button.disabled = false; }
+        finally { pendingDecisions.delete(row.id); button.disabled = false; }
     }
     el('leaveStudentSearch').addEventListener('submit', e => { e.preventDefault(); searchStudents(1); });
+    el('leaveStudentTerm').addEventListener('input', () => {
+        ++searchGeneration;
+        el('leaveStudentResults').replaceChildren();
+    });
     el('leaveStudentPrevious').addEventListener('click', () => {
         if (state.studentPage > 1) searchStudents(state.studentPage - 1);
     });
@@ -191,7 +246,12 @@
     el('leaveNext').addEventListener('click', () => { if (state.page < state.pages) { state.page++; load(); } });
     for (const id of ['leaveStart', 'leaveEnd', 'leaveReason', 'leaveFile'])
         el(id).addEventListener('change', () => {
+            if (state.saving) return;
             state.requestId = null; state.uploadId = null; state.attachmentId = null;
         });
+    window.addEventListener('beforeunload', event => {
+        if (!state.saving && draft() === cleanDraft) return;
+        event.preventDefault(); event.returnValue = '';
+    });
     load();
 })();
