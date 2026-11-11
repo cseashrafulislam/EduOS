@@ -572,6 +572,25 @@
             for (const other of collapsibleSections.keys()) showSection(other, expanding && other === section);
             saveState();
         });
+        // The heading is a real button: keyboard users can discover the
+        // expanded state and move directly into its first authorized item.
+        button.addEventListener('keydown', event => {
+            if (event.key !== 'ArrowDown' || isTop()) return;
+            event.preventDefault();
+            if (nav.hidden) button.click();
+            const first = nav.querySelector('summary, a.nav-link');
+            first?.focus();
+        });
+        nav.addEventListener('keydown', event => {
+            if (event.key !== 'Escape' || isTop() || nav.hidden) return;
+            // Escape closes only this navigation section; it must never
+            // change the authenticated route or submit an underlying form.
+            event.preventDefault();
+            showSection(section, false);
+            state.section = '';
+            saveState();
+            button.focus();
+        });
     }
 
     function restoreOpenGroup() {
