@@ -11,4 +11,9 @@ public sealed class StudentsController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Index() => View();
+
+    [Authorize(Roles = "TenantAdmin")]
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Create() => View();
 }

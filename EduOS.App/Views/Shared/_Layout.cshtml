@@ -211,43 +211,6 @@
                    onboarding wizard. The post-onboarding institution workspace is canonical here. *@
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
-                    <a class="nav-link @ActiveFor("/StudentLifecycle")" href="/StudentLifecycle/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী স্থানান্তর / প্রস্থান" : "Student Transfer / Exit")</span>
-                    </a>
-                    <a class="nav-link @ActiveFor("/StudentDocuments")" href="/StudentDocuments/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর নথি" : "Student Documents")</span>
-                    </a>
-                    <a class="nav-link @ActiveFor("/StudentGuardians")" href="/StudentGuardians/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর অভিভাবক" : "Student Guardians")</span>
-                    </a>
-                    <a class="nav-link @ActiveFor("/StudentTransferRequests")" href="/StudentTransferRequests/Index#destinationInbox">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "স্থানান্তর আবেদন ও ইনবক্স" : "Transfer Requests / Inbox")</span>
-                    </a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/EnrollmentManagement")" href="/EnrollmentManagement/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী ভর্তি" : "Student Enrollment")</span>
-                    </a>
-                    @foreach (var studentAction in new[] {
-                        (Path: "/StudentImports/Index", En: "Student Import", Bn: "শিক্ষার্থী আমদানি"),
-                        (Path: "/StudentReadmissions/Index", En: "Student Readmission", Bn: "শিক্ষার্থী পুনঃভর্তি"),
-                        (Path: "/StudentProgressions/Index", En: "Promotion & Repeat", Bn: "উত্তরণ ও শ্রেণি পুনরাবৃত্তি")
-                    })
-                    {
-                        <a class="nav-link @ActiveFor(studentAction.Path)" href="@studentAction.Path">
-                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
-                            <span>@(currentCulture == "bn-BD" ? studentAction.Bn : studentAction.En)</span>
-                        </a>
-                    }
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
                     @* Onboarding Account/AcademicSetup and Account/ModuleSetup remain valid
                        wizard URLs, but are not duplicate daily-management sidebar entries. *@
                     @foreach (var academicLink in new[] {
@@ -340,6 +303,51 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
                         <span>@T["Students"]</span>
                     </a>
+                    @if (User?.IsInRole("TenantAdmin") == true)
+                    {
+                        <a class="nav-link @ActiveFor("/Students/Create")" href="/Students/Create">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী যোগ করুন" : "Add Student")</span>
+                        </a>
+                    }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/StudentLifecycle")" href="/StudentLifecycle/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী স্থানান্তর / প্রস্থান" : "Student Transfer / Exit")</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/StudentDocuments")" href="/StudentDocuments/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর নথি" : "Student Documents")</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/StudentGuardians")" href="/StudentGuardians/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থীর অভিভাবক" : "Student Guardians")</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/StudentTransferRequests")" href="/StudentTransferRequests/Index#destinationInbox">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "স্থানান্তর আবেদন ও ইনবক্স" : "Transfer Requests / Inbox")</span>
+                    </a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/EnrollmentManagement")" href="/EnrollmentManagement/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "শিক্ষার্থী ভর্তি" : "Student Enrollment")</span>
+                    </a>
+                    @foreach (var studentAction in new[] {
+                        (Path: "/StudentImports/Index", En: "Student Import", Bn: "শিক্ষার্থী আমদানি"),
+                        (Path: "/StudentReadmissions/Index", En: "Student Readmission", Bn: "শিক্ষার্থী পুনঃভর্তি"),
+                        (Path: "/StudentProgressions/Index", En: "Promotion & Repeat", Bn: "উত্তরণ ও শ্রেণি পুনরাবৃত্তি")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(studentAction.Path)" href="@studentAction.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#students" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? studentAction.Bn : studentAction.En)</span>
+                        </a>
+                    }
+                }
+
                 }
                 @if (showAlumni && (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Student") == true))
                 {

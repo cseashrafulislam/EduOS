@@ -1,0 +1,155 @@
+@{
+    ViewData["Title"] = CultureInfo.CurrentUICulture.Name == "bn-BD" ? "শিক্ষার্থী যোগ করুন" : "Add Student";
+    var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
+}
+<section class="container-fluid py-4" id="runningStudentEntry" aria-labelledby="runningStudentTitle"
+         data-language="@(bn ? "bn-BD" : "en-BD")">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <h1 id="runningStudentTitle" class="h4 fw-bold mb-1">@(bn ? "শিক্ষার্থী যোগ করুন" : "Add Student")</h1>
+            <p class="text-muted mb-0">@(bn ? "আগে থেকে অধ্যয়নরত শিক্ষার্থীর তথ্য একবার দিন। ভর্তি আবেদন বা অনুমোদন লাগবে না।" : "Register an existing/running learner in one save. No admission review or offer required.")</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/Students/Index">@(bn ? "শিক্ষার্থী তালিকা / খুঁজুন" : "Search Student List")</a>
+    </div>
+    <div id="runningStudentNotice" class="alert d-none" role="alert" tabindex="-1" aria-live="assertive"></div>
+    <form id="runningStudentForm" novalidate>
+        @Html.AntiForgeryToken()
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent">
+                <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button id="runningStudentTab" class="nav-link active" type="button" role="tab" data-bs-toggle="tab"
+                                data-bs-target="#runningStudentFields" aria-controls="runningStudentFields" aria-selected="true">
+                            @(bn ? "১. শিক্ষার্থী ও শ্রেণি" : "1. Student & Class")
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button id="runningGuardianTab" class="nav-link" type="button" role="tab" data-bs-toggle="tab"
+                                data-bs-target="#runningGuardianFields" aria-controls="runningGuardianFields" aria-selected="false">
+                            @(bn ? "২. অভিভাবক (ঐচ্ছিক)" : "2. Guardian (Optional)")
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body tab-content">
+                <div id="runningStudentFields" class="tab-pane fade show active" role="tabpanel" aria-labelledby="runningStudentTab">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="runningStudentName" class="form-label">@(bn ? "শিক্ষার্থীর নাম" : "Student name") *</label>
+                            <input id="runningStudentName" class="form-control" maxlength="200" minlength="2" autocomplete="name" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningStudentNameBn" class="form-label">@(bn ? "বাংলা নাম (ঐচ্ছিক)" : "Bangla name (optional)")</label>
+                            <input id="runningStudentNameBn" class="form-control" lang="bn" maxlength="200" />
+                        </div>
+                        <div class="col-12">
+                            <label for="runningBatchSearch" class="form-label">@(bn ? "শ্রেণি / শাখা খুঁজুন" : "Find class / section") *</label>
+                            <div class="input-group">
+                                <input id="runningBatchSearch" class="form-control" maxlength="100"
+                                       placeholder="@(bn ? "যেমন: Class Six, A" : "e.g. Grade Six, A")" />
+                                <button id="runningBatchSearchButton" class="btn btn-outline-secondary" type="button">@(bn ? "খুঁজুন" : "Search")</button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningBatch" class="form-label">@(bn ? "শ্রেণি / শাখা" : "Class / Section") *</label>
+                            <select id="runningBatch" class="form-select" required></select>
+                            <div class="form-text">@(bn ? "শাখা থেকে ক্যাম্পাস, প্রোগ্রাম ও শিক্ষাবর্ষ নির্ধারিত হবে।" : "Campus, program and academic year are resolved from the section.")</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningRoll" class="form-label">@(bn ? "রোল নম্বর" : "Roll number") *</label>
+                            <input id="runningRoll" class="form-control" maxlength="50" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningEnrollDate" class="form-label">@(bn ? "এই শ্রেণিতে ভর্তির তারিখ" : "Current section enrollment date") *</label>
+                            <input id="runningEnrollDate" class="form-control" type="date" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningAdmissionDate" class="form-label">@(bn ? "প্রতিষ্ঠানে মূল ভর্তির তারিখ" : "Original institution admission date") *</label>
+                            <input id="runningAdmissionDate" class="form-control" type="date" required />
+                            <div class="form-text">@(bn ? "প্রকৃত তারিখ দিন; জানা না থাকলে রেকর্ড যাচাই করুন।" : "Use the actual date from records; do not guess historical admission dates.")</div>
+                        </div>
+                        <div class="col-12">
+                            <label for="runningCurriculum" class="form-label">@(bn ? "প্রযোজ্য পাঠ্যক্রম" : "Applicable curriculum") *</label>
+                            <select id="runningCurriculum" class="form-select" required></select>
+                            <small id="runningCurriculumHelp" class="text-muted">@(bn ? "শাখা ও তারিখ নির্বাচন করলে পাঠ্যক্রম আসবে।" : "Choose a section and date to load curricula.")</small>
+                        </div>
+                    </div>
+                    <details class="border rounded p-3 mt-3">
+                        <summary class="fw-semibold">@(bn ? "আরও তথ্য (ঐচ্ছিক)" : "Additional student details (optional)")</summary>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-4">
+                                <label for="runningDob" class="form-label">@(bn ? "জন্মতারিখ" : "Date of birth")</label>
+                                <input id="runningDob" class="form-control" type="date" />
+                            </div>
+                            <div class="col-md-4">
+                                <label for="runningGender" class="form-label">@(bn ? "লিঙ্গ" : "Gender")</label>
+                                <select id="runningGender" class="form-select">
+                                    <option value="">@(bn ? "নির্বাচন করুন" : "Select")</option>
+                                    <option value="1">@(bn ? "পুরুষ" : "Male")</option>
+                                    <option value="2">@(bn ? "নারী" : "Female")</option>
+                                    <option value="3">@(bn ? "অন্যান্য" : "Other")</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="runningPhone" class="form-label">@(bn ? "যোগাযোগ নম্বর" : "Contact phone")</label>
+                                <input id="runningPhone" class="form-control" type="tel" maxlength="30" inputmode="tel" />
+                            </div>
+                            <div class="col-12">
+                                <label for="runningAddress" class="form-label">@(bn ? "ঠিকানা" : "Address")</label>
+                                <textarea id="runningAddress" class="form-control" maxlength="1000" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+                <div id="runningGuardianFields" class="tab-pane fade" role="tabpanel" aria-labelledby="runningGuardianTab">
+                    <div class="form-check form-switch mb-3">
+                        <input id="runningAddGuardian" class="form-check-input" type="checkbox" role="switch" />
+                        <label for="runningAddGuardian" class="form-check-label fw-semibold">@(bn ? "একসঙ্গে অভিভাবক যোগ করুন" : "Add guardian in the same save")</label>
+                    </div>
+                    <div id="runningGuardianInputs" class="row g-3" aria-live="polite">
+                        <div class="col-md-6">
+                            <label for="runningGuardianName" class="form-label">@(bn ? "অভিভাবকের নাম" : "Guardian name") *</label>
+                            <input id="runningGuardianName" class="form-control" maxlength="200" minlength="2" autocomplete="off" disabled />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningGuardianRelation" class="form-label">@(bn ? "সম্পর্ক" : "Relationship") *</label>
+                            <select id="runningGuardianRelation" class="form-select" disabled>
+                                <option value="">@(bn ? "নির্বাচন করুন" : "Select")</option>
+                                <option value="Father">@(bn ? "পিতা" : "Father")</option>
+                                <option value="Mother">@(bn ? "মাতা" : "Mother")</option>
+                                <option value="LegalGuardian">@(bn ? "আইনগত অভিভাবক" : "Legal guardian")</option>
+                                <option value="Other">@(bn ? "অন্যান্য" : "Other")</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningGuardianPhone" class="form-label">@(bn ? "মোবাইল নম্বর" : "Mobile")</label>
+                            <input id="runningGuardianPhone" class="form-control" type="tel" maxlength="30" inputmode="tel" disabled />
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningGuardianEmail" class="form-label">@(bn ? "ইমেইল" : "Email")</label>
+                            <input id="runningGuardianEmail" class="form-control" type="email" maxlength="200" disabled />
+                        </div>
+                        <div class="col-12">
+                            <p class="small text-muted mb-0">@(bn ? "আগে থেকে থাকা অভিভাবক যুক্ত করতে Student Guardians ব্যবহার করুন। অনুমান করে পুরোনো রেকর্ড মেলানো হবে না।" : "To link an existing guardian, use Student Guardians. We never merge identities by guessing from names or phone numbers.")</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent d-flex align-items-center flex-wrap gap-2">
+                <button id="runningSave" type="submit" class="btn btn-primary">@(bn ? "শিক্ষার্থী সংরক্ষণ" : "Save Student")</button>
+                <span class="small text-muted">@(bn ? "একবার সংরক্ষণেই প্রোফাইল, শ্রেণি ও নির্বাচিত অভিভাবক যুক্ত হবে।" : "One save creates the student, enrollment and optional guardian.")</span>
+            </div>
+        </div>
+    </form>
+    <div id="runningStudentSuccess" class="card shadow-sm border-0 mt-3 d-none" role="status">
+        <div class="card-body">
+            <h2 class="h5">@(bn ? "শিক্ষার্থী সংরক্ষিত" : "Student saved")</h2>
+            <p id="runningStudentSuccessText" class="mb-2"></p>
+            <a href="/Students/Index" class="btn btn-outline-primary">@(bn ? "শিক্ষার্থী তালিকা" : "Student List")</a>
+            <button id="runningNextStudent" class="btn btn-primary ms-2" type="button">@(bn ? "আরেকজন যোগ করুন" : "Add another student")</button>
+        </div>
+    </div>
+</section>
+@section Scripts {
+    <script src="~/js/students/quick-entry.js" asp-append-version="true"></script>
+}

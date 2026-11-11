@@ -41,6 +41,10 @@
             <p class="dashboard-eyebrow">@T["Students"]</p>
             <div class="d-flex align-items-center gap-2">
                 <h2 id="studentDirectoryTitle">@T["StudentDirectory"]</h2>
+                @if (User.IsInRole("TenantAdmin"))
+                {
+                    <a class="btn btn-primary btn-sm" href="/Students/Create">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "শিক্ষার্থী যোগ করুন" : "Add Student")</a>
+                }
             </div>
         </div>
     </header>
