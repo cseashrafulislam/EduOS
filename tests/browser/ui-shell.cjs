@@ -49,6 +49,8 @@ async function exercise(browser, bn) {
         if (bn) assert.equal(await page.locator('#loadingPlaceholder').evaluate(element =>
             getComputedStyle(element).animationName), 'none');
         await page.evaluate(() => { document.documentElement.dataset.workspaceTheme = 'dark'; });
+        await page.waitForFunction(() => getComputedStyle(document.getElementById('shellCard'))
+            .backgroundColor === 'rgb(23, 34, 53)', null, { timeout: 2500 }).catch(() => null);
         const theme = await page.locator('#shellCard').evaluate(element => ({
             color: getComputedStyle(element).backgroundColor,
             rootTheme: document.documentElement.getAttribute('data-workspace-theme'),
