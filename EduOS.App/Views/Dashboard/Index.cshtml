@@ -208,7 +208,7 @@
                             <a href="/Attendance/Register">@(useBangla ? "উপস্থিতি খুলুন" : "Open attendance")</a></div>
                     </article>
                 }
-                @if (Model.FinancialSummaryAvailable && Model.MonthlyCollection.HasValue && Model.TotalDues.HasValue)
+                @if (feeRole && Model.FinancialSummaryAvailable && Model.MonthlyCollection.HasValue && Model.TotalDues.HasValue)
                 {
                     <article class="dashboard-stat-card">
                         <div><p>@(useBangla ? "চলতি মাসে সফল শিক্ষার্থী ফি গ্রহণ (BDT)" : "Successful student fee receipts this month (BDT)")</p>
