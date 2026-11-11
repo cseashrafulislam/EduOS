@@ -15,6 +15,13 @@ namespace EduOS.Tests.Services;
 
 public sealed class SmartSetupServiceTests
 {
+    // AsyncLocal-backed HttpContextAccessor is not retained when an awaited
+    // fixture factory returns. Keep each test DbContext request explicit.
+    private sealed class IsolatedHttpContextAccessor(HttpContext context) : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; } = context;
+    }
+
     private sealed class User(long tenant, bool admin = true) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
@@ -63,7 +70,7 @@ public sealed class SmartSetupServiceTests
         var http = new DefaultHttpContext();
         var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
             .UseInMemoryDatabase("smart-setup-" + Guid.NewGuid().ToString("N")).Options,
-            new HttpContextAccessor { HttpContext = http });
+            new IsolatedHttpContextAccessor(http));
         var category = new InstitutionTypeDefinition
         {
             Code = typeCode, Name = typeCode, IsActive = true
