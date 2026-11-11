@@ -119,54 +119,13 @@ function render(){
  for(const lesson of unsectioned)appendLesson('',lesson);
  if(!sections.length&&!unsectioned.length){const tr=node('tr'),cell=td('No sections or lessons. Create lessons in Learning.');cell.colSpan=5;tr.append(cell);body.append(tr);}
 }
-async function loadSubjectLibrary(courseReference,seq){
- const panel=el('LibraryPanel'),body=el('LibraryRows');
- panel.classList.add('d-none');body.replaceChildren();
- const selected=state.courses.find(x=>x.reference===courseReference);
- if(!selected?.subjectId||!sessionValid())return;
- try{
-  const data=await api('/api/library/digital?'+new URLSearchParams({
-   subjectId:String(selected.subjectId),page:'1',pageSize:'12'
-  }));
-  if(!sessionValid()||seq!==state.seq||courseReference!==el('Course').value)return;
-  for(const resource of data?.items||[]){
-   const col=node('div');col.className='col-md-6 col-xl-4';
-   const card=node('div');card.className='border rounded p-2 h-100';
-   const title=node('div',resource.title||resource.bookTitle);title.className='fw-semibold';
-   card.append(title);
-   const details=node('small',[resource.bookTitle,resource.chapter,resource.topic].filter(Boolean).join(' · '));
-   details.className='d-block text-muted mb-2';card.append(details);
-   const url='/api/library/digital/'+encodeURIComponent(resource.reference)+'/'+
-    (['application/pdf','image/jpeg','image/png','image/webp'].includes(resource.contentType)?'read':'download');
-   const a=node('a','Read / পড়ুন');a.className='btn btn-sm btn-outline-primary';
-   a.href=url;a.target='_blank';a.rel='noopener noreferrer';card.append(a);col.append(card);body.append(col);
-  }
-  if(!body.childNodes.length)body.append(node('p','No approved resources for this subject / এই বিষয়ে অনুমোদিত উপকরণ নেই।'));
-  panel.classList.remove('d-none');
- }catch{
-  // Library is an independently entitled module. A user with LMS access but
-  // without LIBRARY entitlement must not receive any cached resource details.
-  body.replaceChildren();panel.classList.add('d-none');
- }
-}
 async function loadCourse(){
  const ref=el('Course').value,seq=++state.seq;
- el('LibraryRows').replaceChildren();el('LibraryPanel').classList.add('d-none');
  if(!ref){state.course=null;render();return;}
  try{const data=await api('/api/lms/course-content/'+encodeURIComponent(ref));
   if(seq!==state.seq||!sessionValid())return;state.course=data;render();
-  await loadSubjectLibrary(ref,seq);
  }catch(error){if(seq!==state.seq)return;state.course=null;render();alert(error.message);}
 }
-function clearPrivateLibrary(){
- ++state.seq;el('LibraryRows').replaceChildren();el('LibraryPanel').classList.add('d-none');
-}
-const librarySessionObserver=new MutationObserver(()=>{
- if(!sessionValid()) { clearPrivateLibrary();librarySessionObserver.disconnect(); }
-});
-librarySessionObserver.observe(document.body,{attributes:true,
- attributeFilter:['data-auth-tenant-id','data-auth-session-reference']});
-window.addEventListener('pagehide',clearPrivateLibrary);
 async function loadCourses(){
  const old=el('Course').value,seq=++state.seq;
  try{
