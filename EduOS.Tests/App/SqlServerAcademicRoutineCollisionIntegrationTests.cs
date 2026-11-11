@@ -188,6 +188,30 @@ public sealed class SqlServerAcademicRoutineCollisionIntegrationTests
         Assert.True((await service.CreateEntryAsync(winner)).Success);
         Assert.Equal(409, (await service.CreateEntryAsync(loser)).StatusCode);
         Assert.Equal(3, await db.RoutineEntries.CountAsync(x => x.TenantId == tenantId));
+        Assert.Single(await db.RoutineEntries.AsNoTracking().Where(x =>
+            x.TenantId == tenantId && x.ClientRequestId == winner.ClientRequestId).ToListAsync());
+        // A committed request receipt cannot be reused to silently create a new day.
+        winner.DayOfWeek = DayOfWeek.Wednesday;
+        Assert.Equal(409, (await service.CreateEntryAsync(winner)).StatusCode);
+        Assert.Equal(3, await db.RoutineEntries.CountAsync(x => x.TenantId == tenantId));
+
+        // Two independent SQL transactions submit the exact same receipt concurrently.
+        // Serializable collision checks and the unique receipt must leave one row.
+        var sharedKey = Guid.NewGuid();
+        var sameA = Entry(offeringA, afternoon.Data!.Id);
+        var sameB = Entry(offeringA, afternoon.Data.Id);
+        sameA.DayOfWeek = sameB.DayOfWeek = DayOfWeek.Wednesday;
+        sameA.ClientRequestId = sameB.ClientRequestId = sharedKey;
+        await using var replayDbA = new EduOSDbContext(options, accessor);
+        await using var replayDbB = new EduOSDbContext(options, accessor);
+        var competingRetries = await Task.WhenAll(
+            BuildService(replayDbA, tenantId, userId).CreateEntryAsync(sameA),
+            BuildService(replayDbB, tenantId, userId).CreateEntryAsync(sameB));
+        Assert.Contains(competingRetries, x => x.Success);
+        Assert.All(competingRetries, x => Assert.True(x.Success || x.StatusCode == 409));
+        Assert.Single(await db.RoutineEntries.AsNoTracking().Where(x =>
+            x.TenantId == tenantId && x.ClientRequestId == sharedKey).ToListAsync());
+        Assert.True((await service.CreateEntryAsync(sameA)).Success);
 
         // Real SQL: independent requests compete for one cover date, then register,
         // summary, replay, cancellation and cross-tenant reads share persisted state.

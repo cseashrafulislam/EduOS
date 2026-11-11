@@ -46,6 +46,63 @@ public sealed class AcademicRoutineServiceTests
     }
 
     [Fact]
+    public async Task Assignment_and_routine_keys_replay_only_the_original_command()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new TestUser(101));
+
+        var assignmentRequest = Assign(scope.OfferingReference, scope.TeacherReference);
+        var assignment = await service.AssignInstructorAsync(assignmentRequest);
+        assignment.Success.Should().BeTrue(assignment.Message);
+        var assignmentReplay = await service.AssignInstructorAsync(assignmentRequest);
+        assignmentReplay.Data!.Id.Should().Be(assignment.Data!.Id);
+        (await db.InstructorAssignments.SingleAsync()).ClientRequestId.Should().Be(assignmentRequest.ClientRequestId);
+
+        assignmentRequest.IsPrimary = false;
+        (await service.AssignInstructorAsync(assignmentRequest)).StatusCode.Should().Be(409);
+        assignmentRequest.IsPrimary = true;
+
+        var slot = await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "Period One", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) });
+        slot.Success.Should().BeTrue(slot.Message);
+        var entryRequest = Entry(scope.OfferingReference, slot.Data!.Id, assignment.Data.Id, scope.RoomId);
+        var entry = await service.CreateEntryAsync(entryRequest);
+        entry.Success.Should().BeTrue(entry.Message);
+        (await service.CreateEntryAsync(entryRequest)).Data!.Id.Should().Be(entry.Data!.Id);
+        (await db.RoutineEntries.SingleAsync()).ClientRequestId.Should().Be(entryRequest.ClientRequestId);
+
+        entryRequest.DayOfWeek = DayOfWeek.Tuesday;
+        (await service.CreateEntryAsync(entryRequest)).StatusCode.Should().Be(409);
+        entryRequest.ClientRequestId = Guid.NewGuid();
+        (await service.CreateEntryAsync(entryRequest)).Success.Should().BeTrue();
+        (await db.RoutineEntries.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Legacy_unkeyed_routine_requests_keep_their_natural_duplicate_behavior()
+    {
+        var options = Options();
+        var scope = await SeedAsync(options);
+        await using var db = Context(options, 101);
+        var service = Service(db, new TestUser(101));
+        var assignmentRequest = Assign(scope.OfferingReference, scope.TeacherReference);
+        assignmentRequest.ClientRequestId = Guid.Empty;
+        var assignment = await service.AssignInstructorAsync(assignmentRequest);
+        (await service.AssignInstructorAsync(assignmentRequest)).Data!.Id.Should().Be(assignment.Data!.Id);
+        (await db.InstructorAssignments.SingleAsync()).ClientRequestId.Should().BeNull();
+
+        var slot = await service.CreateTimeSlotAsync(new SaveRoutineTimeSlotRequestDto
+        { Name = "Period One", StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 45) });
+        var entryRequest = Entry(scope.OfferingReference, slot.Data!.Id, assignment.Data.Id);
+        entryRequest.ClientRequestId = Guid.Empty;
+        var entry = await service.CreateEntryAsync(entryRequest);
+        (await service.CreateEntryAsync(entryRequest)).Data!.Id.Should().Be(entry.Data!.Id);
+        (await db.RoutineEntries.SingleAsync()).ClientRequestId.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Instructor_collision_across_batches_is_rejected()
     {
         var options = Options();

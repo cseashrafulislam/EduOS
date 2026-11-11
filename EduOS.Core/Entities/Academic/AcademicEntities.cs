@@ -229,6 +229,7 @@ public class StudentSubjectRegistration : BaseTenantEntity
 
 public class InstructorAssignment : BaseTenantEntity
 {
+    public Guid? ClientRequestId { get; set; }
     public long SubjectOfferingId { get; set; }
     public long EmployeeId { get; set; }
     public bool IsPrimary { get; set; } = true;
@@ -249,6 +250,7 @@ public class RoutineTimeSlot : BaseTenantEntity
 
 public class RoutineEntry : BaseTenantEntity
 {
+    public Guid? ClientRequestId { get; set; }
     public long SubjectOfferingId { get; set; }
     public long RoutineTimeSlotId { get; set; }
     public long? InstructorAssignmentId { get; set; }

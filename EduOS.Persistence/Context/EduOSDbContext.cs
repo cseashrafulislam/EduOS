@@ -1644,6 +1644,9 @@ public class EduOSDbContext :
         modelBuilder.Entity<RoutineEntry>()
             .HasIndex(x => new { x.TenantId, x.DayOfWeek, x.IsActive, x.EffectiveFrom })
             .HasDatabaseName("IX_RoutineEntries_Tenant_Day_Active_From");
+        modelBuilder.Entity<RoutineEntry>()
+            .HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         modelBuilder.Entity<AcademicCalendarPolicy>()
             .HasIndex(x => new { x.TenantId, x.CampusId })
             .HasDatabaseName("UX_AcademicCalendarPolicies_Tenant_Campus")
@@ -1683,6 +1686,9 @@ public class EduOSDbContext :
         UniqueTenant<StudentSubjectRegistration>(modelBuilder, nameof(StudentSubjectRegistration.StudentEnrollmentId), nameof(StudentSubjectRegistration.SubjectOfferingId));
         UniqueTenant<StudentSubjectRegistration>(modelBuilder, nameof(StudentSubjectRegistration.ClientRequestId));
         UniqueTenant<InstructorAssignment>(modelBuilder, nameof(InstructorAssignment.SubjectOfferingId), nameof(InstructorAssignment.EmployeeId));
+        modelBuilder.Entity<InstructorAssignment>()
+            .HasIndex(x => new { x.TenantId, x.ClientRequestId })
+            .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
         UniqueTenant<Substitution>(modelBuilder, nameof(Substitution.ClientRequestId));
         UniqueTenant<AttendanceSession>(modelBuilder, nameof(AttendanceSession.ClientRequestId));
         modelBuilder.Entity<AcademicCurriculum>().HasIndex(x => new { x.TenantId, x.AcademicProgramId, x.AcademicTrackId, x.MediumId })

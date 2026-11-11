@@ -179,6 +179,11 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
             _logger.LogWarning(ex, "Time-slot write conflict for tenant {TenantId}", tenant);
             return Error<RoutineTimeSlotDto>("Time slot conflicts with another update.", 409);
         }
+        catch (Exception ex) when (IsSqlSchedulingConflict(ex))
+        {
+            _logger.LogWarning("Concurrent time-slot creation conflict for tenant {TenantId}", tenant);
+            return Error<RoutineTimeSlotDto>("Time slot changed concurrently. Reload and retry.", 409);
+        }
     }
 
     public async Task<ApiResponse<IReadOnlyList<InstructorAssignmentDto>>> GetAssignmentsAsync(
@@ -298,6 +303,20 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                     request.EffectiveTo.GetValueOrDefault(range.To ?? DateOnly.MaxValue) >
                     range.To.GetValueOrDefault(DateOnly.MaxValue))
                     return Error<InstructorAssignmentDto>("Assignment dates must belong to the academic year or term.", 409);
+                if (request.ClientRequestId != Guid.Empty)
+                {
+                    var prior = await _assignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, token);
+                    if (prior != null)
+                    {
+                        if (prior.SubjectOfferingId != offering.Id || prior.EmployeeId != employee.Id ||
+                            prior.IsPrimary != request.IsPrimary || prior.EffectiveFrom != request.EffectiveFrom ||
+                            prior.EffectiveTo != request.EffectiveTo || prior.IsActive != request.IsActive)
+                            return Error<InstructorAssignmentDto>("Request key was already used for another assignment.", 409);
+                        return ApiResponse<InstructorAssignmentDto>.SuccessResponse(
+                            (await MapAssignmentsAsync([prior], token))[0], "Instructor request already applied.");
+                    }
+                }
                 var existing = await _assignments.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
                     x.EmployeeId == employee.Id && x.IsActive, token);
@@ -315,7 +334,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                     return Error<InstructorAssignmentDto>("Subject offering already has a primary instructor.", 409);
                 var row = new InstructorAssignment
                 {
-                    TenantId = tenant, SubjectOfferingId = offering.Id, EmployeeId = employee.Id,
+                    TenantId = tenant, ClientRequestId = request.ClientRequestId == Guid.Empty ? null : request.ClientRequestId,
+                    SubjectOfferingId = offering.Id, EmployeeId = employee.Id,
                     IsPrimary = request.IsPrimary, EffectiveFrom = request.EffectiveFrom,
                     EffectiveTo = request.EffectiveTo, IsActive = request.IsActive,
                     CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _currentUser.UserId
@@ -329,6 +349,11 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         {
             _logger.LogWarning(ex, "Instructor assignment conflict for tenant {TenantId}", tenant);
             return Error<InstructorAssignmentDto>("Instructor assignment conflicts with another update.", 409);
+        }
+        catch (Exception ex) when (IsSqlSchedulingConflict(ex))
+        {
+            _logger.LogWarning("Concurrent assignment creation conflict for tenant {TenantId}", tenant);
+            return Error<InstructorAssignmentDto>("Instructor assignment changed concurrently. Reload and retry.", 409);
         }
     }
 
@@ -594,6 +619,22 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                         (batch.Capacity > 0 && room.Capacity < batch.Capacity))
                         return Error<RoutineEntryDto>("Room capacity or campus is incompatible with this batch.", 409);
                 }
+                if (request.ClientRequestId != Guid.Empty)
+                {
+                    var prior = await _entries.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, token);
+                    if (prior != null)
+                    {
+                        if (prior.SubjectOfferingId != offering.Id || prior.RoutineTimeSlotId != slot.Id ||
+                            prior.InstructorAssignmentId != request.InstructorAssignmentId ||
+                            prior.RoomId != request.RoomId || prior.DayOfWeek != request.DayOfWeek ||
+                            prior.EffectiveFrom != request.EffectiveFrom || prior.EffectiveTo != request.EffectiveTo ||
+                            prior.IsActive != request.IsActive)
+                            return Error<RoutineEntryDto>("Request key was already used for another routine entry.", 409);
+                        return ApiResponse<RoutineEntryDto>.SuccessResponse(
+                            (await MapEntriesAsync([prior], token))[0], "Routine request already applied.");
+                    }
+                }
                 var duplicate = await _entries.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.SubjectOfferingId == offering.Id &&
                     x.RoutineTimeSlotId == slot.Id && x.DayOfWeek == request.DayOfWeek &&
@@ -637,7 +678,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                     return Error<RoutineEntryDto>("Room is occupied at this time.", 409);
                 var row = new RoutineEntry
                 {
-                    TenantId = tenant, SubjectOfferingId = offering.Id, RoutineTimeSlotId = slot.Id,
+                    TenantId = tenant, ClientRequestId = request.ClientRequestId == Guid.Empty ? null : request.ClientRequestId,
+                    SubjectOfferingId = offering.Id, RoutineTimeSlotId = slot.Id,
                     InstructorAssignmentId = request.InstructorAssignmentId, RoomId = request.RoomId,
                     DayOfWeek = request.DayOfWeek, EffectiveFrom = request.EffectiveFrom,
                     EffectiveTo = request.EffectiveTo, IsActive = request.IsActive,
