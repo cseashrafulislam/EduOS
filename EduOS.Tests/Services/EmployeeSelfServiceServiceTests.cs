@@ -96,6 +96,43 @@ public class EmployeeSelfServiceServiceTests
     }
 
     [Fact]
+    public async Task Leave_history_page_is_SQL_bounded_tenant_owned_and_validated()
+    {
+        await using var context = CreateContext(out var accessor);
+        var own = Employee(10, 99, "OWN"); var other = Employee(10, 100, "OTHER");
+        var foreign = Employee(20, 99, "FOREIGN");
+        context.Set<Employee>().AddRange(own, other, foreign);
+        var ownType = new LeaveType { TenantId = 10, Code = "CAS", Name = "Casual", MaxDaysPerYear = 1000, IsActive = true };
+        var foreignType = new LeaveType { TenantId = 20, Code = "FOR", Name = "Foreign", MaxDaysPerYear = 1000, IsActive = true };
+        context.Set<LeaveType>().AddRange(ownType, foreignType);
+        await context.SaveChangesAsync();
+        var date = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        context.Set<EmployeeLeaveApplication>().AddRange(Enumerable.Range(0, 125).Select(i => new EmployeeLeaveApplication
+        {
+            TenantId = 10, EmployeeId = own.Id, LeaveTypeId = ownType.Id,
+            FromDate = date.AddDays(-i), ToDate = date.AddDays(-i), TotalDays = 1,
+            Reason = "Own page " + i, State = LeaveState.Approved, ClientRequestId = Guid.NewGuid()
+        }));
+        context.Set<EmployeeLeaveApplication>().AddRange(
+            Leave(10, other.Id, ownType.Id, "Other employee"),
+            Leave(20, foreign.Id, foreignType.Id, "Other tenant"));
+        await context.SaveChangesAsync(); SetTenant(accessor, 10);
+        var service = CreateService(context, new TestCurrentUser(10, 99));
+        var first = await service.GetLeaveHistoryPageAsync(1, 20);
+        var second = await service.GetLeaveHistoryPageAsync(2, 20);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.TotalCount.Should().Be(125);
+        first.Data.Items.Should().HaveCount(20);
+        first.Data.Items[0].Reason.Should().Be("Own page 0");
+        second.Data!.Items.Should().HaveCount(20);
+        second.Data.Items[0].Id.Should().NotBe(first.Data.Items[0].Id);
+        (await service.GetLeaveHistoryPageAsync(1, 101)).StatusCode.Should().Be(400);
+        (await service.GetLeaveHistoryPageAsync(0, 20)).StatusCode.Should().Be(400);
+        (await CreateService(context, new TestCurrentUser(20, 99)).GetLeaveHistoryPageAsync(1, 20))
+            .StatusCode.Should().Be(404);
+    }
+
+    [Fact]
     public async Task Apply_leave_rejects_when_annual_entitlement_is_exhausted()
     {
         await using var context = CreateContext(out var accessor);

@@ -41,6 +41,14 @@ public sealed class EmployeeSelfServiceController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("leave/page")]
+    public async Task<IActionResult> LeavePage([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetLeaveHistoryPageAsync(page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("leave/balances")]
     public async Task<IActionResult> LeaveBalances([FromQuery] int? year, CancellationToken cancellationToken)
     {

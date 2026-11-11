@@ -137,6 +137,43 @@ public sealed class EmployeeSelfServiceService : IEmployeeSelfServiceService
         }
     }
 
+    public async Task<ApiResponse<EmployeePortalLeavePageDto>> GetLeaveHistoryPageAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        if (!CanUsePortal()) return ApiResponse<EmployeePortalLeavePageDto>.ErrorResponse("Employee self-service is not available.", 403);
+        if (page < 1 || page > 100000 || pageSize < 1 || pageSize > 100)
+            return ApiResponse<EmployeePortalLeavePageDto>.ErrorResponse("Invalid leave history page request.");
+        try
+        {
+            var employee = await CurrentEmployeeQuery().Select(x => new { x.Id }).FirstOrDefaultAsync(cancellationToken);
+            if (employee == null) return ApiResponse<EmployeePortalLeavePageDto>.ErrorResponse("Active employee profile not found.", 404);
+            var tenant = _currentUser.TenantId;
+            var query = from leave in _leaveApplications.GetQueryable().AsNoTracking()
+                join type in _leaveTypes.GetQueryable().AsNoTracking() on leave.LeaveTypeId equals type.Id
+                where leave.TenantId == tenant && type.TenantId == tenant && leave.EmployeeId == employee.Id
+                select new { Leave = leave, LeaveTypeName = type.Name };
+            var total = await query.CountAsync(cancellationToken);
+            var items = await query.OrderByDescending(x => x.Leave.FromDate).ThenByDescending(x => x.Leave.Id)
+                .Skip((page - 1) * pageSize).Take(pageSize)
+                .Select(x => new EmployeePortalLeaveDto
+                {
+                    Id = x.Leave.Id, LeaveTypeName = x.LeaveTypeName,
+                    FromDate = x.Leave.FromDate, ToDate = x.Leave.ToDate,
+                    TotalDays = x.Leave.TotalDays, Reason = x.Leave.Reason,
+                    State = x.Leave.State, ReviewNote = x.Leave.ReviewNote
+                }).ToListAsync(cancellationToken);
+            return ApiResponse<EmployeePortalLeavePageDto>.SuccessResponse(new EmployeePortalLeavePageDto
+            {
+                Items = items, Page = page, PageSize = pageSize, TotalCount = total
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Leave history page failed for tenant {TenantId}", _currentUser.TenantId);
+            return ApiResponse<EmployeePortalLeavePageDto>.ErrorResponse("Leave history could not be loaded.", 500);
+        }
+    }
+
     public async Task<ApiResponse<IReadOnlyList<EmployeePortalLeaveBalanceDto>>> GetLeaveBalancesAsync(
         int? year = null, CancellationToken cancellationToken = default)
     {

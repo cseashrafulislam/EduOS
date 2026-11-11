@@ -37,6 +37,15 @@ public sealed class EmployeePortalLeaveDto
     public string? ReviewNote { get; set; }
 }
 
+/// <summary>Authorized SQL page of the employee's own leave history.</summary>
+public sealed class EmployeePortalLeavePageDto
+{
+    public IReadOnlyList<EmployeePortalLeaveDto> Items { get; set; } = Array.Empty<EmployeePortalLeaveDto>();
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalCount { get; set; }
+}
+
 public sealed class EmployeePortalLeaveBalanceDto
 {
     public long LeaveTypeId { get; set; }
