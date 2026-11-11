@@ -36,8 +36,16 @@
     async function load() {
         const current = ++sequence, snapshot = query().toString();
         loadedFilter = null; el('transportCapacityExport').disabled = true;
-        const data = await api('/api/transport/capacity-report?' + snapshot);
+        el('transportCapacityPrev').disabled = true; el('transportCapacityNext').disabled = true;
+        el('transportCapacityPageInfo').textContent = 'Loading capacity report…';
+        let data;
+        try { data = await api('/api/transport/capacity-report?' + snapshot); }
+        catch (error) { if (current === sequence) { el('transportCapacityPageInfo').textContent = 'Could not load report. Apply filters to retry.'; throw error; } return; }
         if (current !== sequence || snapshot !== query().toString()) return;
+        if (page > 1 && !(data.items || []).length && Number(data.totalCount) > 0) {
+            page = Math.max(1, Math.ceil(Number(data.totalCount) / 15));
+            return load();
+        }
         const body = el('transportCapacityRows'); body.replaceChildren();
         for (const item of data.items || []) {
             const tr = document.createElement('tr');

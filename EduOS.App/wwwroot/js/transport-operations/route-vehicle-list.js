@@ -10,13 +10,16 @@ const filters=()=>{
  if(search)q.set('search',search);
  return q.toString();
 };
-function invalidate(){loadedFilter=null;exportButton.disabled=true;}
+function invalidate(){++sequence;loadedFilter=null;exportButton.disabled=true;u.el('transportLinkPrev').disabled=true;u.el('transportLinkNext').disabled=true;u.el('transportLinkPageInfo').textContent='Filters changed; search to refresh.';u.el('transportLinkRows').replaceChildren();}
 u.load=async()=>{
  invalidate();
- const current=++sequence,snapshot=filters();
+ const current=sequence,snapshot=filters();
+ u.el('transportLinkPageInfo').textContent='Loading assignments…';
  const q=new URLSearchParams(snapshot);q.set('page',String(page));q.set('pageSize','15');
- const data=await u.api('/api/transport/route-vehicle-links?'+q);
+ let data;
+ try{data=await u.api('/api/transport/route-vehicle-links?'+q);}catch(error){if(current===sequence){u.el('transportLinkPageInfo').textContent='Could not load assignments. Retry search.';throw error;}return;}
  if(current!==sequence||snapshot!==filters())return;
+ if(page>1&&!(data.items||[]).length&&Number(data.totalCount)>0){page=Math.max(1,Math.ceil(Number(data.totalCount)/15));return u.load();}
  u.renderLinks(data.items||[]);
  pages=Math.max(1,Number(data.totalPages)||1);
  u.el('transportLinkPageInfo').textContent='Page '+page+' of '+pages+' · '+data.totalCount+' records';
@@ -26,8 +29,8 @@ u.load=async()=>{
 u.el('transportLinkSearchForm').addEventListener('submit',e=>{e.preventDefault();page=1;u.load().catch(x=>u.notify(x.message));});
 u.el('transportLinkPrev').addEventListener('click',()=>{page=Math.max(1,page-1);u.load().catch(x=>u.notify(x.message));});
 u.el('transportLinkNext').addEventListener('click',()=>{page=Math.min(pages,page+1);u.load().catch(x=>u.notify(x.message));});
-u.el('transportLinkSearch').addEventListener('input',invalidate);
-u.el('transportLinkFilterCampus').addEventListener('change',invalidate);
+u.el('transportLinkSearch').addEventListener('input',()=>{page=1;invalidate();});
+u.el('transportLinkFilterCampus').addEventListener('change',()=>{page=1;invalidate();});
 exportButton.addEventListener('click',async()=>{
  const snapshot=filters(),request=sequence;
  if(loadedFilter===null||loadedFilter!==snapshot)return;

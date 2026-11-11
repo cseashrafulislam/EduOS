@@ -13,7 +13,7 @@ const filters=()=>{
  if(u.el('transportVehicleDriverScheduledOnly').checked)q.set('scheduledOnly','true');
  return q.toString();
 };
-function invalidate(){loadedFilter=null;exportButton.disabled=true;}
+function invalidate(){++sequence;loadedFilter=null;exportButton.disabled=true;u.el('transportVehicleDriverPrev').disabled=true;u.el('transportVehicleDriverNext').disabled=true;u.el('transportVehicleDriverPageInfo').textContent='Filters changed; search to refresh.';u.el('transportVehicleDriverRows').replaceChildren();}
 function renderRow(item){
  const tr=document.createElement('tr');
  [item.campusName,item.vehicleNumber,item.driverName,item.licenseExpiresOn,
@@ -110,10 +110,13 @@ function renderRow(item){
 }
 u.loadLinks=async()=>{
  invalidate();
- const current=++sequence, snapshot=filters();
+ const current=sequence, snapshot=filters();
+ u.el('transportVehicleDriverPageInfo').textContent='Loading assignments…';
  const q=new URLSearchParams(snapshot);q.set('page',String(page));q.set('pageSize','15');
- const data=await u.api(u.endpoint+'?'+q);
+ let data;
+ try{data=await u.api(u.endpoint+'?'+q);}catch(error){if(current===sequence){u.el('transportVehicleDriverPageInfo').textContent='Could not load assignments. Retry search.';throw error;}return;}
  if(current!==sequence||snapshot!==filters())return;
+ if(page>1&&!(data.items||[]).length&&Number(data.totalCount)>0){page=Math.max(1,Math.ceil(Number(data.totalCount)/15));return u.loadLinks();}
  const body=u.el('transportVehicleDriverRows');body.replaceChildren();
  (data.items||[]).forEach(item=>body.append(renderRow(item)));
  if(!data.items?.length){const tr=document.createElement('tr'),td=cell('No assignments');td.colSpan=8;tr.append(td);body.append(tr);}
@@ -126,8 +129,8 @@ u.loadLinks=async()=>{
 u.el('transportVehicleDriverSearchForm').onsubmit=e=>{e.preventDefault();page=1;u.loadLinks().catch(x=>u.notify(x.message));};
 u.el('transportVehicleDriverPrev').onclick=()=>{page=Math.max(1,page-1);u.loadLinks().catch(x=>u.notify(x.message));};
 u.el('transportVehicleDriverNext').onclick=()=>{page=Math.min(pages,page+1);u.loadLinks().catch(x=>u.notify(x.message));};
-u.el('transportVehicleDriverSearch').addEventListener('input',invalidate);
-u.el('transportVehicleDriverCampus').addEventListener('change',invalidate);
+u.el('transportVehicleDriverSearch').addEventListener('input',()=>{page=1;invalidate();});
+u.el('transportVehicleDriverCampus').addEventListener('change',()=>{page=1;invalidate();});
 u.el('transportVehicleDriverScheduledOnly').addEventListener('change',()=>{page=1;u.loadLinks().catch(x=>u.notify(x.message));});
 exportButton.addEventListener('click',async()=>{
  const snapshot=filters(),request=sequence;
