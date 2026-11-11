@@ -6,6 +6,8 @@
 
 ## 1. Product identity
 
+**Brand:** EduOS — The Intelligent Education Operating System. **Audience:** One unified platform for Schools, Colleges, Universities & Training Institutes. **SEO positioning:** AI-Powered Education ERP for Schools, Colleges, Universities & Training Institutes. The canonical wording, Bangla copy and feature-claim boundary are in [Brand Positioning](BRAND_POSITIONING.md).
+
 EduOS is a configurable, multi-tenant **Education ERP + LMS + Finance + Administration** platform. One modular codebase serves schools, colleges, universities, madrasas, polytechnics, vocational/training institutes, coaching centres, private tutors and LMS-only providers. Institution presets configure terminology, rules, enabled modules and UI; they must not cause institution-specific entity/class/table renames or separate forks.
 
 The product promise is an operational lifecycle, not a collection of screens: institute onboarding -> authorized staff and academic setup -> applicant/student lifecycle -> teaching/attendance/assessment -> result/certificate -> billing/accounting -> reporting and operational services. A feature is not complete just because a model, controller or menu exists.

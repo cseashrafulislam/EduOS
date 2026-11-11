@@ -1,5 +1,7 @@
 # EduOS Marketing — myeduos.pages.dev
 
+**Approved headline:** EduOS — The Intelligent Education Operating System. **Subheadline:** One unified platform for Schools, Colleges, Universities & Training Institutes. The supporting copy covers admissions, academics, attendance, exams, finance, HR, learning, smart automation and AI-assisted tools. **SEO positioning:** AI-Powered Education ERP for Schools, Colleges, Universities & Training Institutes. See [Brand Positioning](../docs/BRAND_POSITIONING.md) for exact bilingual copy and AI-claim safeguards.
+
 Static public marketing website, wholly separated from the private ASP.NET Education ERP/SQL Server. The official owner-provided domain is **https://myeduos.pages.dev/**. The repo deploys from the EXISTING **Ashraful** branch only.
 
 ## Pages, audiences and searchable content

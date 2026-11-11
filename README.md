@@ -1,4 +1,8 @@
-# EduOS — Bangladesh Education Operating System
+# EduOS — The Intelligent Education Operating System
+
+**One unified platform for Schools, Colleges, Universities & Training Institutes.** Manage Admissions, Academics, Attendance, Exams, Finance, HR, and Learning with smart automation and AI-assisted tools.
+
+**SEO positioning:** AI-Powered Education ERP for Schools, Colleges, Universities & Training Institutes. See the [approved brand and website copy](docs/BRAND_POSITIONING.md) for bilingual text and honest feature-claim rules.
 
 [![CI](https://github.com/cseashrafulislam/EduOS/actions/workflows/ci.yml/badge.svg)](https://github.com/cseashrafulislam/EduOS/actions/workflows/ci.yml)
 

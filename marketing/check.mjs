@@ -21,6 +21,16 @@ for (let i=0;i<paths.length;i++) {
   assert(!/\b(?:5|6)\s+(?:AI\s+)?agents\b/i.test(html), paths[i] + ": fixed AI count");
 }
 const home=htmlPages[0], demo=htmlPages[8];
+const brand="EduOS — The Intelligent Education Operating System";
+const bnBrand="EduOS — শিক্ষাপ্রতিষ্ঠানের ইন্টেলিজেন্ট অপারেটিং সিস্টেম";
+const plainJs=js.replaceAll(/<[^>]+>/g,"");
+assert(home.includes(brand) && plainJs.includes(brand),"Canonical English brand headline is missing");
+assert(htmlPages[1].includes(bnBrand) && plainJs.includes(bnBrand),"Canonical Bangla brand headline is missing");
+assert(home.includes("AI-Powered Education ERP for Schools, Colleges, Universities") &&
+  home.includes('"alternateName":"The Intelligent Education Operating System"'),
+  "Homepage SEO positioning/structured data is not aligned with brand");
+for (const page of htmlPages) assert(page.includes("INTELLIGENT EDUCATION</small>"),
+  "One marketing page still uses the old navigation brand strapline");
 const ids=[...home.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);
 assert(ids.length===new Set(ids).size,"Duplicate homepage IDs");
 for(const [,target] of home.matchAll(/href="#([^"]+)"/g)) assert(ids.includes(target), "Missing homepage anchor #"+target);

@@ -3,8 +3,8 @@
 
   const bn = {
     navFeatures:"ফিচার",navInstitutions:"প্রতিষ্ঠান",navScreenshots:"স্ক্রিনশট",navHow:"যেভাবে কাজ করে",navContact:"যোগাযোগ",demoLogin:"ডেমো লগইন",
-    eyebrow:"এডুকেশন ম্যানেজমেন্টের পূর্ণাঙ্গ প্ল্যাটফর্ম",heroTitle:'আপনার প্রতিষ্ঠানের সব কাজ।<span class="accent-text"> একই জায়গায়।</span>',
-    heroDesc:"ভর্তি, শিক্ষার্থী ব্যবস্থাপনা, পাঠদান, ফি, হিসাব ও দৈনন্দিন প্রশাসনিক কার্যক্রমকে একটি সুসংগঠিত প্ল্যাটফর্মে নিয়ে আসুন।",
+    eyebrow:"স্মার্ট ও AI-সহায়ক শিক্ষা ব্যবস্থাপনা",heroTitle:'EduOS — শিক্ষাপ্রতিষ্ঠানের<span class="accent-text"> ইন্টেলিজেন্ট অপারেটিং সিস্টেম</span>',
+    heroDesc:"স্কুল, কলেজ, বিশ্ববিদ্যালয় ও প্রশিক্ষণ প্রতিষ্ঠানের জন্য একটি সমন্বিত প্ল্যাটফর্ম। ভর্তি, একাডেমিক, হাজিরা, পরীক্ষা, ফাইন্যান্স, HR ও লার্নিং পরিচালনা করুন স্মার্ট অটোমেশন ও AI-সহায়ক টুলের মাধ্যমে।",
     explorePlatform:"প্ল্যাটফর্ম দেখুন",tryDemo:"ডেমো দেখুন",heroCheck1:"বিভিন্ন প্রতিষ্ঠানের জন্য কনফিগারযোগ্য",heroCheck2:"English ও বাংলা ইন্টারফেস",
     floatReady:"বাস্তব কাজের ধারা মাথায় রেখে ডিজাইন",floatUnified:"একটি সংযুক্ত ওয়ার্কস্পেস",illustrationDisclaimer:"EduOS ওয়ার্কস্পেস",
     benefit1:"সমন্বিত প্ল্যাটফর্ম",benefit2:"নমনীয় কার্যপ্রবাহ",benefit3:"রোল অনুযায়ী অ্যাক্সেস",benefit4:"সহজ রিপোর্ট ও রেকর্ড",
@@ -34,14 +34,14 @@
     faq4q:"সব প্রতিষ্ঠানের সেটিং কি একই থাকবে?",faq4a:"না। EduOS-এ একাডেমিক পরিভাষা, কাঠামো, মডিউল ও কাজের ধারা কনফিগার করার পরিকল্পনা রয়েছে; কোনো নির্দিষ্ট প্রতিষ্ঠানের আকার ধরে ডিজাইন করা হয়নি।",
     contactEyebrow:"পরবর্তী ধাপ শুরু হোক এখানেই",contactTitle:"আপনার প্রতিষ্ঠান পরিচালনা হোক আরও সহজ।",contactDesc:"EduOS-এর ফিচার দেখুন, তারপর আপনার প্রতিষ্ঠানের প্রয়োজন ও কাজের ধারা নিয়ে টিমের সঙ্গে আলোচনা করুন।",
     contactDemo:"লাইভ ডেমো খুলুন",contactExplore:"ফিচার দেখুন",contactPending:"ডেমো ও প্রতিষ্ঠানের প্রয়োজন নিয়ে যোগাযোগ করুন।",
-    footerDesc:"শিক্ষাপ্রতিষ্ঠান পরিচালনার একটি সংযুক্ত অভিজ্ঞতা।",allRights:"সর্বস্বত্ব সংরক্ষিত।",madeForEducation:"শিক্ষার জন্য তৈরি, পরিবর্তনের জন্য প্রস্তুত।",
+    footerDesc:"EduOS — শিক্ষাপ্রতিষ্ঠানের ইন্টেলিজেন্ট অপারেটিং সিস্টেম।",allRights:"সর্বস্বত্ব সংরক্ষিত।",madeForEducation:"শিক্ষার জন্য তৈরি, পরিবর্তনের জন্য প্রস্তুত।",
     dialogTitle:"EduOS ডেমো",dialogText:"ডেমো গ্যালারি দেখুন অথবা ইমেইল ও WhatsApp-এ যোগাযোগ করুন।",dialogOk:"বুঝেছি"
   };
 
   const en = {
     navFeatures:"Features",navInstitutions:"Institutions",navScreenshots:"Screenshots",navHow:"How it works",navContact:"Contact",demoLogin:"Demo Login",
-    eyebrow:"THE EDUCATION OPERATING SYSTEM",heroTitle:'EduOS Education ERP.<span class="accent-text"> Built for every way of teaching.</span>',
-    heroDesc:"From private tutors and coaching academies to schools, colleges and universities, explore admissions, classes, exams, fees, accounts, HR, learning, library and campus operations in one configurable ERP.",
+    eyebrow:"AI-ASSISTED EDUCATION MANAGEMENT",heroTitle:'EduOS — The Intelligent<span class="accent-text"> Education Operating System</span>',
+    heroDesc:"One unified platform for Schools, Colleges, Universities & Training Institutes. Manage Admissions, Academics, Attendance, Exams, Finance, HR, and Learning with smart automation and AI-assisted tools.",
     explorePlatform:"Explore all modules",tryDemo:"View demo previews",heroCheck1:"Flexible for different institutions",heroCheck2:"English & বাংলা interface",
     floatReady:"Designed around real workflows",floatUnified:"One connected workspace",illustrationDisclaimer:"EduOS Workspace Overview",
     benefit1:"One connected platform",benefit2:"Flexible workflows",benefit3:"Role-based access",benefit4:"Clear reports & records",
@@ -71,7 +71,7 @@
     faq4q:"Will every institution use the same settings?",faq4a:"No. EduOS is designed for configurable academic terminology, structure, modules and workflows rather than a fixed institution size or setup.",
     contactEyebrow:"YOUR NEXT CHAPTER STARTS HERE",contactTitle:"Let's make your institution easier to run.",contactDesc:"Explore EduOS at your own pace, then connect with the team to discuss your institution's workflows and goals.",
     contactDemo:"Explore Demo & Contact",contactExplore:"Explore Features",contactPending:"Contact us for an EduOS walkthrough.",
-    footerDesc:"A more connected way to manage education.",allRights:"All rights reserved.",madeForEducation:"Made for education, built for flexibility.",
+    footerDesc:"The Intelligent Education Operating System for every learning institution.",allRights:"All rights reserved.",madeForEducation:"Made for education, built for flexibility.",
     dialogTitle:"EduOS Demo",dialogText:"Explore EduOS screens and contact the team by email or WhatsApp.",dialogOk:"Got it"
   };
 
@@ -91,8 +91,8 @@
     });
     document.getElementById("language-label").textContent = language === "en" ? "বাংলা" : "English";
     document.title = language === "bn"
-      ? "EduOS — শিক্ষাপ্রতিষ্ঠান পরিচালনার সমন্বিত সফটওয়্যার"
-      : "EduOS | Education ERP for Private Tutors, Coaching, Schools & Universities";
+      ? "EduOS — শিক্ষাপ্রতিষ্ঠানের ইন্টেলিজেন্ট অপারেটিং সিস্টেম"
+      : "EduOS | The Intelligent Education Operating System";
     document.querySelectorAll("[data-shot]").forEach((tab) => {
       if (tab.getAttribute("aria-selected") === "true") document.getElementById("screenshot-heading").textContent = tab.textContent;
     });
