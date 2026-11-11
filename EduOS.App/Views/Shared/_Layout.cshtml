@@ -184,6 +184,10 @@
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
                     <a class="nav-link @ActiveFor("/TenantSettings")" href="/TenantSettings/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের সেটিংস" : "Institution Settings")</span></a>
+                    <a class="nav-link @ActiveFor("/SmartSetup")" href="/SmartSetup/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "স্মার্ট সেটআপ" : "Smart Institution Setup")</span>
+                    </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {

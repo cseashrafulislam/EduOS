@@ -1,0 +1,194 @@
+using EduOS.Core.Common;
+using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.SaaS;
+using EduOS.Core.Interfaces;
+using EduOS.Core.Interfaces.IServices;
+using EduOS.Persistence.Context;
+using EduOS.Service.Services.Tenants;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+
+namespace EduOS.Tests.Services;
+
+public sealed class SmartSetupServiceTests
+{
+    private sealed class User(long tenant, bool admin = true) : ICurrentUserService
+    {
+        public bool IsAuthenticated => true;
+        public long UserId => 51;
+        public long TenantId => tenant;
+        public string? FullName => "Setup Administrator";
+        public string? Email => null;
+        public bool IsSuperAdmin => false;
+        public bool IsTenantAdmin => admin;
+        public IReadOnlyList<string> Roles => admin ? ["TenantAdmin"] : ["Teacher"];
+        public bool IsInRole(string role) => Roles.Contains(role);
+        public string? IpAddress => null;
+        public string? UserAgent => null;
+    }
+
+    private sealed class Modules(params string[] enabled) : ITenantModuleService
+    {
+        private readonly HashSet<string> _enabled = new(enabled, StringComparer.OrdinalIgnoreCase);
+        public Task<ApiResponse<List<TenantModuleDto>>> GetCurrentTenantModulesAsync() =>
+            Task.FromResult(ApiResponse<List<TenantModuleDto>>.SuccessResponse(new()));
+        public Task<ApiResponse<TenantModuleDto>> UpdateCurrentTenantModuleAsync(
+            string moduleCode, UpdateTenantModuleRequestDto request) =>
+            Task.FromResult(ApiResponse<TenantModuleDto>.ErrorResponse("Test-only."));
+        public Task<ApiResponse<bool>> ValidateCurrentTenantSelectionAsync() =>
+            Task.FromResult(ApiResponse<bool>.SuccessResponse(true));
+        public Task<bool> IsCurrentTenantModuleAvailableAsync(string moduleCode) =>
+            Task.FromResult(_enabled.Contains(moduleCode));
+        public Task<ApiResponse<bool>> ApplyInstitutionPresetAsync(long tenantId,
+            long institutionTypeDefinitionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(ApiResponse<bool>.ErrorResponse("Test-only."));
+    }
+
+    private sealed class Fixture : IAsyncDisposable
+    {
+        public required EduOSDbContext Db { get; init; }
+        public required DefaultHttpContext Http { get; init; }
+        public required SmartSetupService Service { get; init; }
+        public required long Tenant { get; init; }
+        public required long InstitutionType { get; init; }
+        public ValueTask DisposeAsync() => Db.DisposeAsync();
+    }
+
+    private static async Task<Fixture> Open(string typeCode = "SCHOOL",
+        bool admin = true, params string[] modules)
+    {
+        var http = new DefaultHttpContext();
+        var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("smart-setup-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+        var category = new InstitutionTypeDefinition
+        {
+            Code = typeCode, Name = typeCode, IsActive = true
+        };
+        db.InstitutionTypeDefinitions.Add(category);
+        await db.SaveChangesAsync();
+        var tenant = new Tenant
+        {
+            InstitutionTypeDefinitionId = category.Id, Name = "Smart Setup School",
+            Code = "SMART-" + Guid.NewGuid().ToString("N")[..8],
+            Email = "school@example.test", CountryCode = "BD",
+            State = EduOS.Core.Enums.Domain.TenantState.Active
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        http.Items["TenantId"] = tenant.Id;
+        var currentUser = new User(tenant.Id, admin);
+        var service = new SmartSetupService(db, new Modules(modules), db, currentUser,
+            NullLogger<SmartSetupService>.Instance);
+        return new Fixture
+        {
+            Db = db, Http = http, Service = service,
+            Tenant = tenant.Id, InstitutionType = category.Id
+        };
+    }
+
+    private static ApplySmartSetupRequestDto Request(Fixture f, params string[] modules) => new()
+    {
+        ClientRequestId = Guid.NewGuid(), InstitutionTypeId = f.InstitutionType,
+        TemplateVersion = "2026.11.1", Confirmed = true, Modules = modules.ToList()
+    };
+
+    [Fact]
+    public async Task All_reviewed_master_defaults_are_additive_idempotent_and_audited()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "HR", "FEES", "INVENTORY"]);
+        var preview = await f.Service.PreviewAsync();
+        Assert.True(preview.Success, preview.Message);
+        Assert.Equal("SCHOOL", preview.Data!.InstitutionTypeCode);
+        Assert.Contains(preview.Data.Modules.Single(x => x.Code == "ACADEMIC").Entries,
+            x => x.Code == "BANGLA" && x.Status == "Missing");
+        var request = Request(f, "ACADEMIC", "HR", "FEES", "INVENTORY");
+        var first = await f.Service.ApplyAsync(request);
+        Assert.True(first.Success, first.Message);
+        Assert.Equal(10, first.Data!.CreatedCount);
+        Assert.Equal(2, await f.Db.Mediums.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(2, await f.Db.OrganizationUnits.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(2, await f.Db.Designations.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(2, await f.Db.FeeHeads.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(2, await f.Db.AssetCategories.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(0, await f.Db.FeeStructures.CountAsync());
+        Assert.Equal(0, await f.Db.StudentEnrollments.CountAsync());
+        var replay = await f.Service.ApplyAsync(request);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(0, replay.Data!.CreatedCount);
+        Assert.Equal(10, replay.Data.ExistingCount);
+        Assert.Equal(1, await f.Db.AuditLogs.CountAsync(x => x.Action == "SmartSetup.Apply" && x.TenantId == f.Tenant));
+    }
+
+    [Fact]
+    public async Task Conflicting_existing_fee_head_never_creates_second_master_or_overwrites_it()
+    {
+        await using var f = await Open(modules: ["FEES"]);
+        f.Db.FeeHeads.Add(new FeeHead
+        {
+            TenantId = f.Tenant, Code = "TUITION", Name = "Legacy Tuition", IsActive = true
+        });
+        await f.Db.SaveChangesAsync();
+        var result = await f.Service.ApplyAsync(Request(f, "FEES"));
+        Assert.Equal(409, result.StatusCode);
+        Assert.Single(await f.Db.FeeHeads.ToListAsync());
+        Assert.Equal("Legacy Tuition", (await f.Db.FeeHeads.SingleAsync()).Name);
+    }
+
+    [Fact]
+    public async Task Disabled_module_and_changed_tenant_are_rejected_without_side_effects()
+    {
+        await using var f = await Open(modules: ["ACADEMIC"]);
+        var denied = await f.Service.ApplyAsync(Request(f, "INVENTORY"));
+        Assert.Equal(403, denied.StatusCode);
+        f.Http.Items["TenantId"] = 999L;
+        Assert.Equal(403, (await f.Service.PreviewAsync()).StatusCode);
+        Assert.Equal(403, (await f.Service.ApplyAsync(Request(f, "ACADEMIC"))).StatusCode);
+        Assert.Empty(await f.Db.Mediums.IgnoreQueryFilters().ToListAsync());
+    }
+
+    [Fact]
+    public async Task Non_admin_unconfirmed_and_unreviewed_modules_cannot_apply()
+    {
+        await using var f = await Open(admin: false, modules: ["ACADEMIC"]);
+        Assert.Equal(403, (await f.Service.PreviewAsync()).StatusCode);
+        Assert.Equal(403, (await f.Service.ApplyAsync(Request(f, "ACADEMIC"))).StatusCode);
+        await using var admin = await Open(modules: ["ACADEMIC"]);
+        var wrong = Request(admin, "STUDENT");
+        Assert.Equal(400, (await admin.Service.ApplyAsync(wrong)).StatusCode);
+        var notConfirmed = Request(admin, "ACADEMIC");
+        notConfirmed.Confirmed = false;
+        Assert.Equal(400, (await admin.Service.ApplyAsync(notConfirmed)).StatusCode);
+        Assert.Empty(await admin.Db.Mediums.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Library_notice_and_document_reference_records_only_create_when_selected()
+    {
+        await using var f = await Open(modules: ["LIBRARY"]);
+        var created = await f.Service.ApplyAsync(Request(f, "LIBRARY", "COMMUNICATION", "DOCUMENTS"));
+        Assert.True(created.Success, created.Message);
+        Assert.Equal(6, created.Data!.CreatedCount);
+        Assert.Equal(3, await f.Db.BookCategories.CountAsync());
+        Assert.Equal(2, await f.Db.NoticeCategories.CountAsync());
+        Assert.Single(await f.Db.DocumentTypeDefinitions.ToListAsync());
+        Assert.Empty(await f.Db.Notices.ToListAsync());
+        Assert.Empty(await f.Db.Documents.ToListAsync());
+        var second = await f.Service.ApplyAsync(Request(f, "LIBRARY", "COMMUNICATION", "DOCUMENTS"));
+        Assert.Equal(0, second.Data!.CreatedCount);
+    }
+
+    [Fact]
+    public async Task Institution_specific_catalog_does_not_assume_bangla_medium_for_university()
+    {
+        await using var f = await Open(typeCode: "UNIVERSITY", modules: ["ACADEMIC", "HR"]);
+        var preview = await f.Service.PreviewAsync();
+        Assert.DoesNotContain(preview.Data!.Modules.Single(x => x.Code == "ACADEMIC").Entries,
+            x => x.Code == "BANGLA");
+        Assert.Contains(preview.Data.Modules.Single(x => x.Code == "HR").Entries,
+            x => x.Code == "LECTURER");
+    }
+}

@@ -13,7 +13,7 @@
         ],
         setup: [
             ['access', 'Users & Access', 'ব্যবহারকারী ও অনুমতি', ['/TenantUsers', '/TenantPermissionOverrides']],
-            ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules', '/SubscriptionBilling', '/IntegrationAdministration']],
+            ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/SmartSetup', '/NumberSeries', '/TenantModules', '/SubscriptionBilling', '/IntegrationAdministration']],
             ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions']],
             ['work-center', 'Work Center', 'কাজ ও অনুমোদন', ['/CentralWorkCenter']],
             ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
@@ -62,7 +62,7 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/AcademicManagement/Offerings']]
         ],
         'setup:institution': [
-            ['settings', 'Settings', 'সেটিংস', ['/InstitutionManagement/Profile', '/InstitutionManagement/Regional', '/InstitutionManagement/Branding', '/InstitutionManagement/Subdomain', '/InstitutionManagement/Index', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/NumberSeries', '/TenantModules']],
+            ['settings', 'Settings', 'সেটিংস', ['/InstitutionManagement/Profile', '/InstitutionManagement/Regional', '/InstitutionManagement/Branding', '/InstitutionManagement/Subdomain', '/InstitutionManagement/Index', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/SmartSetup', '/NumberSeries', '/TenantModules']],
             ['operations', 'Operations', 'কার্যক্রম', ['/InstitutionManagement/Campuses', '/SubscriptionBilling', '/IntegrationAdministration']],
             ['reports', 'Reports', 'রিপোর্ট', ['/InstitutionManagement/History']]
         ],

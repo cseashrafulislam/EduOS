@@ -1,0 +1,66 @@
+@{
+    ViewData["Title"] = "Smart Institution Setup";
+    var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+}
+<div id="smartSetupWorkspace" class="container-fluid py-4" data-language="@(bn ? "bn-BD" : "en-BD")">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+        <div>
+            <h1 class="h4 fw-bold mb-1">@(bn ? "স্মার্ট প্রতিষ্ঠান সেটআপ" : "Smart Institution Setup")</h1>
+            <p class="text-muted mb-0">
+                @(bn ? "প্রতিষ্ঠানের ধরন অনুযায়ী প্রস্তুত Master Data দেখুন, যাচাই করুন এবং নিরাপদে যোগ করুন।" :
+                    "Review organization-based reference data before creating only missing, safe master records.")
+            </p>
+        </div>
+        <a href="/TenantSettings/Index" class="btn btn-outline-secondary btn-sm">
+            @(bn ? "প্রতিষ্ঠানের সেটিংস" : "Institution Settings")
+        </a>
+    </div>
+    <div id="smartSetupNotice" class="alert d-none" role="alert" aria-live="assertive" tabindex="-1"></div>
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div>
+                    <div class="small text-muted">@(bn ? "প্রতিষ্ঠানের ধরন" : "Organization type")</div>
+                    <h2 class="h5 mb-0" id="smartSetupInstitution">@(bn ? "লোড হচ্ছে..." : "Loading...")</h2>
+                    <div id="smartSetupVersion" class="small text-muted mt-1"></div>
+                </div>
+                <button type="button" id="smartSetupReload" class="btn btn-outline-primary btn-sm">
+                    @(bn ? "আবার যাচাই করুন" : "Refresh preview")
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="alert alert-info" role="note">
+        <strong>@(bn ? "নিরাপদ প্রক্রিয়া:" : "Safe setup:")</strong>
+        @(bn ? "শুধু নির্বাচিত ও অনুমোদিত Module-এর অনুপস্থিত reference data তৈরি হবে। পুরোনো Master Data, Fee Amount, Bank, Salary, Stock, Student বা হিসাবের লেনদেন পরিবর্তন হবে না।" :
+            "Only missing safe reference records from enabled modules are created. Existing masters, fee amounts, banks, salaries, stock, students and financial transactions are never modified.")
+    </div>
+    <form id="smartSetupForm">
+        @Html.AntiForgeryToken()
+        <div id="smartSetupModules" class="row g-3" aria-live="polite">
+            <div class="col-12"><div class="card"><div class="card-body text-muted">
+                @(bn ? "Setup Preview লোড হচ্ছে..." : "Loading setup preview...")
+            </div></div></div>
+        </div>
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-body">
+                <div class="form-check">
+                    <input id="smartSetupConfirm" class="form-check-input" type="checkbox" required />
+                    <label for="smartSetupConfirm" class="form-check-label">
+                        @(bn ? "Preview দেখেছি। শুধুমাত্র নির্বাচিত Module-এর Safe Defaults যোগ করার অনুমতি দিচ্ছি।" :
+                            "I reviewed the preview and authorize only the selected safe defaults.")
+                    </label>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <button id="smartSetupApply" type="submit" class="btn btn-primary" disabled>
+                        @(bn ? "নির্বাচিত সেটআপ সংরক্ষণ করুন" : "Apply Selected Safe Setup")
+                    </button>
+                    <span id="smartSetupSelection" class="small text-muted"></span>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+@section Scripts {
+    <script src="~/js/tenant/smart-setup.js" asp-append-version="true"></script>
+}

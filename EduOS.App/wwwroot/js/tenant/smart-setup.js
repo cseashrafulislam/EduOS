@@ -1,0 +1,209 @@
+(() => {
+    'use strict';
+    const root = document.getElementById('smartSetupWorkspace');
+    if (!root) return;
+    const el = id => document.getElementById(id);
+    const bn = root.dataset.language === 'bn-BD';
+    const tr = (en, bd) => bn ? bd : en;
+    const identity = [document.body?.dataset.authTenantId || '',
+        document.body?.dataset.authSessionReference || ''];
+    const sameSession = () => identity[0] && identity[1] &&
+        identity[0] === (document.body?.dataset.authTenantId || '') &&
+        identity[1] === (document.body?.dataset.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
+    const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+    const state = { preview: null, selected: new Set(), busy: false, revision: 0,
+        requestId: null, fingerprint: null };
+    const message = (value, error = false) => {
+        const target = el('smartSetupNotice');
+        target.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
+        target.textContent = value;
+        target.focus();
+    };
+    const clearMessage = () => {
+        el('smartSetupNotice').textContent = '';
+        el('smartSetupNotice').className = 'alert d-none';
+    };
+    const node = (tag, className, label) => {
+        const x = document.createElement(tag);
+        if (className) x.className = className;
+        if (label != null) x.textContent = label;
+        return x;
+    };
+    const request = async (url, init = {}) => {
+        const res = await fetch(url, {
+            credentials: 'same-origin', cache: 'no-store', ...init,
+            headers: {
+                Accept: 'application/json',
+                ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+                ...(init.method === 'POST' ? { RequestVerificationToken: token } : {}),
+                ...(init.headers || {})
+            }
+        });
+        const body = await res.json().catch(() => null);
+        if (!res.ok || body?.success !== true)
+            throw new Error(body?.message || tr('Operation failed. Refresh and retry.', 'অনুরোধ ব্যর্থ হয়েছে। আবার চেষ্টা করুন।'));
+        return body.data;
+    };
+    const guid = () => {
+        if (crypto.randomUUID) return crypto.randomUUID();
+        const b = new Uint8Array(16);
+        crypto.getRandomValues(b);
+        b[6] = (b[6] & 15) | 64;
+        b[8] = (b[8] & 63) | 128;
+        const h = [...b].map(x => x.toString(16).padStart(2, '0')).join('');
+        return [h.slice(0,8),h.slice(8,12),h.slice(12,16),h.slice(16,20),h.slice(20)].join('-');
+    };
+    const safePath = value => typeof value === 'string' && /^\/[a-z0-9][a-z0-9/\-]*$/i.test(value)
+        ? value : '/TenantSettings/Index';
+    const selected = () => (state.preview?.modules || []).filter(x => state.selected.has(x.code));
+    const validSelection = () => selected().length > 0 && selected().every(m =>
+        m.supportsSafeApply && m.isAvailable && m.entries.every(e => e.status !== 'Conflict'));
+    function updateSubmit() {
+        const count = selected().length;
+        el('smartSetupSelection').textContent = count
+            ? tr(count + ' module(s) selected', count + 'টি মডিউল নির্বাচিত')
+            : tr('Select a module with missing safe defaults', 'অনুপস্থিত Safe Default আছে এমন মডিউল নির্বাচন করুন');
+        el('smartSetupApply').disabled = state.busy || !sameSession() || !validSelection() ||
+            !el('smartSetupConfirm').checked;
+        el('smartSetupReload').disabled = state.busy || !sameSession();
+        for (const cb of el('smartSetupModules').querySelectorAll('input[type=checkbox]'))
+            cb.disabled = state.busy || !sameSession();
+    }
+    function render() {
+        const p = state.preview;
+        if (!p || !sameSession()) return;
+        el('smartSetupInstitution').textContent = p.institutionTypeName;
+        el('smartSetupVersion').textContent =
+            p.institutionTypeCode + ' · ' + p.countryCode + ' · ' +
+            tr('Template version ', 'টেমপ্লেট সংস্করণ ') + p.templateVersion;
+        const host = el('smartSetupModules');
+        host.replaceChildren();
+        for (const m of p.modules) {
+            const wrapper = node('div', 'col-12 col-xl-6');
+            const card = node('section', 'card h-100 border-0 shadow-sm');
+            const body = node('div', 'card-body');
+            const top = node('div', 'd-flex align-items-start justify-content-between gap-2 mb-2');
+            const heading = node('div');
+            heading.append(node('h3', 'h6 fw-bold mb-1', bn ? m.nameBangla : m.name));
+            heading.append(node('span', 'small text-muted', m.code));
+            top.append(heading);
+            const badge = node('span', 'badge ' + (m.isAvailable ? 'bg-primary' : 'bg-secondary'),
+                m.isAvailable ? tr('Safe defaults', 'নিরাপদ ডিফল্ট') : tr('Review setup', 'সেটআপ যাচাই'));
+            top.append(badge);
+            body.append(top);
+            const guidance = node('p', 'small text-muted', m.guidance || '');
+            body.append(guidance);
+            if (m.entries?.length) {
+                const list = node('ul', 'list-unstyled small mb-3');
+                for (const item of m.entries) {
+                    const li = node('li', 'd-flex justify-content-between border-bottom py-1 gap-2');
+                    li.append(node('span', '', item.name + ' (' + item.code + ')'));
+                    const status = item.status === 'Missing' ? tr('To add', 'যোগ হবে') :
+                        item.status === 'Existing' ? tr('Already exists', 'আগেই আছে') :
+                        item.status === 'Conflict' ? tr('Review conflict', 'দ্বন্দ্ব যাচাই') :
+                            tr('Module unavailable', 'মডিউল চালু নেই');
+                    li.append(node('span', 'fw-semibold text-nowrap', status));
+                    list.append(li);
+                }
+                body.append(list);
+            }
+            const missing = (m.entries || []).filter(e => e.status === 'Missing').length;
+            const conflict = (m.entries || []).some(e => e.status === 'Conflict');
+            if (m.supportsSafeApply && m.isAvailable) {
+                const label = node('label', 'form-check mb-2');
+                const input = node('input', 'form-check-input me-2');
+                input.type = 'checkbox';
+                input.checked = state.selected.has(m.code);
+                input.disabled = conflict || missing === 0;
+                input.addEventListener('change', () => {
+                    input.checked ? state.selected.add(m.code) : state.selected.delete(m.code);
+                    state.requestId = null;
+                    state.fingerprint = null;
+                    updateSubmit();
+                });
+                label.append(input, node('span', 'form-check-label',
+                    conflict ? tr('Resolve conflicts first', 'আগে দ্বন্দ্ব দূর করুন') :
+                    missing ? tr('Apply ' + missing + ' missing item(s)', missing + 'টি তথ্য যোগ করুন') :
+                    tr('Already configured', 'সেটআপ আগে থেকেই আছে')));
+                body.append(label);
+            }
+            const link = node('a', 'btn btn-sm btn-outline-secondary', tr('Open setup page', 'সেটআপ পেজ খুলুন'));
+            link.href = safePath(m.nextStepUrl);
+            body.append(link);
+            card.append(body);
+            wrapper.append(card);
+            host.append(wrapper);
+        }
+        updateSubmit();
+    }
+    async function load() {
+        if (!sameSession() || state.busy) return;
+        state.busy = true;
+        const version = ++state.revision;
+        updateSubmit();
+        try {
+            const preview = await request('/api/smart-setup/preview');
+            if (version !== state.revision || !sameSession()) return;
+            state.preview = preview;
+            state.selected.clear();
+            el('smartSetupConfirm').checked = false;
+            clearMessage();
+            if (!preview.institutionTypeId) {
+                message(tr('Select an active institution type in Institution Profile before applying defaults.',
+                    'প্রথমে প্রতিষ্ঠান প্রোফাইলে সক্রিয় প্রতিষ্ঠানের ধরন নির্বাচন করুন।'), true);
+            }
+            render();
+        } catch (err) {
+            if (version === state.revision && sameSession()) message(err.message, true);
+        } finally {
+            if (version === state.revision) { state.busy = false; updateSubmit(); }
+        }
+    }
+    async function apply(event) {
+        event.preventDefault();
+        if (state.busy || !sameSession() || !validSelection() ||
+            !el('smartSetupConfirm').checked || !state.preview?.institutionTypeId) return;
+        const p = state.preview;
+        const names = selected().map(x => x.code).sort();
+        const fingerprint = p.institutionTypeId + '|' + p.templateVersion + '|' + names.join(',');
+        if (state.fingerprint !== fingerprint || !state.requestId) state.requestId = guid();
+        state.fingerprint = fingerprint;
+        state.busy = true;
+        updateSubmit();
+        try {
+            const result = await request('/api/smart-setup/apply', {
+                method: 'POST',
+                body: JSON.stringify({
+                    clientRequestId: state.requestId,
+                    institutionTypeId: p.institutionTypeId,
+                    templateVersion: p.templateVersion,
+                    modules: names,
+                    confirmed: true
+                })
+            });
+            if (!sameSession()) return;
+            state.requestId = null;
+            state.fingerprint = null;
+            state.selected.clear();
+            el('smartSetupConfirm').checked = false;
+            message(tr('Saved ' + result.createdCount + ' new master record(s); ' +
+                result.existingCount + ' already existed.',
+                result.createdCount + 'টি নতুন তথ্য সংরক্ষিত; ' +
+                result.existingCount + 'টি আগে থেকেই ছিল।'));
+            // Reload only the non-destructive preview. A successful POST remains
+            // successful even if this follow-up GET fails.
+            const fresh = await request('/api/smart-setup/preview').catch(() => null);
+            if (fresh && sameSession()) { state.preview = fresh; render(); }
+        } catch (err) {
+            if (sameSession()) message(err.message, true);
+        } finally {
+            state.busy = false;
+            updateSubmit();
+        }
+    }
+    el('smartSetupReload').addEventListener('click', load);
+    el('smartSetupConfirm').addEventListener('change', updateSubmit);
+    el('smartSetupForm').addEventListener('submit', apply);
+    load();
+})();
