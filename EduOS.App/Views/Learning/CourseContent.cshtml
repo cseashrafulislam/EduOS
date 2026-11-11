@@ -49,7 +49,7 @@
                     <div class="col-8"><label for="contentResourceTitle" class="form-label">Resource title</label><input id="contentResourceTitle" class="form-control" maxlength="200" /></div>
                     <div class="col-4"><label for="contentResourceOrder" class="form-label">Order</label><input id="contentResourceOrder" type="number" min="0" max="10000" value="1" class="form-control" required /></div>
                     <div class="col-12"><label for="contentResourceUrl" class="form-label">HTTPS URL (or file reference)</label><input id="contentResourceUrl" type="url" pattern="https://.*" maxlength="1000" class="form-control" placeholder="https://…" /></div>
-                    <div class="col-12"><label for="contentResourceUpload" class="form-label">Upload private lesson file</label><input id="contentResourceUpload" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" /></div>
+                    <div class="col-12"><label for="contentResourceUpload" class="form-label">Upload lesson-only worksheet or note</label><input id="contentResourceUpload" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" /><small class="text-muted">Textbooks, NCTB/NTRCA books and reusable PDF study materials are published once in Library → Digital Library, not uploaded again here.</small></div>
                     <div class="col-12"><label for="contentResourceFile" class="form-label">Verified LMS file reference</label><input id="contentResourceFile" class="form-control" readonly /></div>
                     <div class="col-12"><button class="btn btn-primary" type="submit">Save resource</button> <button id="contentResourceClear" class="btn btn-outline-secondary" type="button">New</button></div>
                 </div>
@@ -62,17 +62,7 @@
             <thead><tr><th>Section</th><th>Lesson</th><th>Resources</th><th>State</th><th class="content-actions">Action</th></tr></thead>
             <tbody id="contentRows"><tr><td colspan="5" class="text-center text-muted p-3">Select a course.</td></tr></tbody>
         </table></div>
-    </section>
-    <section id="contentLibraryPanel" class="card mt-3 d-none" aria-labelledby="contentLibraryHeading">
-        <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
-            <h3 id="contentLibraryHeading" class="h6 mb-0">Licensed subject library / বিষয়ভিত্তিক অনুমোদিত বই</h3>
-            <a class="btn btn-sm btn-outline-secondary" asp-controller="Learning" asp-action="OfficialBooks">Official books / সরকারি বই</a>
-            <a class="btn btn-sm btn-outline-secondary" asp-controller="Library" asp-action="Digital">Browse library / লাইব্রেরি</a>
-        </div>
-        <div class="card-body">
-            <p class="small text-muted">Only currently approved content available to your campus is shown / শুধু আপনার ক্যাম্পাসে অনুমোদিত উপকরণ দেখানো হচ্ছে।</p>
-            <div id="contentLibraryRows" class="row g-2" aria-live="polite"></div>
-        </div>
+        <p class="small text-muted px-3 pb-3 mb-0">Official textbooks and reusable study materials are managed only in Library → Digital Library / সরকারি বই ও শিক্ষাসামগ্রী শুধু লাইব্রেরিতে পরিচালিত হবে।</p>
     </section>
     @if (author)
     {
