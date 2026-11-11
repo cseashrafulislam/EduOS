@@ -43,6 +43,8 @@ public sealed class HrCampusAssignmentRequestReceipts : Migration
             constraints: table =>
             {
                 table.PrimaryKey("PK_EmployeeCampusAssignmentReceipts", x => x.Id);
+                table.UniqueConstraint("AK_EmployeeCampusAssignmentReceipts_TenantId_Id",
+                    x => new { x.TenantId, x.Id });
                 table.CheckConstraint("CK_EmployeeCampusAssignmentReceipt_DateRange",
                     "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
                 table.CheckConstraint("CK_EmployeeCampusAssignmentReceipt_RequestId",

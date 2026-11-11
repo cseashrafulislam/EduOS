@@ -12148,6 +12148,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("TenantId", "CampusId");
 
                     b.HasIndex("TenantId", "ClientRequestId")
