@@ -30,13 +30,20 @@ public sealed class SqlServerV3ProcurementSupplierAcknowledgementTests
         public string? IpAddress => null;
         public string? UserAgent => null;
     }
+    // Each concurrent checker owns an independent request context. The framework
+    // HttpContextAccessor uses a shared AsyncLocal and can point these parallel
+    // SQL-test operations at an unrelated/disposed request during audit creation.
+    private sealed class IsolatedHttpContextAccessor(HttpContext context) : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; } = context;
+    }
     private static EduOSDbContext Open(DbContextOptions<EduOSDbContext> options, long tenant, long userId)
     {
         var http = new DefaultHttpContext(); http.Items["TenantId"] = tenant;
         http.User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
             [new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, userId.ToString()),
              new System.Security.Claims.Claim("TenantId", tenant.ToString())], "TestAuthentication"));
-        return new EduOSDbContext(options, new HttpContextAccessor { HttpContext = http });
+        return new EduOSDbContext(options, new IsolatedHttpContextAccessor(http));
     }
     private static ProcurementSupplierAcknowledgementService Service(
         EduOSDbContext db, long tenant, long id)
