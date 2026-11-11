@@ -47,6 +47,18 @@
             </div>
             <div class="col-12">
                 <p class="text-muted">Promotion advances to a higher level; repeat retains the current level. The selected batch determines the decision.</p>
+                <div class="border rounded p-3 mb-3" aria-labelledby="promotionPreviewHeading">
+                    <h4 id="promotionPreviewHeading" class="h6">Review before recording / সংরক্ষণের আগে যাচাই</h4>
+                    <div id="promotionPreview" aria-live="polite" aria-atomic="true"></div>
+                    <div class="form-check mt-2">
+                        <input id="promotionConfirm" class="form-check-input" type="checkbox" />
+                        <label for="promotionConfirm" class="form-check-label">
+                            I verified the student, academic year, target batch, decision and roll.
+                            / শিক্ষার্থী, বর্ষ, ব্যাচ, সিদ্ধান্ত ও রোল যাচাই করেছি।
+                        </label>
+                    </div>
+                    <p class="small text-muted mb-0">No progression is recorded until you confirm and submit. A stale or conflicting enrollment is rejected by the existing server workflow.</p>
+                </div>
                 <button id="promotionSubmit" class="btn btn-primary" type="submit">Confirm progression</button>
             </div>
         </form>

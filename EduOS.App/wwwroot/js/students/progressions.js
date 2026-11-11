@@ -10,7 +10,7 @@
         window.EduOSSessionTransitionPending?.() !== true;
     const state = {
         options: null, requestId: null, requestFingerprint: null, saving: false, reference: null,
-        lookupPending: 0, selectionPending: 0, historyPending: 0,
+        lookupPending: 0, selectionPending: 0, historyPending: 0, previewFingerprint: null,
         historyPage: 1, historyPages: 0
     };
 
@@ -30,6 +30,10 @@
             if (state.historyPage < state.historyPages) loadHistory(state.historyPage + 1);
         });
         el('promotionForm')?.addEventListener('submit', submitProgression);
+        for (const id of ['promotionTarget', 'promotionRoll', 'promotionNote']) {
+            el(id)?.addEventListener('input', invalidatePreview);
+            el(id)?.addEventListener('change', invalidatePreview);
+        }
         const reference = new URLSearchParams(location.search).get('studentReference');
         if (reference && guid.test(reference)) selectStudent(reference);
     }, { once: true });
@@ -41,6 +45,34 @@
         node.classList.toggle('text-danger', error);
     }
 
+    function invalidatePreview() {
+        state.previewFingerprint = null;
+        el('promotionConfirm').checked = false;
+        el('promotionPreview').replaceChildren();
+    }
+    function showPreview(target, roll, fingerprint) {
+        const preview = el('promotionPreview');
+        preview.replaceChildren();
+        const lines = [
+            ['Student / শিক্ষার্থী', state.options.studentCode || state.reference],
+            ['Current enrollment / বর্তমান ভর্তি', state.options.sourceEnrollmentId],
+            ['Target academic year / শিক্ষাবর্ষ', target.academicYearId],
+            ['Target batch / ব্যাচ', target.name || target.academicBatchId],
+            ['Decision / সিদ্ধান্ত', target.decision === 1 ? 'Promotion / পদোন্নতি' : 'Repeat / পুনরাবৃত্তি'],
+            ['New roll / নতুন রোল', roll],
+            ['Note / মন্তব্য', val('promotionNote') || '—']
+        ];
+        const list = document.createElement('dl');
+        list.className = 'row mb-0';
+        for (const [label, value] of lines) {
+            const title = document.createElement('dt'), detail = document.createElement('dd');
+            title.className = 'col-sm-5'; detail.className = 'col-sm-7';
+            title.textContent = label; detail.textContent = String(value ?? '');
+            list.append(title, detail);
+        }
+        preview.append(list);
+        state.previewFingerprint = fingerprint;
+    }
     function notice(message, success = false) {
         const box = el('promotionAlert');
         box.className = 'alert alert-' + (success ? 'success' : 'danger');
@@ -105,6 +137,7 @@
         promotionGuard?.markClean();
         const request = ++state.selectionPending;
         state.reference = reference;
+        invalidatePreview();
         state.options = null;
         state.requestId = null;
         state.requestFingerprint = null;
@@ -225,7 +258,7 @@
         const selected = state.options.targets.find(x =>
             String(x.academicBatchId) === val('promotionTarget'));
         const roll = val('promotionRoll');
-        if (!selected || !roll || roll.length > 50) {
+        if (!selected || !roll || roll.length > 50 || ![1, 2].includes(selected.decision)) {
             notice('Select a batch and enter a valid roll.');
             return;
         }
@@ -242,6 +275,17 @@
             note: val('promotionNote') || null
         };
         const fingerprint = JSON.stringify(request);
+        if (state.previewFingerprint !== fingerprint) {
+            showPreview(selected, roll, fingerprint);
+            notice('Review the target student, year, batch, decision, roll and note. Submit again after checking confirmation. / তথ্য যাচাই করে নিশ্চিত করুন।');
+            el('promotionConfirm').focus();
+            return;
+        }
+        if (!el('promotionConfirm').checked) {
+            notice('Tick the review confirmation before recording progression. / যাচাই নিশ্চিত করুন।');
+            el('promotionConfirm').focus();
+            return;
+        }
         if (!state.requestId || state.requestFingerprint !== fingerprint)
             state.requestId = crypto.randomUUID();
         state.requestFingerprint = fingerprint;
@@ -261,6 +305,7 @@
             state.requestId = null;
             state.requestFingerprint = null;
             el('promotionForm').reset();
+            invalidatePreview();
             promotionGuard?.markClean();
             await selectStudent(reference, true);
         } catch (error) {
