@@ -71,6 +71,18 @@ public class EmployeeCampusAssignment : BaseTenantEntity
     public bool IsCurrent { get; set; } = true;
 }
 
+/// <summary>Immutable command receipt; assignment dates may later close without changing the original request.</summary>
+public class EmployeeCampusAssignmentReceipt : BaseTenantEntity
+{
+    public Guid ClientRequestId { get; set; }
+    public long EmployeeId { get; set; }
+    public long EmployeeCampusAssignmentId { get; set; }
+    public long CampusId { get; set; }
+    public DateOnly EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
+    public bool IsPrimary { get; set; }
+}
+
 public class EmployeeBankAccount : BaseTenantEntity
 {
     public long EmployeeId { get; set; }

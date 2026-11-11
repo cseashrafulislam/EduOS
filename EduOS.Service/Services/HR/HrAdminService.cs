@@ -453,6 +453,26 @@ public sealed class HrAdminService : IHrAdminService
         {
             var employee = await FindEmployeeAsync(request.EmployeeReference, token);
             if (employee == null) return Error<EmployeeCampusAssignmentDto>("Employee not found.", 404);
+            var receipt = await _db.EmployeeCampusAssignmentReceipts.AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == _user.TenantId && x.ClientRequestId == request.ClientRequestId, token);
+            if (receipt != null)
+            {
+                if (receipt.IsDeleted || receipt.EmployeeId != employee.Id || receipt.CampusId != request.CampusId ||
+                    receipt.EffectiveFrom != request.EffectiveFrom || receipt.EffectiveTo != request.EffectiveTo ||
+                    receipt.IsPrimary != request.IsPrimary)
+                    return Error<EmployeeCampusAssignmentDto>("Request ID already used for a different campus assignment.", 409);
+                var recorded = await _campusAssignments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == _user.TenantId && x.Id == receipt.EmployeeCampusAssignmentId &&
+                    x.EmployeeId == employee.Id && !x.IsDeleted, token);
+                if (recorded == null)
+                    return Error<EmployeeCampusAssignmentDto>("Recorded campus assignment unavailable; contact an administrator.", 409);
+                var recordedDto = MapCampus(recorded, employee);
+                recordedDto.EffectiveFrom = receipt.EffectiveFrom;
+                recordedDto.EffectiveTo = receipt.EffectiveTo;
+                recordedDto.IsPrimary = receipt.IsPrimary;
+                return ApiResponse<EmployeeCampusAssignmentDto>.SuccessResponse(recordedDto,
+                    "Original campus assignment request already processed.");
+            }
             var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == _user.TenantId && x.Id == request.CampusId &&
                 x.IsActive && !x.IsDeleted, token);
@@ -466,8 +486,11 @@ public sealed class HrAdminService : IHrAdminService
                 x.CampusId == campus.Id && x.IsCurrent && !x.IsDeleted, token);
             if (current != null && current.EffectiveFrom == request.EffectiveFrom &&
                 current.EffectiveTo == request.EffectiveTo && current.IsPrimary == request.IsPrimary)
+            {
+                await RecordCampusRequestAsync(request, employee.Id, current.Id, token);
                 return ApiResponse<EmployeeCampusAssignmentDto>.SuccessResponse(
                     MapCampus(current, employee), "Campus already assigned.");
+            }
             if (current != null && (request.EffectiveFrom <= current.EffectiveFrom ||
                 current.EffectiveTo.HasValue && request.EffectiveFrom <= current.EffectiveTo.Value))
                 return Error<EmployeeCampusAssignmentDto>("Existing campus assignment overlaps.", 409);
@@ -537,6 +560,7 @@ public sealed class HrAdminService : IHrAdminService
             };
             await _campusAssignments.AddAsync(row);
             await _uow.SaveChangesAsync(token);
+            await RecordCampusRequestAsync(request, employee.Id, row.Id, token);
             return ApiResponse<EmployeeCampusAssignmentDto>.SuccessResponse(MapCampus(row, employee),
                 "Employee campus assigned.");
         }, ct);
@@ -886,6 +910,20 @@ public sealed class HrAdminService : IHrAdminService
         EffectiveFrom = row.EffectiveFrom, EffectiveTo = row.EffectiveTo, IsPrimary = row.IsPrimary,
         IsCurrent = row.IsCurrent, RowVersion = Version(row.RowVersion)
     };
+
+    private async Task RecordCampusRequestAsync(AssignEmployeeCampusRequestDto request,
+        long employeeId, long assignmentId, CancellationToken ct)
+    {
+        await _db.EmployeeCampusAssignmentReceipts.AddAsync(new EmployeeCampusAssignmentReceipt
+        {
+            TenantId = _user.TenantId, ClientRequestId = request.ClientRequestId,
+            EmployeeId = employeeId, EmployeeCampusAssignmentId = assignmentId,
+            CampusId = request.CampusId, EffectiveFrom = request.EffectiveFrom,
+            EffectiveTo = request.EffectiveTo, IsPrimary = request.IsPrimary,
+            CreatedAt = _clock.GetUtcNow().UtcDateTime, CreatedBy = _user.UserId
+        }, ct);
+        await _uow.SaveChangesAsync(ct);
+    }
     private static EmployeeBankAccountDto MapBank(EmployeeBankAccount row, Guid employeeReference) => new()
     {
         Id = row.Id, EmployeeReference = employeeReference,
@@ -899,6 +937,11 @@ public sealed class HrAdminService : IHrAdminService
         Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)
     {
         try { return await _uow.ExecuteInTransactionAsync(callback, System.Data.IsolationLevel.Serializable, ct); }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        {
+            _logger.LogWarning(ex, "Campus assignment lock contention tenant {TenantId}", _user.TenantId);
+            return Error<T>("Concurrent campus assignment; retry with the same request ID.", 409);
+        }
         catch (DbUpdateConcurrencyException)
         { return Error<T>("Campus assignment changed concurrently; reload.", 409); }
         catch (DbUpdateException ex)

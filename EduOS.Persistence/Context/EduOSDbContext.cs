@@ -319,6 +319,7 @@ public class EduOSDbContext :
     public DbSet<EmployeeAssignmentHistory> EmployeeAssignmentHistories => Set<EmployeeAssignmentHistory>();
     public DbSet<EmployeeBankAccount> EmployeeBankAccounts => Set<EmployeeBankAccount>();
     public DbSet<EmployeeCampusAssignment> EmployeeCampusAssignments => Set<EmployeeCampusAssignment>();
+    public DbSet<EmployeeCampusAssignmentReceipt> EmployeeCampusAssignmentReceipts => Set<EmployeeCampusAssignmentReceipt>();
     public DbSet<EmployeeContract> EmployeeContracts => Set<EmployeeContract>();
     public DbSet<RecruitmentCandidate> RecruitmentCandidates => Set<RecruitmentCandidate>();
     public DbSet<RecruitmentStageHistory> RecruitmentStageHistories => Set<RecruitmentStageHistory>();
@@ -1015,6 +1016,12 @@ public class EduOSDbContext :
         TenantReference<EmployeeShiftAssignment, WorkShift>(modelBuilder, nameof(EmployeeShiftAssignment.WorkShiftId));
         TenantReference<EmployeeCampusAssignment, Employee>(modelBuilder, nameof(EmployeeCampusAssignment.EmployeeId));
         TenantReference<EmployeeCampusAssignment, Campus>(modelBuilder, nameof(EmployeeCampusAssignment.CampusId));
+        TenantReference<EmployeeCampusAssignmentReceipt, EmployeeCampusAssignment>(modelBuilder,
+            nameof(EmployeeCampusAssignmentReceipt.EmployeeCampusAssignmentId));
+        TenantReference<EmployeeCampusAssignmentReceipt, Employee>(modelBuilder,
+            nameof(EmployeeCampusAssignmentReceipt.EmployeeId));
+        TenantReference<EmployeeCampusAssignmentReceipt, Campus>(modelBuilder,
+            nameof(EmployeeCampusAssignmentReceipt.CampusId));
         TenantReference<EmployeeBankAccount, Employee>(modelBuilder, nameof(EmployeeBankAccount.EmployeeId));
         TenantReference<EmployeeAssignmentHistory, Employee>(modelBuilder, nameof(EmployeeAssignmentHistory.EmployeeId));
         TenantReference<EmployeeAssignmentHistory, Campus>(modelBuilder, nameof(EmployeeAssignmentHistory.CampusId));
@@ -1821,6 +1828,13 @@ public class EduOSDbContext :
             "[IsCurrent] = 1 AND [IsDeleted] = 0");
         modelBuilder.Entity<EmployeeCampusAssignment>().HasIndex(x => new { x.TenantId, x.EmployeeId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsPrimary] = 1 AND [IsDeleted] = 0");
+        modelBuilder.Entity<EmployeeCampusAssignmentReceipt>().HasIndex(x => new { x.TenantId, x.ClientRequestId }).IsUnique();
+        modelBuilder.Entity<EmployeeCampusAssignmentReceipt>().HasIndex(x => new { x.TenantId, x.EmployeeId, x.Id });
+        modelBuilder.Entity<EmployeeCampusAssignmentReceipt>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_EmployeeCampusAssignmentReceipt_DateRange", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+            t.HasCheckConstraint("CK_EmployeeCampusAssignmentReceipt_RequestId", "[ClientRequestId] <> '00000000-0000-0000-0000-000000000000'");
+        });
         modelBuilder.Entity<EmployeeShiftAssignment>().HasIndex(x => new { x.TenantId, x.EmployeeId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
         modelBuilder.Entity<EmployeeAssignmentHistory>().HasIndex(x => new { x.TenantId, x.EmployeeId })
