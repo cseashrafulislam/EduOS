@@ -114,7 +114,8 @@ async function exercise(browser, mobile) {
         const institution = page.locator('summary.sidebar-group-toggle').filter({
             hasText: mobile ? 'প্রতিষ্ঠান ও সেটিংস' : 'Institution & Settings'
         });
-        assert.equal(await access.count(), 1);
+        assert.equal(await access.count(), 0,
+            'a singleton Users route stays directly discoverable without a pointless accordion');
         assert.equal(await institution.count(), 1);
         assert.equal(await page.locator('a.nav-link[href="/TenantUsers/Index"] .sidebar-group-icon').count(), 1,
             'one-destination module has the same visual icon as grouped modules');
@@ -154,7 +155,7 @@ async function exercise(browser, mobile) {
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:learners"]').count(), 1);
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:people"]').count(), 1);
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:finance"]').count(), 1);
-        await access.focus();
+        await page.locator('a.nav-link[href="/TenantUsers/Index"]').focus();
         await page.keyboard.press('Home');
         assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')),
             '/Dashboard/Index');
