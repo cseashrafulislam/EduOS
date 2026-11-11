@@ -251,3 +251,26 @@ test('collapsible section headings support keyboard entry and focus-safe Escape'
     assert.match(script, /showSection\(section, false\)/);
     assert.match(script, /button\.focus\(\)/);
 });
+
+test('default Index aliases and anchored navigation preserve the exact active destination', () => {
+    const cases = [
+        ['/Students/Index', '/Students', true],
+        ['/Students', '/Students/Index', true],
+        ['/Students/Index/', '/Students', true],
+        ['/Students/Index?campus=2', '/Students', true],
+        ['/Students/Create', '/Students/Index', true],
+        ['/StudentsArchive/Index', '/Students', false],
+        ['/Students/Index', '/Students/Create', false],
+        ['/Dashboard/Admin', '/Dashboard/Index', true]
+    ];
+    for (const [current, href, expected] of cases)
+        assert.equal(scoreActive(href, current) >= 0, expected, `${href} against ${current}`);
+    assert.ok(scoreActive('/Students/Create', '/Students/Create') > scoreActive('/Students/Index', '/Students/Create'));
+    assert.ok(scoreActive('/Dashboard/Admin', '/Dashboard/Admin') > scoreActive('/Dashboard/Index', '/Dashboard/Admin'));
+    assert.ok(scoreActive('/StudentTransferRequests/Index#destinationInbox',
+        '/StudentTransferRequests', '#destinationInbox') >
+        scoreActive('/StudentTransferRequests/Index', '/StudentTransferRequests', '#destinationInbox'));
+    assert.match(layout, /string CanonicalNavPath\(string path\)/);
+    assert.match(script, /link\.setAttribute\('aria-current', 'page'\)/);
+    assert.match(layout, /id="pageBreadcrumbs"/);
+});

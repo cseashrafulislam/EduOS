@@ -28,10 +28,23 @@
         ? "U"
         : userName[..1].ToUpper(CultureInfo.CurrentCulture);
     var currentPath = Context.Request.Path.Value ?? string.Empty;
-    string ActiveFor(string routePrefix) =>
-        currentPath.Equals(routePrefix, StringComparison.OrdinalIgnoreCase) ||
-        currentPath.StartsWith(routePrefix.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)
+    // Keep server-rendered active state consistent with MVC's default Index
+    // aliases until progressive navigation enhancement takes over.
+    string CanonicalNavPath(string path)
+    {
+        var clean = (path ?? "").Split('?', '#')[0].TrimEnd('/');
+        if (clean.EndsWith("/Index", StringComparison.OrdinalIgnoreCase))
+            clean = clean[..^6];
+        return string.IsNullOrEmpty(clean) ? "/" : clean;
+    }
+    string ActiveFor(string routePrefix)
+    {
+        var current = CanonicalNavPath(currentPath);
+        var target = CanonicalNavPath(routePrefix);
+        return current.Equals(target, StringComparison.OrdinalIgnoreCase) ||
+               current.StartsWith(target.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase)
             ? "active" : string.Empty;
+    }
     var requestVerificationToken = Antiforgery.GetAndStoreTokens(Context).RequestToken;
     var sessionClaim = User?.FindFirst(EduOS.App.Security.AuthSessionRegistry.ClaimType)?.Value;
     var sessionReference = string.IsNullOrWhiteSpace(sessionClaim) ? "" : EduOS.App.Security.AuthSessionRegistry.ToPublicReference(sessionClaim);

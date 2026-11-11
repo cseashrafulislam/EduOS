@@ -321,12 +321,15 @@
         const [pathPart, linkHash = ''] = href.split('#', 2);
         const path = normalizedPath(pathPart);
         const current = normalizedPath(pathname);
-        if (path === current) {
-            // Prefer the exact anchor on an anchored page, otherwise its main link.
-            return 10000 + path.length + (linkHash === hash.replace(/^#/, '') && linkHash ? 2000 : 0)
-                - (linkHash && linkHash !== hash.replace(/^#/, '') ? 100 : 0);
-        }
         const base = path.endsWith('/index') ? path.slice(0, -6) : path;
+        const currentBase = current.endsWith('/index') ? current.slice(0, -6) : current;
+        const anchor = hash.replace(/^#/, '');
+        // MVC default Index routes are aliases, but explicit child routes win.
+        if (base === currentBase) {
+            return 10000 + base.length + (linkHash && linkHash === anchor ? 2000 : 0)
+                - (linkHash && linkHash !== anchor ? 100 : 0)
+                + (path === current ? 10 : 0);
+        }
         return matchesPrefix(current, base) ? 100 + base.length : -1;
     }
 
