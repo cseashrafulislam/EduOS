@@ -16,7 +16,8 @@ function browser(payload) {
         fire(name) { this.handlers[name]?.({ preventDefault() {} }); }
     });
     for (const id of ['centralWorkCenter', 'cwcAlert', 'cwcFilters', 'cwcCampus', 'cwcRows',
-        'cwcPrevious', 'cwcNext', 'cwcPage']) nodes[id] = element();
+        'cwcPrevious', 'cwcNext', 'cwcPage', 'cwcSource', 'cwcPageSize', 'cwcScope']) nodes[id] = element();
+    nodes.cwcPageSize.value = '25';
     const calls = [];
     const document = { documentElement: { lang: 'en-BD' },
         getElementById: id => nodes[id], createElement: element };

@@ -45,7 +45,10 @@ test('Library and LMS share one official source view and remain separately modul
     assert.match(lib, /\[RequireModule\("LIBRARY"\)\]/);
     assert.match(learning, /\[RequireModule\("LMS"\)\]/);
     assert.match(lib, /OfficialBooks\(\) => View\("~\/Views\/Shared\/OfficialEducationBooks.cshtml"\)/);
-    assert.match(learning, /OfficialBooks\(\) => View\("~\/Views\/Shared\/OfficialEducationBooks.cshtml"\)/);
+    // The canonical book catalogue belongs to Library; legacy LMS bookmarks redirect there.
+    assert.doesNotMatch(learning, /OfficialBooks\(\) => View/);
+    assert.match(lib, /\[HttpGet\("\/Learning\/OfficialBooks"\)\]/);
+    assert.match(lib, /LegacyLearningOfficialBooks\(\) => RedirectToAction\(nameof\(OfficialBooks\), "Library"\)/);
     assert.match(lib, /Authorize\(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent"\)/);
     assert.match(learning, /Authorize\(Roles = "TenantAdmin,Principal,Teacher,Student"\)/);
     assert.match(view, /official-education-sources-2026\.json/);
@@ -53,10 +56,12 @@ test('Library and LMS share one official source view and remain separately modul
     assert.match(view, /NOT|not|কপি|পুনঃপ্রকাশ/);
     for (const page of [
         'EduOS.App/Views/Library/Digital.cshtml',
-        'EduOS.App/Views/Library/Study.cshtml',
+        'EduOS.App/Views/Library/Study.cshtml'
+    ]) assert.match(read(page), /asp-controller="Library" asp-action="OfficialBooks"/, page);
+    for (const page of [
         'EduOS.App/Views/Learning/Index.cshtml',
         'EduOS.App/Views/Learning/CourseContent.cshtml'
-    ]) assert.match(read(page), /asp-action="OfficialBooks"/, page);
+    ]) assert.doesNotMatch(read(page), /asp-controller="Learning" asp-action="OfficialBooks"/, page);
 });
 
 test('Source UI rejects unreviewed hosts and does not persist resources or bypass licensing', () => {
@@ -64,7 +69,7 @@ test('Source UI rejects unreviewed hosts and does not persist resources or bypas
     assert.match(js, /allowedHosts\.has\(url\.hostname\)/);
     assert.match(js, /url\.protocol === 'https:'/);
     assert.match(js, /data\.distribution !== 'official-source-links-only'/);
-    assert.match(js, /item\.localCopy === false/);
+    assert.match(js, /entry\.localCopy === false/);
     assert.match(js, /link\.rel = 'noopener noreferrer'/);
     assert.match(js, /link\.referrerPolicy = 'no-referrer'/);
     assert.match(js, /sessionValid\(\)/);
