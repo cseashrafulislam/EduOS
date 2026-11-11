@@ -64,6 +64,27 @@ test('MVC action-specific roles remain additional to controller and module polic
     assert.deepEqual(combined.modules, ['FEES']);
 });
 
+test('route inventory keeps MVC screens distinct from API names, nested controllers and print endpoints', () => {
+    const result = audit();
+    assert.equal(result.totals.unresolvedNonPartialRows, 0);
+    assert.equal(result.totals.frameworkViewRows, 2);
+    assert.equal(result.totals.partialViewRows, 52);
+    const academic = result.records.find(row => row.route === '/AcademicInstruction/Index');
+    assert.deepEqual(academic.role.controllerRoles, ['TenantAdmin', 'Principal', 'VicePrincipal', 'Teacher']);
+    assert.deepEqual(academic.role.modules, ['ACADEMIC']);
+    assert.equal(result.records.find(row => row.route === '/Pricing/Index').role.allowAnonymous, true);
+    assert.deepEqual(result.records.find(row => row.route === '/WebhookTests/Index').role.controllerRoles,
+        ['TenantAdmin']);
+    const manifests = result.records.filter(row => row.view.endsWith('/TripManifestPrint.cshtml'));
+    assert.deepEqual(manifests.map(row => row.route).sort(), [
+        '/transport/driver-trips/{reference:guid}/print',
+        '/transport/trips/{reference:guid}/print'
+    ]);
+    assert.deepEqual(manifests.find(row => row.route.includes('/driver-trips/')).role.actionRoles, ['Staff']);
+    assert.deepEqual(manifests.find(row => row.route.includes('/trips/')).role.actionRoles,
+        ['TenantAdmin', 'Principal', 'TransportManager']);
+});
+
 test('page-level native constraint errors are bilingual, safe and do not block canonical form posting', () => {
     for (const [lang, expected] of [['en-BD', 'Complete this field.'], ['bn-BD', 'এই ঘরটি পূরণ করুন।']]) {
         const e = environment(lang);

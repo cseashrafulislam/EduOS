@@ -152,7 +152,10 @@ async function exercise(browser, mobile) {
         ]) {
             assert.equal(await page.locator('a.nav-link[href="' + route + '"]').textContent(), label);
         }
-        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:learners"]').count(), 1);
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:learners"]').count(), 0,
+            'one authorized learner history route remains a direct link, not an empty accordion');
+        assert.equal(await page.locator('a.nav-link[href="/LearnerIdentities/AccessHistory"] .sidebar-group-icon').count(), 1,
+            'singleton learner route retains a recognizable module icon');
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:people"]').count(), 1);
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="management:finance"]').count(), 1);
         await page.locator('a.nav-link[href="/TenantUsers/Index"]').focus();
