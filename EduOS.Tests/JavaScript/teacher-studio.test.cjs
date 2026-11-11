@@ -57,7 +57,10 @@ test('public teacher catalogue exposes approved HTTPS metadata only, never priva
     assert.match(migration, /CK_TeacherResources_Scope/);
     assert.match(migration, /IX_TeacherResources_ScopeCode_StateCode_PublishedAtUtc/);
     assert.match(view, /উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী/);
-    assert.match(view, /পৃষ্ঠা সহায়তা/);
+    // UX-03 keeps one shared header Help Drawer instead of a duplicate inline popup.
+    const { guideFor } = require('../../EduOS.App/wwwroot/js/platform/page-context-help.js');
+    assert.equal(guideFor('/TeacherStudio/Public', 'bn-BD').title, 'উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী');
+    assert.doesNotMatch(view, /<summary[^>]*>ⓘ<\/summary>/);
     assert.match(script, /authSessionReference/);
     assert.match(script, /encodeURIComponent|URLSearchParams/);
     assert.match(script, /\.textContent\s*=/);

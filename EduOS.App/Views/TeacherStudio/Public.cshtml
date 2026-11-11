@@ -6,19 +6,6 @@
     <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
         <h2 class="h4 mb-0">@(bn ? "উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী" : "Public Teaching Materials")</h2>
         <a class="btn btn-sm btn-outline-secondary" href="/TeacherStudio">@(bn ? "রিসোর্স স্টুডিও" : "Resource Studio")</a>
-        <details class="position-relative">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পৃষ্ঠা সহায়তা" : "Page help")">ⓘ</summary>
-            <div class="card card-body shadow-sm position-absolute end-0" style="width:min(22rem,85vw);z-index:10">
-                <h3 class="h6">@(bn ? "ব্যবহার নির্দেশিকা" : "Page manual")</h3>
-                <ol class="small mb-2">
-                    <li>@(bn ? "শিরোনাম বা টপিক দিয়ে অনুসন্ধান করুন।" : "Search by title or topic.")</li>
-                    <li>@(bn ? "স্বত্বাধিকারী, উৎস প্রতিষ্ঠান ও লাইসেন্স দেখে নিন।" : "Check the rights holder, source institution and licence.")</li>
-                    <li>@(bn ? "লিংকটি মূল HTTPS প্রকাশকের পাতায় খুলুন; সেখানে ব্যবহারের শর্ত মানুন।" : "Open the original HTTPS publisher link and follow its reuse conditions.")</li>
-                    <li>@(bn ? "উৎস প্রতিষ্ঠান রিসোর্স প্রত্যাহার করলে তালিকা থেকে মুছে যাবে।" : "Withdrawn or expired source resources disappear from this list.")</li>
-                </ol>
-                <p class="small mb-0">@(bn ? "অন্য প্রতিষ্ঠানের private upload, শিক্ষকের পরিচয়, বা অভ্যন্তরীণ লাইসেন্স প্রমাণ এখানে পাওয়া যাবে না।" : "Private uploads, teacher identities and internal licence evidence are not shared across institutions.")</p>
-            </div>
-        </details>
     </header>
     <form id="publicResourceSearch" class="card card-body mb-3">
         <div class="row g-2 align-items-end">

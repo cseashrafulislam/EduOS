@@ -6,24 +6,11 @@
     <header class="content-header-card d-flex align-items-center gap-2 flex-wrap mb-3">
         <h2 class="h4 mb-0">@(bn ? "শিক্ষক প্রশিক্ষণ ও সার্টিফিকেট" : "Teacher professional development")</h2>
         <a class="btn btn-sm btn-outline-secondary ms-auto" href="/Learning/Quizzes">@(bn ? "মূল্যায়ন / কুইজ" : "Assessments / quizzes")</a>
-        <details class="position-relative">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "সহায়তা" : "Help")">ⓘ</summary>
-            <div class="card card-body position-absolute end-0 shadow-sm" style="width:min(23rem,85vw);z-index:10">
-                <h3 class="h6">@(bn ? "ব্যবহার নির্দেশিকা" : "Page guide")</h3>
-                <ol class="small mb-2">
-                    <li>@(bn ? "নিজের প্রশিক্ষণ কোর্সে Enroll করুন।" : "Enroll in a published training course.")</li>
-                    <li>@(bn ? "প্রকাশিত পাঠ সম্পন্ন করুন।" : "Complete all published lessons.")</li>
-                    <li>@(bn ? "কোর্সের কুইজে উত্তীর্ণ হয়ে Complete দিন।" : "Pass the course quizzes, then submit completion.")</li>
-                    <li>@(bn ? "প্রতিষ্ঠান প্রশাসক প্রমাণ যাচাই করে সার্টিফিকেট ইস্যু করবেন।" : "Institution administration validates evidence and issues a certificate.")</li>
-                </ol>
-                <p class="small mb-0">@(bn ? "কোর্সে নির্ধারিত কাজ অসম্পূর্ণ থাকলে Complete গ্রহণ করা হবে না।" : "Completion is rejected while required course work remains incomplete.")</p>
-            </div>
-        </details>
     </header>
     <div id="cpdAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     <form id="cpdSearch" class="card card-body row g-2 mb-3">
         <label for="cpdTerm" class="form-label">@(bn ? "কোর্সের নাম বা কোড" : "Course title or code")</label>
-        <div class="d-flex gap-2"><input id="cpdTerm" class="form-control" maxlength="100" /><button class="btn btn-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
+        <div class="d-flex gap-2 flex-wrap"><input id="cpdTerm" class="form-control flex-grow-1" style="min-width:12rem;width:auto" maxlength="100" /><button class="btn btn-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
     </form>
     <section class="card mb-3" aria-labelledby="cpdHeading">
         <div class="card-header"><h3 id="cpdHeading" class="h6 mb-0">@(bn ? "প্রশিক্ষণ কোর্স" : "Available training")</h3></div>

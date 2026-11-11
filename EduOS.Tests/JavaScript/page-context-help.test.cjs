@@ -30,7 +30,7 @@ const routes = ['/Account/Profile', '/FeeDiscountAttributionReview/Index', '/Fee
         .map(name => '/' + name + '/Index')];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 141, en: 141, bn: 141 });
+    assert.deepEqual(coverage(), { routes: 153, en: 153, bn: 153 });
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');

@@ -11,20 +11,6 @@
         <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/AdaptiveGoals">@(bn ? "শিক্ষার্থীর লক্ষ্য" : "Adaptive goals")</a>
         @if (admin) { <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/CpdReview">@(bn ? "সনদ যাচাই" : "CPD review")</a> }
         <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/Public">@(bn ? "উন্মুক্ত শিক্ষাসামগ্রীর তালিকা" : "Public teaching materials")</a>
-        <details class="position-relative">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পৃষ্ঠা সহায়তা" : "Page help")">ⓘ</summary>
-            <div class="card card-body shadow-sm position-absolute end-0" style="width:min(22rem,85vw);z-index:10">
-                <h3 class="h6">@(bn ? "ব্যবহার নির্দেশিকা" : "Page manual")</h3>
-                <ol class="small mb-2">
-                    <li>@(bn ? "নিজের ক্যাম্পাস ও রিসোর্সের বিবরণ বেছে ফাইল আপলোড করুন।" : "Choose your assigned campus, material details and upload a file.")</li>
-                    <li>@(bn ? "Draft যাচাই করে Submit করুন।" : "Verify the draft and submit it for moderation.")</li>
-                    <li>@(bn ? "প্রশাসক ফাইল পরীক্ষা করে অনুমোদন বা প্রত্যাখ্যান করবেন।" : "An administrator must inspect the file before approving or rejecting.")</li>
-                    <li>@(bn ? "নতুন সংস্করণ দিলে পুরোনো অনুমোদিত ফাইলটি নতুন অনুমোদন পর্যন্ত প্রকাশিত থাকবে।" : "A revised version leaves the prior approved version available until the revision is approved.")</li>
-                </ol>
-                <p class="small mb-1">@(bn ? "Public হলে শুধু Creative Commons/Public Domain অনুমোদিত HTTPS উৎস-লিংক অন্য প্রতিষ্ঠানের শিক্ষক দেখতে পারবেন; private file কখনো প্রকাশিত হবে না।" : "Public scope shares only an approved Creative Commons/Public Domain HTTPS source link across institutions, never the private uploaded file.")</p>
-                <a href="/AcademicInstruction/Index" class="small">@(bn ? "পাঠ পরিকল্পনায় যান" : "Open lesson plans")</a>
-            </div>
-        </details>
     </header>
     <div id="studioAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     <form id="studioFilter" class="card card-body mb-3">

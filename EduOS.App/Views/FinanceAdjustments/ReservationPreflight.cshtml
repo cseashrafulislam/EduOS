@@ -1,17 +1,18 @@
 @{
-    ViewData["Title"] = "Reservation Finance Preflight";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "রিজার্ভেশনের আর্থিক পূর্বযাচাই" : "Reservation Finance Preflight";
 }
 <section class="container-fluid py-3" id="reservationFinanceRoot">
     <header class="mb-3">
-        <h2>Hostel / Transport finance preflight</h2>
-        <p class="text-muted">Read-only institutional Finance review for reservation start-date, fixed-term, renewal, extension and occupied-transfer requests. This screen never approves or posts a monetary adjustment.</p>
-        <a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary btn-sm">Back to Finance Adjustments</a>
+        <h2>@(bn ? "হোস্টেল / পরিবহন আর্থিক পূর্বযাচাই" : "Hostel / Transport finance preflight")</h2>
+        <p class="text-muted">@(bn ? "রিজার্ভেশনের শুরুর তারিখ, নির্দিষ্ট মেয়াদ, নবায়ন, মেয়াদ বৃদ্ধি ও দখলকৃত স্থানান্তরের জন্য শুধু-পাঠযোগ্য ফাইন্যান্স যাচাই। এখানে কোনো অর্থ সমন্বয় অনুমোদন বা পোস্ট করা হয় না।" : "Read-only institutional Finance review for reservation start-date, fixed-term, renewal, extension and occupied-transfer requests. This screen never approves or posts a monetary adjustment.")</p>
+        <a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary btn-sm">@(bn ? "আর্থিক সমন্বয়ে ফিরুন" : "Back to Finance Adjustments")</a>
     </header>
-    <div class="alert alert-warning">This screen can estimate automatic proration or a permitted manual override; it never changes rent, deposit, invoices, payments or journals. Charged reservation amendments still require an approved Finance adjustment before Operations can save them.</div>
+    <div class="alert alert-warning">@(bn ? "এখানে স্বয়ংক্রিয় আনুপাতিক হিসাব বা অনুমোদিত হাতে সংশোধনের প্রাক্কলন দেখা যায়; ভাড়া, আমানত, ইনভয়েস, পেমেন্ট বা জার্নাল বদলায় না। অর্থসম্পর্কিত রিজার্ভেশন সংশোধন সংরক্ষণের আগে অনুমোদিত ফাইন্যান্স সমন্বয় প্রয়োজন।" : "This screen can estimate automatic proration or a permitted manual override; it never changes rent, deposit, invoices, payments or journals. Charged reservation amendments still require an approved Finance adjustment before Operations can save them.")</div>
     <section class="card mb-3" aria-label="Reservation Finance review queue">
         <div class="card-body">
-            <h3 class="h5">Reservation Finance review queue</h3>
-            <p class="small text-muted">Find canonical Hostel or Transport reservations needing Finance review before start-date, fixed-term, renewal or transfer changes. Campus is from enrollment; Inspect preflight checks resource linkage. No row grants approval.</p>
+            <h3 class="h5">@(bn ? "রিজার্ভেশনের আর্থিক যাচাই তালিকা" : "Reservation Finance review queue")</h3>
+            <p class="small text-muted">@(bn ? "শুরুর তারিখ, মেয়াদ, নবায়ন বা স্থানান্তর বদলানোর আগে ফাইন্যান্স যাচাই দরকার এমন হোস্টেল/পরিবহন রিজার্ভেশন খুঁজুন। ক্যাম্পাস নিবন্ধন থেকে আসে; পূর্বযাচাইয়ে মূল সম্পদের সংযোগ দেখা হয়। কোনো সারি নিজে অনুমোদন দেয় না।" : "Find canonical Hostel or Transport reservations needing Finance review before start-date, fixed-term, renewal or transfer changes. Campus is from enrollment; Inspect preflight checks resource linkage. No row grants approval.")</p>
             <form id="reservationFinanceWorklistForm" class="row g-2 align-items-end mb-3">
                 <div class="col-md-2"><label class="form-label" for="reservationFinanceWorklistKind">Module</label><select id="reservationFinanceWorklistKind" class="form-select"><option value="hostel">Hostel</option><option value="transport">Transport</option></select></div>
                 <div class="col-md-2"><label class="form-label" for="reservationFinanceWorklistCampus">Campus ID (optional)</label><input id="reservationFinanceWorklistCampus" type="number" min="1" step="1" class="form-control" /></div>
