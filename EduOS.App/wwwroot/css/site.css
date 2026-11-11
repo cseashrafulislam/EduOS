@@ -3812,6 +3812,25 @@ select,
 /* Focused task routes server-render only their own relevant panels and
    load their own JavaScript bundles. Legacy /Index renders every panel. */
 /* Shared responsive forms and focus cues for the large operational workspaces. */
+.edu-native-validation {
+    display: block; flex-basis: 100%; width: 100%; margin-top: .25rem;
+    color: var(--bs-form-invalid-color, #b42318); font-size: .78rem;
+    font-weight: 600; line-height: 1.4; overflow-wrap: anywhere;
+}
+.page-body :is(.form-control,.form-select),
+.public-main :is(.form-control,.form-select) { min-width: 0; max-width: 100%; }
+.page-body :is(.form-control,.form-select)[aria-invalid="true"],
+.public-main :is(.form-control,.form-select)[aria-invalid="true"] {
+    border-color: var(--bs-form-invalid-border-color, #dc3545);
+}
+@media (max-width: 575.98px) {
+    .page-body form > :is(.d-flex,.btn-group),
+    .public-main form > :is(.d-flex,.btn-group) { flex-wrap: wrap; gap: .5rem; }
+    .page-body :is(.card,.card-body,.modal-body,.edu-surface),
+    .public-main :is(.card,.card-body,.modal-body,.edu-surface) { min-width: 0; }
+    .page-body form .row > [class*="col-"],
+    .public-main form .row > [class*="col-"] { min-width: 0; }
+}
 #hostelWorkspace :is(.row, .d-flex) > :is(.btn, button),
 #transportWorkspace :is(.row, .d-flex) > :is(.btn, button) { min-height: 40px; }
 #hostelWorkspace :is(button, a, input, select, textarea):focus-visible,

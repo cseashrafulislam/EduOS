@@ -1,0 +1,29 @@
+name: UX-03 Shared Responsive Form Chromium Gate
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/wwwroot/js/platform/native-form-validation.js'
+      - 'EduOS.App/wwwroot/css/site.css'
+      - 'EduOS.App/Views/Shared/_Layout.cshtml'
+      - 'EduOS.App/Views/Shared/_PublicLayout.cshtml'
+      - 'tests/browser/ux03-shared-form-coverage.cjs'
+      - '.github/workflows/ux03-shared-form-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shared-responsive-form:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser runner
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise all shared phone/tablet/desktop locale/persona fixtures
+        run: node tests/browser/ux03-shared-form-coverage.cjs
