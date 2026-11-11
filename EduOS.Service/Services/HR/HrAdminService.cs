@@ -937,7 +937,7 @@ public sealed class HrAdminService : IHrAdminService
         Func<CancellationToken, Task<ApiResponse<T>>> callback, CancellationToken ct)
     {
         try { return await _uow.ExecuteInTransactionAsync(callback, System.Data.IsolationLevel.Serializable, ct); }
-        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        catch (Exception ex) when (IsCampusSqlLockConflict(ex))
         {
             _logger.LogWarning(ex, "Campus assignment lock contention tenant {TenantId}", _user.TenantId);
             return Error<T>("Concurrent campus assignment; retry with the same request ID.", 409);
@@ -949,6 +949,14 @@ public sealed class HrAdminService : IHrAdminService
             _logger.LogWarning(ex, "Campus assignment conflict tenant {TenantId}", _user.TenantId);
             return Error<T>("Conflicting campus assignment; reload before retrying.", 409);
         }
+    }
+
+    private static bool IsCampusSqlLockConflict(Exception error)
+    {
+        for (Exception? current = error; current != null; current = current.InnerException)
+            if (current is Microsoft.Data.SqlClient.SqlException sql && sql.Number is 1205 or 1222)
+                return true;
+        return false;
     }
 
     private async Task<ApiResponse<T>> WriteShiftAsync<T>(
