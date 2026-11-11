@@ -13,12 +13,13 @@ const filters=()=>{
  const term=search.value.trim();if(term)q.set('search',term);return q.toString();
 };
 function invalidate(){
- sequence++;loadedFilter=null;exportButton.disabled=true;
+ sequence++;page=1;pages=1;loadedFilter=null;exportButton.disabled=true;
+ previous.disabled=true;next.disabled=true;rows.replaceChildren();el('transportDriverCompliancePage').textContent='';
  status.textContent='Filters changed; apply to refresh the report.';
 }
 const cell=value=>{const td=document.createElement('td');td.textContent=value==null?'—':String(value);return td;};
 async function load(){
- loadedFilter=null;exportButton.disabled=true;
+ loadedFilter=null;exportButton.disabled=true;previous.disabled=true;next.disabled=true;rows.replaceChildren();
  const request=++sequence,snapshot=filters(),q=new URLSearchParams(snapshot);
  q.set('page',String(page));q.set('pageSize','15');
  status.textContent='Loading license compliance…';
@@ -27,7 +28,10 @@ async function load(){
   const body=await response.json().catch(()=>null);
   if(!response.ok||!body?.success||!body.data)throw Error(body?.message||'Compliance report unavailable.');
   if(request!==sequence||snapshot!==filters())return;
-  const data=body.data;rows.replaceChildren();
+  const data=body.data;
+  const totalPages=Math.max(1,Number(data.totalPages)||1);
+  if(page>totalPages){page=totalPages;return load();}
+  rows.replaceChildren();
   for(const item of data.items||[]){
    const tr=document.createElement('tr');
    [item.driverName,item.licenseExpiresOn,item.daysUntilExpiry,item.complianceState,
@@ -40,12 +44,13 @@ async function load(){
   previous.disabled=page<=1;next.disabled=page>=pages;
   loadedFilter=snapshot;exportButton.disabled=!data.items?.length;
   status.textContent='Current license compliance; refresh before taking action.';
- }catch(error){if(request===sequence){rows.replaceChildren();status.textContent=error.message;previous.disabled=true;next.disabled=true;}}
+ }catch(error){if(request===sequence){loadedFilter=null;rows.replaceChildren();el('transportDriverCompliancePage').textContent='';status.textContent=error.message;previous.disabled=true;next.disabled=true;exportButton.disabled=true;}}
 }
 el('transportDriverComplianceFilters').addEventListener('submit',event=>{event.preventDefault();page=1;load();});
 search.addEventListener('input',invalidate);
 state.addEventListener('change',invalidate);
 days.addEventListener('change',invalidate);
+window.addEventListener('transport:drivers-changed',invalidate);
 previous.addEventListener('click',()=>{page=Math.max(1,page-1);load();});
 next.addEventListener('click',()=>{page=Math.min(pages,page+1);load();});
 exportButton.addEventListener('click',async()=>{
