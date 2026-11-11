@@ -75,6 +75,9 @@
         const button = el('runningBatchSearchButton');
         button.disabled = true;
         selectMenu('runningBatch', [], say('Loading sections...', 'শাখা লোড হচ্ছে...'));
+        // A late response from the previous batch must not repopulate the
+        // curriculum after the batch search has reset its dependent selector.
+        ++state.curriculumSeq;
         state.curricula = [];
         selectMenu('runningCurriculum', [], say('Choose a section first', 'আগে শাখা নির্বাচন করুন'));
         try {
@@ -99,6 +102,7 @@
         state.curricula = [];
         selectMenu('runningCurriculum', [], say('Select applicable curriculum', 'প্রযোজ্য পাঠ্যক্রম'));
         const batch = currentBatch(), date = value('runningEnrollDate');
+        el('runningCurriculum').disabled = true;
         if (!batch || !date || !sameSession()) return;
         el('runningCurriculumHelp').textContent = say('Checking curriculum...', 'পাঠ্যক্রম যাচাই চলছে...');
         try {
@@ -106,6 +110,7 @@
                 '/curricula?enrollmentDate=' + encodeURIComponent(date));
             if (seq !== state.curriculumSeq || !sameSession()) return;
             state.curricula = Array.isArray(rows) ? rows : [];
+            el('runningCurriculum').disabled = !state.curricula.length;
             selectMenu('runningCurriculum', state.curricula,
                 say('Select applicable curriculum', 'প্রযোজ্য পাঠ্যক্রম'));
             // Most schools have one applicable curriculum. Auto-select only when unambiguous.
@@ -157,6 +162,10 @@
         if (state.saving || !sameSession()) return;
         clearMessage();
         if (chooseInvalidTab()) return;
+        // Do not submit while the selected batch's curriculum is still loading
+        // or when an old selection survived a dependent-field refresh.
+        if (el('runningBatchSearchButton').disabled || el('runningCurriculum').disabled)
+            return alertMessage(say('Wait for academic options to load.', 'শিক্ষাক্রম লোড হওয়া পর্যন্ত অপেক্ষা করুন।'), true);
         const batch = currentBatch(), curriculum = currentCurriculum();
         if (!batch || !curriculum || batch.capacity <= 0)
             return alertMessage(say('Select an available section with an eligible curriculum.',

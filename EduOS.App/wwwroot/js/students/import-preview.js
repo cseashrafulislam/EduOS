@@ -129,24 +129,35 @@
             data.append('file', selectedFile());
             const headers = await send('/api/student-imports/headers', data);
             const templateHeaders = fields.map(field => field.dataset.importField);
+            // Reject ambiguous spreadsheet headings before mapping any student fields.
+            // Distinct original labels with equal case/spacing are not distinct columns.
+            if (!Array.isArray(headers) || headers.some(h => typeof h !== 'string' || !h.trim()) ||
+                new Set(headers.map(h => h.trim().toLocaleLowerCase())).size !== headers.length)
+                throw new Error('Duplicate or blank column headings. Rename the spreadsheet headers before import.');
             const isTemplate = headers.length === templateHeaders.length &&
-                headers.every((header, index) => header.toLowerCase() === templateHeaders[index].toLowerCase());
+                headers.every((header, index) => header.trim().toLowerCase() === templateHeaders[index].toLowerCase());
             for (const select of fields) {
                 select.replaceChildren();
                 const optional = !required.has(select.dataset.importField);
                 if (optional) select.add(new Option('Not mapped', ''));
                 for (const header of headers) select.add(new Option(header, header));
-                const match = headers.find(h => h.toLowerCase() === select.dataset.importField.toLowerCase());
-                select.value = match || (optional ? '' : headers[0]);
+                const match = headers.find(h => h.trim().toLowerCase() === select.dataset.importField.toLowerCase());
+                // Never guess the first spreadsheet column for required identity, campus or
+                // enrollment fields: a wrong guess can create valid-looking corrupt students.
+                select.value = match || '';
             }
             mapping.classList.remove('d-none');
             results.classList.add('d-none');
             if (advancedMapping) advancedMapping.open = !isTemplate;
             await refreshResume();
-            message(isTemplate
-                ? 'Excel template recognized. Column mapping is ready; run dry-run validation.'
-                : 'Headers differ from the official template. Use the download above, or review legacy mapping under Advanced.',
-                !isTemplate);
+            const missing = fields.filter(x => required.has(x.dataset.importField) && !x.value)
+                .map(x => x.dataset.importField);
+            message(missing.length
+                ? 'Required columns need explicit mapping: ' + missing.join(', ') + '. Review Advanced mapping before dry-run.'
+                : isTemplate
+                    ? 'Excel template recognized. Column mapping is ready; run dry-run validation.'
+                    : 'Headers differ from the official template. Review every mapped field before dry-run.',
+                missing.length > 0);
         } catch (error) { message(error.message, true); }
         finally { busy = false; inspect.disabled = false; }
     });
@@ -155,7 +166,8 @@
         for (const select of fields) {
             if (select.value) chosen[select.dataset.importField] = select.value;
             else if (required.has(select.dataset.importField))
-                throw new Error('Required mapping missing: ' + select.dataset.importField);
+                throw new Error('Required mapping missing: ' + select.dataset.importField +
+                    '. Choose the matching spreadsheet column explicitly.');
         }
         if (new Set(Object.values(chosen)).size !== Object.keys(chosen).length)
             throw new Error('Each field must use a different source column.');
