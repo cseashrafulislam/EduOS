@@ -163,6 +163,7 @@
                 const target = hit.entry.node;
                 const previous = String(target.value || '');
                 pending = target;
+                const requestedSnapshot = requested;
                 message(t(`Preview only: ${hit.entry.labels[0]} = "${proposed.value}". No field has changed.`,
                     `শুধু প্রিভিউ: ${hit.entry.labels[0]} = "${proposed.value}"। কোনো ঘর বদলায়নি।`));
                 if (!formDraft.safeTarget(target)) {
@@ -177,8 +178,8 @@
                     return;
                 }
                 action(t('Confirm field draft', 'খসড়া নিশ্চিত করুন'), () => {
-                    if (!currentContext() || pending !== target || !target.isConnected ||
-                        !isAvailableField(target) || !formDraft.safeTarget(target) ||
+                    if (!currentContext() || pending !== target || query.value.trim() !== requestedSnapshot ||
+                        !target.isConnected || !isAvailableField(target) || !formDraft.safeTarget(target) ||
                         String(target.value || '') !== previous) {
                         reset(); message(t('Field/session changed. Start again.', 'ঘর বা সেশন বদলেছে। আবার শুরু করুন।')); return;
                     }

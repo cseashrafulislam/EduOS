@@ -26,6 +26,15 @@
         const title = field.getAttribute?.('title');
         if (aria) labels.push(aria);
         if (title) labels.push(title);
+        // aria-labelledby is a security boundary as well as an accessibility
+        // label: a generic HTML name must not disguise a protected control.
+        const ids = String(field.getAttribute?.('aria-labelledby') || '').trim().split(/\s+/u).slice(0, 8);
+        const doc = field.ownerDocument;
+        for (const id of ids) {
+            if (!id || !doc?.getElementById) continue;
+            const node = doc.getElementById(id);
+            if (node?.textContent) labels.push(node.textContent);
+        }
         return labels.join(' ');
     }
     function safeTarget(field) {
@@ -40,6 +49,14 @@
             field.dataset?.assistantLabel, field.getAttribute?.('placeholder')].join(' ');
         if (unsafe.test(metadata) || unsafeBn.test(metadata)) return false;
         if (field.closest?.('[data-assistant-sensitive="true"]')) return false;
+        // Do not draft into rich editors, linked widgets or custom components.
+        // These have their own canonical validation/dependency workflows.
+        if (field.isContentEditable || field.getAttribute?.('contenteditable') === 'true' ||
+            field.getAttribute?.('role') === 'combobox' ||
+            field.getAttribute?.('aria-controls') ||
+            field.getAttribute?.('aria-owns') ||
+            field.getAttribute?.('data-select2-id') ||
+            field.closest?.('.select2-container, [data-assistant-dependent="true"]')) return false;
         return true;
     }
     function apply(field, value, hostWindow, options) {
@@ -62,9 +79,15 @@
             if (!restoringEmpty && field.minLength > 0 && value.length < field.minLength) return false;
             if (original === value) return true;
         }
-        field.value = value;
+        // A native setter notifies React-like controlled input trackers without
+        // directly invoking form submit/change or any domain write endpoint.
+        const proto = field.tagName?.toLowerCase() === 'textarea'
+            ? hostWindow?.HTMLTextAreaElement?.prototype : hostWindow?.HTMLInputElement?.prototype;
+        const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (typeof setter === 'function') setter.call(field, value);
+        else field.value = value;
         field.dispatchEvent(new hostWindow.Event('input', { bubbles: true }));
-        return true;
+        return field.value === value;
     }
     return { parseCommand, safeTarget, apply };
 });

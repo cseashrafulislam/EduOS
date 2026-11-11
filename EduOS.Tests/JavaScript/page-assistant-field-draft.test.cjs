@@ -99,3 +99,41 @@ test('explicit undo restores empty optional field with minlength/pattern without
     const assistantSource = fs.readFileSync(path.resolve(__dirname, '../../EduOS.App/wwwroot/js/platform/page-assistant.js'), 'utf8');
     assert.match(assistantSource, /restoreEmpty: previous === ''/);
 });
+
+test('aria-labelledby and custom dependent widgets cannot disguise protected fields', () => {
+    const protectedLabel = { textContent: 'বেতন / Salary' };
+    const doc = { getElementById: id => id === 'salary-label' ? protectedLabel : null };
+    const target = field({
+        name: 'PublicNote', ownerDocument: doc,
+        getAttribute: name => name === 'aria-labelledby' ? 'salary-label' : null
+    });
+    assert.equal(fieldDraft.safeTarget(target), false);
+    for (const changes of [
+        { getAttribute: name => name === 'role' ? 'combobox' : null },
+        { getAttribute: name => name === 'aria-controls' ? 'dependency-list' : null },
+        { getAttribute: name => name === 'data-select2-id' ? '42' : null },
+        { isContentEditable: true },
+        { closest: selector => selector.includes('data-assistant-dependent') ? {} : null }
+    ]) assert.equal(fieldDraft.safeTarget(field(changes)), false);
+});
+
+test('native input setter supports controlled fields and emits only input, not change or submit', () => {
+    const target = field();
+    const calls = [];
+    const host = {
+        Event: eventHost.Event,
+        HTMLInputElement: class {
+            set value(v) { calls.push(v); target.value = v; }
+        }
+    };
+    assert.equal(fieldDraft.apply(target, 'Class note', host), true);
+    assert.deepEqual(calls, ['Class note']);
+    assert.deepEqual(target.events.map(x => x.type), ['input']);
+});
+
+test('pending confirmation rejects changed transcript and does not trigger business writes', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../EduOS.App/wwwroot/js/platform/page-assistant.js'), 'utf8');
+    assert.match(source, /const requestedSnapshot = requested/);
+    assert.match(source, /query\.value\.trim\(\) !== requestedSnapshot/);
+    assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(|fetch\s*\(/);
+});
