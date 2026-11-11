@@ -151,6 +151,56 @@
             reset();
             if (!currentContext()) { message(t('Your session changed. Reload the page.', 'সেশন পরিবর্তিত হয়েছে। পেজটি রিফ্রেশ করুন।')); return; }
             const requested = query.value.trim();
+            const formDraft = hostWindow.EduOSFieldDraft;
+            const proposed = formDraft?.parseCommand(requested);
+            if (proposed) {
+                const visible = fieldsOnPage(doc);
+                const hit = matchLabel(visible, proposed.label);
+                if (hit.kind !== 'match') {
+                    message(t('Enter one exact visible field label for a draft.', 'খসড়ার জন্য একটি নির্দিষ্ট দৃশ্যমান ঘরের নাম দিন।'));
+                    return;
+                }
+                const target = hit.entry.node;
+                const previous = String(target.value || '');
+                pending = target;
+                message(t(`Preview only: ${hit.entry.labels[0]} = "${proposed.value}". No field has changed.`,
+                    `শুধু প্রিভিউ: ${hit.entry.labels[0]} = "${proposed.value}"। কোনো ঘর বদলায়নি।`));
+                if (!formDraft.safeTarget(target)) {
+                    message(t('This field does not permit assistant prefill. Copy the text manually after review.',
+                        'এই ঘরে সহকারী দিয়ে লেখা বসানো অনুমোদিত নয়। যাচাই করে নিজে লিখুন।'));
+                    action(t('Focus field', 'ঘরে যান'), () => {
+                        if (!currentContext() || pending !== target || !target.isConnected || !isAvailableField(target)) {
+                            reset(); message(t('Field/session changed.', 'ঘর বা সেশন বদলেছে।')); return;
+                        }
+                        dialog.close(); target.scrollIntoView({ behavior: 'smooth', block: 'center' }); target.focus();
+                    });
+                    return;
+                }
+                action(t('Confirm field draft', 'খসড়া নিশ্চিত করুন'), () => {
+                    if (!currentContext() || pending !== target || !target.isConnected ||
+                        !isAvailableField(target) || !formDraft.safeTarget(target) ||
+                        String(target.value || '') !== previous) {
+                        reset(); message(t('Field/session changed. Start again.', 'ঘর বা সেশন বদলেছে। আবার শুরু করুন।')); return;
+                    }
+                    if (!formDraft.apply(target, proposed.value, hostWindow)) {
+                        reset(); message(t('Field validation rejected the draft.', 'ঘরের যাচাইয়ে খসড়া বাতিল হয়েছে।')); return;
+                    }
+                    reset();
+                    message(t('Draft entered, not submitted. Review the form before saving.',
+                        'খসড়া বসেছে, জমা হয়নি। সংরক্ষণের আগে ফর্ম যাচাই করুন।'));
+                    action(t('Undo field draft', 'খসড়া ফেরত নিন'), () => {
+                        if (!currentContext() || !target.isConnected || !isAvailableField(target) ||
+                            !formDraft.safeTarget(target) || String(target.value || '') !== proposed.value) {
+                            reset(); message(t('Undo unavailable after a field/session change.', 'ঘর বা সেশন বদলেছে; ফেরানো যাচ্ছে না।')); return;
+                        }
+                        // Empty previous values are valid on undo; no business submit occurs.
+                        const restored = formDraft.apply(target, previous, hostWindow);
+                        reset(); message(restored ? t('Previous text restored.', 'আগের লেখা ফিরেছে।')
+                            : t('Could not restore. Review the field manually.', 'ফেরানো যায়নি। নিজে ঘর যাচাই করুন।'));
+                    });
+                });
+                return;
+            }
             const filters = hostWindow.EduOSFilterDraft;
             const draft = filters?.parseCommand(requested);
             if (draft) {
