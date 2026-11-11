@@ -6,6 +6,7 @@
     const assignments = new Map(), vehicles = new Map();
     let riderPage = 1, page = 1, pages = 1, policyVersion = null;
     let selected = null, review = null, lastPayload = null, lastKey = null, busy = false;
+    const submittingForms = new WeakSet();
     const today = () => { const d = new Date(); return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-'); };
     const num = id => { const s = el(id).value.trim(); return s ? Number(s) : null; };
     const signed = id => { const s = el(id).value.trim();
@@ -248,10 +249,19 @@
             review = null; el('tfReviewForm').classList.add('d-none'); await listClearances();
         } finally { busy = false; }
     }
-    function run(work) { Promise.resolve().then(work).catch(error => notice(error.message)); }
+    function run(work, form) {
+        if (form && submittingForms.has(form)) return;
+        if (form) submittingForms.add(form);
+        const submit = form?.querySelector('[type="submit"]');
+        if (submit) submit.disabled = true;
+        Promise.resolve().then(work).catch(error => notice(error.message)).finally(() => {
+            if (submit) submit.disabled = false;
+            if (form) submittingForms.delete(form);
+        });
+    }
     el('tfEffective').value = today();
     el('tfPolicyLoad').addEventListener('click', () => run(loadPolicy));
-    el('tfPolicyForm').addEventListener('submit', e => { e.preventDefault(); run(savePolicy); });
+    el('tfPolicyForm').addEventListener('submit', e => { e.preventDefault(); run(savePolicy, e.currentTarget); });
     el('tfLoadRiders').addEventListener('click', () => run(loadRiders));
     el('tfSource').addEventListener('change', () => run(chooseRider));
     el('tfOperation').addEventListener('change', () => run(loadVehicles));
@@ -264,11 +274,11 @@
     el('tfReviewNet').addEventListener('input', toggleAutoInvoice);
     el('tfLoadCreditOptions').addEventListener('click', () => run(loadCreditOptions));
     el('tfEffective').addEventListener('change', () => run(loadVehicles));
-    el('tfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(requestClearance); });
+    el('tfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(requestClearance, e.currentTarget); });
     el('tfRefresh').addEventListener('click', () => run(listClearances));
     el('tfPrevious').addEventListener('click', () => run(() => { if (page > 1) { page--; return listClearances(); } }));
     el('tfNext').addEventListener('click', () => run(() => { if (page < pages) { page++; return listClearances(); } }));
-    el('tfReviewForm').addEventListener('submit', e => { e.preventDefault(); run(() => decide(true)); });
+    el('tfReviewForm').addEventListener('submit', e => { e.preventDefault(); run(() => decide(true), e.currentTarget); });
     el('tfAutoInvoice').addEventListener('change', toggleAutoInvoice);
     el('tfReject').addEventListener('click', () => run(() => decide(false)));
     el('tfReviewCancel').addEventListener('click', () => { review = null; el('tfReviewForm').classList.add('d-none'); });

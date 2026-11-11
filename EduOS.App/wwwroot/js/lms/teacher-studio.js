@@ -161,8 +161,10 @@
         if (el('studioFormTitle')) el('studioFormTitle').textContent =
             tr('Create teacher resource', 'নতুন শিক্ষাসামগ্রী');
     }
+    let saving = false;
     async function save(event) {
         event.preventDefault();
+        if (saving) return;
         if (!author || !optionsReady || !session()) return;
         const file = el('studioFile').files[0];
         if (!file || file.size < 1 || file.size > 10485760) {
@@ -185,6 +187,7 @@
             data.append('SupersedesRowVersion', replacing.rowVersion);
         }
         data.append('file', file, file.name);
+        saving = true;
         const button = el('studioSave'); button.disabled = true;
         try {
             await api('/api/lms/teacher-resources', 'POST', data);
@@ -192,7 +195,7 @@
             notice(tr('Draft saved. Submit it from the list.', 'Draft সংরক্ষিত। তালিকা থেকে জমা দিন।'), true);
             el('studioUpload').reset(); clearRevision(); await load();
         } catch (e) { notice(e.message); }
-        finally { button.disabled = !optionsReady || !session(); }
+        finally { saving = false; button.disabled = !optionsReady || !session(); }
     }
     el('studioFilter').addEventListener('submit', event => {
         event.preventDefault(); page = 1; load().catch(e => notice(e.message));

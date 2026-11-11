@@ -5,6 +5,7 @@ const el=id=>document.getElementById('adjust'+id),base='/api/finance/adjustments
 const activeFeature=document.getElementById('adjustRoot').dataset.activeFeature||'all';
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 let discounts=[],fines=[];
+const submittingForms=new WeakSet();
 // Preserve an idempotency key while a failed/uncertain request is retried with identical inputs.
 const requestFingerprints=new Map();
 function stableRequestId(operation,payload){
@@ -128,8 +129,10 @@ async function refreshRegister(){
  }
 }
 async function run(form,action){
+ if(form&&submittingForms.has(form))return;
+ if(form)submittingForms.add(form);
  const submit=form?.querySelector('[type="submit"]');if(submit)submit.disabled=true;
- try{await action();notice('Operation saved successfully.',true);}catch(error){notice(error.message);}finally{if(submit)submit.disabled=false;}
+ try{await action();notice('Operation saved successfully.',true);}catch(error){notice(error.message);}finally{if(submit)submit.disabled=false;if(form)submittingForms.delete(form);}
 }
 el('DrNew').addEventListener('click',newDiscount);
 el('FrNew').addEventListener('click',newFine);

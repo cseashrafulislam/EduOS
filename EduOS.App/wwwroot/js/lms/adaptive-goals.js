@@ -2,7 +2,7 @@
 const $=id=>document.getElementById(id),bn=root.dataset.lang==='bn',el=(tag,value)=>{const n=document.createElement(tag);if(value!==undefined)n.textContent=String(value);return n;};
 const identity=[document.body?.dataset.authTenantId||'',document.body?.dataset.authSessionReference||''];
 const safe=()=>identity[0]===(document.body?.dataset.authTenantId||'')&&identity[1]===(document.body?.dataset.authSessionReference||'')&&!window.EduOSSessionTransitionPending?.();
-let skills=[],goals=[],epoch=0,coursePage=0,rosterPage=0;
+let skills=[],goals=[],epoch=0,coursePage=0,rosterPage=0,saving=false;
 function alert(kind,message){const n=$('goalAlert');n.className='alert alert-'+kind;n.textContent=message;n.focus();}
 async function api(url,method='GET',data){if(!safe())throw Error('Session changed. Reload.');const headers={Accept:'application/json'};
  if(method!=='GET'){const token=document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -42,15 +42,15 @@ async function courseChanged(){const ref=$('goalCourse').value,k=++epoch;skills=
 async function studentChanged(){const course=$('goalCourse').value,student=$('goalStudent').value,k=epoch;goals=[];render();if(!course||!student)return;
  try{const data=await api('/api/lms/adaptive/teacher/course/'+encodeURIComponent(course)+'/goals/'+encodeURIComponent(student));
   if(k!==epoch||student!==$('goalStudent').value)return;goals=data||[];render();fill();}catch(e){if(k===epoch)alert('danger',e.message);}}
-async function save(event){event.preventDefault();if(!event.currentTarget.reportValidity())return;
+async function save(event){event.preventDefault();if(saving||!event.currentTarget.reportValidity())return;
  const mapped=skills.find(x=>x.key===$('goalSkill').value);if(!mapped)return alert('warning','Choose a mapped skill.');
  const k=epoch;
  const request={courseReference:$('goalCourse').value,studentReference:$('goalStudent').value,
   courseSectionId:mapped.courseSectionId,skillCode:mapped.skillCode,targetPercent:Number($('goalPercent').value),
   teacherNote:$('goalNote').value.trim()||null,rowVersion:current()?.rowVersion||null};
- $('goalSave').disabled=true;try{await api('/api/lms/adaptive/teacher/goals','PUT',request);
+ saving=true;$('goalSave').disabled=true;try{await api('/api/lms/adaptive/teacher/goals','PUT',request);
   if(k!==epoch||request.studentReference!==$('goalStudent').value)return;
-  alert('success',bn?'লক্ষ্য সংরক্ষিত হয়েছে।':'Goal saved.');await studentChanged();}catch(e){alert('danger',e.message);}finally{$('goalSave').disabled=false;}}
+  alert('success',bn?'লক্ষ্য সংরক্ষিত হয়েছে।':'Goal saved.');await studentChanged();}catch(e){alert('danger',e.message);}finally{saving=false;$('goalSave').disabled=false;}}
 $('goalCourse').onchange=courseChanged;$('goalStudent').onchange=studentChanged;$('goalSkill').onchange=fill;$('goalForm').onsubmit=save;
 $('goalMoreCourses').onclick=moreCourses;$('goalMoreStudents').onclick=moreStudents;
 window.addEventListener('pagehide',()=>{epoch++;skills=[];goals=[];render();});

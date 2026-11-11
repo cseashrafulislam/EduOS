@@ -7,6 +7,7 @@
     let stayPage = 1, clearancePage = 1, clearancePages = 1, policyVersion = null;
     let selected = null, review = null, lastPayload = null, lastRequestId = null;
     let working = false;
+    const submittingForms = new WeakSet();
     const today = () => {
         const d = new Date();
         return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'),
@@ -267,10 +268,19 @@
             review = null; el('hfReviewForm').classList.add('d-none'); await loadClearances();
         } finally { working = false; }
     }
-    function run(task) { Promise.resolve().then(task).catch(error => notice(error.message)); }
+    function run(task, form) {
+        if (form && submittingForms.has(form)) return;
+        if (form) submittingForms.add(form);
+        const submit = form?.querySelector('[type="submit"]');
+        if (submit) submit.disabled = true;
+        Promise.resolve().then(task).catch(error => notice(error.message)).finally(() => {
+            if (submit) submit.disabled = false;
+            if (form) submittingForms.delete(form);
+        });
+    }
     el('hfEffective').value = today();
     el('hfPolicyLoad').addEventListener('click', () => run(loadPolicy));
-    el('hfPolicyForm').addEventListener('submit', e => { e.preventDefault(); run(() => savePolicy(e)); });
+    el('hfPolicyForm').addEventListener('submit', e => { e.preventDefault(); run(() => savePolicy(e), e.currentTarget); });
     el('hfLoadStays').addEventListener('click', () => run(loadStays));
     el('hfSource').addEventListener('change', () => run(chooseStay));
     el('hfOperation').addEventListener('change', () => run(updateTarget));
@@ -282,11 +292,11 @@
     });
     el('hfReviewNet').addEventListener('input', toggleAutoInvoice);
     el('hfLoadCreditOptions').addEventListener('click', () => run(loadCreditOptions));
-    el('hfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(() => requestClearance(e)); });
+    el('hfRequestForm').addEventListener('submit', e => { e.preventDefault(); run(() => requestClearance(e), e.currentTarget); });
     el('hfRefresh').addEventListener('click', () => run(loadClearances));
     el('hfPrevious').addEventListener('click', () => run(() => { if (clearancePage > 1) { clearancePage--; return loadClearances(); } }));
     el('hfNext').addEventListener('click', () => run(() => { if (clearancePage < clearancePages) { clearancePage++; return loadClearances(); } }));
-    el('hfReviewForm').addEventListener('submit', e => { e.preventDefault(); run(() => finishReview(true)); });
+    el('hfReviewForm').addEventListener('submit', e => { e.preventDefault(); run(() => finishReview(true), e.currentTarget); });
     el('hfAutoInvoice').addEventListener('change', toggleAutoInvoice);
     el('hfReject').addEventListener('click', () => run(() => finishReview(false)));
     el('hfReviewCancel').addEventListener('click', () => { review = null; el('hfReviewForm').classList.add('d-none'); });

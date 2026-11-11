@@ -2,6 +2,15 @@
 'use strict';
 const root=document.getElementById('learningApp');if(!root)return;
 const $=id=>document.getElementById(id),author=root.dataset.author==='true',student=root.dataset.student==='true',manager=root.dataset.manager==='true';
+function bindSubmitOnce(id, handler) {
+ let pending=false;
+ $(id).addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(pending)return;
+  pending=true;
+  try{await handler(event);}finally{pending=false;}
+ });
+}
 const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,lessonPage:1,lessonPages:1,assignmentPage:1,assignmentPages:1,reviewPage:1,reviewPages:1,reviewRows:[],reviewLoadId:0,reviewFileLoadId:0,reviewRubric:[],rubricLoadId:0,rubricVersion:'',rubricCriteria:[],studentRubricLoadId:0,authoringLocked:true,includeArchived:false,myProgressPage:1,myProgressPages:1,myProgressRows:[],myProgressLoadId:0,lessonProgress:new Map(),progressLoaded:false,instructorLoadId:0,instructorTimer:null,studentLoadId:0,studentTimer:null,enrollRequestId:null};
 const initialTenant=document.body?.dataset.authTenantId||'';
 const initialSession=document.body?.dataset.authSessionReference||'';
@@ -548,10 +557,10 @@ if(author){
  $('learningTeacherCpd').addEventListener('change',()=>{
   if($('learningTeacherCpd').checked){$('learningProgram').value='';$('learningSubject').value='';}
  });
- $('learningCourseForm').addEventListener('submit',saveCourse);$('learningEditCourse').addEventListener('click',editCourse);
+ bindSubmitOnce('learningCourseForm',saveCourse);$('learningEditCourse').addEventListener('click',editCourse);
  $('learningResetCourse').addEventListener('click',resetCourse);
- $('learningLessonForm').addEventListener('submit',saveLesson);$('learningResetLesson').addEventListener('click',resetLesson);
- $('learningAssignmentForm').addEventListener('submit',saveAssignment);$('learningResetAssignment').addEventListener('click',resetAssignment);
+ bindSubmitOnce('learningLessonForm',saveLesson);$('learningResetLesson').addEventListener('click',resetLesson);
+ bindSubmitOnce('learningAssignmentForm',saveAssignment);$('learningResetAssignment').addEventListener('click',resetAssignment);
  $('learningReviewAssignment').addEventListener('change',()=>{state.reviewPage=1;loadReviews();});
  $('learningReviewRefresh').addEventListener('click',()=>loadReviews());
  $('learningReviewExport').addEventListener('click',exportReviewPage);
@@ -576,7 +585,7 @@ if(manager){
   state.studentTimer=setTimeout(()=>searchStudents($('learningStudentSearch').value),250);
  });
  $('learningStudentChoice').addEventListener('change',()=>{state.enrollRequestId=null;});
- $('learningEnrollForm').addEventListener('submit',enrollStudent);
+ bindSubmitOnce('learningEnrollForm',enrollStudent);
 }
 new MutationObserver(()=>{if(!sessionValid())clearSensitive();})
  .observe(document.body,{attributes:true,attributeFilter:['data-auth-tenant-id','data-auth-session-reference']});
