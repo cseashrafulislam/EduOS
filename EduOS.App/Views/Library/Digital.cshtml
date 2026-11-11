@@ -14,7 +14,7 @@
                 </div>
             </details>
         </div>
-        <div class="d-flex gap-2"><a asp-controller="Library" asp-action="Study" class="btn btn-outline-primary">@(bn ? "বাংলাদেশ অধ্যয়ন সংগ্রহ" : "Bangladesh study collections")</a><a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">@(bn ? "বইয়ের তালিকা" : "Book catalog")</a></div>
+        <div class="d-flex gap-2"><a asp-controller="Library" asp-action="OfficialBooks" class="btn btn-outline-primary">@(bn ? "সরকারি বই ও সিলেবাস" : "Official textbooks & syllabi")</a><a asp-controller="Library" asp-action="Study" class="btn btn-outline-primary">@(bn ? "বাংলাদেশ অধ্যয়ন সংগ্রহ" : "Bangladesh study collections")</a><a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">@(bn ? "বইয়ের তালিকা" : "Book catalog")</a></div>
     </header>
     <div id="digitalAlert" class="d-none" role="alert" tabindex="-1"></div>
     @if (admin)

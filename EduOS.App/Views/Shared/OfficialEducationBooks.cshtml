@@ -1,0 +1,68 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    var library = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Library", StringComparison.OrdinalIgnoreCase);
+    ViewData["Title"] = bn ? "সরকারি পাঠ্যবই ও সিলেবাস" : "Official Textbooks & Syllabi";
+}
+<section id="officialEducationBooks" class="container-fluid py-3" aria-labelledby="officialEducationBooksHeading"
+         data-language="@(bn ? "bn-BD" : "en-BD")"
+         data-catalog-url="@Url.Content("~/data/official-education-sources-2026.json")">
+    <header class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h1 id="officialEducationBooksHeading" class="h4 fw-bold mb-1">@(bn ? "সরকারি পাঠ্যবই ও সিলেবাস" : "Official Textbooks & Syllabi")</h1>
+            <p class="text-muted mb-0">@(bn ? "NCTB পাঠ্যবই, শিক্ষক সহায়িকা ও NTRCA সিলেবাসের সরকারি ডাউনলোড পেজ এক জায়গায়।" : "Find official NCTB textbook, teacher guide and NTRCA syllabus download pages in one place.")</p>
+        </div>
+        <a href="@(library ? Url.Action("Digital", "Library") : Url.Action("CourseContent", "Learning"))"
+           class="btn btn-outline-secondary">@(bn ? "আগের পেজে ফিরুন" : "Back to resources")</a>
+    </header>
+    <div class="alert alert-info" role="note">
+        @(bn
+            ? "এখানে সরকারি প্রকাশকের মূল লিংক দেওয়া হয়েছে। PDF EduOS-এ কপি বা পুনঃপ্রকাশ করা হয়নি। বইয়ের PDF পেতে সরকারি পেজে গিয়ে Download নির্বাচন করুন। প্রতিষ্ঠানের নিজস্ব Library-তে ফাইল রাখতে লাইসেন্স/স্বত্বাধিকারীর অনুমতির প্রমাণ প্রয়োজন।"
+            : "These are links to official publishers' pages, not PDFs copied or republished by EduOS. Select Download on the publisher's page. Hosting a copy in your institution's Digital Library requires documented redistribution permission.")
+    </div>
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+            <form id="officialBookSearchForm" class="row g-3 align-items-end" autocomplete="off">
+                <div class="col-lg-5">
+                    <label for="officialBookSearch" class="form-label">@(bn ? "বই, শ্রেণি, বিষয় বা সিলেবাস খুঁজুন" : "Search textbooks, levels or syllabi")</label>
+                    <input id="officialBookSearch" class="form-control" maxlength="150"
+                           placeholder="@(bn ? "যেমন: সপ্তম, NTRCA, দাখিল" : "e.g. Class 7, NTRCA, Dakhil")" />
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label for="officialBookPublisher" class="form-label">@(bn ? "প্রকাশক" : "Publisher")</label>
+                    <select id="officialBookPublisher" class="form-select">
+                        <option value="">@(bn ? "সব প্রকাশক" : "All publishers")</option>
+                        <option value="NCTB">NCTB</option>
+                        <option value="NTRCA">NTRCA</option>
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label for="officialBookTrack" class="form-label">@(bn ? "শিক্ষাস্তর / ধরন" : "Level / Type")</label>
+                    <select id="officialBookTrack" class="form-select"><option value="">@(bn ? "সব" : "All")</option></select>
+                </div>
+                <div class="col-lg-1">
+                    <button id="officialBookReset" type="button" class="btn btn-outline-secondary w-100">@(bn ? "রিসেট" : "Reset")</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <section class="card border-0 shadow-sm" aria-label="@(bn ? "সরকারি প্রকাশনা তালিকা" : "Official publications")">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <h2 class="h6 mb-0">@(bn ? "সরকারি উৎস তালিকা" : "Official source directory")</h2>
+            <span id="officialBookCount" class="small text-muted" role="status" aria-live="polite"></span>
+        </div>
+        <div id="officialBookItems" class="list-group list-group-flush" aria-live="polite">
+            <p class="p-3 text-muted mb-0">@(bn ? "তালিকা লোড হচ্ছে..." : "Loading publisher links...")</p>
+        </div>
+        <div class="card-footer bg-transparent d-flex justify-content-end align-items-center gap-2">
+            <button id="officialBookPrev" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগে" : "Previous")</button>
+            <span id="officialBookPage" class="small text-muted" aria-live="polite"></span>
+            <button id="officialBookNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরে" : "Next")</button>
+        </div>
+    </section>
+    <p class="small text-muted mt-3">@(bn
+        ? "উৎসের তথ্য যাচাইয়ের তারিখ: ১২ নভেম্বর ২০২৬। বর্তমান সিলেবাস/সংস্করণ ও PDF-এর প্রাপ্যতা প্রকাশকের ওয়েবসাইটে যাচাই করুন।"
+        : "Source directory reviewed on 12 November 2026. Verify the current syllabus, textbook edition and file availability on the publisher's website.")</p>
+</section>
+@section Scripts {
+    <script src="~/js/education/official-books.js" asp-append-version="true"></script>
+}

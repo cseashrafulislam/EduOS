@@ -52,6 +52,11 @@ public sealed class LibraryController : Controller
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent")]
+    public IActionResult OfficialBooks() => View("~/Views/Shared/OfficialEducationBooks.cshtml");
+
+    [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent")]
     public IActionResult Study() => View();
 
     [HttpGet]
