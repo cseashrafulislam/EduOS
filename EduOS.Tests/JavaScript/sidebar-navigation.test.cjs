@@ -240,3 +240,14 @@ test('Razor localizes all static sidebar leaf labels before client enhancement',
     assert.match(layout, /OptionalModuleNavigation\.GetAvailableAsync/);
     assert.match(layout, /V2RolePortalNavigation\.GetLinks/);
 });
+
+test('collapsible section headings support keyboard entry and focus-safe Escape', () => {
+    assert.match(script, /button\.addEventListener\('keydown', event => \{/);
+    assert.match(script, /event\.key !== 'ArrowDown' \|\| isTop\(\)/);
+    assert.match(script, /if \(nav\.hidden\) button\.click\(\)/);
+    assert.match(script, /nav\.querySelector\('summary, a\.nav-link'\)/);
+    assert.match(script, /nav\.addEventListener\('keydown', event => \{/);
+    assert.match(script, /event\.key !== 'Escape' \|\| isTop\(\) \|\| nav\.hidden/);
+    assert.match(script, /showSection\(section, false\)/);
+    assert.match(script, /button\.focus\(\)/);
+});
