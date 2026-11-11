@@ -190,8 +190,12 @@ test('sidebar keyboard and persisted navigation state are scoped to the rendered
     assert.match(script, /dataset\.authSessionReference === initialReference/);
     assert.match(script, /if \(!matchesScope\(\)\) return;/);
     assert.match(script, /\['ArrowDown', 'ArrowUp', 'Home', 'End'\]/);
-    assert.match(script, /getClientRects\(\)\.length > 0/);
+    assert.match(script, /!element\.getClientRects\(\)\.length/);
     assert.match(script, /element\.closest\('\[hidden\], \[inert\]'\)/);
+    assert.match(script, /parent\.tagName === 'DETAILS' && !parent\.open/,
+        'keyboard candidates must exclude links in collapsed accordion groups');
+    assert.match(script, /parent\.querySelector\(':scope > summary'\)\?\.contains\(element\)/,
+        'only the summary of a collapsed group remains keyboard reachable');
     assert.doesNotMatch(script, /localStorage|innerHTML|eval\(/);
 });
 

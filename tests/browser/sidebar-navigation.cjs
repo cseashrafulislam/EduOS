@@ -37,7 +37,12 @@ function html() {
             (bangla ? 'ফি ছাড়ের নিয়ম' : 'Discount Rules') + '</a>' +
         '</nav></aside></body></html>';
 }
-async function inject(page) { await page.addScriptTag({ path: script }); }
+async function inject(page, mobile) {
+    await page.addScriptTag({ path: script });
+    // The synthetic fixture omits the real application's hamburger/backdrop
+    // controller. Open the off-canvas sidebar as a mobile user would first.
+    if (mobile) await page.locator('#sidebarMenu').evaluate(sidebar => sidebar.classList.add('show'));
+}
 async function exercise(browser, mobile) {
     tenant = '22'; reference = referenceA; bangla = mobile;
     const context = await browser.newContext({
@@ -50,7 +55,7 @@ async function exercise(browser, mobile) {
     try {
         await page.goto('http://eduos.test/Dashboard/Index');
         await page.addStyleTag({ path: css });
-        await inject(page);
+        await inject(page, mobile);
         const academicSection = page.locator('nav[data-sidebar-section="academics"]');
         const managementSection = page.locator('nav[data-sidebar-section="management"]');
         const academicToggle = page.locator('button.sidebar-section-trigger[aria-controls="sidebar-section-academics"]');
@@ -69,7 +74,7 @@ async function exercise(browser, mobile) {
             sessionStorage.getItem('eduos.sidebar.navigation.v1') || '{}').section === 'academics');
         await page.goto('http://eduos.test/Dashboard/Index');
         await page.addStyleTag({ path: css });
-        await inject(page);
+        await inject(page, mobile);
         assert.equal(await academicSection.evaluate(el => el.hidden), true,
             'returning to Dashboard must not restore a previously expanded section');
         assert.equal(await managementSection.evaluate(el => el.hidden), true);
@@ -80,7 +85,7 @@ async function exercise(browser, mobile) {
         assert.equal(await managementToggle.getAttribute('aria-expanded'), 'true');
         await page.goto('http://eduos.test/Dashboard/Index');
         await page.addStyleTag({ path: css });
-        await inject(page);
+        await inject(page, mobile);
         assert.equal(await managementSection.evaluate(el => el.hidden), true);
         if (!mobile) {
             await page.evaluate(() => {
@@ -200,13 +205,13 @@ async function exercise(browser, mobile) {
         assert.equal(saved.scope, '22:' + referenceA);
         assert.equal(saved.group, 'setup:institution');
         await page.goto('http://eduos.test/Dashboard/Index');
-        await inject(page);
+        await inject(page, mobile);
         assert.equal(await institution.evaluate(el => el.parentElement.open), true,
             'same tenant and session restores navigation state');
         // A different tenant must not restore the previous institution menu.
         tenant = '23';
         await page.goto('http://eduos.test/Dashboard/Index');
-        await inject(page);
+        await inject(page, mobile);
         assert.equal(await institution.evaluate(el => el.parentElement.open), false);
         await institution.click();
         await page.waitForFunction(() => JSON.parse(
@@ -218,10 +223,10 @@ async function exercise(browser, mobile) {
         // Same tenant, different authenticated session also starts fresh.
         reference = referenceB;
         await page.goto('http://eduos.test/Dashboard/Index');
-        await inject(page);
+        await inject(page, mobile);
         assert.equal(await institution.evaluate(el => el.parentElement.open), false);
         await page.goto('http://eduos.test/CareerEmployers/Index');
-        await inject(page);
+        await inject(page, mobile);
         assert.equal(await academicSection.evaluate(el => el.hidden), false,
             'a deep link must reveal its own academic section');
         assert.equal(await managementSection.evaluate(el => el.hidden), true);
