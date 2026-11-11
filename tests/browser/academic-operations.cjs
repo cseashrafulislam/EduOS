@@ -364,7 +364,22 @@ async function routine(browser) {
     await page.locator('#routineSubject').selectOption(offeringReference);
     await page.locator('#routineAssignFrom').fill('2026-10-01');
     await page.locator('#routineAssignmentForm button[type="submit"]').click();
-    await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Instructor assigned.'));
+    try {
+        await page.waitForFunction(() => document.querySelector('#routineAlert')?.textContent.includes('Instructor assigned.'), null, { timeout: 5000 });
+    } catch (error) {
+        const diagnostic = await page.evaluate(() => ({
+            feedback: document.querySelector('#routineAlert')?.textContent,
+            feedbackClass: document.querySelector('#routineAlert')?.className,
+            formValid: document.querySelector('#routineAssignmentForm')?.checkValidity(),
+            batch: document.querySelector('#routineBatch')?.value,
+            subject: document.querySelector('#routineSubject')?.value,
+            teacher: document.querySelector('#routineTeacher')?.value,
+            from: document.querySelector('#routineAssignFrom')?.value,
+            inert: document.querySelector('#routineAssignmentForm')?.inert
+        }));
+        throw new Error('Instructor assignment browser feedback mismatch; posts=' +
+            assignmentPosts.length + ', page=' + JSON.stringify(diagnostic), { cause: error });
+    }
     assert.equal(assignmentPosts.length, 1);
     await page.locator('#routineAssignment option[value="80"]').waitFor({ state: 'attached' });
     await page.locator('#routineAssignment').selectOption('80');
