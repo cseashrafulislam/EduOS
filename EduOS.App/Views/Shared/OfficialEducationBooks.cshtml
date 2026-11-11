@@ -1,6 +1,5 @@
 @{
     var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
-    var library = string.Equals(ViewContext.RouteData.Values["controller"]?.ToString(), "Library", StringComparison.OrdinalIgnoreCase);
     ViewData["Title"] = bn ? "সরকারি পাঠ্যবই ও সিলেবাস" : "Official Textbooks & Syllabi";
 }
 <section id="officialEducationBooks" class="container-fluid py-3" aria-labelledby="officialEducationBooksHeading"
@@ -11,7 +10,7 @@
             <h1 id="officialEducationBooksHeading" class="h4 fw-bold mb-1">@(bn ? "সরকারি পাঠ্যবই ও সিলেবাস" : "Official Textbooks & Syllabi")</h1>
             <p class="text-muted mb-0">@(bn ? "NCTB পাঠ্যবই, শিক্ষক সহায়িকা ও NTRCA সিলেবাসের সরকারি ডাউনলোড পেজ এক জায়গায়।" : "Find official NCTB textbook, teacher guide and NTRCA syllabus download pages in one place.")</p>
         </div>
-        <a href="@(library ? Url.Action("Digital", "Library") : Url.Action("CourseContent", "Learning"))"
+        <a asp-controller="Library" asp-action="Digital"
            class="btn btn-outline-secondary">@(bn ? "আগের পেজে ফিরুন" : "Back to resources")</a>
     </header>
     <div class="alert alert-info" role="note">
