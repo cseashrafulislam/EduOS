@@ -15,6 +15,20 @@ namespace EduOS.Tests.App;
 [Collection("SqlServerIntegration")]
 public sealed class SqlServerHrCampusAssignmentReceiptIntegrationTests
 {
+    // A framework HttpContextAccessor uses shared AsyncLocal state. Each
+    // concurrent test DbContext must own a separate request context for audit.
+    private sealed class IsolatedHttpContextAccessor(HttpContext context) : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext { get; set; } = context;
+    }
+
+    private static IHttpContextAccessor RequestForTenant(long tenantId)
+    {
+        var context = new DefaultHttpContext();
+        context.Items["TenantId"] = tenantId;
+        return new IsolatedHttpContextAccessor(context);
+    }
+
     [Fact]
     public async Task Same_request_race_persists_once_then_replays_after_reassignment()
     {
@@ -60,23 +74,22 @@ public sealed class SqlServerHrCampusAssignmentReceiptIntegrationTests
             }
         }
 
-        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
-        accessor.HttpContext.Items["TenantId"] = tenantId;
+
         var requestId = Guid.NewGuid();
         AssignEmployeeCampusRequestDto Original() => new()
         {
             ClientRequestId = requestId, EmployeeReference = employeeReference,
             CampusId = campusAId, EffectiveFrom = new DateOnly(2026, 11, 1), IsPrimary = true
         };
-        await using var dbA = new EduOSDbContext(options, accessor);
-        await using var dbB = new EduOSDbContext(options, accessor);
+        await using var dbA = new EduOSDbContext(options, RequestForTenant(tenantId));
+        await using var dbB = new EduOSDbContext(options, RequestForTenant(tenantId));
         var attempts = await Task.WhenAll(
             HrCampusAssignmentWorkflowTests.FullService(dbA, tenantId).AssignCampusAsync(Original()),
             HrCampusAssignmentWorkflowTests.FullService(dbB, tenantId).AssignCampusAsync(Original()));
         Assert.Contains(attempts, x => x.Success);
         Assert.All(attempts, x => Assert.True(x.Success || x.StatusCode == 409, x.Message));
 
-        await using var verify = new EduOSDbContext(options, accessor);
+        await using var verify = new EduOSDbContext(options, RequestForTenant(tenantId));
         var service = HrCampusAssignmentWorkflowTests.FullService(verify, tenantId);
         Assert.Equal(1, await verify.EmployeeCampusAssignmentReceipts.CountAsync(x =>
             x.TenantId == tenantId && x.ClientRequestId == requestId));
