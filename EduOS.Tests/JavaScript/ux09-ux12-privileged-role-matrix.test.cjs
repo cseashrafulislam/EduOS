@@ -69,7 +69,7 @@ test('F12 voice remains preview-only and binds tenant and campus at query bounda
   const source=read(api+'AiVoiceAttendanceController.cs');
   assert.match(source,/RequirePermission\(PermissionConstants.Attendance.View\)/);
   assert.match(source,/x\.TenantId == current\.TenantId/);
-  assert.match(source,/x\.CampusId == c\.Id/);
+  assert.match(source,/a\.CampusId == c\.Id/);
   assert.doesNotMatch(source,/\[HttpPost\("attendance\/(?:save|finalize|execute|commit)"\)\]/);
 });
 test('static matrix must not masquerade as browser, SQL or latency acceptance', () => {

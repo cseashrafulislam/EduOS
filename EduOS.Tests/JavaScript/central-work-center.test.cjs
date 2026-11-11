@@ -11,13 +11,22 @@ function browser(payload) {
     const element = (tag = 'div') => ({ tag, children: [], handlers: {}, textContent: '', value: '',
         className: '', disabled: false, href: '',
         appendChild(child) { this.children.push(child); return child; },
+        append(...children) { this.children.push(...children); },
+        setAttribute(name, value) { this[name] = value; },
         replaceChildren(...children) { this.children = children; },
         addEventListener(name, handler) { this.handlers[name] = handler; },
         fire(name) { this.handlers[name]?.({ preventDefault() {} }); }
     });
     for (const id of ['centralWorkCenter', 'cwcAlert', 'cwcFilters', 'cwcCampus', 'cwcRows',
-        'cwcPrevious', 'cwcNext', 'cwcPage', 'cwcSource', 'cwcPageSize', 'cwcScope']) nodes[id] = element();
+        'cwcPrevious', 'cwcNext', 'cwcPage', 'cwcSource', 'cwcPageSize', 'cwcScope', 'cwcSummary']) nodes[id] = element();
     nodes.cwcPageSize.value = '25';
+    // Mimic the current API's separately authorized source counts; keep totals consistent.
+    if (!payload.sourceCounts) {
+        const counts = new Map();
+        for (const item of payload.pending?.items || [])
+            counts.set(item.source, (counts.get(item.source) || 0) + 1);
+        payload = { ...payload, sourceCounts: [...counts].map(([source, count]) => ({ source, count })) };
+    }
     const calls = [];
     const document = { documentElement: { lang: 'en-BD' },
         getElementById: id => nodes[id], createElement: element };

@@ -20,7 +20,7 @@ function harness(fetchResponse) {
     };
   }
   for (const id of ['centralWorkCenter','cwcAlert','cwcFilters','cwcCampus','cwcRows',
-    'cwcPrevious','cwcNext','cwcPage','cwcSource','cwcPageSize','cwcScope','cwcExport','cwcPrint'])
+    'cwcPrevious','cwcNext','cwcPage','cwcSource','cwcPageSize','cwcScope','cwcSummary','cwcExport','cwcPrint'])
     nodes[id] = element();
   nodes.cwcPageSize.value = '25';
   const document = { documentElement: { lang: 'en-BD' }, body: element('body'),
@@ -45,6 +45,7 @@ const item = {source:'ProcurementRequisition',sourceId:12,campusId:3,
   workspaceUrl:'/ProcurementRequisitions/Index'};
 const success = (totalCount=1,items=[item],page=1) =>
   ({ok:true,json:async()=>({success:true,data:{inventoryIncluded:true,
+    sourceCounts: totalCount ? [{source:'ProcurementRequisition',count:totalCount}] : [],
     pending:{page,pageSize:25,totalCount,items}}})});
 
 test('current-page CSV/print only enable after authorized successful response',async()=>{
