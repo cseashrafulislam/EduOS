@@ -1,6 +1,7 @@
 import { state, api, el, val, notice, option } from './assessments-api.js';
 import { roster, saveMarks } from './assessments-roster.js';
 import { merit, publish } from './assessments-merit.js';
+let creating = false;
 function selectTest() {
  state.test = state.tests.find(x => x.id === Number(val('assessmentSelect'))) || null;
  state.page = 1;
@@ -18,19 +19,29 @@ function showTests(selected) {
 }
 async function createTest(event) {
  event.preventDefault();
+ if (creating) return;
+ const formElement = el('assessmentCreateForm');
+ if (!formElement.reportValidity()) return;
  const form = state.forms.find(x => x.reference === val('assessmentForm'));
  const total = Number(val('assessmentTotal')), pass = Number(val('assessmentPass'));
- if (!form || !(total > 0 && pass >= 0 && pass <= total)) return notice('Check intake and marks.');
- const button = el('assessmentCreateButton'); button.disabled = true;
+ const duration = Number(val('assessmentDuration'));
+ const date = val('assessmentDate');
+ if (!form || !val('assessmentName') || !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+  !Number.isFinite(total) || !Number.isFinite(pass) || total <= 0 || total > 1000000 ||
+  pass < 0 || pass > total || !Number.isInteger(duration) || duration < 1 || duration > 1440 ||
+  !/^\d+(?:\.\d{1,2})?$/.test(val('assessmentTotal')) ||
+  !/^\d+(?:\.\d{1,2})?$/.test(val('assessmentPass')))
+  return notice('Check intake, date, marks and duration.');
+ const button = el('assessmentCreateButton'); creating = true; button.disabled = true;
  try {
   const test = await api('/api/admission-assessments/tests', 'POST', {
    admissionIntakeFormReference: form.reference, name: val('assessmentName'),
    academicYearId: form.academicYearId, campusId: form.campusId, academicLevelId: form.academicLevelId,
    testDate: val('assessmentDate') + 'T12:00:00Z', totalMarks: total, passMarks: pass,
-   durationMinutes: Number(val('assessmentDuration')), venue: val('assessmentVenue') || null
+   durationMinutes: duration, venue: val('assessmentVenue') || null
   });
-  state.tests.unshift(test); showTests(test.id); notice('Assessment created.', true);
- } catch (e) { notice(e.message); } finally { button.disabled = false; }
+  state.tests.unshift(test); showTests(test.id); formElement.reset(); notice('Assessment created.', true);
+ } catch (e) { notice(e.message); } finally { creating = false; button.disabled = false; }
 }
 document.addEventListener('DOMContentLoaded', async () => {
  if (!el('assessmentCreateForm')) return;
