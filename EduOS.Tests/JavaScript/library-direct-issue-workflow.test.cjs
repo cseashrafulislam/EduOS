@@ -26,10 +26,12 @@ test('staff direct issue workspace selects eligible student/employee, books and 
 test('direct issue uses CSRF, stable retry key and canonical circulation endpoint', () => {
     assert.match(controller, /HttpPost\("issues"\)/);
     assert.match(script, /headers\.RequestVerificationToken=token/);
-    assert.match(script, /clientRequestId:direct\.key/);
+    assert.match(script, /const key=direct\.key;/);
+    assert.match(script, /clientRequestId:key/);
+    assert.match(script, /lockDirect\(true\)/);
     assert.match(script, /\[employee\?'employeeReference':'studentReference'\]:borrowerReference/);
     assert.match(script, /await api\(employee\?'\/api\/library\/employee-issues':'\/api\/library\/issues','POST'/);
     assert.match(controller, /HttpPost\("employee-issues"\)/);
-    assert.match(script, /newIssueKey\(\);message\('Copy issued successfully\.'/);
+    assert.match(script, /newIssueKey\(true\);message\('Copy issued successfully\.'/);
     assert.match(view, /asp-action="Reservations"/);
 });

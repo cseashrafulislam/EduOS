@@ -2,10 +2,15 @@
 'use strict';
 const root=document.getElementById('libraryCirculationApp');if(!root)return;
 const el=id=>document.getElementById(id);
+const context=[document.body?.dataset.authTenantId||'',document.body?.dataset.authSessionReference||''];
+const live=()=>context[0]===(document.body?.dataset.authTenantId||'')&&
+ context[1]===(document.body?.dataset.authSessionReference||'')&&
+ window.EduOSSessionTransitionPending?.()!==true;
 const state={page:1,pages:1,rows:[],request:0,busy:false};
-const renewal={issue:null,historyReference:null,page:1,pages:1,sequence:0};
+const renewal={issue:null,historyReference:null,page:1,pages:1,sequence:0,busy:false};
 function message(text,ok=false){const n=el('circulationAlert');n.className='alert alert-'+(ok?'success':'danger');n.textContent=text;n.focus();}
 async function api(url,method='GET',body){
+ if(!live())throw Error('Institution session changed. Reload the page.');
  const headers={Accept:'application/json'};
  if(method!=='GET'){
   const token=document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -15,6 +20,7 @@ async function api(url,method='GET',body){
  const res=await fetch(url,{method,credentials:'same-origin',cache:'no-store',headers,
   ...(body===undefined?{}:{body:JSON.stringify(body)})});
  const data=await res.json().catch(()=>null);
+ if(!live())throw Error('Institution session changed. Reload the page.');
  if(!res.ok||!data?.success)throw Error(data?.message||'Library request failed.');
  return data.data;
 }
@@ -66,7 +72,7 @@ async function load(){
  }catch(e){if(seq===state.request){state.rows=[];state.pages=1;render();message(e.message);}}
 }
 async function closeIssue(row,button){
- if(state.busy||!window.confirm('Return '+row.issue.bookTitle+' for '+row.issue.studentName+'?'))return;
+ if(state.busy||!live()||!window.confirm('Return '+row.issue.bookTitle+' for '+row.issue.studentName+'?'))return;
  state.busy=true;button.disabled=true;
  try{
   const payload={rowVersion:row.issue.rowVersion};
@@ -82,6 +88,7 @@ function datePlus(iso,days){
  return date.toISOString().slice(0,10);
 }
 function showRenewal(row){
+ if(renewal.busy||!live())return;
  renewal.issue=row.issue;
  el('circulationRenewalTitle').textContent='Renew '+row.issue.bookTitle;
  el('circulationRenewalCurrent').textContent='Current due date: '+row.issue.dueDate;
@@ -92,12 +99,14 @@ function showRenewal(row){
  el('circulationRenewalForm').classList.remove('d-none');input.focus();
 }
 el('circulationRenewalCancel').addEventListener('click',()=>{
+ if(renewal.busy)return;
  renewal.issue=null;el('circulationRenewalForm').classList.add('d-none');
 });
 el('circulationRenewalForm').addEventListener('submit',async event=>{
- event.preventDefault();if(!renewal.issue||state.busy)return;
+ event.preventDefault();if(!renewal.issue||renewal.busy||state.busy||!live())return;
  const issue=renewal.issue,newDueDate=el('circulationRenewalDue').value;
- state.busy=true;el('circulationRenewalSave').disabled=true;
+ renewal.busy=true;state.busy=true;el('circulationRenewalSave').disabled=true;
+ el('circulationRenewalDue').disabled=true;
  try{
   await api('/api/library/issues/'+encodeURIComponent(issue.reference)+'/renew','POST',
    {newDueDate,rowVersion:issue.rowVersion});
@@ -105,7 +114,8 @@ el('circulationRenewalForm').addEventListener('submit',async event=>{
   message('Loan renewed. Previous due date preserved in audit history.',true);
   await load();if(renewal.historyReference===issue.reference)await loadRenewalHistory();
  }catch(error){message(error.message);}
- finally{state.busy=false;el('circulationRenewalSave').disabled=false;}
+ finally{renewal.busy=false;state.busy=false;
+  el('circulationRenewalSave').disabled=false;el('circulationRenewalDue').disabled=false;}
 });
 async function openRenewalHistory(reference){
  renewal.historyReference=reference;renewal.page=1;
@@ -143,18 +153,21 @@ el('circulationRenewalHistoryNext').addEventListener('click',()=>{
 // Always fetch a fresh, server-authorized page rather than exporting stale browser rows.
 async function csv(){
  const button=el('circulationCsv');
- if(button.disabled)return;
+ if(button.disabled||!live())return;
  button.disabled=true;
  try{
   const query=circulationQuery();
+  const snapshot=query.toString();
   query.set('language',document.documentElement.lang?.toLowerCase().startsWith('bn')?'bn-BD':'en-BD');
   const response=await fetch('/api/library/circulation/export?'+query,{
    method:'GET',credentials:'same-origin',cache:'no-store',headers:{Accept:'text/csv'}});
+  if(!live()||circulationQuery().toString()!==snapshot)return;
   if(!response.ok){
    const error=await response.json().catch(()=>null);
    throw Error(error?.message||'Circulation export was denied.');
   }
   const blob=await response.blob();
+  if(!live())return;
   const url=URL.createObjectURL(blob);
   try{
    const link=document.createElement('a');link.href=url;link.download='library-circulation-page.csv';
@@ -167,7 +180,14 @@ async function csv(){
 const direct={key:crypto.randomUUID(),studentPage:0,bookPage:0,copyPage:0,
  studentSeq:0,bookSeq:0,copySeq:0,studentTerm:'',bookTerm:'',bookReference:'',busy:false};
 const issueStatus=text=>{el('directIssueStatus').textContent=text;};
-function newIssueKey(){direct.key=crypto.randomUUID();}
+function newIssueKey(force=false){if(!direct.busy||force)direct.key=crypto.randomUUID();}
+function lockDirect(busy){
+ direct.busy=busy;
+ for(const id of ['directIssueBorrowerType','directIssueStudentQuery','directIssueStudent',
+  'directIssueBookQuery','directIssueBook','directIssueCopy','directIssueDueDate',
+  'directIssueStudentSearch','directIssueStudentMore','directIssueBookSearch',
+  'directIssueBookMore','directIssueCopyMore','directIssueSubmit'])el(id).disabled=busy;
+}
 function clearIssueCopies(){
  ++direct.copySeq;direct.copyPage=0;
  el('directIssueCopy').replaceChildren(new Option('Select an available copy',''));
@@ -261,7 +281,7 @@ el('directIssueDueDate').min=utcToday;
 el('directIssueDueDate').value=new Date(Date.now()+14*86400000).toISOString().slice(0,10);
 el('directIssueForm').addEventListener('submit',async e=>{
  e.preventDefault();
- if(direct.busy)return;
+ if(direct.busy||!live())return;
  const borrowerReference=el('directIssueStudent').value,employee=el('directIssueBorrowerType').value==='Employee';
  const copyValue=Number(el('directIssueCopy').value);
  const dueDate=el('directIssueDueDate').value;
@@ -271,15 +291,16 @@ el('directIssueForm').addEventListener('submit',async e=>{
  if(dueDate<new Date().toISOString().slice(0,10)){
   message('Due date cannot be before the current UTC date.');return;
  }
- direct.busy=true;el('directIssueSubmit').disabled=true;
+ const key=direct.key;
+ lockDirect(true);
  try{
   await api(employee?'/api/library/employee-issues':'/api/library/issues','POST',{
-   clientRequestId:direct.key,[employee?'employeeReference':'studentReference']:borrowerReference,
+   clientRequestId:key,[employee?'employeeReference':'studentReference']:borrowerReference,
    bookCopyId:copyValue,dueDate});
-  newIssueKey();message('Copy issued successfully.',true);
+  newIssueKey(true);message('Copy issued successfully.',true);
   await Promise.all([findIssueCopies(1),load()]);
  }catch(error){message(error.message);issueStatus('If this book has an active reservation, fulfill it from the reservation queue.');}
- finally{direct.busy=false;el('directIssueSubmit').disabled=false;}
+ finally{lockDirect(false);}
 });
 
 el('circulationFilters').addEventListener('submit',e=>{e.preventDefault();state.page=1;load();});
@@ -287,5 +308,22 @@ el('circulationPrevious').addEventListener('click',()=>{if(state.page>1){state.p
 el('circulationNext').addEventListener('click',()=>{if(state.page<state.pages){state.page++;load();}});
 el('circulationCsv').addEventListener('click',csv);
 el('circulationPrint').addEventListener('click',()=>window.print());
+const observer=new MutationObserver(()=>{
+ if(live())return;
+ ++state.request;state.rows=[];state.page=1;state.pages=1;render();
+ ++renewal.sequence;renewal.issue=null;renewal.historyReference=null;
+ el('circulationRenewalForm').classList.add('d-none');
+ el('circulationRenewalHistory').classList.add('d-none');
+ el('circulationRenewalHistoryRows').replaceChildren();
+ ++direct.studentSeq;++direct.bookSeq;++direct.copySeq;
+ for(const id of ['directIssueStudent','directIssueBook','directIssueCopy'])
+  el(id).replaceChildren();
+ for(const id of ['directIssueStudentQuery','directIssueBookQuery'])el(id).value='';
+ el('directIssueStatus').textContent='';
+ message('Institution session changed. Reload the page.');
+ observer.disconnect();
+});
+observer.observe(document.body,{attributes:true,
+ attributeFilter:['data-auth-tenant-id','data-auth-session-reference']});
 load();
 })();
