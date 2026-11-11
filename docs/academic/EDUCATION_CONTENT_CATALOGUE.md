@@ -28,9 +28,7 @@ canonical curriculum keys. Null metadata on pre-migration Documents is deliberat
    publication-review, expiry and private clean-file checks. Byte reads also
    verify SHA-256 and recheck authorization after storage access. PDF and safe
    images can be read inline; other file types use the existing download route.
-5. The LMS course-content page discovers the same approved `Document` records
-   by canonical `Course.SubjectId`; its own LMS entitlement does not bypass the
-   Library module permission. No library files are cached offline by this work.
+5. **Owner UX correction (2026-11-12): Library → Digital Library is the sole catalogue and publication interface** for NCTB/official books, NTRCA, textbooks, reusable PDFs and approved learning resources. LMS Course Content does not render a second Library book list or upload another copy. Students/teachers browse the existing Library catalogue through its separately authorized navigation; LMS keeps course/lesson/quiz/assignment workflows and genuinely lesson-specific private worksheets. The library module's independent tenant/campus/role entitlements remain mandatory, and legacy Library book versions and access history remain intact. No library files are cached offline by this change.
 6. Linked guardians/parents can read resources only through an active guardian
    record, a non-revoked student link, that student's current active enrollment,
    and the same campus licence. No guardian role alone grants tenant-wide access.
