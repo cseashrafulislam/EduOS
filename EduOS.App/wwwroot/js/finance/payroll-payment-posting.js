@@ -6,11 +6,18 @@ const token = root.querySelector('input[name="__RequestVerificationToken"]')?.va
 const canPost = root.dataset.post === 'true', endpoint = '/api/finance/payroll-payments';
 let page = 1, totalPages = 1, selected = null, returnSelected = null,
     returnRequestId = null, returnFingerprint = null, accounts = [];
+let posting = false, returning = false, loadSequence = 0;
+const reviewing = new Set(), reviewed = new Set();
+const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
+const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
+    context[1] === (document.body?.dataset.authSessionReference || '') &&
+    window.EduOSSessionTransitionPending?.() !== true;
 function notice(message, error = false) {
     const box = el('payrollPaymentNotice'); box.textContent = message;
     box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
 }
 async function api(url, method = 'GET', body) {
+    if (!live()) throw new Error('Institution session changed. Reload the page.');
     const headers = {Accept:'application/json'};
     if (method !== 'GET') {
         if (!token) throw new Error('Missing antiforgery token; reload.');
@@ -20,6 +27,7 @@ async function api(url, method = 'GET', body) {
     const response = await fetch(url, {method, credentials:'same-origin', cache:'no-store',
         headers, ...(body === undefined ? {} : {body:JSON.stringify(body)})});
     const payload = await response.json().catch(() => null);
+    if (!live()) throw new Error('Institution session changed. Reload the page.');
     if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Payment settlement failed.');
     return payload.data;
 }
@@ -31,17 +39,20 @@ function cell(value) {
 }
 function money(amount) { return Number(amount).toLocaleString('en-BD', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' BDT'; }
 async function bankReview(runReference, button) {
-    if (!runReference || !confirm('Download a sensitive REVIEW_ONLY bank transfer worksheet for the entire payroll run? This does not send money.')) return;
+    if (!live() || !runReference || button.disabled ||
+        !confirm('Download a sensitive REVIEW_ONLY bank transfer worksheet for the entire payroll run? This does not send money.')) return;
     button.disabled = true;
     try {
         const response = await fetch(endpoint + '/bank-review.csv?' + new URLSearchParams({runReference}),
             {credentials:'same-origin', cache:'no-store', headers:{Accept:'text/csv'}});
+        if (!live()) throw new Error('Institution session changed. Reload the page.');
         if (!response.ok) {
             const payload = await response.json().catch(() => null);
             throw new Error(payload?.message || 'Bank review export failed.');
         }
         if (!response.headers.get('content-type')?.includes('text/csv')) throw new Error('Unexpected bank export format.');
         const content = await response.blob();
+        if (!live()) throw new Error('Institution session changed. Reload the page.');
         const url = URL.createObjectURL(content), link = document.createElement('a');
         link.href = url; link.download = 'payroll-bank-review-' + runReference.replace(/[^a-f0-9-]/gi, '') + '.csv';
         document.body.append(link); link.click(); link.remove();
@@ -51,6 +62,7 @@ async function bankReview(runReference, button) {
     finally { button.disabled = false; }
 }
 function choose(row) {
+    if (posting || returning || !live()) return;
     selected = row;
     el('payrollPaymentConfirmPanel').classList.remove('d-none');
     const method = Number(row.paymentMethod);
@@ -67,6 +79,7 @@ function choose(row) {
     el('payrollPaymentConfirmPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
 function chooseReturn(row) {
+    if (posting || returning || !live()) return;
     returnSelected = row;
     returnRequestId = null;
     returnFingerprint = null;
@@ -79,6 +92,7 @@ function chooseReturn(row) {
     el('payrollReturnPanel').scrollIntoView({behavior:'smooth', block:'start'});
 }
 async function reviewReturn(row, approve, button) {
+    if (!live() || reviewing.has(row.returnReference) || reviewed.has(row.returnReference)) return;
     if (!row.returnReference || !row.returnRowVersion || !row.returnEvidenceReference) {
         notice('Return receipt or version is unavailable; reload.', true); return;
     }
@@ -94,15 +108,18 @@ async function reviewReturn(row, approve, button) {
         rejectionReason = prompt('Why is this return receipt rejected?');
         if (!rejectionReason?.trim()) return;
     }
-    button.disabled = true;
+    reviewing.add(row.returnReference); button.disabled = true;
     try {
         const result = await api(endpoint + '/' + encodeURIComponent(row.reference) +
             '/returns/' + encodeURIComponent(row.returnReference) + '/review', 'POST',
             {approve, rowVersion:row.returnRowVersion, rejectionReason});
+        reviewed.add(row.returnReference);
         notice((approve ? 'Salary return posted: ' : 'Return rejected: ') + result.journalNumber);
-        await load();
+        try { await load(); } catch (error) { notice('Decision saved; refresh the register. ' + error.message); }
     } catch (error) { notice(error.message, true); }
-    finally { button.disabled = false; }
+    finally { reviewing.delete(row.returnReference);
+        if (!reviewed.has(row.returnReference)) button.disabled = false;
+    }
 }
 function render(data) {
     accounts = data.accounts || [];
@@ -164,23 +181,27 @@ function render(data) {
     el('payrollPaymentNext').disabled = page >= totalPages;
 }
 async function load() {
+    const sequence = ++loadSequence;
     try {
         const query = new URLSearchParams({pendingOnly: String(el('payrollPaymentPending').checked),
             page:String(page), pageSize:'10'});
-        render(await api(endpoint + '?' + query));
-    } catch (e) { notice(e.message, true); }
+        const data = await api(endpoint + '?' + query);
+        if (sequence === loadSequence && live()) render(data);
+    } catch (e) { if (sequence === loadSequence) notice(e.message, true); throw e; }
 }
-el('payrollPaymentFilter').addEventListener('submit', e => { e.preventDefault(); page = 1; load(); });
-el('payrollPaymentPrev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
-el('payrollPaymentNext').addEventListener('click', () => { if (page < totalPages) { page++; load(); } });
+const safeLoad = () => load().catch(() => {});
+el('payrollPaymentFilter').addEventListener('submit', e => { e.preventDefault(); page = 1; safeLoad(); });
+el('payrollPaymentPrev').addEventListener('click', () => { if (page > 1) { page--; safeLoad(); } });
+el('payrollPaymentNext').addEventListener('click', () => { if (page < totalPages) { page++; safeLoad(); } });
 if (canPost) {
     el('payrollReturnCancel').addEventListener('click', () => {
+        if (returning) return;
         returnSelected = null;
         returnRequestId = null;
         el('payrollReturnPanel').classList.add('d-none');
     });
     el('payrollReturnSubmit').addEventListener('click', async event => {
-        if (!returnSelected) return;
+        if (!returnSelected || returning || !live()) return;
         const period = Number(el('payrollPaymentPeriod').value);
         const date = el('payrollReturnDate').value;
         const evidence = el('payrollReturnEvidence').value.trim();
@@ -195,25 +216,30 @@ if (canPost) {
             returnRequestId = crypto.randomUUID();
         }
         if (!confirm('Submit this recorded return of salary for another administrator to verify? No financial entry will post until approved.')) return;
-        event.currentTarget.disabled = true;
+        const chosen = returnSelected;
+        returning = true; event.currentTarget.disabled = true;
+        for (const id of ['payrollReturnDate', 'payrollReturnEvidence', 'payrollReturnReason']) el(id).disabled = true;
         try {
-            const result = await api(endpoint + '/' + encodeURIComponent(returnSelected.reference) +
+            const result = await api(endpoint + '/' + encodeURIComponent(chosen.reference) +
                 '/returns', 'POST', {clientRequestId:returnRequestId,
                 accountingPeriodId:period, returnDate:date, evidenceReference:evidence,
-                reason, rowVersion:returnSelected.rowVersion});
+                reason, rowVersion:chosen.rowVersion});
             notice('Return submitted for independent review: ' + result.journalNumber);
-            returnSelected = null;
+            returnSelected = null; returnRequestId = null; returnFingerprint = null;
             el('payrollReturnPanel').classList.add('d-none');
             el('payrollPaymentPending').checked = false;
-            await load();
+            try { await load(); } catch (error) { notice('Return submitted; refresh the register. ' + error.message); }
         } catch (error) { notice(error.message, true); }
-        finally { event.currentTarget.disabled = false; }
+        finally { returning = false; event.currentTarget.disabled = false;
+            for (const id of ['payrollReturnDate', 'payrollReturnEvidence', 'payrollReturnReason']) el(id).disabled = false;
+        }
     });
     el('payrollPaymentCancel').addEventListener('click', () => {
+        if (posting) return;
         selected = null; el('payrollPaymentConfirmPanel').classList.add('d-none');
     });
     el('payrollPaymentConfirm').addEventListener('click', async e => {
-        if (!selected) return;
+        if (!selected || posting || !live()) return;
         const period = Number(el('payrollPaymentPeriod').value);
         const method = Number(selected.paymentMethod);
         const bankTransfer = method === 2 || selected.paymentMethod === 'BankTransfer';
@@ -222,14 +248,29 @@ if (canPost) {
             notice('Choose an open accounting period and valid settlement ledger.', true); return;
         }
         if (!confirm('Verify this payroll disbursement and create an immutable balanced journal?')) return;
-        e.currentTarget.disabled = true;
+        const payment = selected;
+        posting = true; e.currentTarget.disabled = true;
         try {
-            const result = await api(endpoint + '/' + encodeURIComponent(selected.reference) + '/post',
-                'POST', {accountingPeriodId:period, settlementAccountId:account, rowVersion:selected.rowVersion});
+            const result = await api(endpoint + '/' + encodeURIComponent(payment.reference) + '/post',
+                'POST', {accountingPeriodId:period, settlementAccountId:account, rowVersion:payment.rowVersion});
             notice((result.alreadyPosted ? 'Already posted: ' : 'Payroll payment posted: ') + result.journalNumber);
-            selected = null; el('payrollPaymentConfirmPanel').classList.add('d-none'); await load();
-        } catch (err) { notice(err.message, true); } finally { e.currentTarget.disabled = false; }
+            selected = null; el('payrollPaymentConfirmPanel').classList.add('d-none');
+            try { await load(); } catch (error) { notice('Payroll posted; refresh the register. ' + error.message); }
+        } catch (err) { notice(err.message, true); } finally { posting = false; e.currentTarget.disabled = false; }
     });
 }
-load();
+const observer = new MutationObserver(() => {
+    if (live()) return;
+    ++loadSequence; selected = null; returnSelected = null; returnRequestId = null;
+    returnFingerprint = null; accounts = []; reviewing.clear(); reviewed.clear();
+    el('payrollPaymentRows').replaceChildren(); el('payrollPaymentPeriod').replaceChildren();
+    if (canPost) {
+        el('payrollPaymentConfirmPanel').classList.add('d-none');
+        el('payrollReturnPanel').classList.add('d-none');
+    }
+    notice('Institution session changed. Reload the page.', true); observer.disconnect();
+});
+observer.observe(document.body, { attributes: true,
+    attributeFilter: ['data-auth-tenant-id', 'data-auth-session-reference'] });
+safeLoad();
 })();

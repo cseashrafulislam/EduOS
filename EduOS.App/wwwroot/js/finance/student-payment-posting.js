@@ -6,11 +6,18 @@ const canPost = root.dataset.post === 'true', api = '/api/finance/payment-postin
 const el = id => document.getElementById(id);
 const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
 let page = 1, pages = 1, periods = [];
+let loadSequence = 0;
+const posting = new Set(), completed = new Set();
+const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
+const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
+    context[1] === (document.body?.dataset.authSessionReference || '') &&
+    window.EduOSSessionTransitionPending?.() !== true;
 function notice(message, error = false) {
     const box = el('paymentPostingNotice'); box.textContent = message;
     box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
 }
 async function request(url, method = 'GET', body) {
+    if (!live()) throw new Error('Institution session changed. Reload the page.');
     const headers = {Accept:'application/json'};
     if (method !== 'GET') {
         if (!token) throw new Error('Missing antiforgery token. Reload.');
@@ -20,6 +27,7 @@ async function request(url, method = 'GET', body) {
     const res = await fetch(url, {method, headers, credentials:'same-origin', cache:'no-store',
         ...(body === undefined ? {} : {body:JSON.stringify(body)})});
     const result = await res.json().catch(() => null);
+    if (!live()) throw new Error('Institution session changed. Reload the page.');
     if (!res.ok || !result?.success) throw new Error(result?.message || 'Payment posting failed.');
     return result.data;
 }
@@ -57,22 +65,28 @@ function render(data) {
         if (canPost) {
             const action = document.createElement('td'), button = document.createElement('button');
             button.type = 'button'; button.className = 'btn btn-sm btn-primary'; button.textContent = 'Post GL';
-            button.disabled = Boolean(row.journalReference) || row.currencyCode !== 'BDT' || row.amount <= 0;
+            button.disabled = Boolean(row.journalReference) || row.currencyCode !== 'BDT' || row.amount <= 0 ||
+                posting.has(row.paymentReference) || completed.has(row.paymentReference);
             button.addEventListener('click', async () => {
+                if (!live() || posting.has(row.paymentReference) || completed.has(row.paymentReference)) return;
                 const periodId = Number(el('paymentPostingPeriod').value);
                 const cashId = Number(el('paymentPostingCash').value);
                 if (!periodId || !periodCovers(row, periodId) || !cashId) {
                     notice('Choose a cash ledger and an open period covering this payment date.', true); return;
                 }
                 if (!confirm('Debit selected cash ledger and credit invoice receivables for this receipt?')) return;
-                button.disabled = true;
+                posting.add(row.paymentReference); button.disabled = true;
                 try {
                     const result = await request(api + '/' + encodeURIComponent(row.paymentReference) + '/post',
                         'POST', {accountingPeriodId:periodId, cashAccountId:cashId, rowVersion:row.rowVersion});
+                    completed.add(row.paymentReference);
                     notice(result.alreadyPosted ? 'Already posted: ' + result.journalNumber :
                         'Posted: ' + result.journalNumber);
-                    await load();
-                } catch (e) { notice(e.message, true); button.disabled = false; }
+                    try { await load(); } catch (error) { notice('Posted; refresh the register. ' + error.message); }
+                } catch (e) { notice(e.message, true); }
+                finally { posting.delete(row.paymentReference);
+                    if (!completed.has(row.paymentReference)) button.disabled = false;
+                }
             });
             action.append(button); tr.append(action);
         }
@@ -88,15 +102,27 @@ function render(data) {
     el('paymentPostingNext').disabled = page >= pages;
 }
 async function load() {
+    const sequence = ++loadSequence;
     const qs = new URLSearchParams({page:String(page), pageSize:'25',
         unpostedOnly:String(el('paymentPostingUnposted').checked)});
     if (el('paymentPostingCampus').value) qs.set('campusId', el('paymentPostingCampus').value);
     if (el('paymentPostingSearch').value.trim()) qs.set('search', el('paymentPostingSearch').value.trim());
-    render(await request(api + '?' + qs));
+    const result = await request(api + '?' + qs);
+    if (sequence === loadSequence && live()) render(result);
 }
 async function run(fn) { try { await fn(); } catch (e) { notice(e.message, true); } }
 el('paymentPostingFilters').addEventListener('submit', e => { e.preventDefault(); page = 1; run(load); });
 el('paymentPostingPrev').addEventListener('click', () => { if (page > 1) { page--; run(load); } });
 el('paymentPostingNext').addEventListener('click', () => { if (page < pages) { page++; run(load); } });
+const observer = new MutationObserver(() => {
+    if (live()) return;
+    ++loadSequence; periods = []; posting.clear(); completed.clear();
+    el('paymentPostingRows').replaceChildren();
+    for (const id of ['paymentPostingPeriod', 'paymentPostingCash', 'paymentPostingCampus'])
+        el(id).replaceChildren();
+    notice('Institution session changed. Reload the page.', true); observer.disconnect();
+});
+observer.observe(document.body, { attributes: true,
+    attributeFilter: ['data-auth-tenant-id', 'data-auth-session-reference'] });
 run(load);
 })();

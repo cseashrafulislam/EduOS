@@ -16,7 +16,8 @@ test('actual salary return requires dated receipt, reason, period and rowversion
     assert.match(js, /evidence\.length > 100/);
     assert.match(js, /reason\.length > 1000/);
     assert.match(js, /clientRequestId:returnRequestId/);
-    assert.match(js, /rowVersion:returnSelected\.rowVersion/);
+    assert.match(js, /const chosen = returnSelected/);
+    assert.match(js, /rowVersion:chosen\.rowVersion/);
     assert.match(js, /crypto\.randomUUID\(\)/);
     assert.match(js, /headers\.RequestVerificationToken = token/);
     assert.match(js, /credentials:'same-origin'/);
