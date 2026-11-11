@@ -9,19 +9,44 @@ if (root) {
     let cashSubmitKey = crypto.randomUUID(), cashReviewKey = null, cashReviewAction = null, cashBusy = false;
     const alert = (message, error = false) => { const el = $('accountingNotice'); el.textContent = message; el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     const request = async (path, method = 'GET', body = null) => {
+        if (!sameSession()) throw new Error('Institution session changed. Reload before continuing.');
         const options = {method, credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}};
         if (body !== null) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); }
         if (method !== 'GET' && token) options.headers.RequestVerificationToken = token;
         const res = await fetch(base + path, options);
         let payload; try { payload = await res.json(); } catch { throw new Error('Unexpected server response.'); }
+        if (!sameSession()) throw new Error('Institution session changed. Reload before continuing.');
         if (!res.ok || !payload.success) throw new Error(payload.message || 'Request failed.');
         return payload.data;
     };
     const run = async fn => { try { await fn(); } catch (e) { alert(e.message, true); } };
+    const pendingForms = new WeakSet();
+    const runForm = async (form, action) => {
+        if (pendingForms.has(form)) return;
+        pendingForms.add(form);
+        const controls = Array.from(form.querySelectorAll('input,select,textarea,button'));
+        const disabled = controls.map(control => control.disabled);
+        controls.forEach(control => { control.disabled = true; });
+        try { await action(); } catch (e) { alert(e.message, true); }
+        finally {
+            pendingForms.delete(form);
+            controls.forEach((control, i) => { control.disabled = disabled[i]; });
+        }
+    };
+    const guards = {};
+    if (writable && window.EduOSFormGuard) {
+        for (const id of ['accountForm', 'periodForm', 'bankForm'])
+            guards[id] = window.EduOSFormGuard.create($(id));
+    }
+    const confirmDiscard = id => !guards[id] || guards[id].confirmDiscard();
+    const markClean = id => guards[id]?.markClean();
+    const identity = () => [document.body?.dataset?.authTenantId || '', document.body?.dataset?.authSessionReference || ''].join('|');
+    const originalIdentity = identity();
+    const sameSession = () => identity() === originalIdentity && !originalIdentity.startsWith('|') && !originalIdentity.endsWith('|');
     const types = {1:'Asset',2:'Liability',3:'Equity',4:'Income',5:'Expense'};
-    const resetAccount = () => { $('accountForm')?.reset(); if (!writable) return; $('accountId').value = ''; $('accountVersion').value = ''; $('accountActive').checked = true; };
-    const resetPeriod = () => { $('periodForm')?.reset(); if (!writable) return; $('periodId').value = ''; $('periodVersion').value = ''; };
-    const resetBank = () => { $('bankForm')?.reset(); if (!writable) return; $('bankId').value = ''; $('bankVersion').value = ''; $('bankActive').checked = true; };
+    const resetAccount = () => { $('accountForm')?.reset(); if (!writable) return; $('accountId').value = ''; $('accountVersion').value = ''; $('accountActive').checked = true; markClean('accountForm'); };
+    const resetPeriod = () => { $('periodForm')?.reset(); if (!writable) return; $('periodId').value = ''; $('periodVersion').value = ''; markClean('periodForm'); };
+    const resetBank = () => { $('bankForm')?.reset(); if (!writable) return; $('bankId').value = ''; $('bankVersion').value = ''; $('bankActive').checked = true; markClean('bankForm'); };
     async function loadAccounts() {
         const q = $('accountSearch').value.trim(), data = await request('/accounts?' + new URLSearchParams({page, pageSize:25, search:q}));
         accounts = data.items || []; totalPages = Math.max(1, data.totalPages || 1);
@@ -96,18 +121,23 @@ if (root) {
     if (writable) {
         $('historicalCashForm').addEventListener('input', () => { if (!cashBusy) cashSubmitKey = crypto.randomUUID(); });
         $('historicalCashLedger').addEventListener('change', () => { if (!cashBusy) cashSubmitKey = crypto.randomUUID(); });
-        $('accountReset').addEventListener('click', resetAccount);
-        $('periodReset').addEventListener('click', resetPeriod);
-        $('bankReset').addEventListener('click', resetBank);
+        $('accountReset').addEventListener('click', () => { if (!pendingForms.has($('accountForm')) && confirmDiscard('accountForm')) resetAccount(); });
+        $('periodReset').addEventListener('click', () => { if (!pendingForms.has($('periodForm')) && confirmDiscard('periodForm')) resetPeriod(); });
+        $('bankReset').addEventListener('click', () => { if (!pendingForms.has($('bankForm')) && confirmDiscard('bankForm')) resetBank(); });
         $('accountRows').addEventListener('click', e => run(async () => {
             const id = e.target.closest('[data-edit-account]')?.dataset.editAccount; if (!id) return;
+            if (pendingForms.has($('accountForm')) || !confirmDiscard('accountForm')) return;
+            const before = window.EduOSFormGuard?.fingerprint($('accountForm'));
             const a = await request('/accounts/' + id);
+            if (pendingForms.has($('accountForm')) ||
+                (before !== undefined && before !== window.EduOSFormGuard.fingerprint($('accountForm')))) return;
             $('accountId').value = a.id; $('accountVersion').value = a.rowVersion; $('accountCode').value = a.code;
             $('accountName').value = a.name; $('accountType').value = a.accountType;
             $('accountParent').value = a.parentAccountId || ''; $('accountGroup').checked = a.isGroup;
             $('accountActive').checked = a.isActive; $('accountCash').checked = a.isCashInHand;
+            markClean('accountForm');
         }));
-        $('accountForm').addEventListener('submit', e => { e.preventDefault(); run(async () => {
+        $('accountForm').addEventListener('submit', e => { e.preventDefault(); runForm(e.currentTarget, async () => {
             const id = $('accountId').value, body = {code:$('accountCode').value.trim(), name:$('accountName').value.trim(),
                 accountType:Number($('accountType').value), parentAccountId:$('accountParent').value ? Number($('accountParent').value) : null,
                 isGroup:$('accountGroup').checked, isActive:$('accountActive').checked,
@@ -115,6 +145,7 @@ if (root) {
             await request('/accounts' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);
             resetAccount(); await Promise.all([loadAccounts(), loadAccountOptions()]); alert('Account saved.');
         }); });
+        const pendingPeriodCloses = new Set();
         $('periodRows').addEventListener('click', e => run(async () => {
             const edit = e.target.closest('[data-edit-period]')?.dataset.editPeriod;
             const close = e.target.closest('[data-close-period]')?.dataset.closePeriod;
@@ -122,19 +153,25 @@ if (root) {
             if (preview) await showPeriodReadiness(preview);
             if (edit) {
                 const p = periods.find(x => String(x.id) === edit); if (!p) return;
+                if (!confirmDiscard('periodForm') || pendingForms.has($('periodForm'))) return;
                 $('periodId').value = p.id; $('periodVersion').value = p.rowVersion;
                 $('periodName').value = p.name; $('periodFrom').value = p.startDate; $('periodTo').value = p.endDate;
+                markClean('periodForm');
             }
             if (close) {
+                if (pendingPeriodCloses.has(close)) return;
+                pendingPeriodCloses.add(close);
+                try {
                 const p = periods.find(x => String(x.id) === close); if (!p) return;
                 const readiness = await showPeriodReadiness(close);
                 if (!readiness.canClose) { alert('Period is not ready to close. Resolve the displayed blockers.', true); return; }
                 if (!confirm('Close period ' + p.name + '? ' + readiness.postedCount + ' posted and ' + readiness.reversedCount + ' reversed journals verified. This cannot be undone.')) return;
                 await request('/periods/' + close + '/close', 'POST', {rowVersion:readiness.rowVersion});
                 await loadPeriods(); alert('Period closed.');
+                } finally { pendingPeriodCloses.delete(close); }
             }
         }));
-        $('periodForm').addEventListener('submit', e => { e.preventDefault(); run(async () => {
+        $('periodForm').addEventListener('submit', e => { e.preventDefault(); runForm(e.currentTarget, async () => {
             const id = $('periodId').value, body = {name:$('periodName').value.trim(), startDate:$('periodFrom').value,
                 endDate:$('periodTo').value, rowVersion:$('periodVersion').value || null};
             await request('/periods' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);
@@ -142,12 +179,14 @@ if (root) {
         }); });
         $('bankRows').addEventListener('click', e => {
             const id = e.target.closest('[data-edit-bank]')?.dataset.editBank;
+            if (!id || pendingForms.has($('bankForm')) || !confirmDiscard('bankForm')) return;
             const b = banks.find(x => String(x.id) === id); if (!b) return;
             $('bankId').value = b.id; $('bankVersion').value = b.rowVersion; $('bankLedger').value = b.accountId;
             $('bankName').value = b.bankName; $('bankAccountName').value = b.accountName; $('bankNumber').value = b.accountNumber;
             $('bankBranch').value = b.branchName || ''; $('bankRouting').value = b.routingNumber || ''; $('bankActive').checked = b.isActive;
+            markClean('bankForm');
         });
-        $('bankForm').addEventListener('submit', e => { e.preventDefault(); run(async () => {
+        $('bankForm').addEventListener('submit', e => { e.preventDefault(); runForm(e.currentTarget, async () => {
             const id = $('bankId').value, body = {accountId:Number($('bankLedger').value), bankName:$('bankName').value.trim(),
                 accountName:$('bankAccountName').value.trim(), accountNumber:$('bankNumber').value.trim(),
                 branchName:$('bankBranch').value.trim() || null, routingNumber:$('bankRouting').value.trim() || null,

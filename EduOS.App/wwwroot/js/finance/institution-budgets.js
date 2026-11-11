@@ -8,14 +8,32 @@ if (root) {
     const money = n => Number(n || 0).toLocaleString('en-BD', {minimumFractionDigits:2,maximumFractionDigits:2});
     const uri = path => base + path;
     let page = 1, totalPages = 1, accounts = [], draft = [], selected = null;
-    let submissionKey = crypto.randomUUID();
+    let submissionKey = crypto.randomUUID(), submittedFingerprint = null;
+    let reviewKey = null, reviewedFingerprint = null, submitting = false, reviewing = false;
+    let listGeneration = 0, detailGeneration = 0;
+    const identity = () => [document.body?.dataset?.authTenantId || '', document.body?.dataset?.authSessionReference || ''];
+    const initialIdentity = identity().join('|');
+    const sameSession = () => identity().join('|') === initialIdentity && !!identity()[0] && !!identity()[1];
+    const language = (document.documentElement.lang || '').toLowerCase().startsWith('bn');
+    const t = (en, bn) => language ? bn : en;
+    const formState = () => JSON.stringify([$('budgetName').value, $('budgetFrom').value,
+        $('budgetTo').value, $('budgetAccount').value, $('budgetAmount').value, draft.map(x => [x.id, x.amount])]);
+    let savedFormState = null;
+    const dirty = () => (savedFormState !== null && formState() !== savedFormState) ||
+        (selected?.stateCode === 'Submitted' && !!$('budgetReviewReason').value.trim());
+    const markClean = () => { savedFormState = formState(); };
+    const checkedSession = () => {
+        if (!sameSession()) throw new Error(t('Institution session changed. Reload before continuing.', 'প্রতিষ্ঠানের সেশন বদলেছে। চালিয়ে যাওয়ার আগে রিলোড করুন।'));
+    };
     const notice = (message, error = false) => { const el = $('budgetNotice'); el.textContent = message; el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
     async function request(path, method = 'GET', body = null) {
+        checkedSession();
         const headers = {Accept:'application/json'};
         if (body !== null) headers['Content-Type'] = 'application/json';
         if (method !== 'GET' && csrf) headers.RequestVerificationToken = csrf;
         const response = await fetch(uri(path), {method,headers,credentials:'same-origin',body:body === null ? undefined : JSON.stringify(body),cache:'no-store'});
         const payload = await response.json().catch(() => null);
+        checkedSession();
         if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Request failed.');
         return payload.data;
     }
@@ -24,6 +42,7 @@ if (root) {
         let all = [], next = 1, pages = 1;
         do {
             const data = await fetch('/api/finance/accounting/setup/accounts?' + new URLSearchParams({page:next,pageSize:100}), {credentials:'same-origin'}).then(x => x.json());
+            checkedSession();
             if (!data.success) throw new Error(data.message || 'Unable to load posting accounts.');
             all.push(...data.data.items); pages = data.data.totalPages || 1; next++;
             if (pages > 100) throw new Error('More than 10,000 accounts; contact finance administrator.');
@@ -37,7 +56,10 @@ if (root) {
             '</td><td class="text-end">' + money(x.amount) + '</td><td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" data-remove="' + x.id + '">Remove</button></td></tr>').join('');
     }
     async function list() {
+        const generation = ++listGeneration;
+        const requestedPage = page;
         const data = await request('?' + new URLSearchParams({page,pageSize:25}));
+        if (generation !== listGeneration || requestedPage !== page) return;
         totalPages = Math.max(1, data.totalPages || 1);
         $('budgetPage').textContent = 'Page ' + page + '/' + totalPages + ' (' + data.totalCount + ')';
         $('budgetPrevious').disabled = page <= 1; $('budgetNext').disabled = page >= totalPages;
@@ -51,7 +73,11 @@ if (root) {
             money(x.actualAmountBdt) + '</td><td class="text-end">' + money(x.varianceBdt) + '</td></tr>').join('');
     }
     async function openBudget(id) {
-        selected = await request('/' + id);
+        const generation = ++detailGeneration;
+        const budget = await request('/' + id);
+        if (generation !== detailGeneration) return;
+        selected = budget;
+        reviewKey = null; reviewedFingerprint = null;
         $('budgetDetails').classList.remove('d-none');
         $('budgetDetailsTitle').textContent = selected.name + ' (' + selected.startDate + ' — ' + selected.endDate + ')';
         $('budgetDetailsState').textContent = selected.stateCode + ' · submitted by user ' + selected.submittedByUserId +
@@ -67,6 +93,7 @@ if (root) {
         }
     }
     $('budgetAddLine').addEventListener('click', () => run(async () => {
+        if (submitting) return;
         const id = Number($('budgetAccount').value), rawAmount = $('budgetAmount').value.trim(), amount = Number(rawAmount);
         const account = accounts.find(x => x.id === id);
         if (!account || !/^(?:\d{1,12})(?:\.\d{1,2})?$/.test(rawAmount) ||
@@ -78,46 +105,102 @@ if (root) {
         $('budgetAmount').value = ''; $('budgetAccount').value = '';
     }));
     $('budgetDraftRows').addEventListener('click', e => {
+        if (submitting) return;
         const id = e.target.closest('[data-remove]')?.dataset.remove;
         if (!id) return;
         draft = draft.filter(x => String(x.id) !== id); draftRows();
     });
     $('budgetForm').addEventListener('submit', e => { e.preventDefault(); run(async () => {
+        if (submitting) return;
+        checkedSession();
         if (draft.length === 0) throw new Error('Add at least one income or expense budget line.');
-        const submit = $('budgetForm').querySelector('button[type="submit"]'); submit.disabled = true;
+        if ($('budgetTo').value < $('budgetFrom').value) throw new Error('Budget end date precedes start date.');
+        const command = {name:$('budgetName').value.trim(),startDate:$('budgetFrom').value,endDate:$('budgetTo').value,
+            lines:draft.map(x => ({accountId:x.id,plannedAmountBdt:x.amount}))};
+        const fingerprint = JSON.stringify(command);
+        if (submittedFingerprint !== fingerprint) { submissionKey = crypto.randomUUID(); submittedFingerprint = fingerprint; }
+        submitting = true;
+        const controls = Array.from($('budgetForm').querySelectorAll('input,select,button'));
+        const disabled = controls.map(x => x.disabled);
+        controls.forEach(x => { x.disabled = true; });
         try {
-            const result = await request('', 'POST', {clientRequestId:submissionKey,
-                name:$('budgetName').value.trim(),startDate:$('budgetFrom').value,endDate:$('budgetTo').value,
-                lines:draft.map(x => ({accountId:x.id,plannedAmountBdt:x.amount}))});
-            submissionKey = crypto.randomUUID(); draft = []; draftRows(); $('budgetForm').reset();
-            page = 1; await list(); await openBudget(result.id); notice('Budget submitted for independent approval.');
-        } finally { submit.disabled = false; }
+            const result = await request('', 'POST', {clientRequestId:submissionKey,...command});
+            submissionKey = crypto.randomUUID(); submittedFingerprint = null;
+            draft = []; draftRows(); $('budgetForm').reset(); markClean();
+            notice(t('Budget submitted. Refreshing the register…', 'বাজেট জমা হয়েছে। তালিকা হালনাগাদ হচ্ছে…'));
+            try {
+                page = 1; await list(); await openBudget(result.id);
+                notice(t('Budget submitted for independent approval.', 'স্বতন্ত্র অনুমোদনের জন্য বাজেট জমা হয়েছে।'));
+            } catch (_) {
+                notice(t('Budget submitted; the register could not refresh. Reload to view it.', 'বাজেট জমা হয়েছে; তালিকা হালনাগাদ হয়নি। দেখতে রিলোড করুন।'));
+            }
+        } finally {
+            submitting = false;
+            controls.forEach((x, i) => { x.disabled = disabled[i]; });
+        }
     }); });
     $('budgetRows').addEventListener('click', e => run(async () => {
-        const id = e.target.closest('[data-open]')?.dataset.open; if (id) await openBudget(id);
+        const id = e.target.closest('[data-open]')?.dataset.open;
+        if (!id || reviewing) return;
+        if (selected?.stateCode === 'Submitted' && $('budgetReviewReason').value.trim() &&
+            !confirm(t('Discard the unsaved review note?', 'সংরক্ষণ না করা রিভিউ মন্তব্য বাদ দেবেন?'))) return;
+        await openBudget(id);
     }));
-    $('budgetDetailsClose').addEventListener('click', () => $('budgetDetails').classList.add('d-none'));
+    $('budgetDetailsClose').addEventListener('click', () => {
+        if (reviewing || (selected?.stateCode === 'Submitted' && $('budgetReviewReason').value.trim() &&
+            !confirm(t('Discard the unsaved review note?', 'সংরক্ষণ না করা রিভিউ মন্তব্য বাদ দেবেন?')))) return;
+        ++detailGeneration;
+        $('budgetReviewReason').value = '';
+        $('budgetDetails').classList.add('d-none');
+    });
     $('budgetPrevious').addEventListener('click', () => run(async () => { if (page > 1) { page--; await list(); } }));
     $('budgetNext').addEventListener('click', () => run(async () => { if (page < totalPages) { page++; await list(); } }));
     if (reviewer) {
         async function review(approve) {
+            if (reviewing) return;
+            checkedSession();
             if (!selected || selected.stateCode !== 'Submitted') throw new Error('Select an unreviewed budget.');
             const reason = $('budgetReviewReason').value.trim();
             if (!approve && !reason) throw new Error('Rejection reason is required.');
             if (!confirm((approve ? 'Approve' : 'Reject') + ' budget ' + selected.name + '?')) return;
-            await request('/' + selected.id + '/review', 'POST', {reviewRequestId:crypto.randomUUID(),
-                approve,reason,rowVersion:selected.rowVersion});
-            await Promise.all([list(),openBudget(selected.id)]); notice('Budget reviewed.');
+            const fingerprint = JSON.stringify([selected.id, selected.rowVersion, approve, reason]);
+            if (reviewedFingerprint !== fingerprint) { reviewKey = crypto.randomUUID(); reviewedFingerprint = fingerprint; }
+            reviewing = true;
+            $('budgetApprove').disabled = true; $('budgetReject').disabled = true;
+            try {
+                const reviewedId = selected.id;
+                await request('/' + reviewedId + '/review', 'POST', {reviewRequestId:reviewKey,
+                    approve,reason,rowVersion:selected.rowVersion});
+                reviewKey = null; reviewedFingerprint = null;
+                $('budgetReviewReason').value = '';
+                notice(t('Budget reviewed. Refreshing the register…', 'বাজেট পর্যালোচনা হয়েছে। তালিকা হালনাগাদ হচ্ছে…'));
+                try {
+                    await Promise.all([list(),openBudget(reviewedId)]);
+                    notice(t('Budget reviewed.', 'বাজেট পর্যালোচনা সম্পন্ন।'));
+                } catch (_) {
+                    notice(t('Review saved; the register could not refresh. Reload to view it.', 'রিভিউ সংরক্ষিত হয়েছে; তালিকা হালনাগাদ হয়নি। রিলোড করুন।'));
+                }
+                markClean();
+            } finally { reviewing = false; $('budgetApprove').disabled = false; $('budgetReject').disabled = false; }
         }
         $('budgetApprove').addEventListener('click', () => run(() => review(true)));
         $('budgetReject').addEventListener('click', () => run(() => review(false)));
         $('budgetActualRun').addEventListener('click', () => run(async () => {
             if (!selected || selected.stateCode !== 'Approved') return;
-            const actual = await request('/' + selected.id + '/actual'); lineRows(actual.lines);
+            const budgetId = selected.id, generation = detailGeneration;
+            const actual = await request('/' + budgetId + '/actual');
+            if (generation !== detailGeneration || selected?.id !== budgetId) return;
+            lineRows(actual.lines);
             $('budgetVarianceSummary').textContent = 'Income BDT ' + money(actual.actualIncomeBdt) + ' / budget ' +
                 money(actual.plannedIncomeBdt) + ' · Expenses BDT ' + money(actual.actualExpenseBdt) +
                 ' / budget ' + money(actual.plannedExpenseBdt) + '. Positive variance is favorable.';
         }));
     }
+    window.addEventListener('beforeunload', event => {
+        if (!dirty() && !submitting && !reviewing) return;
+        event.preventDefault(); event.returnValue = '';
+    });
+    window.addEventListener('pageshow', () => { if (!sameSession()) notice(t('Institution session changed. Reload before continuing.', 'প্রতিষ্ঠানের সেশন বদলেছে। রিলোড করুন।'), true); });
+    markClean();
     run(async () => { await Promise.all([accountOptions(),list()]); });
 }
