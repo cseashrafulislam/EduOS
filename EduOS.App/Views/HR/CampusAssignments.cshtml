@@ -2,6 +2,7 @@
     ViewData["Title"] = "Employee Campus Assignments";
 }
 <section id="hrCampusWorkspace" class="container-fluid py-3">
+    @Html.AntiForgeryToken()
     <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <div>
             <h2 class="h4">Employee Campus Assignments</h2>
@@ -21,11 +22,11 @@
     <section class="card mb-3"><div class="card-body">
         <h3 class="h6">Assign campus</h3>
         <form id="hrCampusForm" class="row g-2 align-items-end">
-            <div class="col-md-3"><label class="form-label" for="hrCampusId">Active campus</label><select id="hrCampusId" class="form-select" required><option value="">Loading campuses…</option></select></div>
+            <div class="col-md-3"><label class="form-label" for="hrCampusId">Active campus</label><select id="hrCampusId" class="form-select" required disabled><option value="">Loading campuses…</option></select></div>
             <div class="col-md-2"><label class="form-label" for="hrCampusFrom">Effective from</label><input id="hrCampusFrom" type="date" class="form-control" required /></div>
             <div class="col-md-2"><label class="form-label" for="hrCampusTo">Effective to (optional)</label><input id="hrCampusTo" type="date" class="form-control" /></div>
             <div class="col-md-3"><div class="form-check mt-4"><input id="hrCampusPrimary" type="checkbox" class="form-check-input" /><label class="form-check-label" for="hrCampusPrimary">Primary campus</label></div></div>
-            <div class="col-md-2"><button id="hrCampusSave" class="btn btn-primary w-100" type="submit">Assign</button></div>
+            <div class="col-md-2"><button id="hrCampusSave" class="btn btn-primary w-100" type="submit" disabled>Assign</button></div>
         </form>
         <p class="text-muted small mt-2 mb-0">Changing a primary campus closes the previous primary assignment. Historical rows are retained. A successful assignment does not retroactively change payroll or attendance.</p>
     </div></section>
@@ -43,5 +44,6 @@
     </div></section>
 </section>
 @section Scripts {
+    <script src="~/js/platform/form-guard.js" asp-append-version="true"></script>
     <script src="~/js/hr/campus-assignments.js" asp-append-version="true"></script>
 }
