@@ -295,7 +295,8 @@
         finally{endMutation('routineSaveSlot');}
     }
     async function saveAssignment(e){
-        e.preventDefault();if(state.mutationBusy||!sameSession()||!e.currentTarget.reportValidity())return;
+        e.preventDefault();const form=e.currentTarget;
+        if(state.mutationBusy||!sameSession()||!form.reportValidity())return;
         const batch=selectedBatch();if(!batch)return status('danger','Select a batch first.');
         const from=el('routineAssignFrom').value,to=el('routineAssignTo').value;
         if(to&&to<from)return status('danger','Assignment end date must not precede start date.');
@@ -307,7 +308,7 @@
         if(!beginMutation('routineAssign'))return;
         try{await api('/api/academic-routines/assignments','POST',{clientRequestId,...payload});
             if(!sameSession())return;
-            state.assignmentRequest=null;e.currentTarget.reset();assignmentGuard?.markClean();
+            state.assignmentRequest=null;form.reset();assignmentGuard?.markClean();
             const refreshed=await load(true);
             status(refreshed?'success':'warning',refreshed?'Instructor assigned.':
                 'Instructor assigned, but the batch could not refresh. Reload before changing it again.');}
@@ -315,7 +316,8 @@
         finally{endMutation('routineAssign');}
     }
     async function saveEntry(e){
-        e.preventDefault();if(state.mutationBusy||!sameSession()||!e.currentTarget.reportValidity())return;
+        e.preventDefault();const form=e.currentTarget;
+        if(state.mutationBusy||!sameSession()||!form.reportValidity())return;
         const selectedAssignment=el('routineAssignment').value;
         const assignment=state.assignments.find(x=>String(x.id)===selectedAssignment)||
             (entryGuard?.isDirty()&&state.draftAssignment?.batchId===String(selectedBatch()?.id)&&
@@ -331,7 +333,7 @@
         if(!beginMutation('routineAddEntry'))return;
         try{await api('/api/academic-routines/entries','POST',{clientRequestId,...payload});
             if(!sameSession())return;
-            state.entryRequest=null;state.draftAssignment=null;e.currentTarget.reset();entryGuard?.markClean();
+            state.entryRequest=null;state.draftAssignment=null;form.reset();entryGuard?.markClean();
             const refreshed=await load(true);
             status(refreshed?'success':'warning',refreshed?'Class routine saved.':
                 'Class routine saved, but the timetable could not refresh. Reload before changing it again.');}

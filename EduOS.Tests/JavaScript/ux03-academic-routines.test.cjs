@@ -138,17 +138,22 @@ test('Routine assignment write is single-flight, preserves retry key, then rotat
     const first = ctx.api.saveAssignment(event);
     await ctx.api.saveAssignment(event);
     assert.equal(posts.length, 1);
+    event.currentTarget = null; // DOM resets currentTarget after async event dispatch returns.
     assert.equal(ctx.el('routineFilters').inert, true);
     posts[0].resolve({ ok: false, status: 503, async json() { return { success: false, message: 'Offline' }; } });
     await first;
     assert.equal(ctx.el('routineFilters').inert, false);
     assert.equal(ctx.el('routineAssignmentForm').resets || 0, 0);
+    event.currentTarget = ctx.el('routineAssignmentForm');
     const retry = ctx.api.saveAssignment(event);
+    event.currentTarget = null;
     assert.equal(posts[1].payload.clientRequestId, posts[0].payload.clientRequestId);
     posts[1].resolve({ ok: false, status: 503, async json() { return { success: false, message: 'Offline' }; } });
     await retry;
     ctx.el('routineAssignFrom').value = '2026-05-01';
+    event.currentTarget = ctx.el('routineAssignmentForm');
     const changed = ctx.api.saveAssignment(event);
+    event.currentTarget = null;
     assert.notEqual(posts[2].payload.clientRequestId, posts[1].payload.clientRequestId);
     posts[2].resolve({ success: true, data: { id: 88 } });
     await changed;
@@ -168,9 +173,12 @@ test('Routine entry creation is single-flight and reuses the same key after unce
     const first = ctx.api.saveEntry(event);
     await ctx.api.saveEntry(event);
     assert.equal(posts.length, 1);
+    event.currentTarget = null;
     posts[0].resolve({ ok: false, status: 503, async json() { return { success: false, message: 'Offline' }; } });
     await first;
+    event.currentTarget = ctx.el('routineEntryForm');
     const retry = ctx.api.saveEntry(event);
+    event.currentTarget = null;
     assert.equal(posts[1].payload.clientRequestId, posts[0].payload.clientRequestId);
     posts[1].resolve({ success: true, data: { id: 60 } });
     await retry;
