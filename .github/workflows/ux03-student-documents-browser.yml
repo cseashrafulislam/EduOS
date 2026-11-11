@@ -1,0 +1,31 @@
+name: UX-03 Student Documents Synthetic Chromium Regression
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/StudentDocuments/Index.cshtml'
+      - 'EduOS.App/wwwroot/js/students/documents.js'
+      - 'tests/browser/ux03-student-documents-private-upload.cjs'
+      - '.github/workflows/ux03-student-documents-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ux03-student-documents-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  chromium-private-upload:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright
+        run: npm install --no-save --no-audit --no-fund playwright@1.56.0
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise private upload, in-flight student switch and tenant cleanup at phone widths
+        run: node tests/browser/ux03-student-documents-private-upload.cjs

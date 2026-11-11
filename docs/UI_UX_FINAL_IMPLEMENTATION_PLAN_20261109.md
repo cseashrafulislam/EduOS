@@ -455,6 +455,11 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 - A pending renewal cannot be cancelled or submitted again until the first request completes. Page export is still fetched through the server-authorized CSV API but is discarded if list filters/paging or institution context changed during download. No data model, accounting, library issue service or migration was changed.
 - New executable `ux03-library-circulation-workflows.test.cjs`: **5/5 PASS** including double issue, uncertain retry, edited request, concurrent renewal, session change and stale CSV. The older direct-issue source contract was updated to assert the stronger immutable request-key snapshot. Full local JavaScript regression **1,621/1,621 PASS**, script syntax and patch whitespace pass; remote exact-SHA verification remains required. Authenticated two-institute/persona/mobile/bilingual and accessibility acceptance is still not certified for the entire UX-03 matrix.
 
+### 4.58. UX-03 private Student Document upload Chromium check (2026-11-11; remote verification pending)
+
+- The existing Student Documents Razor markup and production script are exercised with mocked API responses on **360px/en-BD and 390px/bn-BD Chromium fixtures**: select student A, begin private file upload, try selecting student B while pending, complete upload, verify attachment is still scoped to A with CSRF and rowversion, then rotate tenant context and verify old student history/search data disappears. These are synthetic server responses, not proof of an authenticated tenant or translated interface.
+- The new pinned `ux03-student-documents-browser.yml` runs this exact fixture on `Ashraful` via GitHub Actions. Local Node/Playwright syntax is available but local browser execution is **BLOCKED** (`/usr/bin/chromium` process socket denied, bundled Playwright Chromium absent); do not mark the browser check PASS until remote CI returns success. Real identity/role/multi-campus/private-download authorization, translation completeness and institution acceptance remain separate.
+
 ## 5. Mandatory page/module coverage inventory
 
 ### 5.0. Executable breadth register and shared native-form improvements (2026-11-11)
