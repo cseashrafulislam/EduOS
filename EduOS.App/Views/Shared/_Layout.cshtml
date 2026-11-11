@@ -1239,5 +1239,9 @@
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-help-loader.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
+@if (User?.IsInRole("TenantAdmin") == true)
+    {
+        <script src="~/js/tenant/setup-readiness-banner.js" asp-append-version="true" defer></script>
+    }
 </body>
 </html>

@@ -13,14 +13,14 @@ internal static class SmartSetupCatalog
     internal static readonly Section[] Sections =
     {
         new("ACADEMIC", "Academic references", "একাডেমিক মৌলিক তথ্য",
-            "/AcademicManagement/Classes", true, "Academic year, class, sections, curriculum, capacity and subject offerings require institution confirmation."),
+            "/AcademicManagement/Years", true, "Academic year, class, sections, curriculum, capacity and subject offerings require institution confirmation."),
         new("STUDENT", "Student administration", "শিক্ষার্থী", "/Students/Create", false,
             "Student and guardian status/relationship options are system-defined. Actual students are not seeded."),
         new("ADMISSION", "Admission", "ভর্তি", "/Admissions/Forms", false,
             "A published admission form, dates, program and fee policy require an administrator."),
         new("ATTENDANCE", "Attendance", "উপস্থিতি", "/AcademicRoutines/Index", false,
             "Attendance status codes are controlled by the application; configure schedules and calendar."),
-        new("ASSESSMENT", "Exams and grading", "পরীক্ষা ও গ্রেড", "/AssessmentAdministration/Index", false,
+        new("ASSESSMENT", "Exams and grading", "পরীক্ষা ও গ্রেড", "/AssessmentAdministration/GradeSchemes", false,
             "Grade thresholds and assessment plans are not assumed for a new institute."),
         new("FEES", "Fee heads", "ফি-এর ধরন", "/FeeOperations/Index", true,
             "Only fee-head names are prepared. Amounts, fee structures, receivables and ledger mapping remain unset."),
@@ -28,13 +28,15 @@ internal static class SmartSetupCatalog
             "Chart of accounts, bank accounts, tax, opening balances and postings require verified finance setup."),
         new("HR", "HR master data", "মানবসম্পদ", "/HrSetup/Index", true,
             "Designations and organization units only; no employees, salaries, contracts or leave balances."),
+        new("PAYROLL", "Payroll setup", "বেতন ব্যবস্থাপনা", "/PayrollSalaryComponents/Index", false,
+            "Salary component tax treatment, salary structures, pay rules and employee rates require administrator verification."),
         new("INVENTORY", "Inventory and asset categories", "ইনভেন্টরি ও সম্পদ", "/InventoryCatalog/Index", true,
             "Asset categories only; no stock, locations, inventory movement, items or opening valuation."),
         new("LIBRARY", "Library", "লাইব্রেরি", "/Library/Index", true,
             "Review borrowing and fine policies before enabling circulation."),
-        new("HOSTEL", "Hostel", "আবাসন", "/HostelOperations/Index", false,
+        new("HOSTEL", "Hostel", "আবাসন", "/HostelOperations/Setup", false,
             "Room/bed layout and pricing depend on actual campus facilities."),
-        new("TRANSPORT", "Transport", "পরিবহন", "/TransportOperations/Index", false,
+        new("TRANSPORT", "Transport", "পরিবহন", "/TransportOperations/Setup", false,
             "Vehicles, routes and fares require actual operational data."),
         new("LMS", "Learning management", "অনলাইন শিক্ষা", "/Learning/Index", false,
             "Publish real courses, learning outcomes and content through the LMS workflow."),
@@ -46,6 +48,15 @@ internal static class SmartSetupCatalog
             "Real buildings, spaces and approval policies must be configured."),
         new("REPORTS", "Reports and MIS", "রিপোর্ট", "/CentralWorkCenter/Index", false,
             "Reports read authoritative transactions and must not create synthetic data.")
+    };
+
+    // UI setup groups are not always the same as licensed ProductModule codes.
+    internal static string AccessModule(string sectionCode) => sectionCode switch
+    {
+        "FEES" => "FINANCE",
+        "ASSESSMENT" => "EXAM",
+        "REPORTS" => "REPORTING",
+        _ => sectionCode
     };
 
     internal static IReadOnlyList<Seed> Build(string institutionTypeCode, string countryCode)

@@ -13,7 +13,7 @@
         window.EduOSSessionTransitionPending?.() !== true;
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const state = { preview: null, selected: new Set(), busy: false, revision: 0,
-        requestId: null, fingerprint: null };
+        requestId: null, fingerprint: null, readiness: new Map() };
     const message = (value, error = false) => {
         const target = el('smartSetupNotice');
         target.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -79,9 +79,18 @@
             tr('Template version ', 'টেমপ্লেট সংস্করণ ') + p.templateVersion;
         const host = el('smartSetupModules');
         host.replaceChildren();
-        for (const m of p.modules) {
+        const requested = new URLSearchParams(window.location.search).get('module')?.toUpperCase();
+        const ordered = p.modules.slice().sort((a, b) =>
+            (b.code === requested ? 1 : 0) - (a.code === requested ? 1 : 0));
+        const checks = [...state.readiness.values()].filter(x => x.isAvailable && x.hasChecklist);
+        const completed = checks.filter(x => x.prerequisitesConfigured).length;
+        el('smartSetupReadinessSummary').textContent = tr(
+            completed + ' / ' + checks.length + ' enabled modules have their checked prerequisites. This is not an operational or financial approval.',
+            checks.length + 'টি চালু মডিউলের মধ্যে ' + completed + 'টির যাচাইকৃত প্রাথমিক সেটআপ আছে। এটি পরিচালন বা আর্থিক অনুমোদন নয়।');
+        for (const m of ordered) {
             const wrapper = node('div', 'col-12 col-xl-6');
-            const card = node('section', 'card h-100 border-0 shadow-sm');
+            const card = node('section', 'card h-100 border-0 shadow-sm' +
+                (m.code === requested ? ' border border-primary' : ''));
             const body = node('div', 'card-body');
             const top = node('div', 'd-flex align-items-start justify-content-between gap-2 mb-2');
             const heading = node('div');
@@ -89,11 +98,43 @@
             heading.append(node('span', 'small text-muted', m.code));
             top.append(heading);
             const badge = node('span', 'badge ' + (m.isAvailable ? 'bg-primary' : 'bg-secondary'),
-                m.isAvailable ? tr('Safe defaults', 'নিরাপদ ডিফল্ট') : tr('Review setup', 'সেটআপ যাচাই'));
+                !m.isAvailable ? tr('Unavailable', 'চালু নেই') :
+                m.supportsSafeApply ? tr('Safe defaults', 'নিরাপদ ডিফল্ট') :
+                    tr('Guided setup', 'নির্দেশিত সেটআপ'));
             top.append(badge);
             body.append(top);
             const guidance = node('p', 'small text-muted', m.guidance || '');
             body.append(guidance);
+            const readiness = state.readiness.get(m.code);
+            if (readiness?.isAvailable && readiness.requirements?.length) {
+                const tasks = readiness.requirements;
+                const passed = tasks.filter(x => x.configured).length;
+                const headline = node('p', 'fw-semibold small mb-1',
+                    tr('Required setup: ' + passed + ' / ' + tasks.length + ' configured',
+                        'প্রাথমিক সেটআপ: ' + passed + ' / ' + tasks.length + ' সম্পন্ন'));
+                body.append(headline);
+                const list = node('ul', 'list-unstyled small mb-3');
+                for (const task of tasks) {
+                    const li = node('li', 'd-flex gap-2 align-items-start py-1');
+                    const status = node('span', task.configured ? 'text-success' : 'text-warning-emphasis',
+                        task.configured ? '✓' : '○');
+                    const label = node('span', 'flex-grow-1', bn ? task.labelBangla : task.label);
+                    li.append(status, label);
+                    if (!task.configured) {
+                        const link = node('a', 'small text-nowrap', tr('Configure', 'সেট করুন'));
+                        link.href = safePath(task.actionUrl);
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        li.append(link);
+                    }
+                    list.append(li);
+                }
+                body.append(list);
+            } else if (readiness?.isAvailable && !readiness.hasChecklist) {
+                body.append(node('p', 'small text-muted',
+                    tr('No mandatory reference setup; review applicable policies before operating.',
+                        'বাধ্যতামূলক প্রাথমিক তথ্য নেই; কাজের আগে প্রযোজ্য নীতিমালা যাচাই করুন।')));
+            }
             if (m.entries?.length) {
                 const list = node('ul', 'list-unstyled small mb-3');
                 for (const item of m.entries) {
@@ -130,6 +171,8 @@
             }
             const link = node('a', 'btn btn-sm btn-outline-secondary', tr('Open setup page', 'সেটআপ পেজ খুলুন'));
             link.href = safePath(m.nextStepUrl);
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
             body.append(link);
             card.append(body);
             wrapper.append(card);
@@ -143,9 +186,13 @@
         const version = ++state.revision;
         updateSubmit();
         try {
-            const preview = await request('/api/smart-setup/preview');
+            const [preview, readiness] = await Promise.all([
+                request('/api/smart-setup/preview'),
+                request('/api/smart-setup/readiness').catch(() => null)
+            ]);
             if (version !== state.revision || !sameSession()) return;
             state.preview = preview;
+            state.readiness = new Map((readiness || []).map(x => [x.moduleCode, x]));
             state.selected.clear();
             el('smartSetupConfirm').checked = false;
             clearMessage();
@@ -193,8 +240,15 @@
                 result.existingCount + 'টি আগে থেকেই ছিল।'));
             // Reload only the non-destructive preview. A successful POST remains
             // successful even if this follow-up GET fails.
-            const fresh = await request('/api/smart-setup/preview').catch(() => null);
-            if (fresh && sameSession()) { state.preview = fresh; render(); }
+            const [fresh, readiness] = await Promise.all([
+                request('/api/smart-setup/preview').catch(() => null),
+                request('/api/smart-setup/readiness').catch(() => null)
+            ]);
+            if (fresh && sameSession()) {
+                state.preview = fresh;
+                if (readiness) state.readiness = new Map(readiness.map(x => [x.moduleCode, x]));
+                render();
+            }
         } catch (err) {
             if (sameSession()) message(err.message, true);
         } finally {

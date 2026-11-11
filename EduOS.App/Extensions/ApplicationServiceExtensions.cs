@@ -58,6 +58,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<ITenantProfileService, TenantProfileService>();
             s.AddScoped<ITenantSettingService, TenantSettingService>();
             s.AddScoped<SmartSetupService>();
+            s.AddScoped<SmartSetupReadinessService>();
             s.AddScoped<IWorkspacePreferencesService, WorkspacePreferencesService>();
             s.AddHttpClient<ITenantDomainTxtLookup, TenantDomainTxtLookup>(client => client.Timeout = TimeSpan.FromSeconds(6));
             s.AddScoped<ITenantDomainService, TenantDomainService>();

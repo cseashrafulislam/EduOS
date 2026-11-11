@@ -35,6 +35,7 @@
         @(bn ? "শুধু নির্বাচিত ও অনুমোদিত Module-এর অনুপস্থিত reference data তৈরি হবে। পুরোনো Master Data, Fee Amount, Bank, Salary, Stock, Student বা হিসাবের লেনদেন পরিবর্তন হবে না।" :
             "Only missing safe reference records from enabled modules are created. Existing masters, fee amounts, banks, salaries, stock, students and financial transactions are never modified.")
     </div>
+    <p id="smartSetupReadinessSummary" class="small text-muted" role="status" aria-live="polite"></p>
     <form id="smartSetupForm">
         @Html.AntiForgeryToken()
         <div id="smartSetupModules" class="row g-3" aria-live="polite">

@@ -8,6 +8,7 @@ using EduOS.Persistence.Context;
 using EduOS.Service.Services.Tenants;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -106,7 +107,7 @@ public sealed class SmartSetupServiceTests
     [Fact]
     public async Task All_reviewed_master_defaults_are_additive_idempotent_and_audited()
     {
-        await using var f = await Open(modules: ["ACADEMIC", "HR", "FEES", "INVENTORY"]);
+        await using var f = await Open(modules: ["ACADEMIC", "HR", "FINANCE", "INVENTORY"]);
         var preview = await f.Service.PreviewAsync();
         Assert.True(preview.Success, preview.Message);
         Assert.Equal("SCHOOL", preview.Data!.InstitutionTypeCode);
@@ -125,15 +126,15 @@ public sealed class SmartSetupServiceTests
         Assert.Equal(0, await f.Db.StudentEnrollments.CountAsync());
         var replay = await f.Service.ApplyAsync(request);
         Assert.True(replay.Success, replay.Message);
-        Assert.Equal(0, replay.Data!.CreatedCount);
-        Assert.Equal(10, replay.Data.ExistingCount);
+        Assert.Equal(10, replay.Data!.CreatedCount);
+        Assert.Equal(0, replay.Data.ExistingCount);
         Assert.Equal(1, await f.Db.AuditLogs.CountAsync(x => x.Action == "SmartSetup.Apply" && x.TenantId == f.Tenant));
     }
 
     [Fact]
     public async Task Conflicting_existing_fee_head_never_creates_second_master_or_overwrites_it()
     {
-        await using var f = await Open(modules: ["FEES"]);
+        await using var f = await Open(modules: ["FINANCE"]);
         f.Db.FeeHeads.Add(new FeeHead
         {
             TenantId = f.Tenant, Code = "TUITION", Name = "Legacy Tuition", IsActive = true
@@ -175,7 +176,7 @@ public sealed class SmartSetupServiceTests
     [Fact]
     public async Task Library_notice_and_document_reference_records_only_create_when_selected()
     {
-        await using var f = await Open(modules: ["LIBRARY"]);
+        await using var f = await Open(modules: ["LIBRARY", "COMMUNICATION", "DOCUMENTS"]);
         var created = await f.Service.ApplyAsync(Request(f, "LIBRARY", "COMMUNICATION", "DOCUMENTS"));
         Assert.True(created.Success, created.Message);
         Assert.Equal(6, created.Data!.CreatedCount);
@@ -186,6 +187,85 @@ public sealed class SmartSetupServiceTests
         Assert.Empty(await f.Db.Documents.ToListAsync());
         var second = await f.Service.ApplyAsync(Request(f, "LIBRARY", "COMMUNICATION", "DOCUMENTS"));
         Assert.Equal(0, second.Data!.CreatedCount);
+    }
+
+    [Fact]
+    public async Task Reused_request_reference_with_different_scope_is_rejected_without_new_inserts()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "HR"]);
+        var first = Request(f, "ACADEMIC");
+        Assert.True((await f.Service.ApplyAsync(first)).Success);
+        first.Modules = ["HR"];
+        var denied = await f.Service.ApplyAsync(first);
+        Assert.Equal(409, denied.StatusCode);
+        Assert.Empty(await f.Db.Designations.ToListAsync());
+        Assert.Equal(1, await f.Db.AuditLogs.CountAsync(x => x.Action == "SmartSetup.Apply"));
+    }
+
+    [Fact]
+    public async Task Disabled_and_conflicting_sections_are_separate_from_supported_safe_apply()
+    {
+        await using var f = await Open(modules: ["FINANCE", "EXAM", "ACADEMIC"]);
+        var preview = await f.Service.PreviewAsync();
+        Assert.True(preview.Success, preview.Message);
+        Assert.True(preview.Data!.Modules.Single(x => x.Code == "FEES").IsAvailable);
+        Assert.True(preview.Data.Modules.Single(x => x.Code == "ASSESSMENT").IsAvailable);
+        Assert.False(preview.Data.Modules.Single(x => x.Code == "ASSESSMENT").SupportsSafeApply);
+    }
+
+    [Fact]
+    public async Task Readiness_checks_actual_tenant_prerequisites_without_inserting_data()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "FINANCE", "EXAM", "PAYROLL", "HOSTEL"]);
+        var checker = new SmartSetupReadinessService(f.Db,
+            new Modules("ACADEMIC", "FINANCE", "EXAM", "PAYROLL", "HOSTEL"),
+            new User(f.Tenant), new ConfigurationBuilder().Build(),
+            NullLogger<SmartSetupReadinessService>.Instance);
+        var all = await checker.GetAsync(null);
+        Assert.True(all.Success, all.Message);
+        Assert.True(all.Data!.Single(x => x.ModuleCode == "FEES").IsAvailable);
+        Assert.True(all.Data.Single(x => x.ModuleCode == "ASSESSMENT").IsAvailable);
+        Assert.False(all.Data.Single(x => x.ModuleCode == "ACADEMIC").PrerequisitesConfigured);
+        Assert.Contains(all.Data.Single(x => x.ModuleCode == "ACADEMIC").Requirements,
+            x => x.Code == "ACADEMIC_YEAR" && !x.Configured);
+        Assert.Contains(all.Data.Single(x => x.ModuleCode == "HOSTEL").Requirements,
+            x => x.Code == "HOSTEL_BED" && !x.Configured);
+        Assert.Empty(await f.Db.AcademicYears.ToListAsync());
+        Assert.Equal(400, (await checker.GetAsync("made-up-module")).StatusCode);
+        f.Http.Items["TenantId"] = 999L;
+        Assert.Equal(403, (await checker.GetAsync("ACADEMIC")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Pilot_excluded_modules_do_not_expose_or_apply_reference_setup()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "HOSTEL", "LIBRARY"]);
+        var config = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?> { ["PilotRelease:Enabled"] = "true" }).Build();
+        var checker = new SmartSetupReadinessService(f.Db, new Modules("ACADEMIC", "HOSTEL", "LIBRARY"),
+            new User(f.Tenant), config, NullLogger<SmartSetupReadinessService>.Instance);
+        var hostel = await checker.GetAsync("HOSTEL");
+        Assert.True(hostel.Success, hostel.Message);
+        Assert.False(hostel.Data!.Single().IsAvailable);
+        var presenter = new SmartSetupService(f.Db, new Modules("ACADEMIC", "HOSTEL", "LIBRARY"),
+            f.Db, new User(f.Tenant), NullLogger<SmartSetupService>.Instance, config);
+        var preview = await presenter.PreviewAsync();
+        Assert.False(preview.Data!.Modules.Single(x => x.Code == "LIBRARY").IsAvailable);
+        Assert.Equal(403, (await presenter.ApplyAsync(Request(f, "LIBRARY"))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Deleted_master_codes_cannot_be_reintroduced_silently()
+    {
+        await using var f = await Open(modules: ["ACADEMIC"]);
+        f.Db.Mediums.Add(new EduOS.Core.Entities.Academic.Medium
+        {
+            TenantId = f.Tenant, Code = "ENGLISH", Name = "English", IsDeleted = true
+        });
+        await f.Db.SaveChangesAsync();
+        var result = await f.Service.ApplyAsync(Request(f, "ACADEMIC"));
+        Assert.Equal(409, result.StatusCode);
+        Assert.Empty(await f.Db.Mediums.ToListAsync());
     }
 
     [Fact]

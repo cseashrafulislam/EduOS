@@ -12,12 +12,20 @@ namespace EduOS.App.Controllers.Api;
 [AutoValidateAntiforgeryToken]
 [EnableRateLimiting("ApiPolicy")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class SmartSetupApiController(SmartSetupService service) : ControllerBase
+public sealed class SmartSetupApiController(
+    SmartSetupService service, SmartSetupReadinessService readiness) : ControllerBase
 {
     [HttpGet("preview")]
     public async Task<IActionResult> Preview(CancellationToken ct)
     {
         var result = await service.PreviewAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpGet("readiness")]
+    public async Task<IActionResult> Readiness([FromQuery] string? module, CancellationToken ct)
+    {
+        var result = await readiness.GetAsync(module, ct);
         return StatusCode(result.StatusCode, result);
     }
 

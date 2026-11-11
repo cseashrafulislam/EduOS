@@ -17,6 +17,7 @@ using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
 
 namespace EduOS.Service.Services.Tenants;
 
@@ -26,9 +27,16 @@ namespace EduOS.Service.Services.Tenants;
 /// </summary>
 public sealed class SmartSetupService(
     EduOSDbContext db, ITenantModuleService modules, IUnitOfWork unitOfWork,
-    ICurrentUserService user, ILogger<SmartSetupService> logger)
+    ICurrentUserService user, ILogger<SmartSetupService> logger,
+    IConfiguration? configuration = null)
 {
     private sealed record Existing(string Kind, string Code, string Name, bool Active);
+    private sealed record ApplyReceipt(string Fingerprint, SmartSetupApplyResultDto Result);
+    private static readonly HashSet<string> PilotExcluded = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "LMS", "LIBRARY", "HOSTEL", "TRANSPORT", "INVENTORY",
+        "FACILITIES", "ALUMNI", "RESEARCH", "ACCREDITATION"
+    };
     private sealed class SetupConflict(string message, int status = 409) : Exception(message)
     {
         public int Status { get; } = status;
@@ -43,6 +51,10 @@ public sealed class SmartSetupService(
         try
         {
             return ApiResponse<SmartSetupPreviewDto>.SuccessResponse(await PreviewCoreAsync(ct));
+        }
+        catch (SetupConflict ex)
+        {
+            return ApiResponse<SmartSetupPreviewDto>.ErrorResponse(ex.Message, ex.Status);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
@@ -73,6 +85,22 @@ public sealed class SmartSetupService(
             return await unitOfWork.ExecuteInTransactionAsync(async token =>
             {
                 await LockTenantAsync(token);
+                var fingerprint = request.InstitutionTypeId.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                    "|" + request.TemplateVersion + "|" +
+                    string.Join(",", selection.OrderBy(x => x, StringComparer.Ordinal));
+                var receiptText = await db.AuditLogs.AsNoTracking()
+                    .Where(x => x.TenantId == user.TenantId && x.Action == "SmartSetup.Apply" &&
+                        x.RequestId == request.ClientRequestId.ToString("D"))
+                    .Select(x => x.NewValue).FirstOrDefaultAsync(token);
+                if (receiptText != null)
+                {
+                    ApplyReceipt? receipt;
+                    try { receipt = JsonSerializer.Deserialize<ApplyReceipt>(receiptText); }
+                    catch (JsonException) { throw new SetupConflict("Request reference was already used. Start a new review."); }
+                    if (receipt == null || receipt.Fingerprint != fingerprint || receipt.Result == null)
+                        throw new SetupConflict("Request reference was used for different setup data.");
+                    return ApiResponse<SmartSetupApplyResultDto>.SuccessResponse(receipt.Result, "Setup request already applied.");
+                }
                 var preview = await PreviewCoreAsync(token);
                 if (preview.InstitutionTypeId == 0 || preview.InstitutionTypeId != request.InstitutionTypeId)
                     throw new SetupConflict("Institution type changed. Reload the setup preview.");
@@ -100,29 +128,24 @@ public sealed class SmartSetupService(
                         });
                     }
                 }
-                if (created.Count > 0)
-                {
-                    db.AuditLogs.Add(new AuditLog
-                    {
-                        TenantId = user.TenantId, UserId = user.UserId,
-                        Action = "SmartSetup.Apply", EntityName = "InstitutionSetup",
-                        IsSuccess = true, OccurredAt = now,
-                        RequestId = request.ClientRequestId.ToString("D"),
-                        NewValue = JsonSerializer.Serialize(new
-                        {
-                            Template = SmartSetupCatalog.Version,
-                            InstitutionTypeId = preview.InstitutionTypeId,
-                            Modules = selection,
-                            Created = created.Select(x => new { x.Kind, x.Code }).ToArray()
-                        })
-                    });
-                    await db.SaveChangesAsync(token);
-                }
-                return ApiResponse<SmartSetupApplyResultDto>.SuccessResponse(new SmartSetupApplyResultDto
+                var outcome = new SmartSetupApplyResultDto
                 {
                     CreatedCount = created.Count, ExistingCount = existing,
                     TemplateVersion = SmartSetupCatalog.Version, Created = created
-                }, created.Count == 0 ? "Already configured. No changes made." : "Selected safe defaults saved.");
+                };
+                // Persist a write-once result even for a no-op apply. The per-tenant
+                // transaction lock serializes replays; changed payloads are rejected.
+                db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = user.TenantId, UserId = user.UserId,
+                    Action = "SmartSetup.Apply", EntityName = "InstitutionSetup",
+                    IsSuccess = true, OccurredAt = now,
+                    RequestId = request.ClientRequestId.ToString("D"),
+                    NewValue = JsonSerializer.Serialize(new ApplyReceipt(fingerprint, outcome))
+                });
+                await db.SaveChangesAsync(token);
+                return ApiResponse<SmartSetupApplyResultDto>.SuccessResponse(outcome,
+                    created.Count == 0 ? "Already configured. No changes made." : "Selected safe defaults saved.");
             }, IsolationLevel.Serializable, ct);
         }
         catch (SetupConflict ex)
@@ -173,9 +196,11 @@ public sealed class SmartSetupService(
         {
             // Manual-only modules are listed for guided setup; never claim their
             // operational readiness without checking their owning workflows.
-            var available = section.Apply && institutionType != null &&
-                (section.Code is "DOCUMENTS" or "COMMUNICATION" ||
-                 await modules.IsCurrentTenantModuleAvailableAsync(section.Code));
+            var accessCode = SmartSetupCatalog.AccessModule(section.Code);
+            var pilotExcluded = configuration?.GetValue<bool>("PilotRelease:Enabled") == true &&
+                PilotExcluded.Contains(accessCode);
+            var available = institutionType != null && !pilotExcluded &&
+                await modules.IsCurrentTenantModuleAvailableAsync(accessCode);
             var module = new SmartSetupModuleDto
             {
                 Code = section.Code, Name = section.Name, NameBangla = section.Bangla,
@@ -214,42 +239,42 @@ public sealed class SmartSetupService(
             switch (kind)
             {
                 case "Medium":
-                    all.AddRange(await db.Mediums.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.Mediums.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("Medium", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "OrganizationUnit":
-                    all.AddRange(await db.OrganizationUnits.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.OrganizationUnits.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("OrganizationUnit", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "Designation":
-                    all.AddRange(await db.Designations.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.Designations.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("Designation", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "FeeHead":
-                    all.AddRange(await db.FeeHeads.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.FeeHeads.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("FeeHead", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "AssetCategory":
-                    all.AddRange(await db.AssetCategories.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.AssetCategories.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("AssetCategory", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "BookCategory":
-                    all.AddRange(await db.BookCategories.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.BookCategories.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("BookCategory", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "NoticeCategory":
-                    all.AddRange(await db.NoticeCategories.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.NoticeCategories.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("NoticeCategory", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "DocumentType":
-                    all.AddRange(await db.DocumentTypeDefinitions.AsNoTracking().Where(x => x.TenantId == tenant &&
+                    all.AddRange(await db.DocumentTypeDefinitions.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("DocumentType", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
