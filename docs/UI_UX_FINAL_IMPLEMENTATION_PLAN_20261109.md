@@ -459,6 +459,7 @@ P0 navigation, shell, forms and data-performance foundations should be establish
 
 - The existing Student Documents Razor markup and production script are exercised with mocked API responses on **360px/en-BD and 390px/bn-BD Chromium fixtures**: select student A, begin private file upload, try selecting student B while pending, complete upload, verify attachment is still scoped to A with CSRF and rowversion, then rotate tenant context and verify old student history/search data disappears. These are synthetic server responses, not proof of an authenticated tenant or translated interface.
 - The new pinned `ux03-student-documents-browser.yml` runs this exact fixture on `Ashraful` via GitHub Actions. Local Node/Playwright syntax is available but local browser execution is **BLOCKED** (`/usr/bin/chromium` process socket denied, bundled Playwright Chromium absent); do not mark the browser check PASS until remote CI returns success. Real identity/role/multi-campus/private-download authorization, translation completeness and institution acceptance remain separate.
+- First remote fixture run failed at a test-only wait: a valid populated `<option>` was correctly attached to the DOM, but Playwright's default *visible* wait does not treat option nodes as visible. The browser check now explicitly waits for DOM attachment; no production script or validation was relaxed. Recheck the new exact-SHA run before claiming PASS.
 
 ## 5. Mandatory page/module coverage inventory
 

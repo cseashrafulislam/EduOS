@@ -56,7 +56,7 @@ async function verify(browser, width, language) {
         });
         await page.goto('http://eduos.test/StudentDocuments/Index');
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/students/documents.js') });
-        await page.locator('#documentType option[value="Birth"]').waitFor();
+        await page.locator('#documentType option[value="Birth"]').waitFor({ state: 'attached' });
         await page.locator('#documentSearch').fill('AA');
         await page.locator('#documentSearchForm button').click();
         await page.locator('#documentMatches button').click();
