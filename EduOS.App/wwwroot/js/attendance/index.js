@@ -17,6 +17,7 @@
     let correctionTarget = null;
     if (!form || !rows || !date) return;
     let loaded = false, roster = null, dirty = false;
+    let saving = false, finalizing = false, correcting = false;
     let acceptedDate = '', acceptedBatch = '', acceptedSubject = '';
     let historicalSessionId = null;
     let historicalQuery = { search: '', state: '' };
@@ -359,12 +360,15 @@
         };
     }
     async function saveAttendance() {
-        if (!loaded || saveButton.disabled || roster?.isHistoricalReadOnly) return;
+        if (!loaded || saving || finalizing || saveButton.disabled || roster?.isHistoricalReadOnly || roster?.isFinalized) return;
         const students = [...rows.querySelectorAll('tr[data-enrollment-reference]')].map(readRow);
         if (students.some(x => !x.state)) {
             status('danger', 'Mark every student before saving, or use Mark all present.'); return;
         }
-        saveButton.disabled = true; clearStatus();
+        saving = true;
+        saveButton.disabled = true; markAllButton.disabled = true;
+        if (finalizeButton) finalizeButton.disabled = true;
+        clearStatus();
         try {
             if (!roster?.attendanceSessionId) {
                 const created = await api('/api/student-attendance/sessions', 'POST', requestScope());
@@ -384,7 +388,14 @@
             await loadRoster();
             status('success', result.message || 'Attendance saved.');
         } catch (error) { status('danger', error.message); }
-        finally { saveButton.disabled = !loaded || roster?.isFinalized || !(roster?.students?.length > 0); }
+        finally {
+            saving = false;
+            const editable = loaded && !roster?.isFinalized && !roster?.isHistoricalReadOnly && roster?.students?.length > 0;
+            saveButton.disabled = !editable;
+            markAllButton.disabled = !editable;
+            if (finalizeButton) finalizeButton.disabled = !editable || dirty || !roster?.attendanceSessionId ||
+                roster?.summary?.unmarked !== 0;
+        }
     }
     function openCorrection(student) {
         if (!canCorrect || !roster?.isFinalized || !correctionModal ||
@@ -405,7 +416,7 @@
     }
     async function submitCorrection() {
         const target = correctionTarget;
-        if (!target || !canCorrect || !roster?.isFinalized ||
+        if (!target || correcting || !canCorrect || !roster?.isFinalized ||
             rosterRequest !== target.token || rosterPage !== target.page ||
             Number(roster.attendanceSessionId) !== target.sessionId) {
             correctionError.textContent = 'Roster changed. Close this dialog and reload the page.';
@@ -418,6 +429,7 @@
             correctionError.textContent = 'Choose a different status and provide a reason (up to 1000 characters).';
             return;
         }
+        correcting = true;
         correctionConfirm.disabled = true;
         correctionError.textContent = '';
         try {
@@ -433,16 +445,22 @@
         } catch (error) {
             correctionError.textContent = error.message || 'Correction failed. Reload and retry.';
         } finally {
+            correcting = false;
             correctionConfirm.disabled = false;
         }
     }
     async function finalizeAttendance() {
-        if (!roster?.attendanceSessionId || roster.isFinalized || !roster.sessionRowVersion) return;
+        if (saving || finalizing || !loaded || !roster?.attendanceSessionId ||
+            roster.isFinalized || roster.isHistoricalReadOnly || !roster.sessionRowVersion) return;
+        if (dirty) return status('warning', 'Save or discard unsaved roster changes before finalization.');
         if (roster.summary?.unmarked !== 0)
             return status('warning', 'All students must be marked before finalization.');
         if (!confirm('Finalize this register? Future changes require a manager correction with audit.'))
             return;
+        finalizing = true;
         finalizeButton.disabled = true;
+        saveButton.disabled = true;
+        markAllButton.disabled = true;
         try {
             const result = await api('/api/student-attendance/sessions/' +
                 roster.attendanceSessionId + '/finalize?rowVersion=' +
@@ -453,7 +471,12 @@
             status('success', result.message || 'Attendance finalized.');
         } catch (error) {
             status('danger', error.message);
-            finalizeButton.disabled = false;
+        } finally {
+            finalizing = false;
+            const editable = loaded && !roster?.isFinalized && !roster?.isHistoricalReadOnly && roster?.students?.length > 0;
+            saveButton.disabled = !editable;
+            markAllButton.disabled = !editable;
+            finalizeButton.disabled = !editable || dirty || roster?.summary?.unmarked !== 0;
         }
     }
     function updateSummary() {
@@ -553,8 +576,8 @@
         document.getElementById('attendanceTitle').textContent =
             document.documentElement.lang.toLowerCase().startsWith('bn') ? 'উপস্থিতির রিপোর্ট' : 'Attendance Reports';
     });
-    rows.addEventListener('change', () => { dirty = true; updateSummary(); });
-    rows.addEventListener('input', () => { dirty = true; updateSummary(); });
+    rows.addEventListener('change', () => { dirty = true; updateSummary(); if (finalizeButton) finalizeButton.disabled = true; });
+    rows.addEventListener('input', () => { dirty = true; updateSummary(); if (finalizeButton) finalizeButton.disabled = true; });
     el('attendanceRosterPrevious').addEventListener('click', async () => {
         if (rosterPage <= 1) return;
         if (dirty && !confirm('Discard unsaved changes on this roster page?')) return;
@@ -584,13 +607,24 @@
     saveButton.addEventListener('click', saveAttendance);
     finalizeButton?.addEventListener('click', finalizeAttendance);
     markAllButton.addEventListener('click', () => {
-        rows.querySelectorAll('tr[data-enrollment-reference]').forEach(tr => {
+        if (!loaded || saving || finalizing || roster?.isFinalized || roster?.isHistoricalReadOnly) return;
+        const candidates = [...rows.querySelectorAll('tr[data-enrollment-reference]')].filter(tr =>
+            tr.dataset.approvedLeave !== 'true' && !tr.querySelector('[data-state]')?.value);
+        if (!candidates.length) return status('info', 'No unmarked students are eligible for bulk Present.');
+        const bn = document.documentElement.lang.toLowerCase().startsWith('bn');
+        const prompt = bn
+            ? `${candidates.length} জন অনুপস্থিতি-অচিহ্নিত শিক্ষার্থীকে Present করবেন? অনুমোদিত ছুটি ও আগের মার্ক অপরিবর্তিত থাকবে। সেভ করার আগে যাচাই করুন।`
+            : `Mark ${candidates.length} currently unmarked students Present on this roster page? Approved leave and existing marks stay unchanged. Review before saving.`;
+        if (!confirm(prompt)) return;
+        candidates.forEach(tr => {
             // Preserve existing marks and approved-leave students; mass marking
             // must not quietly erase valid leave or previously recorded attendance.
             const select = tr.querySelector('[data-state]');
             if (select && !select.value && tr.dataset.approvedLeave !== 'true') select.value = '1';
         });
         dirty = true; updateSummary();
+        if (finalizeButton) finalizeButton.disabled = true;
+        status('info', 'Bulk marks are unsaved. Review each row and save explicitly.');
     });
     loadBatches();
 })();

@@ -102,6 +102,7 @@
                 open.className = 'btn btn-sm btn-outline-primary';
                 open.textContent = 'Open roster';
                 open.setAttribute('aria-label', 'Open attendance roster for ' + item.attendanceDate);
+                const batchLabel = el('attendanceReportBatch').selectedOptions[0]?.textContent || '';
                 open.addEventListener('click', () => document.dispatchEvent(
                     new CustomEvent('attendance:session-open', { detail: {
                         sessionId: item.sessionId,
@@ -110,7 +111,7 @@
                         attendanceDate: item.attendanceDate,
                         subjectOfferingId: item.subjectOfferingId,
                         subjectOfferingCode: item.subjectOfferingCode,
-                        batchLabel: el('attendanceReportBatch').selectedOptions[0]?.textContent
+                        batchLabel
                     } })));
                 action.append(open);
                 tr.append(action);
@@ -175,8 +176,8 @@
         const url = scopedUrl('print');
         if (url && visible.length) window.open(url, '_blank', 'noopener,noreferrer');
     }
-    form.addEventListener('submit', () => { page = 1; load(true); });
-    filter.addEventListener('change', () => { reset(); load(); });
+    form.addEventListener('submit', event => { event.preventDefault(); page = 1; void load(true); });
+    filter.addEventListener('change', () => { reset(); void load(); });
     el('attendanceSessionsLoad').addEventListener('click', () => { page = 1; load(true); });
     previous.addEventListener('click', () => { if (page > 1) { page--; load(); } });
     next.addEventListener('click', () => { if (page < pages) { page++; load(); } });
