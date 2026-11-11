@@ -6,13 +6,20 @@
     const manager = root.dataset.canManage === 'true';
     const teacher = root.dataset.canTeach === 'true';
     const statuses = {1:'Draft',2:'Submitted',3:'Approved',4:'Rejected',5:'In progress',6:'Completed'};
-    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, substitutionRequestId: null, substitutionRequestPayload: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0, teacherPage: 1, teacherPages: 1, teacherCount: 0, teacherRequestSeq: 0, workloadRows: [], workloadPage: 1, workloadPages: 1, workloadCount: 0, workloadRequestSeq: 0, workloadLoaded: false };
+    const state = { batches: [], offerings: [], instructors: [], routines: [], lessons: [], substitutions: [], editingId: null, lessonPage: 1, lessonPages: 1, lessonCount: 0, substitutionPage: 1, substitutionPages: 1, substitutionCount: 0, requestSeq: 0, draftRequestId: null, lessonFingerprint: null, lessonSaving: false, substitutionSaving: false, actionSaving: false, selectedBatch: '', substitutionRequestId: null, substitutionRequestPayload: null, routinePage: 1, routinePages: 1, routineCount: 0, routineRequestSeq: 0, offeringPage: 1, offeringPages: 1, offeringCount: 0, offeringRequestSeq: 0, teacherPage: 1, teacherPages: 1, teacherCount: 0, teacherRequestSeq: 0, workloadRows: [], workloadPage: 1, workloadPages: 1, workloadCount: 0, workloadRequestSeq: 0, workloadLoaded: false };
+    const identity = [document.body?.dataset?.authTenantId || '', document.body?.dataset?.authSessionReference || '', document.body?.dataset?.authUserId || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        identity[2] === (document.body?.dataset?.authUserId || '');
+    const lessonGuard = window.EduOSFormGuard?.create(get('lessonForm')) || null;
+    const substitutionGuard = manager ? window.EduOSFormGuard?.create(get('substitutionForm')) || null : null;
     const dateOnly = value => value ? String(value).slice(0,10) : '';
     const dateForApi = value => value; // ASP.NET DateOnly accepts yyyy-MM-dd, not a timestamp.
     const option = (value, text) => { const e=document.createElement('option');e.value=String(value);e.textContent=text;return e; };
-    function status(kind,message) { const x=get('instructionAlert');x.className='alert alert-'+kind;x.textContent=message;x.focus(); }
+    function status(kind,message) { if(!sameSession())return;const x=get('instructionAlert');x.className='alert alert-'+kind;x.textContent=message;x.focus(); }
     function clearStatus() {const x=get('instructionAlert');x.className='d-none';x.textContent='';}
     async function api(url,method='GET',body) {
+        if(!sameSession())throw new Error('Session changed. Reload the page.');
         const headers = { Accept: 'application/json' };
         if (method !== 'GET') {
             const token = document.querySelector('meta[name="request-verification-token"]')?.content;
@@ -23,6 +30,7 @@
         const result = await fetch(url, { method, credentials: 'same-origin', cache: 'no-store', headers,
             ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
         const payload = await result.json().catch(() => null);
+        if(!sameSession())throw new Error('Session changed. Reload the page.');
         if (!result.ok || !payload?.success) throw new Error(payload?.message || 'Request failed.');
         return payload.data;
     }
@@ -43,7 +51,18 @@
         return{batchId,from,to};
     }
     function selectBatch() {
-        resetEditor();
+        const select = get('instructionBatch');
+        const dirtyGuard = lessonGuard?.isDirty() ? lessonGuard :
+            (substitutionGuard?.isDirty() ? substitutionGuard : null);
+        if(!sameSession()||state.lessonSaving||state.substitutionSaving||state.actionSaving||
+            (dirtyGuard&&!dirtyGuard.confirmDiscard())){
+            select.value=state.selectedBatch;return;
+        }
+        resetEditor(true);
+        lessonGuard?.markClean();
+        get('substitutionForm')?.reset();
+        substitutionGuard?.markClean();
+        state.selectedBatch=select.value;
         state.substitutionRequestId = null; state.substitutionRequestPayload = null;
         const id=Number(get('instructionBatch').value);
         get('lessonNew').disabled=!id;
@@ -155,10 +174,13 @@
     function setRoutineOptions() {
         if(!manager)return;
         const selected=get('substitutionRoutine').value;
-        setOptions('substitutionRoutine',state.routines.map(x=>({
+        const choices=state.routines.map(x=>({
             id:x.id,name:[x.subjectName,x.timeSlotName,x.originalTeacherName].filter(Boolean).join(' / ')
-        })),'Select scheduled routine');
-        if(state.routines.some(x=>String(x.id)===selected))get('substitutionRoutine').value=selected;
+        }));
+        if(selected&&substitutionGuard?.isDirty()&&!choices.some(x=>String(x.id)===selected))
+            choices.unshift({id:selected,name:'Previously selected routine (verify before saving)'});
+        setOptions('substitutionRoutine',choices,'Select scheduled routine');
+        if(choices.some(x=>String(x.id)===selected))get('substitutionRoutine').value=selected;
     }
     function applyRoutinePage(result,requestedPage) {
         state.routines=result.items;
@@ -263,6 +285,7 @@
         }
     }
     function exportWorkload() {
+        if(!sameSession())return;
         if (!manager || !state.workloadRows.length) return;
         const headers = ['Substitute teacher', 'Employee code', 'Active', 'Cancelled', 'Total'];
         const rows = state.workloadRows.map(x =>
@@ -280,7 +303,8 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     async function load() {
-        let scope; try { scope = dateScope(); } catch (e) { status('danger', e.message); return; }
+        if(!sameSession())return false;
+        let scope; try { scope = dateScope(); } catch (e) { status('danger', e.message); return false; }
         const seq = ++state.requestSeq;
         const offeringSeq = ++state.offeringRequestSeq;
         const routineSeq = ++state.routineRequestSeq;
@@ -292,6 +316,10 @@
         const substitutionQuery = new URLSearchParams(q);
         substitutionQuery.set('page', String(state.substitutionPage)); substitutionQuery.set('pageSize', '20');
         const statusFilter = get('substitutionStatus').value;
+        const current = () => {
+            if(!sameSession()||seq!==state.requestSeq||get('substitutionStatus').value!==statusFilter)return false;
+            try { return JSON.stringify(dateScope())===JSON.stringify(scope); } catch { return false; }
+        };
         if (statusFilter) substitutionQuery.set('isCancelled', statusFilter);
         try {
             const [lessonResult, subResult, summaryResult, offeringResult, routineResult] = await Promise.allSettled([
@@ -302,7 +330,7 @@
                 fetchRoutinePage(scope.batchId, manager ? get('substitutionDate').value : scope.to,
                     state.routinePage, manager ? get('substitutionRoutineSearch').value.trim() : '')
             ]);
-            if (seq !== state.requestSeq) return;
+            if (!current()) return false;
             if (lessonResult.status === 'rejected') throw lessonResult.reason;
             if (subResult.status === 'rejected') throw subResult.reason;
             const page = lessonResult.value;
@@ -341,13 +369,15 @@
             }
             if (offeringResult.status === 'rejected' || (manager && routineResult.status === 'rejected'))
                 status('warning', 'Some active offerings or timetable entries are unavailable. Existing lesson plans remain readable.');
+            return offeringResult.status === 'fulfilled' && (!manager || routineResult.status === 'fulfilled');
         } catch (e) {
-            if (seq === state.requestSeq) {
+            if (current()) {
                 state.lessons = []; state.substitutions = []; state.lessonPages = 1; state.lessonCount = 0;
                 state.substitutionPages = 1; state.substitutionCount = 0;
                 get('substitutionSummary').textContent = '';
                 renderLessons([]); renderSubstitutions([]); updateLessonPager(); updateSubstitutionPager(); status('danger', e.message);
             }
+            return false;
         } finally { if (seq === state.requestSeq) btn.disabled = false; }
     }
     function setAssignments() {
@@ -364,6 +394,8 @@
             const choices = state.offerings.filter(x => x.isActive).map(x => ({
                 id: x.reference, name: [x.subjectCode, x.subjectName, x.code].filter(Boolean).join(' / ')
             }));
+            if(selected&&lessonGuard?.isDirty()&&!choices.some(x=>String(x.id)===selected))
+                choices.unshift({id:selected,name:'Previously selected offering (verify before saving)'});
             setOptions('lessonAssignment', choices, 'Select subject offering');
             if (choices.some(x => String(x.id) === selected)) get('lessonAssignment').value = selected;
         }
@@ -408,14 +440,21 @@
             body.append(tr);
         }
     }
-    function resetEditor(){state.editingId=null;get('lessonEditor').classList.add('d-none');}
+    function resetEditor(force=false) {
+        if(!force&&(state.lessonSaving||!sameSession()||
+            (lessonGuard?.isDirty()&&!lessonGuard.confirmDiscard())))return false;
+        state.editingId=null;state.draftRequestId=null;state.lessonFingerprint=null;
+        lessonGuard?.markClean();get('lessonEditor').classList.add('d-none');return true;
+    }
     function openEditor(row) {
+        if(!sameSession()||state.lessonSaving||state.substitutionSaving||state.actionSaving)return;
         if (row && !row.subjectOfferingReference) {
             status('warning', 'The saved subject offering is unavailable. Reload before editing.');
             return;
         }
+        if(lessonGuard?.isDirty()&&!lessonGuard.confirmDiscard())return;
         state.editingId = row?.id || null;
-        state.draftRequestId = row ? null : crypto.randomUUID();
+        state.draftRequestId = crypto.randomUUID();state.lessonFingerprint=null;
         get('lessonEditorTitle').textContent = row ? 'Edit draft lesson plan' : 'New lesson plan';
         get('lessonTitle').value = row?.title || '';
         get('lessonDate').value = dateOnly(row?.lessonDate) || get('instructionTo').value;
@@ -425,34 +464,46 @@
         setAssignments();
         get('lessonAssignment').value = row?.subjectOfferingReference || '';
         get('lessonAssignment').disabled = !!row;
+        lessonGuard?.markClean();
         get('lessonEditor').classList.remove('d-none'); get('lessonTitle').focus();
     }
     async function saveLesson(e) {
         e.preventDefault();
         const form = e.currentTarget;
-        if (!form.reportValidity()) return;
+        if(state.lessonSaving||state.substitutionSaving||state.actionSaving||!sameSession()||!form.reportValidity())return;
         const row = state.lessons.find(x => Number(x.id) === state.editingId);
         const date = get('lessonDate').value, title = get('lessonTitle').value.trim();
         const offering = row ? row.subjectOfferingReference : get('lessonAssignment').value;
         if (!title || !date || !offering) { status('danger', 'Title, date and subject offering are required.'); return; }
         const body = {
-            clientRequestId: row ? crypto.randomUUID() : state.draftRequestId,
             subjectOfferingReference: offering, lessonDate: dateForApi(date), title,
             objectives: get('lessonObjectives').value.trim() || null,
             content: get('lessonContent').value.trim() || null,
             resources: get('lessonResources').value.trim() || null
         };
         if (row) body.rowVersion = row.rowVersion;
-        const btn = get('lessonSave'); btn.disabled = true;
+        const fingerprint=JSON.stringify({id:row?.id||null,...body});
+        if(state.lessonFingerprint!==fingerprint||!state.draftRequestId)
+            state.draftRequestId=crypto.randomUUID();
+        state.lessonFingerprint=fingerprint;body.clientRequestId=state.draftRequestId;
+        const btn = get('lessonSave');
+        state.lessonSaving=true;btn.disabled=true;form.inert=true;get('instructionBatch').disabled=true;
         try {
             await api(row ? '/api/academic-instruction/lesson-plans/' + row.id :
                 '/api/academic-instruction/lesson-plans', 'POST', body);
-            resetEditor(); state.draftRequestId = null; await load();
-            status('success', 'Lesson plan saved.');
-        } catch (e) { status('danger', e.message); }
-        finally { btn.disabled = false; }
+            if(!sameSession())return;
+            lessonGuard?.markClean();resetEditor(true);
+            const refreshed=await load();
+            status(refreshed?'success':'warning',refreshed?'Lesson plan saved.':
+                'Lesson plan saved, but the list could not refresh. Reload before changing it again.');
+        } catch (error) {
+            status('danger',error.message+' Check the current lesson register before retrying; your draft remains.');
+        } finally {
+            state.lessonSaving=false;btn.disabled=false;form.inert=false;get('instructionBatch').disabled=false;
+        }
     }
     async function lessonAction(action, id) {
+        if(!sameSession()||state.lessonSaving||state.substitutionSaving||state.actionSaving)return;
         const row = state.lessons.find(x => Number(x.id) === id);
         if (!row) return;
         if (action === 'editLesson') { openEditor(row); return; }
@@ -469,10 +520,14 @@
             endpoint = action === 'startLesson' ? 'start' : 'complete';
             body = { rowVersion: row.rowVersion };
         } else return;
+        state.actionSaving=true;
         try {
             await api('/api/academic-instruction/lesson-plans/' + id + '/' + endpoint, 'POST', body);
-            await load(); status('success', 'Lesson plan updated.');
-        } catch (e) { status('danger', e.message); }
+            const refreshed=await load();
+            status(refreshed?'success':'warning',refreshed?'Lesson plan updated.':
+                'Lesson plan updated, but the register could not refresh. Reload before another action.');
+        } catch (e) { status('danger',e.message+' Verify the current lesson status before retrying.'); }
+        finally { state.actionSaving=false; }
     }
     function substitutionRequestIdFor(payload) {
         // Reuse the key only for an identical retry after an uncertain response.
@@ -487,7 +542,7 @@
     async function saveSub(e) {
         e.preventDefault();
         const form = e.currentTarget;
-        if (!form.reportValidity()) return;
+        if(state.substitutionSaving||state.lessonSaving||state.actionSaving||!sameSession()||!form.reportValidity())return;
         const routineEntryId = Number(get('substitutionRoutine').value);
         const substituteEmployeeReference = get('substitutionTeacher').value;
         const date = get('substitutionDate').value;
@@ -502,27 +557,41 @@
         const payload = { routineEntryId, substituteEmployeeReference, date: dateForApi(date),
             reason: get('substitutionReason').value.trim() || null };
         const clientRequestId = substitutionRequestIdFor(payload);
-        const btn = get('substitutionSave'); btn.disabled = true;
+        const btn = get('substitutionSave');
+        state.substitutionSaving=true;btn.disabled=true;form.inert=true;get('instructionBatch').disabled=true;
         try {
             await api('/api/academic-instruction/substitutions', 'POST', {
                 clientRequestId, ...payload
             });
-            state.substitutionRequestId = null; state.substitutionRequestPayload = null; form.reset();
-            get('substitutionDate').value=get('instructionTo').value;
-            state.routinePage=1;await load(); status('success', 'Substitution scheduled.');
-        } catch (e) { status('danger', e.message); }
-        finally { btn.disabled = false; }
+            if(!sameSession())return;
+            state.substitutionRequestId=null;state.substitutionRequestPayload=null;form.reset();
+            substitutionGuard?.markClean();get('substitutionDate').value=get('instructionTo').value;
+            state.routinePage=1;
+            const refreshed=await load();
+            status(refreshed?'success':'warning',refreshed?'Substitution scheduled.':
+                'Substitution scheduled, but the register could not refresh. Reload before another action.');
+        } catch (error) {
+            status('danger',error.message+' Check the substitution register before retrying; your inputs remain.');
+        } finally {
+            state.substitutionSaving=false;btn.disabled=false;form.inert=false;get('instructionBatch').disabled=false;
+        }
     }
     async function substitutionAction(id) {
+        if(!sameSession()||state.lessonSaving||state.substitutionSaving||state.actionSaving)return;
         const row = state.substitutions.find(x => Number(x.id) === id);
         if (!row || row.isCancelled || !window.confirm('Cancel this substitution?')) return;
+        state.actionSaving=true;
         try {
             await api('/api/academic-instruction/substitutions/' + id + '/cancel',
                 'POST', { rowVersion: row.rowVersion });
-            await load(); status('success', 'Substitution cancelled.');
-        } catch (e) { status('danger', e.message); }
+            const refreshed=await load();
+            status(refreshed?'success':'warning',refreshed?'Substitution cancelled.':
+                'Substitution cancelled, but the register could not refresh. Reload before another action.');
+        } catch (e) { status('danger',e.message+' Verify the current substitution before retrying.'); }
+        finally { state.actionSaving=false; }
     }
     function exportSubstitutions() {
+        if(!sameSession())return;
         const headers = ['Date', 'Batch', 'Subject', 'Time slot', 'Original teacher', 'Substitute', 'Reason', 'Status', 'Routine context'];
         const rows = state.substitutions.map(x => [dateOnly(x.date), x.batchName, x.subjectName,
             x.timeSlotName, x.originalTeacherName, x.substituteEmployeeName,
@@ -544,6 +613,7 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
     function exportLessons() {
+        if(!sameSession())return;
         const headers = ['Lesson date', 'Subject', 'Title', 'Teacher', 'State', 'Completed UTC', 'Objectives', 'Content', 'Resources'];
         const rows = state.lessons.map(x => [dateOnly(x.lessonDate), x.subjectName, x.title,
             x.employeeName, statuses[Number(x.state)] || x.state, x.completedAt || '', x.objectives, x.content, x.resources]);
@@ -562,7 +632,7 @@
     get('instructionFilters').addEventListener('submit',e=>{e.preventDefault();if(manager)resetWorkload();state.lessonPage=1;state.substitutionPage=1;load();});
     get('instructionBatch').addEventListener('change',selectBatch);
     get('lessonNew').addEventListener('click',()=>openEditor(null));
-    get('lessonCancel').addEventListener('click',resetEditor);
+    get('lessonCancel').addEventListener('click',()=>resetEditor());
     get('lessonForm').addEventListener('submit',saveLesson);
     get('lessonRows').addEventListener('click',e=>{const button=e.target.closest('button[data-action]');if(button)lessonAction(button.dataset.action,Number(button.dataset.id));});
     get('substitutionRows').addEventListener('click',e=>{const button=e.target.closest('button[data-action]');if(button&&button.dataset.action==='cancelSub')substitutionAction(Number(button.dataset.id));});

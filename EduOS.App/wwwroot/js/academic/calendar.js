@@ -7,23 +7,33 @@
     const isTenantAdmin = root.dataset.tenantAdmin === 'true';
     const weekday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const types = { 1: 'Academic', 2: 'Holiday', 3: 'Examination', 4: 'Admission', 5: 'Sports', 6: 'Cultural', 7: 'Meeting', 8: 'Other', 99: 'Other' };
-    const state = { years: [], campuses: [], events: [], working: [], policy: null, editId: null, busy: false };
+    const state = { years: [], campuses: [], events: [], working: [], policy: null, editId: null,
+        eventSaving: false, policySaving: false, loadSeq: 0, appliedYear: '', appliedCampus: '' };
+    const identity = [document.body?.dataset?.authTenantId || '', document.body?.dataset?.authSessionReference || '', document.body?.dataset?.authUserId || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        identity[2] === (document.body?.dataset?.authUserId || '');
+    const eventGuard = canManage && el('calendarEventForm') ? window.EduOSFormGuard?.create(el('calendarEventForm')) : null;
+    const policyGuard = canManage && el('calendarPolicyForm') ? window.EduOSFormGuard?.create(el('calendarPolicyForm')) : null;
     const asDate = value => value ? String(value).slice(0, 10) : '';
     const toNum = value => value ? Number(value) : null;
     const option = (value, label) => { const x = document.createElement('option'); x.value = value; x.textContent = label; return x; };
     function alertMessage(kind, text) {
+        if (!sameSession()) return;
         const box = el('calendarAlert');
         box.className = 'alert alert-' + kind;
         box.textContent = text; box.focus();
     }
     function clearAlert() { el('calendarAlert').className = 'd-none'; el('calendarAlert').textContent = ''; }
     async function api(url, method = 'GET', body) {
+        if (!sameSession()) throw new Error('Session changed. Reload the page.');
         const csrf = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
         if (method !== 'GET' && !csrf) throw new Error('Security token missing. Reload the page.');
         const response = await fetch(url, { method, credentials: 'same-origin', cache: 'no-store',
             headers: { Accept: 'application/json', ...(method === 'GET' ? {} : { RequestVerificationToken: csrf }), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
             ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
         const payload = await response.json().catch(() => null);
+        if (!sameSession()) throw new Error('Session changed. Reload the page.');
         if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Unable to complete request.');
         return payload.data;
     }
@@ -46,15 +56,19 @@
         if (state.campuses.some(x => String(x.id) === prevCampus)) el('calendarCampus').value = prevCampus;
         setYearDates();
         updateManageScope();
+        state.appliedYear = el('calendarYear').value;
+        state.appliedCampus = el('calendarCampus').value;
     }
     function updateManageScope() {
-        const canWrite = canManage && (isTenantAdmin || !!el('calendarCampus').value);
+        const canWrite = sameSession() && canManage && !state.eventSaving && !state.policySaving &&
+            (isTenantAdmin || !!el('calendarCampus').value);
         if (el('calendarNewEvent')) el('calendarNewEvent').disabled = !canWrite || !el('calendarYear').value;
         if (el('calendarSavePolicy')) el('calendarSavePolicy').disabled = !canWrite;
     }
     async function initScopes() {
         try {
             const data = await api('/api/academic-setup/catalog');
+            if (!sameSession()) return;
             const batches = data?.batches || [];
             const years = [...new Map(batches.map(x => [Number(x.academicYearId), { id: Number(x.academicYearId), name: x.academicYearName || 'Year ' + x.academicYearId }])).values()];
             const campuses = [...new Map(batches.map(x => [Number(x.campusId), { id: Number(x.campusId), name: x.campusName || 'Campus ' + x.campusId }])).values()];
@@ -63,6 +77,7 @@
         if (root.dataset.canManage === 'true') {
             // The onboarding endpoints are available to TenantAdmin; other academic managers use the canonical batch catalog.
             const results = await Promise.allSettled([api('/api/institution-onboarding/academic-years'), api('/api/institution-onboarding/campus-list')]);
+            if (!sameSession()) return;
             const years = results[0].status === 'fulfilled' ? (Array.isArray(results[0].value) ? results[0].value : (results[0].value?.items || [])) : [];
             const campuses = results[1].status === 'fulfilled' ? (Array.isArray(results[1].value) ? results[1].value : (results[1].value?.items || [])) : [];
             addScopes(years.map(x => ({ id: x.id, name: x.name, startDate: x.startDate, endDate: x.endDate, isCurrent: x.isCurrent })),
@@ -139,16 +154,26 @@
         state.policy = policy || null;
         const days = policy ? [policy.weekendDay1, policy.weekendDay2].filter(x => x !== null && x !== undefined) : [];
         el('calendarPolicySummary').textContent = policy ? 'Weekend: ' + days.map(x => weekday[Number(x)] || x).join(', ') : 'No policy configured.';
-        document.querySelectorAll('input[name="weekendDay"]').forEach(x => x.checked = days.some(d => Number(d) === Number(x.value)));
+        if (!policyGuard?.isDirty()) {
+            document.querySelectorAll('input[name="weekendDay"]').forEach(x => x.checked = days.some(d => Number(d) === Number(x.value)));
+            policyGuard?.markClean();
+        }
     }
     async function load() {
+        if (!sameSession()) return false;
         let s; try { s = scope(); } catch (e) { alertMessage('danger', e.message); return; }
+        const seq = ++state.loadSeq, fingerprint = JSON.stringify(s);
+        const current = () => {
+            if (!sameSession() || seq !== state.loadSeq) return false;
+            try { return JSON.stringify(scope()) === fingerprint; } catch { return false; }
+        };
         clearAlert(); const b = el('calendarLoad'); b.disabled = true;
         try {
             const q = params(s);
             const [eventResult, workingResult] = await Promise.allSettled([
                 api('/api/academic-calendars/events?' + q), api('/api/academic-calendars/working-days?' + q)
             ]);
+            if (!current()) return false;
             state.events = eventResult.status === 'fulfilled' ? (eventResult.value || []) : [];
             renderEvents(state.events);
             renderWorking(workingResult.status === 'fulfilled' ? (workingResult.value || []) : []);
@@ -156,13 +181,46 @@
             if (workingResult.status === 'rejected') alertMessage('warning', 'Working days: ' + workingResult.reason.message);
             const pq = new URLSearchParams({ academicYearId: String(s.academicYearId) });
             if (s.campusId) pq.set('campusId', String(s.campusId));
-            try { showPolicy(await api('/api/academic-calendars/policy?' + pq)); }
-            catch (e) { if (e.message.includes('not configured')) showPolicy(null); else alertMessage('warning', 'Calendar loaded, but policy could not be loaded: ' + e.message); }
-        } catch (e) { alertMessage('danger', e.message); renderEvents([]); renderWorking([]); }
-        finally { b.disabled = false; }
+            let policyOk = true;
+            try {
+                const policy = await api('/api/academic-calendars/policy?' + pq);
+                if (!current()) return false;
+                showPolicy(policy);
+            } catch (e) {
+                if (!current()) return false;
+                if (e.message.includes('not configured')) showPolicy(null);
+                else { policyOk = false; alertMessage('warning', 'Calendar loaded, but policy could not be loaded: ' + e.message); }
+            }
+            return eventResult.status === 'fulfilled' && workingResult.status === 'fulfilled' && policyOk;
+        } catch (e) {
+            if (!current()) return false;
+            alertMessage('danger', e.message); renderEvents([]); renderWorking([]);
+            return false;
+        } finally { if (seq === state.loadSeq) b.disabled = false; }
+    }
+    function discardEditors() {
+        if (state.eventSaving || state.policySaving || !sameSession()) return false;
+        for (const guard of [eventGuard, policyGuard])
+            if (guard?.isDirty() && !guard.confirmDiscard()) return false;
+        eventGuard?.markClean(); policyGuard?.markClean();
+        return true;
+    }
+    function changeScope(kind) {
+        const select = el(kind === 'year' ? 'calendarYear' : 'calendarCampus');
+        const previous = kind === 'year' ? state.appliedYear : state.appliedCampus;
+        if (!discardEditors()) { select.value = previous; return; }
+        closeEditor(true);
+        if (kind === 'year') { el('calendarFrom').value = ''; el('calendarTo').value = ''; setYearDates(); showPolicy(null); }
+        else { updateManageScope(); showPolicy(null); }
+        state.appliedYear = el('calendarYear').value;
+        state.appliedCampus = el('calendarCampus').value;
+        ++state.loadSeq;
+        el('calendarLoad').disabled = false;
     }
     function openEditor(ev) {
-        if (!canManage || (!isTenantAdmin && !(ev?.campusId || toNum(el('calendarCampus').value)))) return;
+        if (!canManage || !sameSession() || state.eventSaving || state.policySaving ||
+            (!isTenantAdmin && !(ev?.campusId || toNum(el('calendarCampus').value)))) return;
+        if (eventGuard?.isDirty() && !eventGuard.confirmDiscard()) return;
         state.editId = ev?.id || null;
         el('calendarEditorTitle').textContent = ev ? 'Edit calendar event' : 'New calendar event';
         el('calendarEventTitle').value = ev?.title || '';
@@ -173,14 +231,24 @@
         el('calendarEventDescription').value = ev?.description || '';
         el('calendarEventHoliday').checked = !!ev?.isHoliday;
         el('calendarEventVisible').checked = ev?.isPublicVisible !== false;
+        eventGuard?.markClean();
         el('calendarEditorPanel').classList.remove('d-none');
         el('calendarEventTitle').focus();
     }
-    function closeEditor() { state.editId = null; el('calendarEditorPanel')?.classList.add('d-none'); }
+    function closeEditor(force = false) {
+        if (!force && (state.eventSaving || !sameSession() ||
+            (eventGuard?.isDirty() && !eventGuard.confirmDiscard()))) return false;
+        state.editId = null;
+        eventGuard?.markClean();
+        el('calendarEditorPanel')?.classList.add('d-none');
+        return true;
+    }
     async function saveEvent(e) {
-        e.preventDefault(); if (!e.currentTarget.reportValidity()) return;
+        e.preventDefault();
+        if (state.eventSaving || state.policySaving || !sameSession() || !e.currentTarget.reportValidity()) return;
         const selected = state.events.find(x => Number(x.id) === Number(state.editId));
-        const s = scope(), startDate = el('calendarEventStart').value, endDate = el('calendarEventEnd').value;
+        let s; try { s = scope(); } catch (error) { alertMessage('danger', error.message); return; }
+        const startDate = el('calendarEventStart').value, endDate = el('calendarEventEnd').value;
         const year = state.years.find(x => Number(x.id) === s.academicYearId);
         if (startDate > endDate || (year?.startDate && startDate < asDate(year.startDate)) ||
             (year?.endDate && endDate > asDate(year.endDate))) {
@@ -195,37 +263,59 @@
             startDate, endDate, isHoliday: el('calendarEventHoliday').checked, isPublicVisible: el('calendarEventVisible').checked };
         if (!body.title) { alertMessage('danger', 'Event title is required.'); return; }
         if (state.editId) { body.rowVersion = selected?.rowVersion; if (!body.rowVersion) { alertMessage('danger', 'Reload this event before editing.'); return; } }
-        const button = el('calendarSaveEvent'); button.disabled = true;
+        const button = el('calendarSaveEvent');
+        state.eventSaving = true; button.disabled = true; e.currentTarget.inert = true;
+        el('calendarFilters').inert = true; updateManageScope();
         try {
             await api(state.editId ? '/api/academic-calendars/events/' + state.editId : '/api/academic-calendars/events', 'POST', body);
-            closeEditor(); await load(); alertMessage('success', 'Calendar event saved.');
-        } catch (error) { alertMessage('danger', error.message); }
-        finally { button.disabled = false; }
+            if (!sameSession()) return;
+            eventGuard?.markClean(); closeEditor(true);
+            const refreshed = await load();
+            alertMessage(refreshed ? 'success' : 'warning', refreshed ? 'Calendar event saved.' :
+                'Calendar event saved, but the calendar could not be refreshed. Reload before making another change.');
+        } catch (error) {
+            if (sameSession()) alertMessage('danger', error.message + ' Check the current event register before retrying; your draft remains.');
+        } finally {
+            state.eventSaving = false; button.disabled = false; e.currentTarget.inert = false;
+            el('calendarFilters').inert = false; updateManageScope();
+        }
     }
     async function savePolicy(event) {
         event.preventDefault();
+        if (state.policySaving || state.eventSaving || !sameSession() || !event.currentTarget.reportValidity()) return;
         let s; try { s = scope(); } catch (error) { alertMessage('danger', error.message); return; }
         if (!isTenantAdmin && !s.campusId) { alertMessage('danger', 'Choose an authorized campus to change its weekend policy.'); return; }
         const days = [...document.querySelectorAll('input[name="weekendDay"]:checked')].map(x => Number(x.value));
         if (days.length < 1 || days.length > 2) { alertMessage('danger', 'Select one or two weekend days.'); return; }
-        const button = el('calendarSavePolicy'); button.disabled = true;
+        const button = el('calendarSavePolicy');
+        state.policySaving = true; button.disabled = true; event.currentTarget.inert = true;
+        el('calendarFilters').inert = true; updateManageScope();
         try {
             const saved = await api('/api/academic-calendars/policy', 'POST', {
                 campusId: s.campusId, weekendDay1: days[0], weekendDay2: days[1] ?? null,
                 isActive: true, rowVersion: state.policy?.campusId === s.campusId ? state.policy.rowVersion : null });
-            showPolicy(saved); await load(); alertMessage('success', 'Weekend policy saved.');
-        } catch (error) { alertMessage('danger', error.message); }
-        finally { button.disabled = false; }
+            if (!sameSession()) return;
+            policyGuard?.markClean(); showPolicy(saved);
+            const refreshed = await load();
+            alertMessage(refreshed ? 'success' : 'warning', refreshed ? 'Weekend policy saved.' :
+                'Weekend policy saved, but the calendar could not be refreshed. Reload before another change.');
+        } catch (error) {
+            if (sameSession()) alertMessage('danger', error.message + ' Check the current policy before retrying; your selections remain.');
+        } finally {
+            state.policySaving = false; button.disabled = false; event.currentTarget.inert = false;
+            el('calendarFilters').inert = false; updateManageScope();
+        }
     }
     el('calendarFilters').addEventListener('submit', e => { e.preventDefault(); load(); });
-    el('calendarYear').addEventListener('change', () => { closeEditor(); el('calendarFrom').value = ''; el('calendarTo').value = ''; setYearDates(); });
-    el('calendarCampus').addEventListener('change', () => { closeEditor(); updateManageScope(); showPolicy(null); });
+    el('calendarYear').addEventListener('change', () => changeScope('year'));
+    el('calendarCampus').addEventListener('change', () => changeScope('campus'));
     el('calendarEvents').addEventListener('click', e => { const button = e.target.closest('[data-edit-id]'); if (button) openEditor(state.events.find(x => String(x.id) === button.dataset.editId)); });
     el('calendarNewEvent')?.addEventListener('click', () => openEditor(null));
-    el('calendarCancelEvent')?.addEventListener('click', closeEditor);
+    el('calendarCancelEvent')?.addEventListener('click', () => closeEditor());
     el('calendarEventForm')?.addEventListener('submit', saveEvent);
     el('calendarPolicyForm')?.addEventListener('submit', savePolicy);
     function exportCsv(filename, headers, rows) {
+        if (!sameSession()) return;
         const safe = value => {
             const raw = String(value ?? '');
             const escaped = /^[=+@-]/.test(raw.trimStart()) ? "'" + raw : raw;
