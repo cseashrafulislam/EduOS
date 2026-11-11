@@ -5,11 +5,17 @@ const el = id => document.getElementById(id);
 const endpoint = '/api/finance/loan-disbursements';
 const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
 let page = 1, pages = 1, selected = null, periods = [], accounts = [];
+let posting = false, loadSequence = 0;
+const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
+const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
+    context[1] === (document.body?.dataset.authSessionReference || '') &&
+    window.EduOSSessionTransitionPending?.() !== true;
 function notice(message, error = false) {
     const box = el('loanNotice'); box.textContent = message;
     box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
 }
 async function api(url, method = 'GET', body) {
+    if (!live()) throw new Error('Institution session changed. Reload the page.');
     const headers = {Accept:'application/json'};
     if (method !== 'GET') {
         if (!token) throw new Error('Antiforgery token missing; reload the page.');
@@ -19,6 +25,7 @@ async function api(url, method = 'GET', body) {
     const response = await fetch(url, {method, credentials:'same-origin', cache:'no-store',
         headers, ...(body === undefined ? {} : {body:JSON.stringify(body)})});
     const result = await response.json().catch(() => null);
+    if (!live()) throw new Error('Institution session changed. Reload the page.');
     if (!response.ok || !result?.success) throw new Error(result?.message || 'Loan operation failed.');
     return result.data;
 }
@@ -34,6 +41,7 @@ function fill(id, options, label) {
     for (const x of options) select.append(option(x.id, x.code ? x.code + ' — ' + x.name : x.name));
 }
 function choose(row) {
+    if (posting || !live()) return;
     selected = row;
     el('loanConfirmPanel').classList.remove('d-none');
     el('loanSelected').textContent = row.employeeName + ' · Loan #' + row.loanId + ' · BDT ' + money(row.principalAmount);
@@ -67,20 +75,23 @@ function render(data) {
     el('loanPrev').disabled = page <= 1; el('loanNext').disabled = page >= pages;
 }
 async function load() {
+    const sequence = ++loadSequence;
     try {
         const query = new URLSearchParams({pendingOnly:String(el('loanPending').checked),
             page:String(page), pageSize:'10'});
-        render(await api(endpoint + '?' + query));
-    } catch (err) { notice(err.message, true); }
+        const result = await api(endpoint + '?' + query);
+        if (sequence === loadSequence && live()) render(result);
+    } catch (err) { if (sequence === loadSequence) notice(err.message, true); }
 }
 el('loanFilter').addEventListener('submit', e => { e.preventDefault(); page = 1; load(); });
 el('loanPrev').addEventListener('click', () => { if (page > 1) { page--; load(); } });
 el('loanNext').addEventListener('click', () => { if (page < pages) { page++; load(); } });
 el('loanCancel').addEventListener('click', () => {
+    if (posting) return;
     selected = null; el('loanConfirmPanel').classList.add('d-none');
 });
 el('loanConfirm').addEventListener('click', async e => {
-    if (!selected) return;
+    if (!selected || posting || !live()) return;
     const period = Number(el('loanPeriod').value), receivable = Number(el('loanReceivable').value),
         cash = Number(el('loanCash').value), date = el('loanDate').value;
     if (![period, receivable, cash].every(x => Number.isSafeInteger(x) && x > 0) ||
@@ -88,14 +99,24 @@ el('loanConfirm').addEventListener('click', async e => {
         notice('Choose a date, open period, loan receivable and a distinct cash ledger.', true); return;
     }
     if (!confirm('Record the cash disbursement and post an immutable balanced institutional journal?')) return;
-    e.currentTarget.disabled = true;
+    const loan = selected;
+    posting = true; e.currentTarget.disabled = true;
     try {
-        const result = await api(endpoint + '/' + encodeURIComponent(selected.loanId) + '/post', 'POST',
+        const result = await api(endpoint + '/' + encodeURIComponent(loan.loanId) + '/post', 'POST',
             {disbursementDate:date, accountingPeriodId:period, loanReceivableAccountId:receivable,
-                cashAccountId:cash, rowVersion:selected.rowVersion});
+                cashAccountId:cash, rowVersion:loan.rowVersion});
         notice((result.alreadyPosted ? 'Already posted: ' : 'Disbursement posted: ') + result.journalNumber);
         selected = null; el('loanConfirmPanel').classList.add('d-none'); await load();
-    } catch (err) { notice(err.message, true); } finally { e.currentTarget.disabled = false; }
+    } catch (err) { notice(err.message, true); } finally { posting = false; e.currentTarget.disabled = false; }
 });
+const observer = new MutationObserver(() => {
+    if (live()) return;
+    ++loadSequence; selected = null; periods = []; accounts = [];
+    el('loanRows').replaceChildren(); el('loanConfirmPanel').classList.add('d-none');
+    notice('Institution session changed. Reload the page.', true);
+    observer.disconnect();
+});
+observer.observe(document.body, { attributes: true,
+    attributeFilter: ['data-auth-tenant-id', 'data-auth-session-reference'] });
 load();
 })();

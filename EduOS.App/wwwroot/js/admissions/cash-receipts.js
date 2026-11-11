@@ -6,12 +6,18 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
     const endpoint = '/api/admission-cash-receipts';
     let workspace = null, selected = null, requestId = '', fingerprint = '';
+    let collecting = false, loadSequence = 0, receiptSequence = 0;
+    const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
+    const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
+        context[1] === (document.body?.dataset.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
     function notice(message, error = false) {
         const box = el('admissionCashNotice');
         box.textContent = message;
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-info');
     }
     async function api(url, method = 'GET', payload) {
+        if (!live()) throw new Error('Institution session changed. Reload the page.');
         const headers = { Accept: 'application/json' };
         if (method !== 'GET') {
             if (!token) throw new Error('Antiforgery token missing; reload the page.');
@@ -21,6 +27,7 @@
         const response = await fetch(url, { method, headers, credentials: 'same-origin',
             cache: 'no-store', body: payload === undefined ? undefined : JSON.stringify(payload) });
         const result = await response.json().catch(() => null);
+        if (!live()) throw new Error('Institution session changed. Reload the page.');
         if (!response.ok || !result?.success) throw new Error(result?.message || 'Request failed.');
         return result.data;
     }
@@ -52,11 +59,15 @@
         el('admissionCashReceiptPrint').hidden = false;
     }
     async function receipt(reference) {
+        const sequence = ++receiptSequence;
         const row = await api(endpoint + '/' + encodeURIComponent(reference));
+        if (sequence !== receiptSequence || !live()) return;
         showReceipt(row);
         notice('Posted receipt ' + row.receiptNumber + ' loaded.');
     }
     function choose(row) {
+        if (collecting || !live()) return;
+        ++receiptSequence;
         selected = row; requestId = ''; fingerprint = '';
         el('admissionCashReceiptPrint').hidden = true;
         el('admissionCashCollectPanel').hidden = false;
@@ -96,12 +107,14 @@
         }
     }
     async function load() {
+        const sequence = ++loadSequence;
         const search = el('admissionCashSearch').value.trim();
-        render(await api(endpoint + '/workspace' + (search ? '?search=' + encodeURIComponent(search) : '')));
+        const data = await api(endpoint + '/workspace' + (search ? '?search=' + encodeURIComponent(search) : ''));
+        if (sequence === loadSequence && live()) render(data);
     }
     async function collect(event) {
         event.preventDefault();
-        if (!selected) return;
+        if (!selected || collecting || !live()) return;
         const date = el('admissionCashDate').value, periodId = Number(el('admissionCashPeriod').value);
         const cashId = Number(el('admissionCashLedger').value), incomeId = Number(el('admissionIncomeLedger').value);
         const period = (workspace.openPeriods || []).find(x => x.id === periodId);
@@ -111,24 +124,27 @@
         const key = [selected.applicantReference, selected.applicationFee, date, periodId, cashId, incomeId].join('|');
         if (key !== fingerprint) { fingerprint = key; requestId = crypto.randomUUID(); }
         if (!confirm('Cash received? This will immediately post a balanced admission-fee journal.')) return;
-        const button = el('admissionCashCollect'); button.disabled = true;
+        const applicant = selected;
+        const button = el('admissionCashCollect'); collecting = true; button.disabled = true;
         try {
             const result = await api(endpoint, 'POST', {
-                clientRequestId: requestId, applicantReference: selected.applicantReference,
+                clientRequestId: requestId, applicantReference: applicant.applicantReference,
                 paymentDate: date, accountingPeriodId: periodId, cashAccountId: cashId,
-                incomeAccountId: incomeId, expectedAmount: selected.applicationFee,
-                applicantRowVersion: selected.rowVersion
+                incomeAccountId: incomeId, expectedAmount: applicant.applicationFee,
+                applicantRowVersion: applicant.rowVersion
             });
             showReceipt(result);
             el('admissionCashCollectPanel').hidden = true;
-            selected = null;
+            selected = null; requestId = ''; fingerprint = '';
             notice(result.alreadyRecorded ? 'Existing receipt recovered.' : 'Cash collected and GL journal posted.');
             await load();
         } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+        finally { collecting = false; button.disabled = false; }
     }
     el('admissionCashSearchForm').addEventListener('submit', async event => {
         event.preventDefault();
+        if (collecting || !live()) return;
+        ++receiptSequence;
         el('admissionCashCollectPanel').hidden = true;
         selected = null;
         try { await load(); notice('Applications loaded.'); }
@@ -136,5 +152,17 @@
     });
     el('admissionCashCollectForm').addEventListener('submit', collect);
     el('admissionCashPrintButton').addEventListener('click', () => window.print());
+    const observer = new MutationObserver(() => {
+        if (live()) return;
+        ++loadSequence; ++receiptSequence; selected = null; workspace = null;
+        requestId = ''; fingerprint = '';
+        el('admissionCashApplicants').replaceChildren();
+        el('admissionCashCollectPanel').hidden = true;
+        el('admissionCashReceiptPrint').hidden = true;
+        notice('Institution session changed. Reload the page.', true);
+        observer.disconnect();
+    });
+    observer.observe(document.body, { attributes: true,
+        attributeFilter: ['data-auth-tenant-id', 'data-auth-session-reference'] });
     load().catch(error => notice(error.message, true));
 })();
