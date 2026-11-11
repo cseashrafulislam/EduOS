@@ -159,11 +159,14 @@ public sealed class HrCampusAssignmentWorkflowTests
             DesignationId = 12, EmployeeCode = "TENANT-42", FullName = "Second",
             JoiningDate = new DateOnly(2026, 1, 1)
         };
-        db.Employees.AddRange(firstEmployee, otherEmployee);
-        db.Campuses.AddRange(
-            new Campus { Id = 701, TenantId = 41, Name = "First", Code = "T41" },
-            new Campus { Id = 702, TenantId = 42, Name = "Second", Code = "T42" });
+        db.Employees.Add(firstEmployee);
+        db.Campuses.Add(new Campus { Id = 701, TenantId = 41, Name = "First", Code = "T41" });
         await db.SaveChangesAsync();
+        accessor.HttpContext!.Items["TenantId"] = 42L;
+        db.Employees.Add(otherEmployee);
+        db.Campuses.Add(new Campus { Id = 702, TenantId = 42, Name = "Second", Code = "T42" });
+        await db.SaveChangesAsync();
+        accessor.HttpContext.Items["TenantId"] = 41L;
         var requestId = Guid.NewGuid();
         var first = await FullService(db, 41).AssignCampusAsync(new AssignEmployeeCampusRequestDto
         {
