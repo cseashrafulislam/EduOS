@@ -39,5 +39,5 @@ test('options refresh preserves still-authorized academic and campus selections'
   assert.match(refresh, /restoreAvailableOption\('campusId', previousSelections\.campus\)/);
   assert.match(refresh, /restoreAvailableOption\('academicUnitId', previousSelections\.level\)/);
   assert.match(refresh, /refreshTerms\(\);\s*restoreAvailableOption\('academicTermId', previousSelections\.term\)/);
-  assert.match(refresh, /select\.options\]\.some\(option => option\.value === previousValue\)/);
+  assert.match(refresh, /select\.options\]\.some\(option => option\.value === String\(previousValue\)\)/);
 });

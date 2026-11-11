@@ -307,7 +307,7 @@ test('An old exam preview is never published or displayed for another selected a
 
 test('Admissions, attendance, fees and dashboard preserve transaction and selection guards', () => {
     assert.match(admissions, /const request = \+\+state\.intakeRequest/);
-    assert.match(admissions, /if \(request !== state\.intakeRequest\) return;/);
+    assert.match(admissions, /if \(request !== state\.intakeRequest \|\| !sameSession\(\)\) return;/);
     assert.match(admissions, /if \(list\.dataset\.mutatingIntake\)/);
     assert.match(attendance, /acceptedDate = date\.value; acceptedBatch = ''; acceptedSubject = ''/);
     assert.match(attendance, /dirty && !confirm\('Discard unsaved attendance before changing subjects\?'\)/);

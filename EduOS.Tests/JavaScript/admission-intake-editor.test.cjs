@@ -13,7 +13,7 @@ test('intake editor preserves invalid edits and provides accessible error naviga
  assert.match(js, /link\.addEventListener\('click', \(\) => field\?\.focus\(\)\)/);
 });
 test('intake save prevents duplicate concurrent requests and preserves form on conflicts', () => {
- assert.match(js, /if \(state\.savingIntake\) return/);
+ assert.match(js, /if \(state\.savingIntake \|\| !sameSession\(\)\) return/);
  assert.match(js, /state\.savingIntake = true/);
  assert.match(js, /state\.savingIntake = false/);
  assert.match(js, /response\.status === 409 \|\| response\.status === 412/);

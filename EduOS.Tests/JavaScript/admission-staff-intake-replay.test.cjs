@@ -20,7 +20,7 @@ test('staff intake uses persisted contact address and configurable custom fields
     assert.doesNotMatch(script, /function copyAddress/);
 });
 test('staff intake guards double submission and rotates retry keys on changed payload', () => {
-    assert.match(script, /if \(state\.submitting\) return/);
+    assert.match(script, /if \(state\.submitting \|\| !sameSession\(\)\) return/);
     assert.match(script, /if \(!form\.checkValidity\(\) \|\| missingChoices\.length\)/);
     assert.match(script, /admissionErrors\(form, missingChoices\)/);
     assert.match(script, /state\.pendingFingerprint !== fingerprint/);

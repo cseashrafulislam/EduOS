@@ -3,8 +3,12 @@
 
     const i18n = JSON.parse(document.getElementById('admissionStrings')?.textContent || '{}');
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn') === true;
-    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, intakeRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null, listPageRows: null };
+    const state = { page: 1, pageSize: 20, totalPages: 1, options: null, optionsRequest: 0, intakeForms: [], currentApplication: null, pendingRequestId: createRequestId(), pendingFingerprint: null, submitting: false, listRequest: 0, intakeRequest: 0, reviewRequest: 0, documentRequest: 0, reviewingDocument: false, documents: [], documentReference: null, documentPage: 1, savingIntake: false, intakeFingerprint: null, listPageRows: null };
     const guards = { application: null, intake: null, review: null, enrollment: null };
+    const identity = [document.body?.dataset?.authTenantId || '', document.body?.dataset?.authSessionReference || '', document.body?.dataset?.authUserId || ''];
+    const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
+        identity[1] === (document.body?.dataset?.authSessionReference || '') &&
+        identity[2] === (document.body?.dataset?.authUserId || '');
     // Canonical AdmissionApplicantState (FinalDomainEnums), not the retired 1-7 UI status map.
     const statuses = {
         1: bangla ? 'খসড়া' : 'Draft',
@@ -82,19 +86,28 @@
     }, { once: true });
 
     async function loadOptions() {
-        const wasDirty = guards.application?.isDirty();
-        const intakeWasDirty = guards.intake?.isDirty();
+        if (!sameSession()) return;
+        const request = ++state.optionsRequest;
         try {
             const response = await fetch('/api/admission-applications/options', apiOptions());
             const payload = await response.json().catch(() => null);
+            if (request !== state.optionsRequest || !sameSession()) return;
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid options');
+            // A user can start editing while the refresh is in flight. Only a
+            // genuinely pristine editor may acquire a new clean baseline.
+            const wasDirty = guards.application?.isDirty();
+            const intakeWasDirty = guards.intake?.isDirty();
             // A publish/close refresh can occur while an applicant is typing.
             // Snapshot dependent selections before rebuilding the option controls.
             const previousSelections = {
                 year: valueOf('academicYearId'),
                 term: valueOf('academicTermId'),
                 campus: valueOf('campusId'),
-                level: valueOf('academicUnitId')
+                level: valueOf('academicUnitId'),
+                intakeYear: valueOf('intakeYearId'),
+                intakeTerm: valueOf('intakeTermId'),
+                intakeCampus: valueOf('intakeCampusId'),
+                intakeLevel: valueOf('intakeUnitId')
             };
             state.options = payload.data;
             fillSelect('academicYearId', state.options.academicYears, true);
@@ -106,6 +119,9 @@
             fillSelect('intakeYearId', state.options.academicYears, true);
             fillSelect('intakeCampusId', state.options.campuses, true);
             fillSelect('intakeUnitId', state.options.academicLevels, true);
+            restoreAvailableOption('intakeYearId', previousSelections.intakeYear);
+            restoreAvailableOption('intakeCampusId', previousSelections.intakeCampus);
+            restoreAvailableOption('intakeUnitId', previousSelections.intakeLevel);
             // Refreshing published intakes must not silently discard a partially
             // completed application. Only retain a reference still authorized/open.
             const previousReference = valueOf('admissionFormReference');
@@ -117,13 +133,17 @@
                 setValue('admissionFormReference', previousReference);
             selectAdmissionForm(previousReference === valueOf('admissionFormReference') ? previousCustom : null);
             state.activeIntakeReference = valueOf('admissionFormReference');
-            refreshTerms();
-            restoreAvailableOption('academicTermId', previousSelections.term);
-            refreshIntakeTerms();
+            // A published intake owns its academic term. Do not overwrite that
+            // server-provided term with a stale selection from another intake.
+            if (!state.options.openForms?.some(x => x.reference === state.activeIntakeReference)) {
+                refreshTerms();
+                restoreAvailableOption('academicTermId', previousSelections.term);
+            }
+            refreshIntakeTerms(previousSelections.intakeTerm);
             if (!wasDirty) guards.application?.markClean();
             if (!intakeWasDirty) guards.intake?.markClean();
         } catch {
-            showAlert('danger', i18n.optionsFailed);
+            if (request === state.optionsRequest && sameSession()) showAlert('danger', i18n.optionsFailed);
         }
     }
 
@@ -131,8 +151,9 @@
         const select = document.getElementById(id);
         if (!select || !previousValue) return;
         // Never restore an option removed by current tenant/campus authorization.
-        if ([...select.options].some(option => option.value === previousValue))
-            select.value = previousValue;
+        if ([...select.options].some(option => option.value === String(previousValue)))
+            select.value = String(previousValue);
+        else select.value = ''; // Never silently replace a removed authorized choice.
     }
 
     function fillSelect(id, items, selectFirst) {
@@ -161,10 +182,11 @@
         const yearId = positiveInteger(valueOf('intakeYearId'));
         const terms = state.options?.academicTerms?.filter(item => Number(item.parentId) === yearId) || [];
         fillSelect('intakeTermId', terms, false);
-        if (selectedValue) setValue('intakeTermId', selectedValue);
+        if (selectedValue) restoreAvailableOption('intakeTermId', selectedValue);
     }
 
     function changeAdmissionForm() {
+        if (!sameSession()) return;
         const next = valueOf('admissionFormReference');
         const previous = state.activeIntakeReference || '';
         if (next === previous) return;
@@ -289,6 +311,7 @@
     }
 
     async function loadIntakeForms() {
+        if (!sameSession()) return;
         const list = document.getElementById('intakeFormList');
         if (!list) return;
         const request = ++state.intakeRequest;
@@ -297,12 +320,12 @@
         try {
             const response = await fetch('/api/admission-intake/forms', apiOptions());
             const payload = await response.json().catch(() => null);
-            if (request !== state.intakeRequest) return;
+            if (request !== state.intakeRequest || !sameSession()) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data)) throw new Error(payload?.message || 'Admission forms could not be loaded.');
             state.intakeForms = payload.data;
             renderIntakeForms();
         } catch (error) {
-            if (request === state.intakeRequest)
+            if (request === state.intakeRequest && sameSession())
                 list.replaceChildren(statusMessage(error.message || 'Admission forms could not be loaded.'));
         } finally {
             if (request === state.intakeRequest) list.removeAttribute('aria-busy');
@@ -326,6 +349,7 @@
     }
 
     function renderIntakeForms() {
+        if (!sameSession()) return;
         const list = document.getElementById('intakeFormList');
         if (!list) return;
         const query = (document.getElementById('intakeFormSearch')?.value || '').trim().toLocaleLowerCase();
@@ -419,6 +443,7 @@
     }
 
     async function handleIntakeFormAction(event) {
+        if (!sameSession()) return;
         const button = event.target.closest('button[data-intake-action]');
         if (!button) return;
         const item = state.intakeForms.find(x => Number(x.id) === Number(button.dataset.intakeId));
@@ -439,6 +464,7 @@
         try {
             const response = await fetch(`/api/admission-intake/forms/${encodeURIComponent(item.id)}/${action}`, apiOptions('POST', { rowVersion: item.rowVersion }));
             const payload = await response.json().catch(() => null);
+            if (!sameSession()) return;
             if (!response.ok || !payload?.success) {
                 if (response.status === 409 || response.status === 412) {
                     await loadIntakeForms();
@@ -452,7 +478,7 @@
             // Refresh the published-form selector only after the authoritative mutation succeeds.
             await loadOptions();
         } catch (error) {
-            showAlert('danger', error.message || intakeText('Unable to change the form status.', 'ফরমের অবস্থা পরিবর্তন করা যায়নি।'));
+            if (sameSession()) showAlert('danger', error.message || intakeText('Unable to change the form status.', 'ফরমের অবস্থা পরিবর্তন করা যায়নি।'));
         } finally {
             if (controls) {
                 delete controls.dataset.mutatingIntake;
@@ -467,6 +493,7 @@
     }
 
     function openIntakeFormEditor(item) {
+        if (!sameSession()) return;
         const editor = document.getElementById('intakeFormEditor');
         if (!editor || !state.options) return;
         if (state.savingIntake || (guards.intake?.isDirty() && !guards.intake.confirmDiscard())) return;
@@ -607,7 +634,7 @@
 
     async function saveIntakeForm(event) {
         event.preventDefault();
-        if (state.savingIntake) return;
+        if (state.savingIntake || !sameSession()) return;
         const editor = event.currentTarget;
         if (!editor.checkValidity()) {
             const invalid = [...editor.querySelectorAll('input,select,textarea')].filter(x => x.willValidate && !x.checkValidity());
@@ -689,6 +716,7 @@
         try {
             const response = await fetch(id ? `/api/admission-intake/forms/${encodeURIComponent(id)}` : '/api/admission-intake/forms', apiOptions(id ? 'PUT' : 'POST', request));
             const payload = await response.json().catch(() => null);
+            if (!sameSession()) return;
             if (response.status === 409 || response.status === 412) {
                 showIntakeValidation([{ row: document.getElementById('intakeCode'), message: bangla ? 'ফরমটি অন্য কেউ পরিবর্তন করেছেন। তথ্য না হারিয়ে সর্বশেষ সংস্করণ যাচাই করুন।' : 'This intake changed elsewhere. Review the latest version before saving; your edits remain here.' }]);
                 return;
@@ -701,7 +729,7 @@
             showAlert('success', payload.message || 'Admission form saved.');
             await loadIntakeForms();
         } catch (error) {
-            showAlert('danger', error.message || 'Admission form could not be saved.');
+            if (sameSession()) showAlert('danger', error.message || 'Admission form could not be saved.');
         } finally {
             state.savingIntake = false;
             editor.inert = false;
@@ -798,7 +826,7 @@
     async function submitApplication(event) {
         event.preventDefault();
         const form = event.currentTarget;
-        if (state.submitting) return;
+        if (state.submitting || !sameSession()) return;
         // Required multi-selects need an explicit check: native constraint
         // validation does not consistently enforce required on multiple selects.
         const missingChoices = [...form.querySelectorAll('select[multiple][required]')]
@@ -855,6 +883,7 @@
         try {
             const response = await fetch('/api/admission-applications', apiOptions('POST', request));
             const payload = await response.json().catch(() => null);
+            if (!sameSession()) return;
             if (!response.ok || !payload?.success) {
                 showAlert('danger', i18n.createFailed);
                 // Preserve every entered field and the idempotency key for a safe retry.
@@ -886,8 +915,10 @@
             state.page = 1;
             await loadApplications();
         } catch {
-            showAlert('danger', i18n.networkError);
-            document.getElementById('submitApplicationButton')?.focus();
+            if (sameSession()) {
+                showAlert('danger', i18n.networkError);
+                document.getElementById('submitApplicationButton')?.focus();
+            }
         } finally {
             state.submitting = false;
             form.inert = false;
@@ -931,6 +962,7 @@
     }
 
     async function loadApplications() {
+        if (!sameSession()) return;
         const list = document.getElementById('applicationList');
         if (!list) return;
         const requestNumber = ++state.listRequest;
@@ -946,7 +978,7 @@
         try {
             const response = await fetch(`/api/admission-applications?${params}`, apiOptions());
             const payload = await response.json().catch(() => null);
-            if (requestNumber !== state.listRequest) return;
+            if (requestNumber !== state.listRequest || !sameSession()) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data?.items)) throw new Error('Invalid list');
             state.totalPages = Math.max(1, Number(payload.data.totalPages) || 1);
             state.totalItems = Math.max(0, Number(payload.data.totalCount ?? payload.data.totalItems ?? payload.data.total) || 0);
@@ -961,7 +993,7 @@
                 state.listPageRows = payload.data.items;
             updatePagination();
         } catch {
-            if (requestNumber !== state.listRequest) return;
+            if (requestNumber !== state.listRequest || !sameSession()) return;
             const error = statusMessage(i18n.loadFailed);
             const retry = document.createElement('button');
             retry.type = 'button';
@@ -977,6 +1009,7 @@
     }
 
     function exportApplicationPage() {
+        if (!sameSession()) return;
         const items = state.listPageRows;
         if (!Array.isArray(items) || !items.length) return;
         const rows = items.map(item => [item.applicationNumber, item.applicantName,
@@ -1027,6 +1060,7 @@
     }
 
     async function openReview(event) {
+        if (!sameSession()) return;
         const button = event.target.closest('button[data-reference]');
         if (!button) return;
         const requestNumber = ++state.reviewRequest;
@@ -1048,7 +1082,7 @@
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}`, apiOptions());
             const payload = await response.json().catch(() => null);
-            if (requestNumber !== state.reviewRequest) return;
+            if (requestNumber !== state.reviewRequest || !sameSession()) return;
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid details');
             // Show the application promptly; private documents load independently.
             // A slow document endpoint must not block review of the canonical record.
@@ -1065,7 +1099,7 @@
             // application and rejects stale responses when selection changes.
             void loadApplicantDocuments(payload.data.reference);
         } catch {
-            if (requestNumber === state.reviewRequest) showAlert('danger', i18n.detailsFailed);
+            if (requestNumber === state.reviewRequest && sameSession()) showAlert('danger', i18n.detailsFailed);
         } finally {
             if (requestNumber === state.reviewRequest) {
                 document.querySelectorAll('#applicationList button[data-reference]').forEach(control => {
@@ -1108,6 +1142,7 @@
     }
 
     async function loadApplicantDocuments(reference) {
+        if (!sameSession()) return;
         const list = document.getElementById('applicantDocumentList');
         if (!list) return;
         const requestNumber = ++state.documentRequest;
@@ -1118,13 +1153,13 @@
         try {
             const response = await fetch(`/api/admission-intake/applications/${encodeURIComponent(reference)}/documents`, apiOptions());
             const payload = await response.json().catch(() => null);
-            if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference) return;
+            if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference || !sameSession()) return;
             if (!response.ok || !payload?.success || !Array.isArray(payload.data)) throw new Error(payload?.message || 'Documents could not be loaded.');
             state.documents = payload.data;
             state.documentReference = reference;
             renderApplicantDocuments();
         } catch (error) {
-            if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference) return;
+            if (requestNumber !== state.documentRequest || state.currentApplication?.reference !== reference || !sameSession()) return;
             const message = statusMessage(bangla ? 'নথি লোড করা যায়নি।' : (error.message || 'Documents could not be loaded.'));
             const retry = document.createElement('button');
             retry.type = 'button';
@@ -1153,6 +1188,7 @@
     }
 
     function renderApplicantDocuments() {
+        if (!sameSession()) return;
         const list = document.getElementById('applicantDocumentList');
         const summary = document.getElementById('applicantDocumentSummary');
         if (!list || state.documentReference !== state.currentApplication?.reference) return;
@@ -1255,6 +1291,7 @@
     }
 
     async function reviewApplicantDocument(event) {
+        if (!sameSession()) return;
         const button = event.target.closest('button[data-document-id]');
         if (!button || !state.currentApplication?.reference || state.reviewingDocument) return;
         const status = Number(button.dataset.documentStatus);
@@ -1275,7 +1312,7 @@
                 status, note: note || null, rowVersion: button.dataset.documentRowVersion
             }));
             const payload = await response.json().catch(() => null);
-            if (state.currentApplication?.reference !== reference) return;
+            if (state.currentApplication?.reference !== reference || !sameSession()) return;
             if (!response.ok || !payload?.success) {
                 if (response.status === 409 || response.status === 412) {
                     showAlert('danger', bangla
@@ -1322,7 +1359,7 @@
     async function saveDecision(event) {
         event.preventDefault();
         const form = event.currentTarget;
-        if (state.savingDecision || !form.reportValidity()) return;
+        if (state.savingDecision || !sameSession() || !form.reportValidity()) return;
         const reference = valueOf('reviewReference');
         const status = positiveInteger(valueOf('reviewStatus'));
         if (!reference || !status) return;
@@ -1337,6 +1374,7 @@
                 decisionNote: valueOf('decisionNote') || null
             }));
             const payload = await response.json().catch(() => null);
+            if (!sameSession()) return;
             if (!response.ok || !payload?.success) {
                 const conflict = response.status === 409 || response.status === 412;
                 showAlert('danger', conflict
@@ -1357,8 +1395,10 @@
             showAlert('success', i18n.decisionSaved);
             await loadApplications();
         } catch {
-            showAlert('danger', i18n.networkError);
-            button?.focus();
+            if (sameSession()) {
+                showAlert('danger', i18n.networkError);
+                button?.focus();
+            }
         } finally {
             state.savingDecision = false;
             document.getElementById('reviewModal').inert = false;
@@ -1367,6 +1407,7 @@
     }
 
     async function prepareEnrollment() {
+        if (!sameSession()) return;
         const item = state.currentApplication;
         if (!item?.reference || Number(item.state) !== 6 || state.preparingEnrollment) return;
         if (guards.review?.isDirty() && !guards.review.confirmDiscard()) return;
@@ -1377,7 +1418,7 @@
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(item.reference)}/enrollment-options`, apiOptions());
             const payload = await response.json().catch(() => null);
-            if (selectedReview !== state.reviewRequest || state.currentApplication?.reference !== item.reference) return;
+            if (selectedReview !== state.reviewRequest || state.currentApplication?.reference !== item.reference || !sameSession()) return;
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid enrollment options');
             fillSelect('enrollmentSectionId', payload.data.academicBatches, true);
             fillSelect('enrollmentGroupId', payload.data.academicTracks, false);
@@ -1539,7 +1580,7 @@
     // and selection on failure; never infer success after an ambiguous network error.
     async function completeEnrollment(event) {
         event.preventDefault();
-        if (state.enrolling || !event.currentTarget.reportValidity()) return;
+        if (state.enrolling || !sameSession() || !event.currentTarget.reportValidity()) return;
         const reference = valueOf('enrollmentReference');
         if (!reference) return;
         const button = document.getElementById('completeEnrollmentButton');
@@ -1554,6 +1595,7 @@
                 rowVersion: valueOf('enrollmentRowVersion')
             }));
             const payload = await response.json().catch(() => null);
+            if (!sameSession()) return;
             if (!response.ok || !payload?.success) {
                 const conflict = response.status === 409 || response.status === 412;
                 showAlert('danger', conflict
@@ -1576,10 +1618,12 @@
             state.currentApplication = null;
             await loadApplications();
         } catch {
-            showAlert('danger', bangla
-                ? 'সংযোগ বিচ্ছিন্ন হয়েছে। আবার চেষ্টা করার আগে আবেদনটির বর্তমান অবস্থা যাচাই করুন।'
-                : 'Connection lost. Check the current application status before retrying enrollment.');
-            button?.focus();
+            if (sameSession()) {
+                showAlert('danger', bangla
+                    ? 'সংযোগ বিচ্ছিন্ন হয়েছে। আবার চেষ্টা করার আগে আবেদনটির বর্তমান অবস্থা যাচাই করুন।'
+                    : 'Connection lost. Check the current application status before retrying enrollment.');
+                button?.focus();
+            }
         } finally {
             state.enrolling = false;
             document.getElementById('enrollmentModal').inert = false;
@@ -1622,6 +1666,7 @@
     }
 
     function apiOptions(method = 'GET', body = null) {
+        if (!sameSession()) throw new Error('Session changed. Reload the page.');
         const options = { method, cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } };
         if (method !== 'GET') {
             const csrf = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
@@ -1653,6 +1698,7 @@
     }
 
     function showAlert(type, message) {
+        if (!sameSession()) return;
         const alert = document.getElementById('admissionAlert');
         if (!alert) return;
         alert.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
