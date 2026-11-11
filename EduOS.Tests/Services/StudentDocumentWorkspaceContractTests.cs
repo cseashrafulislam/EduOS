@@ -46,7 +46,10 @@ public sealed class StudentDocumentWorkspaceContractTests
     {
         var js = Read("EduOS.App", "wwwroot", "js", "students", "documents.js");
         js.Should().Contain("'/api/document-admin/files'");
-        js.Should().Contain("studentRowVersion: state.student.rowVersion");
+        js.Should().Contain("const student = state.student, documentType");
+        js.Should().Contain("studentRowVersion: student.rowVersion");
+        js.Should().Contain("state.student?.reference !== student.reference");
+        js.Should().Contain("if (!live()) throw new Error('Institution session changed.");
         js.Should().Contain("credentials: 'same-origin'");
         js.Should().Contain("RequestVerificationToken");
         js.Should().Contain("textContent");
