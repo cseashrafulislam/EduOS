@@ -59,7 +59,14 @@
                 const labels = [...(field.labels || [])].map(item => item.textContent || '');
                 const aria = field.getAttribute('aria-label');
                 if (aria) labels.push(aria);
-                return { node: field, labels: labels.filter(Boolean) };
+                // Reuse the actual accessible name; bilingual aria-labelledby is
+                // frequently the only label on responsive/custom form layouts.
+                const labelIds = String(field.getAttribute('aria-labelledby') || '').trim().split(/\s+/u).slice(0, 8);
+                for (const id of labelIds) {
+                    const node = id && doc.getElementById(id);
+                    if (node?.textContent) labels.push(node.textContent);
+                }
+                return { node: field, labels: [...new Set(labels.map(x => x.trim()).filter(Boolean))] };
             }).filter(entry => entry.labels.length > 0);
     }
 
@@ -213,12 +220,13 @@
                 }
                 const target = hit.entry.node;
                 const previous = String(target.value || '');
+                const requestedSnapshot = requested;
                 pending = target;
                 message(t(`Preview: ${hit.entry.labels[0]} = "${draft.value}". Nothing has changed.`,
                     `আগে দেখুন: ${hit.entry.labels[0]} = "${draft.value}"। এখনো কিছু বদলায়নি।`));
                 action(t('Apply search draft', 'খোঁজার লেখা বসান'), () => {
-                    if (!currentContext() || pending !== target || !target.isConnected ||
-                        !isAvailableField(target) || !filters.isSafeTarget(target) ||
+                    if (!currentContext() || pending !== target || query.value.trim() !== requestedSnapshot ||
+                        !target.isConnected || !isAvailableField(target) || !filters.isSafeTarget(target) ||
                         String(target.value || '') !== previous) {
                         reset(); message(t('Session or field changed. Search again.', 'সেশন বা ঘর বদলেছে। আবার খুঁজুন।'));
                         return;
@@ -231,7 +239,7 @@
                     message(t('Search draft applied. Review or undo, then press Search on the page.',
                         'লেখা বসেছে। যাচাই বা ফেরত নিয়ে পেজের খুঁজুন চাপুন।'));
                     action(t('Undo draft', 'লেখা ফেরত নিন'), () => {
-                        if (!currentContext() || !isAvailableField(target) ||
+                        if (!currentContext() || !target.isConnected || !isAvailableField(target) ||
                             !filters.isSafeTarget(target) || String(target.value || '') !== draft.value) {
                             reset(); message(t('Undo unavailable after field/session changes.', 'ঘর বা সেশন বদলেছে, ফেরানো যাচ্ছে না।'));
                             return;
@@ -241,7 +249,8 @@
                             : t('Could not restore the old filter.', 'আগের লেখা ফেরানো যায়নি।'));
                     });
                     action(t('Focus search field', 'খোঁজার ঘরে যান'), () => {
-                        if (!currentContext() || !isAvailableField(target) || !filters.isSafeTarget(target)) return;
+                        if (!currentContext() || !target.isConnected || !isAvailableField(target) ||
+                        !filters.isSafeTarget(target)) return;
                         dialog.close(); target.scrollIntoView({ behavior: 'smooth', block: 'center' }); target.focus();
                     });
                 });

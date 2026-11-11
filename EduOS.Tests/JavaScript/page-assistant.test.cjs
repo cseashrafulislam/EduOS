@@ -227,3 +227,38 @@ test('large page treatments retain canonical form and preference controls', () =
     assert.match(drafts, /id:'admissionDraftDisclosure'/);
     assert.match(drafts, /id:'admissionReadinessDisclosure'/);
 });
+
+test('accessible aria-labelledby text is a unique bilingual assistant target', () => {
+    const ids = Object.fromEntries(['pageAssistantDialog', 'pageAssistantOpen', 'pageAssistantClose',
+        'pageAssistantQuery', 'pageAssistantFind', 'pageAssistantResult', 'main-content',
+        'sidebarMenu'].map(id => [id, createNode()]));
+    const label = Object.assign(createNode(), { textContent: 'শ্রেণির মন্তব্য' });
+    const field = Object.assign(createNode(), {
+        labels: [], type: 'text', attributes: { 'aria-labelledby': 'class-note-label' }
+    });
+    ids['main-content'].querySelectorAll = () => [field];
+    ids.sidebarMenu.querySelectorAll = () => [];
+    const doc = {
+        documentElement: { lang: 'bn-BD' }, body: { dataset: { authTenantId: '22', authSessionReference: 'a' } },
+        getElementById: id => id === 'class-note-label' ? label : ids[id],
+        createElement: () => createNode()
+    };
+    assistant.mount(doc, { addEventListener() {} });
+    ids.pageAssistantOpen.click();
+    ids.pageAssistantQuery.value = 'শ্রেণির মন্তব্য';
+    ids.pageAssistantFind.click();
+    assert.equal(ids.pageAssistantResult.children.length, 2);
+    assert.equal(field.focusCount || 0, 0);
+    ids.pageAssistantResult.children[1].click();
+    assert.equal(field.focusCount, 1);
+});
+
+test('search filter preview cannot apply after transcript edit and undo cannot use a detached field', () => {
+    const source = fs.readFileSync(path.resolve(__dirname,
+        '../../EduOS.App/wwwroot/js/platform/page-assistant.js'), 'utf8');
+    assert.match(source, /const requestedSnapshot = requested;[\s\S]*?Preview:/);
+    assert.match(source, /Apply search draft[\s\S]*?query\.value\.trim\(\) !== requestedSnapshot/);
+    assert.match(source, /Undo draft[\s\S]*?!target\.isConnected/);
+    assert.match(source, /Focus search field[\s\S]*?!target\.isConnected/);
+    assert.doesNotMatch(source, /\bfetch\s*\(|\.requestSubmit\s*\(|\.submit\s*\(/);
+});
