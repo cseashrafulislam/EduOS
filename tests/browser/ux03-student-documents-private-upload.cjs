@@ -17,12 +17,13 @@ const reply = (route, status, data) => route.fulfill({ status,
 
 async function verify(browser, width, language) {
     const page = await browser.newPage({ viewport: { width, height: 840 } });
-    const attaches = [], uploads = [];
+    const attaches = [], uploads = [], pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
     let resolveUpload, markUpload;
     const uploadStarted = new Promise(resolve => { markUpload = resolve; });
     const uploadReleased = new Promise(resolve => { resolveUpload = resolve; });
     try {
-        await page.route('http://eduos.test/**', async route => {
+        await page.route('http://localhost/**', async route => {
             const request = route.request(), url = new URL(request.url());
             if (!url.pathname.startsWith('/api/')) return route.fulfill({
                 status: 200, contentType: 'text/html', body: '<!doctype html><html lang="' + language +
@@ -54,7 +55,8 @@ async function verify(browser, width, language) {
             }
             return reply(route, 404, null);
         });
-        await page.goto('http://eduos.test/StudentDocuments/Index');
+        // Loopback is a browser secure context, so production crypto.randomUUID is available.
+        await page.goto('http://localhost/StudentDocuments/Index');
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/students/documents.js') });
         await page.locator('#documentType option[value="Birth"]').waitFor({ state: 'attached' });
         await page.locator('#documentSearch').fill('AA');
@@ -66,7 +68,8 @@ async function verify(browser, width, language) {
         await page.locator('#documentFile').setInputFiles({
             name: 'record.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\nexample') });
         await page.locator('#documentAttach').click();
-        await uploadStarted;
+        await Promise.race([uploadStarted, new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Upload request not sent: ' + pageErrors.join(' | '))), 15000))]);
         assert.equal(await page.locator('#documentFile').isDisabled(), true);
         await page.locator('#documentSearch').fill('BB');
         await page.locator('#documentSearchForm button').click();
