@@ -36,6 +36,13 @@ canonical curriculum keys. Null metadata on pre-migration Documents is deliberat
    these links do not exempt an uploaded file from scanning, rights review or
    tenant-scoped authorization.
 
+## Canonical official-book URL (owner decision 2026-11-12)
+
+- **One page:** `/Library/OfficialBooks`. Its catalogue and official publisher-source links belong to Library, not LMS.
+- Legacy `/Learning/OfficialBooks` requests use an authorized Library-controller redirect to `/Library/OfficialBooks`; it must never render a second page or bypass the `LIBRARY` module entitlement and role checks.
+- New navigation links to the official-book directory appear only under Library. LMS maintains course and assignment features; do not expose a second official-book entry or fork the source directory.
+- This is a route/navigation consolidation, not a deletion, licensing change, database migration or claim that third-party PDFs are copied into EduOS.
+
 ## Compatibility and rollout
 
 - Migration `20261108223500_EducationDigitalContentReview` is additive: nullable
