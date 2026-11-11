@@ -142,8 +142,8 @@ async function exercise(browser, mobile) {
             'static menu quantities must not appear as notification badges');
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="setup:access"] details.sidebar-category').count(), 0,
             'single-category groups should expose authorized links directly');
-        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:career"] details.sidebar-category').count(), 1,
-            'multi-category groups should retain useful categorization');
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:career"] details.sidebar-category').count(), 2,
+            'career employers and placements remain in distinct, meaningful settings/operations categories');
         for (const [route, label] of [
             ['/LearnerIdentities/AccessHistory', mobile ? 'পরিচয় তথ্য দেখার ইতিহাস' : 'Identity Access History'],
             ['/EmployeeAttendance/Index', mobile ? 'কর্মীর উপস্থিতি' : 'Employee Attendance'],
