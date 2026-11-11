@@ -18,10 +18,10 @@ const filters=()=>{
  return q.toString();
 };
 const cell=value=>{const td=document.createElement('td');td.textContent=value==null?'—':String(value);return td;};
-function invalidate(){sequence++;loadedFilter=null;exportButton.disabled=true;status.textContent='Filters changed. Apply filters to refresh.';}
+function invalidate(){sequence++;page=1;pages=1;loadedFilter=null;exportButton.disabled=true;previous.disabled=true;next.disabled=true;rows.replaceChildren();el('transportDriverCoverageForecastPage').textContent='';status.textContent='Filters changed. Apply filters to refresh.';}
 async function load(){
  if(!date.value||date.value<localToday()){status.textContent='Choose today or a future operating date.';invalidate();return;}
- loadedFilter=null;exportButton.disabled=true;
+ loadedFilter=null;exportButton.disabled=true;previous.disabled=true;next.disabled=true;rows.replaceChildren();
  const request=++sequence,snapshot=filters(),q=new URLSearchParams(snapshot);
  q.set('page',String(page));q.set('pageSize','15');
  status.textContent='Checking future driver coverage…';
@@ -30,7 +30,10 @@ async function load(){
   const body=await response.json().catch(()=>null);
   if(!response.ok||!body?.success||!body.data)throw Error(body?.message||'Dispatch forecast unavailable.');
   if(request!==sequence||snapshot!==filters())return;
-  const data=body.data;rows.replaceChildren();
+  const data=body.data;
+  const totalPages=Math.max(1,Number(data.totalPages)||1);
+  if(page>totalPages){page=totalPages;return load();}
+  rows.replaceChildren();
   for(const item of data.items||[]){
    const tr=document.createElement('tr');
    [item.campusName,item.vehicleNumber,item.reservedRiders+' / '+item.capacity,
@@ -43,10 +46,12 @@ async function load(){
   previous.disabled=page<=1;next.disabled=page>=pages;
   loadedFilter=snapshot;exportButton.disabled=!data.items?.length;
   status.textContent='Advisory snapshot. Recheck before dispatch.';
- }catch(error){if(request===sequence){rows.replaceChildren();status.textContent=error.message;previous.disabled=true;next.disabled=true;}}
+ }catch(error){if(request===sequence){loadedFilter=null;rows.replaceChildren();el('transportDriverCoverageForecastPage').textContent='';status.textContent=error.message;previous.disabled=true;next.disabled=true;exportButton.disabled=true;}}
 }
 el('transportDriverCoverageForecastFilters').addEventListener('submit',event=>{event.preventDefault();page=1;load();});
 for(const field of [date,campus,state])field.addEventListener('change',invalidate);
+window.addEventListener('transport:assignments-changed',invalidate);
+window.addEventListener('transport:vehicles-changed',invalidate);
 search.addEventListener('input',invalidate);
 previous.addEventListener('click',()=>{page=Math.max(1,page-1);load();});
 next.addEventListener('click',()=>{page=Math.min(pages,page+1);load();});
