@@ -54,6 +54,13 @@ public sealed class LibraryController : Controller
     [Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent")]
     public IActionResult OfficialBooks() => View("~/Views/Shared/OfficialEducationBooks.cshtml");
 
+    // Legacy LMS bookmark: canonical Library authorization and entitlement apply
+    // before redirecting. Do not render a second catalogue under Learning.
+    [HttpGet("/Learning/OfficialBooks")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent")]
+    public IActionResult LegacyLearningOfficialBooks() => RedirectToAction(nameof(OfficialBooks), "Library");
+
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [Authorize(Roles = "TenantAdmin,Principal,Librarian,Student,Teacher,Employee,Staff,Guardian,Parent")]
