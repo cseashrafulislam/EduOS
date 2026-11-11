@@ -16,9 +16,13 @@
     // Breadcrumbs are derived from authorized sidebar links, never from URL
     // segments (which can contain private IDs or misleading untrusted labels).
     function breadcrumbSelection(links) {
-        const candidates = Array.from(links || []);
-        return candidates.find(link => link?.getAttribute?.('aria-current') === 'page') ||
-            candidates.find(link => link?.classList?.contains('active')) || null;
+        // A hidden/disabled destination cannot represent the visible page.
+        // Only Razor-authorized, currently visible links may become breadcrumbs.
+        const candidates = Array.from(links || []).filter(link =>
+            link && !link.closest?.('[hidden], [inert]') &&
+            link.getAttribute?.('aria-disabled') !== 'true');
+        return candidates.find(link => link.getAttribute?.('aria-current') === 'page') ||
+            candidates.find(link => link.classList?.contains('active')) || null;
     }
 
     // Only offer a next-step shortcut if the current server-authorized menu
@@ -29,7 +33,8 @@
             if (!link || typeof link.getAttribute !== 'function') return false;
             const href = link.getAttribute('href') || '';
             return /^\\/SmartSetup(?:\\/Index)?\\/?(?:[?#].*)?$/i.test(href) &&
-                link !== current && !link.closest?.('[hidden]');
+                link !== current && !link.closest?.('[hidden], [inert]') &&
+                link.getAttribute('aria-disabled') !== 'true';
         });
         return setup || null;
     }
@@ -53,8 +58,22 @@
 
     const crumbs = document.getElementById('pageBreadcrumbs');
     const sidebar = document.getElementById('sidebarMenu');
+    const shellTenant = document.body?.dataset.authTenantId || '';
+    const shellSession = document.body?.dataset.authSessionReference || '';
+    const shellUser = document.body?.dataset.authUserId || '';
+    function shellSessionValid() {
+        return (document.body?.dataset.authTenantId || '') === shellTenant &&
+            (document.body?.dataset.authSessionReference || '') === shellSession &&
+            (document.body?.dataset.authUserId || '') === shellUser &&
+            !window.EduOSSessionTransitionPending?.();
+    }
     function renderBreadcrumbs() {
         if (!crumbs || !sidebar) return;
+        if (!shellSessionValid()) {
+            crumbs.replaceChildren();
+            crumbs.hidden = true;
+            return;
+        }
         const active = breadcrumbSelection(sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link'));
         const nav = active?.closest('nav[data-sidebar-section]');
         const section = nav?.previousElementSibling?.classList.contains('menu-title')
@@ -83,7 +102,7 @@
         if (!contextual || !sidebar) return;
         contextual.replaceChildren();
         contextual.hidden = true;
-        if (!document.body?.dataset.authUserId || window.EduOSSessionTransitionPending?.()) return;
+        if (!shellUser || !shellSessionValid()) return;
         const links = sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link');
         const current = breadcrumbSelection(links);
         const setup = contextualSetupLink(links, current);
@@ -106,13 +125,21 @@
     // Sidebar grouping and active selection are progressive enhancements;
     // refresh the breadcrumb after that work without copying route metadata.
     window.addEventListener('eduos:sidebar-navigation-ready', () => { renderBreadcrumbs(); renderContextActions(); });
+    // bfcache/tab restores must never retain a previous account's contextual
+    // navigation; no client-side route or permission cache is introduced.
+    window.addEventListener('pageshow', () => { renderBreadcrumbs(); renderContextActions(); });
+    window.addEventListener('focus', () => { renderBreadcrumbs(); renderContextActions(); });
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) { renderBreadcrumbs(); renderContextActions(); }
+    });
 
     const host = document.getElementById('eduToastStack');
     const tenant = document.body?.dataset.authTenantId || '';
     const session = document.body?.dataset.authSessionReference || '';
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn');
     function sameSession() {
-        return (document.body?.dataset.authTenantId || '') === tenant &&
+        return shellSessionValid() &&
+            (document.body?.dataset.authTenantId || '') === tenant &&
             (document.body?.dataset.authSessionReference || '') === session;
     }
     function clearStaleNotifications() {
@@ -139,7 +166,15 @@
         dismiss.addEventListener('click', () => toast.remove());
         toast.append(text, dismiss);
         // Bounded presentation state: no storage and no hidden stale notifications.
-        if (host.children.length >= 3) host.firstElementChild?.remove();
+        if (host.children.length >= 3) {
+            // Do not silently remove a critical warning/error or the toast
+            // currently being read via keyboard focus.
+            const removable = Array.from(host.children).find(node =>
+                !node.matches('.edu-toast--error, .edu-toast--warning') &&
+                !node.contains(document.activeElement));
+            if (!removable) return null;
+            removable.remove();
+        }
         host.append(toast);
         const delay = notificationDismissalMs(data);
         if (delay !== null) {

@@ -3923,3 +3923,14 @@ select,
         background: #172235; color: #bfdbfe; border-color: #475569;
     }
 }
+
+/* Shell-only accessibility: focused, non-dismissible critical notices remain
+   readable on narrow screens without obscuring the primary content. */
+.edu-toast-stack { max-width: min(26rem, calc(100vw - 1rem)); }
+.edu-toast { overflow-wrap: anywhere; }
+.edu-toast:focus-within { outline: 2px solid var(--edu-primary, #2563eb); outline-offset: 2px; }
+@media (max-width: 575.98px) {
+    .edu-toast-stack { max-width: calc(100vw - 1rem); }
+    .shell-context-actions { min-width: 0; }
+    .page-breadcrumbs { overflow-wrap: anywhere; }
+}

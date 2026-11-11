@@ -121,7 +121,7 @@ test('breadcrumbs select the server-authorized active destination without guessi
 test('contextual Smart Setup shortcut reuses only an authorized sidebar link, never a guessed route', () => {
     const link = (href, hidden = false) => ({
         getAttribute: key => key === 'href' ? href : null,
-        closest: selector => selector === '[hidden]' && hidden ? {} : null
+        closest: selector => selector.includes('[hidden]') && hidden ? {} : null
     });
     const student = link('/Students/Index');
     const setup = link('/SmartSetup/Index');
@@ -142,4 +142,31 @@ test('contextual Smart Setup shortcut reuses only an authorized sidebar link, ne
     assert.match(css, /\\.shell-context-shortcut:focus-visible/);
     assert.match(css, /max-width: 575\\.98px/);
     assert.match(css, /data-workspace-theme="dark"\\] \\.shell-context-shortcut/);
+});
+
+test('hidden, inert and disabled sidebar links cannot become active breadcrumb or setup action', () => {
+    const link = (href, current, active, blocked) => ({
+        getAttribute: name => name === 'href' ? href :
+            name === 'aria-current' ? (current ? 'page' : null) :
+            name === 'aria-disabled' ? (blocked === 'disabled' ? 'true' : null) : null,
+        classList: { contains: name => name === 'active' && active },
+        closest: selector => blocked && selector.includes('[hidden]') ? {} : null
+    });
+    const hidden = link('/Students', true, true, 'hidden');
+    const inert = link('/SmartSetup/Index', false, false, 'inert');
+    const disabled = link('/SmartSetup/Index', false, false, 'disabled');
+    const visible = link('/Dashboard/Index', false, true, null);
+    assert.equal(breadcrumbSelection([hidden, visible]), visible);
+    assert.equal(breadcrumbSelection([hidden]), null);
+    assert.equal(contextualSetupLink([visible, inert, disabled], visible), null);
+    assert.match(js, /shellSessionValid/);
+    assert.match(js, /window.addEventListener\\('pageshow'/);
+    assert.match(js, /document.addEventListener\\('visibilitychange'/);
+});
+
+test('shared notices preserve critical and keyboard-focused messages when toast stack is full', () => {
+    assert.match(js, /node.matches\\('\\.edu-toast--error, \\.edu-toast--warning'\\)/);
+    assert.match(js, /node.contains\\(document.activeElement\\)/);
+    assert.match(js, /if \\(!removable\\) return null/);
+    assert.match(js, /shellSessionValid\\(\\)/);
 });
