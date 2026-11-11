@@ -18,6 +18,8 @@ const liability = { page: 1, pages: 1, seq: 0 };
 const policy = { page: 1, pages: 1, seq: 0 };
 let pickedIncident = null, pickedLiability = null, requestId = null;
 let reversalRecord = null, policyRequestId = null, reversalRequestId = null;
+let saving = false, reversalLoadSeq = 0, reversalReady = false;
+let assessmentFingerprint = null, policyFingerprint = null, reversalFingerprint = null;
 const optionVersions = { period: 0, head: 0, campus: 0 };
 const optionTimers = {};
 const price = amount => Number(amount || 0).toLocaleString(bn ? 'bn-BD' : 'en-BD',
@@ -42,13 +44,15 @@ async function api(path, method, body) {
             cache: 'no-store', signal: controller.signal });
         if (!live()) throw Error('Session changed.');
         const result = await response.json();
+        if (!live()) throw Error('Session changed.');
         if (!response.ok || !result?.success) throw Error(result?.message || 'Request failed.');
         return result.data;
     } finally { active.delete(controller); }
 }
 async function exportPage() {
     if (!live()) return;
-    const button = el('liabilityExport'); button.disabled = true;
+    const button = el('liabilityExport'); if (button.disabled) return; button.disabled = true;
+    const seq = liability.seq, page = liability.page, status = el('liabilityState').value;
     const controller = new AbortController(); active.add(controller);
     try {
         const q = new URLSearchParams({ status: el('liabilityState').value,
@@ -56,7 +60,10 @@ async function exportPage() {
         const response = await fetch('/api/library/liabilities/export?' + q, {
             credentials: 'same-origin', cache: 'no-store', signal: controller.signal });
         if (!live() || !response.ok) throw Error(t('Export unavailable.', 'রপ্তানি করা যায়নি।'));
-        const url = URL.createObjectURL(await response.blob());
+        const content = await response.blob();
+        if (!live() || seq !== liability.seq || page !== liability.page ||
+            status !== el('liabilityState').value) return;
+        const url = URL.createObjectURL(content);
         const link = document.createElement('a'); link.href = url;
         link.download = 'library-liabilities-page.csv';
         document.body.append(link); link.click(); link.remove();
@@ -153,8 +160,8 @@ async function loadLiabilities() {
     }
 }
 function openAssess(item) {
-    if (!live()) return;
-    pickedIncident = item; requestId = crypto.randomUUID();
+    if (!live() || saving) return;
+    pickedIncident = item; requestId = crypto.randomUUID(); assessmentFingerprint = null;
     el('assessmentContext').textContent = item.studentName + ' · ' + item.bookTitle +
         ' · ' + item.accessionNumber;
     const amount = item.kind === 3 ? item.calculatedAmount : item.replacementPrice;
@@ -166,19 +173,25 @@ function openAssess(item) {
 }
 async function saveAssessment(event) {
     event.preventDefault();
-    if (!pickedIncident || !live() || !el('assessmentForm').reportValidity()) return;
-    const button = el('assessmentSave'); button.disabled = true;
+    if (saving || !pickedIncident || !live() || !el('assessmentForm').reportValidity()) return;
+    const details = {issueReference:pickedIncident.issueReference,
+        amount:Number(el('assessmentAmount').value),reason:el('assessmentReason').value.trim()};
+    const fingerprint = JSON.stringify(details);
+    if (fingerprint !== assessmentFingerprint) {
+        assessmentFingerprint = fingerprint; requestId = crypto.randomUUID();
+    }
+    saving = true; const button = el('assessmentSave'); button.disabled = true;
     try {
         await api('/api/library/liabilities', 'POST', {
-            clientRequestId: requestId, issueReference: pickedIncident.issueReference,
-            amount: Number(el('assessmentAmount').value), reason: el('assessmentReason').value.trim()
+            clientRequestId:requestId, ...details
         });
         el('assessmentDialog').close();
         notify(t('Assessment recorded; another administrator must review.',
             'দায় নথিভুক্ত হয়েছে; অন্য প্রশাসক অনুমোদন করবেন।'), true);
-        await Promise.all([loadIncidents(), loadLiabilities()]);
+        try { await Promise.all([loadIncidents(), loadLiabilities()]); }
+        catch (error) { notify(t('Assessment saved; refresh the list.', 'দায় সংরক্ষিত; তালিকা রিফ্রেশ করুন।') + ' ' + error.message, true); }
     } catch (error) { notify(error.message); }
-    finally { button.disabled = false; }
+    finally { saving = false; button.disabled = false; }
 }
 async function options(type, searchId, selectId) {
     const seq = ++optionVersions[type];
@@ -206,7 +219,7 @@ function decisionChanged() {
     el('postingHead').required = !waive;
 }
 async function openReview(item) {
-    if (!live()) return;
+    if (!live() || saving) return;
     pickedLiability = item;
     el('reviewContext').textContent = item.studentName + ' · ' + item.bookTitle + ' · ' + price(item.amount) + ' BDT';
     el('reviewForm').reset(); decisionChanged();
@@ -216,8 +229,8 @@ async function openReview(item) {
 }
 async function saveReview(event) {
     event.preventDefault();
-    if (!pickedLiability || !live() || !el('reviewForm').reportValidity()) return;
-    const button = el('reviewSave'); button.disabled = true;
+    if (saving || !pickedLiability || !live() || !el('reviewForm').reportValidity()) return;
+    saving = true; const button = el('reviewSave'); button.disabled = true;
     try {
         const waive = root.querySelector('input[name="reviewDecision"]:checked')?.value === 'waive';
         const request = { rowVersion: pickedLiability.rowVersion, waive,
@@ -228,9 +241,10 @@ async function saveReview(event) {
         el('reviewDialog').close();
         notify(waive ? t('Assessment waived.', 'দায় মওকুফ হয়েছে।') :
             t('Invoice and journal posted to Finance.', 'ইনভয়েস ও জার্নাল ফাইন্যান্সে পোস্ট হয়েছে।'), true);
-        await Promise.all([loadLiabilities(), loadIncidents()]);
+        try { await Promise.all([loadLiabilities(), loadIncidents()]); }
+        catch (error) { notify(t('Decision saved; refresh the list.', 'সিদ্ধান্ত সংরক্ষিত; তালিকা রিফ্রেশ করুন।') + ' ' + error.message, true); }
     } catch (error) { notify(error.message); }
-    finally { button.disabled = false; }
+    finally { saving = false; button.disabled = false; }
 }
 async function loadPolicies() {
     const seq = ++policy.seq; blank('policyRows', t('Loading…', 'লোড হচ্ছে…'));
@@ -256,8 +270,8 @@ async function loadPolicies() {
     }
 }
 async function openPolicy() {
-    if (!live()) return;
-    policyRequestId = crypto.randomUUID(); el('policyForm').reset();
+    if (!live() || saving) return;
+    policyRequestId = crypto.randomUUID(); policyFingerprint = null; el('policyForm').reset();
     el('policyDialog').showModal();
     el('policyCampusSearch').value = '';
     await loadPolicyCampuses();
@@ -279,34 +293,46 @@ async function loadPolicyCampuses() {
 }
 async function savePolicy(event) {
     event.preventDefault();
-    if (!policyRequestId || !live() || !el('policyForm').reportValidity()) return;
-    const button = el('policySave'); button.disabled = true;
+    if (saving || !policyRequestId || !live() || !el('policyForm').reportValidity()) return;
+    const details = {campusId:Number(el('policyCampus').value),
+        effectiveFrom:el('policyDate').value,graceDays:Number(el('policyGrace').value),
+        dailyRate:Number(el('policyRate').value),
+        maximumCharge:el('policyMax').value ? Number(el('policyMax').value) : null};
+    const fingerprint = JSON.stringify(details);
+    if (fingerprint !== policyFingerprint) {
+        policyFingerprint = fingerprint; policyRequestId = crypto.randomUUID();
+    }
+    saving = true; const button = el('policySave'); button.disabled = true;
     try {
         await api('/api/library/liabilities/fine-policies', 'POST', {
-            clientRequestId: policyRequestId, campusId: Number(el('policyCampus').value),
-            effectiveFrom: el('policyDate').value, graceDays: Number(el('policyGrace').value),
-            dailyRate: Number(el('policyRate').value),
-            maximumCharge: el('policyMax').value ? Number(el('policyMax').value) : null
+            clientRequestId:policyRequestId, ...details
         });
         el('policyDialog').close();
         notify(t('Policy revision recorded.', 'নতুন নীতি সংরক্ষিত হয়েছে।'), true);
-        policy.page = 1; await Promise.all([loadPolicies(), loadIncidents()]);
+        policy.page = 1;
+        try { await Promise.all([loadPolicies(), loadIncidents()]); }
+        catch (error) { notify(t('Policy saved; refresh the list.', 'নীতি সংরক্ষিত; তালিকা রিফ্রেশ করুন।') + ' ' + error.message, true); }
     } catch (error) { notify(error.message); }
-    finally { button.disabled = false; }
+    finally { saving = false; button.disabled = false; }
 }
 function reversalDecisionChanged() {
     const reject = root.querySelector('input[name="reversalDecision"]:checked')?.value === 'reject';
     el('reversalRejection').required = reject;
 }
 async function openReversal(item) {
-    if (!live()) return;
+    if (!live() || saving) return;
+    const seq = ++reversalLoadSeq;
+    reversalReady = false;
     pickedLiability = item; reversalRecord = null; reversalRequestId = crypto.randomUUID();
+    reversalFingerprint = null;
     el('reversalForm').reset(); el('reversalContext').textContent =
         item.studentName + ' · ' + item.invoiceNumber + ' · ' + price(item.amount) + ' BDT';
     el('reversalDialog').showModal();
     try {
         reversalRecord = await api('/api/library/liabilities/' + item.reference + '/reversal');
-        if (!el('reversalDialog').open || !pickedLiability) return;
+        if (seq !== reversalLoadSeq || !el('reversalDialog').open ||
+            pickedLiability?.reference !== item.reference || !live()) return;
+        reversalReady = true;
         const pending = reversalRecord?.reference && reversalRecord.reference !== '00000000-0000-0000-0000-000000000000' &&
             reversalRecord.state === 2;
         el('reversalRequestFields').classList.toggle('d-none', pending);
@@ -318,17 +344,22 @@ async function openReversal(item) {
         } else {
             el('reversalRejection').required = false;
             const periods = await api('/api/library/liabilities/posting-options?type=period&page=1&pageSize=50');
+            if (seq !== reversalLoadSeq || pickedLiability?.reference !== item.reference || !live()) return;
             const picker = el('reversalPeriod'); picker.replaceChildren(new Option(t('Select…', 'নির্বাচন করুন…'), ''));
             for (const x of periods?.items || []) picker.add(new Option(x.label, String(x.id)));
             if (periods?.totalCount > (periods?.items || []).length)
                 picker.add(new Option(t('Narrow via accounting setup', 'হিসাবকালে খুঁজুন'), ''));
         }
-    } catch (error) { notify(error.message); el('reversalDialog').close(); }
+    } catch (error) {
+        if (seq !== reversalLoadSeq || pickedLiability?.reference !== item.reference) return;
+        notify(error.message); el('reversalDialog').close();
+    }
 }
 async function saveReversal(event) {
     event.preventDefault();
-    if (!pickedLiability || !live() || !el('reversalForm').reportValidity()) return;
-    const button = el('reversalSave'); button.disabled = true;
+    if (saving || !reversalReady || !pickedLiability || !live() ||
+        !el('reversalForm').reportValidity()) return;
+    saving = true; const button = el('reversalSave'); button.disabled = true;
     try {
         const existing = reversalRecord?.reference && reversalRecord.state === 2;
         if (existing) {
@@ -339,25 +370,34 @@ async function saveReversal(event) {
                 rejectionReason: approve ? null : el('reversalRejection').value.trim()
             });
         } else {
+            const details = {rowVersion:pickedLiability.rowVersion,
+                reversalDate:el('reversalDate').value,
+                accountingPeriodId:Number(el('reversalPeriod').value),
+                reason:el('reversalReason').value.trim()};
+            const fingerprint = JSON.stringify([pickedLiability.reference, details]);
+            if (fingerprint !== reversalFingerprint) {
+                reversalFingerprint = fingerprint; reversalRequestId = crypto.randomUUID();
+            }
             await api('/api/library/liabilities/' + pickedLiability.reference + '/reversal', 'POST', {
-                clientRequestId: reversalRequestId, rowVersion: pickedLiability.rowVersion,
-                reversalDate: el('reversalDate').value,
-                accountingPeriodId: Number(el('reversalPeriod').value), reason: el('reversalReason').value.trim()
+                clientRequestId:reversalRequestId, ...details
             });
         }
         el('reversalDialog').close();
         notify(t('Reversal workflow updated.', 'বাতিল জার্নালের কার্যক্রম হালনাগাদ হয়েছে।'), true);
-        await loadLiabilities();
+        try { await loadLiabilities(); }
+        catch (error) { notify(t('Reversal saved; refresh the list.', 'বাতিল কার্যক্রম সংরক্ষিত; তালিকা রিফ্রেশ করুন।') + ' ' + error.message, true); }
     } catch (error) { notify(error.message); }
-    finally { button.disabled = false; }
+    finally { saving = false; button.disabled = false; }
 }
 function reset() {
+    ++reversalLoadSeq; reversalReady = false;
     incident.seq++; liability.seq++; policy.seq++;
     optionVersions.period++; optionVersions.head++; optionVersions.campus++;
     for (const timer of Object.values(optionTimers)) clearTimeout(timer);
     for (const controller of active) controller.abort(); active.clear();
-    pickedIncident = null; pickedLiability = null; requestId = null;
-    reversalRecord = null; reversalRequestId = null; policyRequestId = null;
+    pickedIncident = null; pickedLiability = null; requestId = null; assessmentFingerprint = null;
+    reversalRecord = null; reversalRequestId = null; reversalFingerprint = null;
+    policyRequestId = null; policyFingerprint = null;
     blank('incidentRows', ''); blank('liabilityRows', ''); el('liabilityAlert').className = 'd-none';
     for (const id of ['postingPeriod', 'postingHead']) el(id).replaceChildren();
     el('reviewContext').textContent = ''; el('assessmentContext').textContent = '';
@@ -379,21 +419,26 @@ el('policyCampusSearch').addEventListener('input', () => {
     clearTimeout(optionTimers.campus);
     optionTimers.campus = setTimeout(() => { if (el('policyDialog').open) loadPolicyCampuses(); }, 300);
 });
-el('policyCancel').addEventListener('click', () => el('policyDialog').close());
-el('policyDialog').addEventListener('close', () => { policyRequestId = null; });
+el('policyCancel').addEventListener('click', () => { if (!saving) el('policyDialog').close(); });
+el('policyDialog').addEventListener('close', () => { policyRequestId = null; policyFingerprint = null; });
 el('policyPrevious').addEventListener('click', () => { if (policy.page > 1) { policy.page--; loadPolicies(); } });
 el('policyNext').addEventListener('click', () => { if (policy.page < policy.pages) { policy.page++; loadPolicies(); } });
 el('reversalForm').addEventListener('submit', saveReversal);
-el('reversalCancel').addEventListener('click', () => el('reversalDialog').close());
+el('reversalCancel').addEventListener('click', () => { if (!saving) el('reversalDialog').close(); });
 el('reversalDialog').addEventListener('close', () => {
-    reversalRecord = null; reversalRequestId = null; pickedLiability = null;
+    ++reversalLoadSeq; reversalReady = false;
+    reversalRecord = null; reversalRequestId = null; reversalFingerprint = null; pickedLiability = null;
 });
 root.querySelectorAll('input[name="reversalDecision"]').forEach(node =>
     node.addEventListener('change', reversalDecisionChanged));
-el('assessmentCancel').addEventListener('click', () => el('assessmentDialog').close());
+el('assessmentCancel').addEventListener('click', () => { if (!saving) el('assessmentDialog').close(); });
 el('reviewForm').addEventListener('submit', saveReview);
-el('reviewCancel').addEventListener('click', () => el('reviewDialog').close());
-el('assessmentDialog').addEventListener('close', () => { pickedIncident = null; requestId = null; });
+el('reviewCancel').addEventListener('click', () => { if (!saving) el('reviewDialog').close(); });
+for (const id of ['assessmentDialog', 'reviewDialog', 'policyDialog', 'reversalDialog'])
+    el(id).addEventListener('cancel', event => { if (saving) event.preventDefault(); });
+el('assessmentDialog').addEventListener('close', () => {
+    pickedIncident = null; requestId = null; assessmentFingerprint = null;
+});
 el('reviewDialog').addEventListener('close', () => { pickedLiability = null; });
 root.querySelectorAll('input[name="reviewDecision"]').forEach(node => node.addEventListener('change', decisionChanged));
 for (const [type, searchId, selectId] of [['period', 'periodSearch', 'postingPeriod'], ['head', 'headSearch', 'postingHead']]) {

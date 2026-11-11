@@ -29,6 +29,12 @@ const maker = root.dataset.maker === 'true', checker = root.dataset.checker === 
 const userId = root.dataset.userId;
 const dialog = $('ackDialog'), decisionDialog = $('ackDecisionDialog');
 let page = 1, totalPages = 1, epoch = 0, lookupEpoch = 0, busy = false, currentAction = null, selected = null;
+let editEpoch = 0, createFingerprint = null;
+const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
+const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
+ context[1] === (document.body?.dataset.authSessionReference || '') &&
+ window.EduOSSessionTransitionPending?.() !== true;
+const guard = window.EduOSFormGuard?.create($('ackForm'));
 function alert(message, ok = false) {
  const x = $('ackAlert'); x.className = 'alert alert-' + (ok ? 'success' : 'danger');
  x.textContent = message;
@@ -36,12 +42,17 @@ function alert(message, ok = false) {
 function params(obj) { return '?' + new URLSearchParams(Object.entries(obj)
  .filter(([,v]) => v !== '' && v !== undefined && v !== null)).toString(); }
 async function api(url, method = 'GET', body) {
+ if(!live())throw new Error('Institution session changed. Reload the page.');
  const headers = {Accept:'application/json'};
  if (body !== undefined) headers['Content-Type'] = 'application/json';
- if (method !== 'GET' && token) headers.RequestVerificationToken = token;
+ if (method !== 'GET') {
+  if(!token)throw new Error('Security token missing. Reload the page.');
+  headers.RequestVerificationToken = token;
+ }
  const res = await fetch(url, {method, headers, credentials:'same-origin', cache:'no-store',
   ...(body === undefined ? {} : {body:JSON.stringify(body)})});
  const data = await res.json().catch(() => null);
+ if(!live())throw new Error('Institution session changed. Reload the page.');
  if (!res.ok || !data?.success) throw new Error(data?.message || t('failed'));
  return data.data;
 }
@@ -50,11 +61,11 @@ function button(label, fn, css='btn-outline-primary') {
  const x=el('button',t(label));x.type='button';x.className='btn btn-sm '+css;x.addEventListener('click',fn);return x;
 }
 function filters() { return {campusId:$('ackCampus').value,state:$('ackState').value}; }
-async function load() {
+async function load(propagateError=false) {
  const seq=++epoch;
  try {
   const data=await api(base+params({page,pageSize:25,...filters()}));
-  if(seq!==epoch)return;
+  if(seq!==epoch||!live())return;
   totalPages=data.totalPages||1;
   $('ackRows').replaceChildren();
   for(const row of data.items||[]) {
@@ -78,32 +89,46 @@ async function load() {
   if(!data.items?.length){const tr=el('tr'),td=el('td',t('empty'));td.colSpan=7;tr.append(td);$('ackRows').append(tr);}
   $('ackPage').textContent=t('page')+' '+page+' '+t('of')+' '+totalPages;
   $('ackPrev').disabled=page<=1;$('ackNext').disabled=page>=totalPages;
- } catch(e){if(seq===epoch)alert(e.message);}
+ } catch(e){if(seq===epoch)alert(e.message);if(propagateError)throw e;}
 }
-function close(x){if(x.open)x.close();}
+function close(x,force=false){
+ if(!force&&busy)return;
+ if(x===dialog&&!force&&guard?.confirmDiscard()===false)return;
+ if(x.open)x.close();
+ if(x===dialog){++lookupEpoch;++editEpoch;guard?.markClean();}
+}
+for(const x of [dialog,decisionDialog])x.addEventListener('cancel',e=>{
+ if(busy||(x===dialog&&guard?.confirmDiscard()===false))e.preventDefault();
+ else if(x===dialog){++lookupEpoch;++editEpoch;guard?.markClean();}
+});
 $('ackHelp').addEventListener('click',()=>{const open=!$('ackHelpText').classList.toggle('d-none');$('ackHelp').setAttribute('aria-expanded',String(open));});
 $('ackFilters').addEventListener('submit',e=>{e.preventDefault();page=1;load();});
 $('ackPrev').addEventListener('click',()=>{if(page>1){page--;load();}});
 $('ackNext').addEventListener('click',()=>{if(page<totalPages){page++;load();}});
-$('ackExport').addEventListener('click',()=>window.location.assign(base+'/export'+params(filters())));
-$('ackPrint').addEventListener('click',()=>window.print());
+$('ackExport').addEventListener('click',()=>{if(live())window.location.assign(base+'/export'+params(filters()));});
+$('ackPrint').addEventListener('click',()=>{if(live())window.print();});
 $('ackClose').addEventListener('click',()=>close(dialog));
 $('ackCancel').addEventListener('click',()=>close(dialog));
 $('ackDecisionClose').addEventListener('click',()=>close(decisionDialog));
 if(maker) $('ackNew')?.addEventListener('click',()=>{
+ if(busy||!live()||(dialog.open&&guard?.confirmDiscard()===false))return;
+ ++lookupEpoch;++editEpoch;
  $('ackForm').reset();$('ackId').value='';$('ackVersion').value='';
+ createFingerprint=null;
  $('ackRequest').value=crypto.randomUUID();$('ackOrderId').value='';
  $('ackOrderSelected').textContent='';$('ackOrderResults').replaceChildren();
  $('ackOrderSearch').disabled=false;$('ackFindOrder').disabled=false;
+ guard?.markClean();
  dialog.showModal();
 });
 $('ackFindOrder').addEventListener('click',async()=>{
+ if(busy||!live()||!dialog.open)return;
  const seq=++lookupEpoch, term=$('ackOrderSearch').value.trim();
  $('ackOrderResults').replaceChildren();
  try{
   const data=await api('/api/procurement/purchase-orders'+params({
    page:1,pageSize:25,state:'Approved',search:term,campusId:$('ackCampus').value}));
-  if(seq!==lookupEpoch||!dialog.open)return;
+  if(seq!==lookupEpoch||!dialog.open||!live())return;
   for(const order of data.items||[]){
    const b=button('select',()=>{
     $('ackOrderId').value=String(order.id);
@@ -117,9 +142,13 @@ $('ackFindOrder').addEventListener('click',async()=>{
  }catch(e){if(seq===lookupEpoch)alert(e.message);}
 });
 async function edit(id){
+ if(busy||!live()||(dialog.open&&guard?.confirmDiscard()===false))return;
+ const seq=++editEpoch;
  try{
   const row=await api(base+'/'+id);
+  if(seq!==editEpoch||!live())return;
   $('ackForm').reset();$('ackId').value=row.id;$('ackVersion').value=row.rowVersion;
+  createFingerprint=null;
   $('ackRequest').value=row.clientRequestId;$('ackOrderId').value=row.purchaseOrderId;
   $('ackOrderSelected').textContent=row.orderNumber+' · '+row.supplierId;
   $('ackOrderSearch').disabled=true;$('ackFindOrder').disabled=true;
@@ -127,11 +156,12 @@ async function edit(id){
   $('ackReference').value=row.supplierReference;
   $('ackResponseDate').value=String(row.responseDate).slice(0,10);
   $('ackPromisedDate').value=String(row.promisedDeliveryDate).slice(0,10);
+  guard?.markClean();
   dialog.showModal();
  }catch(e){alert(e.message);}
 }
 $('ackForm').addEventListener('submit',async e=>{
- e.preventDefault();if(busy)return;
+ e.preventDefault();if(busy||!live())return;
  const id=$('ackId').value;
  const orderId=Number($('ackOrderId').value);
  if(!Number.isSafeInteger(orderId)||orderId<=0){alert(t('order'));return;}
@@ -141,25 +171,49 @@ $('ackForm').addEventListener('submit',async e=>{
  if(!body.responseDate||!body.promisedDeliveryDate||body.promisedDeliveryDate<body.responseDate){
   alert(t('promised'));return;
  }
+ if(!id){
+  const fingerprint=JSON.stringify({...body,clientRequestId:null});
+  if(fingerprint!==createFingerprint){
+   createFingerprint=fingerprint;$('ackRequest').value=crypto.randomUUID();
+   body.clientRequestId=$('ackRequest').value;
+  }
+ }
  busy=true;$('ackSave').disabled=true;
- try{await api(base+(id?'/'+id:''),id?'PUT':'POST',body);close(dialog);alert(t('saved'),true);await load();}
+ try{
+  await api(base+(id?'/'+id:''),id?'PUT':'POST',body);
+  guard?.markClean();close(dialog,true);createFingerprint=null;alert(t('saved'),true);
+  try{await load(true);}catch(error){alert(t('saved')+' Refresh list: '+error.message,true);}
+ }
  catch(err){alert(err.message);}finally{busy=false;$('ackSave').disabled=false;}
 });
 function decide(row,action){
+ if(busy||!live())return;
  selected=row;currentAction=action;$('ackReason').value='';
  $('ackReason').required=action==='reject';
  $('ackConfirm').textContent=t(action);decisionDialog.showModal();
 }
 $('ackDecisionForm').addEventListener('submit',async e=>{
- e.preventDefault();if(busy||!selected||!currentAction)return;
+ e.preventDefault();if(busy||!live()||!selected||!currentAction)return;
  const reason=$('ackReason').value.trim();
  if(currentAction==='reject'&&reason.length<10){alert(t('reason'));return;}
  busy=true;$('ackConfirm').disabled=true;
  try{
-  await api(base+'/'+selected.id+'/'+currentAction,'POST',{rowVersion:selected.rowVersion,reason});
-  close(decisionDialog);selected=null;currentAction=null;alert(t('saved'),true);await load();
+  const row=selected,action=currentAction;
+  await api(base+'/'+row.id+'/'+action,'POST',{rowVersion:row.rowVersion,reason});
+  close(decisionDialog,true);selected=null;currentAction=null;alert(t('saved'),true);
+  try{await load(true);}catch(error){alert(t('saved')+' Refresh list: '+error.message,true);}
  }catch(err){alert(err.message);}finally{busy=false;$('ackConfirm').disabled=false;}
 });
 window.addEventListener('pagehide',()=>{epoch++;lookupEpoch++;selected=null;currentAction=null;});
+const observer=new MutationObserver(()=>{
+ if(live())return;
+ ++epoch;++lookupEpoch;++editEpoch;selected=null;currentAction=null;createFingerprint=null;
+ $('ackRows').replaceChildren();$('ackOrderResults').replaceChildren();
+ $('ackForm').reset();$('ackDecisionForm').reset();
+ guard?.markClean();close(dialog,true);close(decisionDialog,true);
+ alert('Institution session changed. Reload the page.');observer.disconnect();
+});
+observer.observe(document.body,{attributes:true,
+ attributeFilter:['data-auth-tenant-id','data-auth-session-reference']});
 load();
 })();

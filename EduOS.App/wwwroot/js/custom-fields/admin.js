@@ -2,6 +2,13 @@
     'use strict';
     const el = id => document.getElementById(id);
     const state = { page: 1, totalPages: 1, rows: [], values: [], definitions: [] };
+    let saving = false, definitionSeq = 0, valueSeq = 0;
+    const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
+    const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
+        context[1] === (document.body?.dataset.authSessionReference || '') &&
+        window.EduOSSessionTransitionPending?.() !== true;
+    const definitionGuard = window.EduOSFormGuard?.create(el('cfForm'));
+    const valuesGuard = window.EduOSFormGuard?.create(el('cfValuesForm'));
     const token = () => document.querySelector('input[name="__RequestVerificationToken"]')?.value ||
         document.querySelector('meta[name="RequestVerificationToken"]')?.content || '';
     function alertMessage(message, error = false) {
@@ -9,22 +16,37 @@
         box.textContent = message; box.scrollIntoView({ block: 'nearest' });
     }
     async function api(path, method = 'GET', body) {
+        if (!live()) throw Error('Institution session changed. Reload the page.');
         const headers = { Accept: 'application/json' };
-        if (method !== 'GET') { headers['Content-Type'] = 'application/json'; headers.RequestVerificationToken = token(); }
+        if (method !== 'GET') {
+            const csrf = token();
+            if (!csrf) throw Error('Missing antiforgery token. Reload the page.');
+            headers['Content-Type'] = 'application/json'; headers.RequestVerificationToken = csrf;
+        }
         const response = await fetch('/api/custom-fields/' + path, {
-            method, credentials: 'same-origin', headers, body: body === undefined ? undefined : JSON.stringify(body)
+            method, credentials: 'same-origin', cache: 'no-store', headers,
+            body: body === undefined ? undefined : JSON.stringify(body)
         });
         const json = await response.json().catch(() => ({}));
+        if (!live()) throw Error('Institution session changed. Reload the page.');
         if (!response.ok || !json.success) throw Error(json.message || 'Request failed (' + response.status + ')');
         return json.data;
+    }
+    function lock(form) {
+        const fields = [...form.querySelectorAll('input, select, textarea, button')];
+        const previous = fields.map(x => x.disabled);
+        fields.forEach(x => { x.disabled = true; });
+        return () => fields.forEach((x, index) => { x.disabled = previous[index]; });
     }
     const td = (tr, value) => { const cell = document.createElement('td'); cell.textContent = value == null ? '' : String(value); tr.append(cell); return cell; };
     function reset() {
         el('cfForm').reset(); el('cfId').value = ''; el('cfVersion').value = '';
         el('cfKey').disabled = false; el('cfType').disabled = false; toggleChoices();
+        definitionGuard?.markClean();
     }
     function toggleChoices() { el('cfChoicesWrap').classList.toggle('d-none', el('cfType').value !== '7'); }
     function edit(id) {
+        if (saving || !live() || definitionGuard?.confirmDiscard() === false) return;
         const d = state.rows.find(x => x.id === id); if (!d) return;
         el('cfId').value = d.id; el('cfVersion').value = d.rowVersion;
         el('cfKey').value = d.fieldKey; el('cfKey').disabled = true;
@@ -33,9 +55,12 @@
         el('cfOrder').value = d.displayOrder;
         el('cfChoices').value = (d.options || []).filter(o => o.isActive).map(o => o.value + ' | ' + o.label).join('\n');
         toggleChoices(); el('cfForm').scrollIntoView({ behavior: 'smooth' });
+        definitionGuard?.markClean();
     }
     async function loadDefinitions() {
+        const seq = ++definitionSeq;
         const data = await api('definitions?page=' + state.page + '&pageSize=20');
+        if (seq !== definitionSeq || !live()) return;
         state.rows = data.items || []; state.totalPages = data.totalPages || 1;
         el('cfRows').replaceChildren();
         state.rows.forEach(d => {
@@ -58,26 +83,39 @@
     }
     async function saveDefinition(event) {
         event.preventDefault();
+        if (saving || !live()) return;
         const id = Number(el('cfId').value) || null;
         const dto = { entityType: 'Tenant', fieldKey: el('cfKey').value.trim(), label: el('cfLabel').value.trim(),
             dataType: Number(el('cfType').value), isRequired: el('cfRequired').value === 'true',
             isActive: el('cfActive').value === 'true', displayOrder: Number(el('cfOrder').value) || 0,
             isSensitive: false, validationJson: null, options: options(), rowVersion: el('cfVersion').value || null };
-        try { await api('definitions' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', dto);
-            alertMessage('Definition saved.'); reset(); await loadDefinitions(); await loadValues();
+        saving = true; const unlock = lock(el('cfForm'));
+        try {
+            await api('definitions' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', dto);
+            reset(); alertMessage('Definition saved.');
+            try {
+                await loadDefinitions();
+                if (!valuesGuard?.isDirty()) await loadValues();
+            } catch (error) { alertMessage('Definition saved; refresh the register. ' + error.message, true); }
         } catch (e) { alertMessage(e.message, true); }
+        finally { saving = false; unlock(); }
     }
-    async function loadValues() {
-        state.values = await api('tenant-values');
-        state.definitions = [];
+    async function loadValues(force = false) {
+        const seq = ++valueSeq;
+        const values = await api('tenant-values'), definitions = [];
         let page = 1, pages = 1;
         do {
             const result = await api('definitions?page=' + page + '&pageSize=100');
-            state.definitions.push(...(result.items || [])); pages = Math.min(result.totalPages || 1, 3); page++;
+            definitions.push(...(result.items || [])); pages = result.totalPages || 1;
+            if (pages > 100) throw Error('Too many profile fields to render safely; contact support.');
+            page++;
         } while (page <= pages);
+        if (seq !== valueSeq || !live() || (!force && valuesGuard?.isDirty())) return;
+        state.values = values; state.definitions = definitions;
+        const definitionById = new Map(definitions.map(definition => [definition.id, definition]));
         el('cfValueInputs').replaceChildren();
         state.values.forEach(v => {
-            const def = state.definitions.find(x => x.id === v.customFieldDefinitionId);
+            const def = definitionById.get(v.customFieldDefinitionId);
             if (!def) return;
             const wrap = document.createElement('div'); wrap.className = 'col-md-6';
             const label = document.createElement('label'); label.className = 'form-label'; label.textContent = v.label;
@@ -97,21 +135,41 @@
             input.value = v.value ?? ''; input.required = def.isRequired; label.append(input); wrap.append(label);
             el('cfValueInputs').append(wrap);
         });
+        valuesGuard?.markClean();
     }
     async function saveValues(event) {
         event.preventDefault();
+        if (saving || !live()) return;
         const dto = [...el('cfValueInputs').querySelectorAll('[data-field-id]')].map(input => ({
             customFieldDefinitionId: Number(input.dataset.fieldId), value: input.value || null,
             rowVersion: input.dataset.version || null
         }));
-        try { await api('tenant-values', 'PUT', dto); alertMessage('Profile values saved.'); await loadValues(); }
+        saving = true; const unlock = lock(el('cfValuesForm'));
+        try {
+            await api('tenant-values', 'PUT', dto);
+            valuesGuard?.markClean(); alertMessage('Profile values saved.');
+            try { await loadValues(true); }
+            catch (error) { alertMessage('Profile values saved; refresh the form. ' + error.message, true); }
+        }
         catch (e) { alertMessage(e.message, true); }
+        finally { saving = false; unlock(); }
     }
     el('cfForm').addEventListener('submit', saveDefinition);
     el('cfValuesForm').addEventListener('submit', saveValues);
-    el('cfReset').addEventListener('click', reset);
+    el('cfReset').addEventListener('click', () => {
+        if (!saving && definitionGuard?.confirmDiscard() !== false) reset();
+    });
     el('cfType').addEventListener('change', toggleChoices);
     el('cfPrev').addEventListener('click', () => { if (state.page > 1) { state.page--; loadDefinitions().catch(e => alertMessage(e.message, true)); } });
     el('cfNext').addEventListener('click', () => { if (state.page < state.totalPages) { state.page++; loadDefinitions().catch(e => alertMessage(e.message, true)); } });
+    const observer = new MutationObserver(() => {
+        if (live()) return;
+        ++definitionSeq; ++valueSeq; state.rows = []; state.values = []; state.definitions = [];
+        el('cfRows').replaceChildren(); el('cfValueInputs').replaceChildren();
+        reset(); valuesGuard?.markClean();
+        alertMessage('Institution session changed. Reload the page.', true); observer.disconnect();
+    });
+    observer.observe(document.body, { attributes: true,
+        attributeFilter: ['data-auth-tenant-id', 'data-auth-session-reference'] });
     Promise.all([loadDefinitions(), loadValues()]).catch(e => alertMessage(e.message, true));
 })();

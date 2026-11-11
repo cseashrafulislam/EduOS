@@ -8,7 +8,7 @@ const money=n=>(n/100n).toString()+'.'+(n%100n).toString().padStart(2,'0');
 export async function setupJournalForm(ctx){
  if(!ctx.writable)return;
  const $=ctx.get, form=$('journalForm'), body=$('journalLineRows');
- let key=crypto.randomUUID();
+ let key=crypto.randomUUID(), fingerprint=null, saving=false;
  const periods=await ctx.setup('/periods');
  ctx.periods=periods.filter(p=>!p.isClosed);
  const periodSelect=$('journalPeriod');
@@ -46,7 +46,10 @@ export async function setupJournalForm(ctx){
  body.addEventListener('click',e=>{if(e.target.closest('.jl-remove')&&body.children.length>2){e.target.closest('tr').remove();ctx.run(async()=>totals());}});
  body.addEventListener('input',()=>ctx.run(async()=>totals()));
  addLine();addLine();totals();
+ const guard=window.EduOSFormGuard?.create(form);
+ guard?.markClean();
  form.addEventListener('submit',e=>{e.preventDefault();ctx.run(async()=>{
+  if(saving||!ctx.live())return;
   const date=$('journalDate').value, periodId=Number(periodSelect.value);
   const period=ctx.periods.find(p=>p.id===periodId);
   if(!period||date<period.startDate||date>period.endDate)throw new Error('Choose an open period containing the journal date.');
@@ -60,12 +63,27 @@ export async function setupJournalForm(ctx){
   });
   const sum=totals();
   if(sum.debit<=0n||sum.debit!==sum.credit)throw new Error('Debits and credits must balance.');
+  const payload={journalDate:date,accountingPeriodId:periodId,
+   description:$('journalDescription').value.trim(),lines};
+  const nextFingerprint=JSON.stringify(payload);
+  if(nextFingerprint!==fingerprint){fingerprint=nextFingerprint;key=crypto.randomUUID();}
   if(!confirm('Create this balanced journal draft?'))return;
-  $('journalSave').disabled=true;
+  saving=true;
+  const controls=[...form.querySelectorAll('input, select, button')];
+  const previous=controls.map(control=>control.disabled);
+  controls.forEach(control=>{control.disabled=true;});
   try{
-   const result=await ctx.api('', 'POST',{clientRequestId:key,journalDate:date,accountingPeriodId:periodId,description:$('journalDescription').value.trim(),lines});
-   key=crypto.randomUUID();form.reset();body.replaceChildren();addLine();addLine();$('journalDate').value=ctx.today();totals();
-   await ctx.reload();await ctx.open(result.reference);ctx.notify('Draft journal created.');
-  }finally{$('journalSave').disabled=false;}
+   const result=await ctx.api('', 'POST',{clientRequestId:key,...payload});
+   key=crypto.randomUUID();fingerprint=null;
+   form.reset();body.replaceChildren();addLine();addLine();$('journalDate').value=ctx.today();totals();
+   guard?.markClean();
+   ctx.notify('Draft journal created.');
+   try{await ctx.reload();await ctx.open(result.reference);}
+   catch(error){ctx.notify('Draft created; refresh the register. '+error.message,true);}
+  }finally{saving=false;controls.forEach((control,index)=>{control.disabled=previous[index];});}
  });});
+ ctx.resetJournalForm=()=>{
+  key=crypto.randomUUID();fingerprint=null;
+  form.reset();body.replaceChildren();guard?.markClean();
+ };
 }
