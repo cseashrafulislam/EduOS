@@ -12,11 +12,26 @@
             <label for="cwcCampus" class="form-label">@(bn ? "ক্যাম্পাস আইডি (ঐচ্ছিক)" : "Campus ID (optional)")</label>
             <input id="cwcCampus" class="form-control" type="number" min="1" step="1" inputmode="numeric" />
         </div>
+        <div class="col-12 col-sm-4 col-lg-3">
+            <label for="cwcSource" class="form-label">@(bn ? "কাজের ধরন" : "Work type")</label>
+            <select id="cwcSource" class="form-select">
+                <option value="">@(bn ? "সব অনুমোদন" : "All approvals")</option>
+                <option value="ProcurementRequisition">@(bn ? "ক্রয় চাহিদাপত্র" : "Purchase requisitions")</option>
+                <option value="ProcurementPurchaseOrder">@(bn ? "ক্রয়াদেশ" : "Purchase orders")</option>
+                <option value="FacilityVisitorPolicy">@(bn ? "ভিজিটর নীতি" : "Visitor policies")</option>
+                <option value="AccountingJournal">@(bn ? "জার্নাল" : "Accounting journals")</option>
+            </select>
+        </div>
+        <div class="col-12 col-sm-2 col-lg-2">
+            <label for="cwcPageSize" class="form-label">@(bn ? "প্রতি পৃষ্ঠা" : "Page size")</label>
+            <select id="cwcPageSize" class="form-select"><option>10</option><option selected>25</option><option>50</option></select>
+        </div>
         <div class="col-12 col-sm-3 align-self-end">
             <button class="btn btn-primary" type="submit">@(bn ? "তালিকা দেখুন" : "Load pending work")</button>
         </div>
     </form>
     <p class="small text-muted">@(bn ? "প্রতিষ্ঠানব্যাপী Finance journal দেখতে ক্যাম্পাস ফিল্টার খালি রাখুন। অনুমোদন ও Posting মূল Finance পৃষ্ঠাতেই হবে।" : "Leave campus blank to include institution-wide Finance journals. Approvals and posting remain in the Finance module.")</p>
+    <p id="cwcScope" class="small text-muted" aria-live="polite"></p>
     <div class="table-responsive">
         <table class="table table-striped table-hover" aria-label="@(bn ? "অপেক্ষমাণ অনুমোদন" : "Pending approvals")">
             <thead><tr>

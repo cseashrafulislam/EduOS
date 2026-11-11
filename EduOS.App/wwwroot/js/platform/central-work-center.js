@@ -17,6 +17,9 @@
         AccountingJournal: bn ? 'হিসাবের জার্নাল অনুমোদন' : 'Journal approval'
     };
     let page = 1, lastPage = 1, request = 0, pending = null;
+    const previous = byId('cwcPrevious'), next = byId('cwcNext');
+    const source = byId('cwcSource'), pageSize = byId('cwcPageSize');
+    let loading = false;
     function alertMessage(message, error = true) {
         const box = byId('cwcAlert');
         box.className = error ? 'alert alert-danger' : 'alert alert-info';
@@ -33,9 +36,15 @@
         body.replaceChildren();
         const result = data.pending;
         lastPage = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
+        page = result.page;
+        byId('cwcScope').textContent = (bn ? 'অনুমোদিত উৎস: ' : 'Authorized sources: ') +
+            [data.inventoryIncluded ? (bn ? 'ইনভেন্টরি' : 'Inventory') : null,
+             data.facilitiesIncluded ? (bn ? 'ফ্যাসিলিটিজ' : 'Facilities') : null,
+             data.financeIncluded ? (bn ? 'ফাইন্যান্স' : 'Finance') : null]
+                .filter(Boolean).join(', ') || (bn ? 'অনুমোদিত কাজ নেই' : 'No entitled sources');
         byId('cwcPage').textContent = `${result.page} / ${lastPage} (${result.totalCount})`;
-        byId('cwcPrevious').disabled = page <= 1;
-        byId('cwcNext').disabled = page >= lastPage;
+        previous.disabled = loading || page <= 1;
+        next.disabled = loading || page >= lastPage;
         if (!result.items.length) {
             const empty = document.createElement('tr');
             const td = cell(empty, bn ? 'কোনো অপেক্ষমাণ কাজ নেই' : 'No pending work in this scope.');
@@ -85,7 +94,12 @@
         pending = controller;
         const serial = ++request;
         const campus = byId('cwcCampus').value.trim();
-        const params = new URLSearchParams({ page: String(page), pageSize: '25' });
+        const params = new URLSearchParams({ page: String(page), pageSize: pageSize.value });
+        if (source.value) params.set('source', source.value);
+        loading = true;
+        previous.disabled = next.disabled = true;
+        byId('cwcPage').textContent = bn ? 'লোড হচ্ছে…' : 'Loading…';
+        byId('cwcRows').replaceChildren();
         if (campus) params.set('campusId', campus);
         try {
             const response = await fetch('/api/platform/work-center/pending?' + params,
@@ -95,17 +109,34 @@
                 throw new Error(json.message || (bn ? 'তালিকা লোড করা যায়নি' : 'Cannot load work list.'));
             if (request !== serial) return;
             byId('cwcAlert').className = 'd-none';
+            const result = json.data.pending;
+            if (result && result.totalCount > 0 && page > 1 &&
+                page > Math.ceil(result.totalCount / result.pageSize)) {
+                page = Math.ceil(result.totalCount / result.pageSize);
+                load(); return;
+            }
+            loading = false;
             render(json.data);
         } catch (error) {
-            if (error.name !== 'AbortError' && request === serial)
+            if (error.name !== 'AbortError' && request === serial) {
                 alertMessage(error.message || 'Unable to load.');
+                byId('cwcPage').textContent = bn ? 'তালিকা পাওয়া যায়নি' : 'List unavailable';
+            }
         } finally {
-            if (pending === controller) pending = null;
+            if (pending === controller) {
+                pending = null;
+                loading = false;
+                previous.disabled = page <= 1;
+                next.disabled = page >= lastPage;
+            }
         }
     }
     byId('cwcFilters').addEventListener('submit', event => {
         event.preventDefault(); page = 1; load();
     });
+    source.addEventListener('change', () => { page = 1; load(); });
+    pageSize.addEventListener('change', () => { page = 1; load(); });
+    byId('cwcCampus').addEventListener('change', () => { page = 1; load(); });
     byId('cwcPrevious').addEventListener('click', () => {
         if (page > 1) { --page; load(); }
     });

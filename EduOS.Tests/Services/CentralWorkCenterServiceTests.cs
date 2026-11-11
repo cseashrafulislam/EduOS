@@ -171,6 +171,44 @@ public sealed class CentralWorkCenterServiceTests
     }
 
     [Fact]
+    public async Task My_work_source_filter_counts_and_pages_on_server_without_leaking_other_sources()
+    {
+        await using var db = Database();
+        SeedIdentity(db, "TenantAdmin");
+        SeedWork(db);
+        await db.SaveChangesAsync();
+        await RestoreSeedMakerAuditAsync(db);
+        var service = Service(db, "TenantAdmin");
+
+        var all = await service.GetPendingAsync();
+        all.Data!.Pending.TotalCount.Should().Be(4);
+        var req = await service.GetPendingAsync(page: 1, pageSize: 1,
+            source: "ProcurementRequisition");
+        req.StatusCode.Should().Be(200);
+        req.Data!.Pending.TotalCount.Should().Be(1);
+        req.Data.Pending.Items.Should().ContainSingle()
+            .Which.Source.Should().Be("ProcurementRequisition");
+        var orders = await service.GetPendingAsync(page: 1, pageSize: 1,
+            source: "ProcurementPurchaseOrder");
+        orders.Data!.Pending.TotalCount.Should().Be(2);
+        orders.Data.Pending.Items.Should().ContainSingle()
+            .Which.Source.Should().Be("ProcurementPurchaseOrder");
+        var next = await service.GetPendingAsync(page: 2, pageSize: 1,
+            source: "ProcurementPurchaseOrder");
+        next.Data!.Pending.TotalCount.Should().Be(2);
+        next.Data.Pending.Items.Should().ContainSingle()
+            .Which.SourceId.Should().NotBe(orders.Data.Pending.Items.Single().SourceId);
+        var policies = await service.GetPendingAsync(source: "FacilityVisitorPolicy");
+        policies.Data!.Pending.TotalCount.Should().Be(1);
+        var noFinance = await service.GetPendingAsync(source: "AccountingJournal");
+        noFinance.Data!.Pending.TotalCount.Should().Be(0);
+        (await service.GetPendingAsync(source: "BadSource")).StatusCode.Should().Be(400);
+        (await service.GetPendingAsync(source: "ProcurementPurchaseOrder", campusId: 999))
+            .StatusCode.Should().Be(403);
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Disabled_module_pilot_and_revoked_role_never_expose_pending_work()
     {
         await using var db = Database();

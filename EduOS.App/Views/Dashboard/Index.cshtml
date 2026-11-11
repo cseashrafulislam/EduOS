@@ -394,6 +394,10 @@
                         {
                             <a href="/AssessmentAdministration/Marks">@(useBangla ? "পরীক্ষার নম্বর এন্ট্রি" : "Exam Marks Entry")</a>
                         }
+                        @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager"))
+                        {
+                            <a asp-controller="CentralWorkCenter" asp-action="Index">@(useBangla ? "আমার অনুমোদনযোগ্য কাজ" : "My approval work")</a>
+                        }
                         @if (User.IsInRole("TenantAdmin"))
                         {
                             <a href="/PayrollOperations/Index">@(useBangla ? "বেতন ব্যবস্থাপনা" : "Payroll Operations")</a>

@@ -14,9 +14,9 @@ public sealed class CentralWorkCenterApiController(ICentralWorkCenterService ser
 {
     [HttpGet("pending")]
     public async Task<IActionResult> Pending(int page = 1, int pageSize = 25,
-        long? campusId = null, CancellationToken ct = default)
+        long? campusId = null, string? source = null, CancellationToken ct = default)
     {
-        ApiResponse<CentralWorkCenterPageDto> result = await service.GetPendingAsync(page, pageSize, campusId, ct);
+        ApiResponse<CentralWorkCenterPageDto> result = await service.GetPendingAsync(page, pageSize, campusId, ct, source);
         return StatusCode(result.StatusCode, result);
     }
 }

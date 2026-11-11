@@ -26,7 +26,7 @@ public sealed class CentralWorkCenterService(
     }
 
     public async Task<ApiResponse<CentralWorkCenterPageDto>> GetPendingAsync(
-        int page = 1, int pageSize = 25, long? campusId = null, CancellationToken ct = default)
+        int page = 1, int pageSize = 25, long? campusId = null, CancellationToken ct = default, string? source = null)
     {
         if (!user.IsAuthenticated || user.UserId <= 0 || user.TenantId <= 0 ||
             db.CurrentTenantId != user.TenantId)
@@ -34,6 +34,9 @@ public sealed class CentralWorkCenterService(
         if (page < 1 || pageSize is < 1 or > 100 || campusId is <= 0 ||
             (long)(page - 1) * pageSize > int.MaxValue)
             return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work list page or campus.", 400);
+
+        if (!string.IsNullOrEmpty(source) && source is not ("ProcurementRequisition" or "ProcurementPurchaseOrder" or "FacilityVisitorPolicy" or "AccountingJournal"))
+            return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work source.", 400);
 
         var active = await db.Users.AsNoTracking().AnyAsync(x =>
             x.Id == user.UserId && x.IsActive && !x.IsDeleted, ct) &&
@@ -127,6 +130,18 @@ public sealed class CentralWorkCenterService(
         if (pending == null)
             return ApiResponse<CentralWorkCenterPageDto>.SuccessResponse(result);
 
+        // Filter at the canonical query before Count/Skip/Take; never filter a single page in the browser.
+        if (!string.IsNullOrEmpty(source))
+        {
+            var kind = source switch
+            {
+                "ProcurementRequisition" => 1,
+                "ProcurementPurchaseOrder" => 2,
+                "FacilityVisitorPolicy" => 3,
+                _ => 4
+            };
+            pending = pending.Where(x => x.Kind == kind);
+        }
         result.Pending.TotalCount = await pending.CountAsync(ct);
         var identities = await pending.OrderBy(x => x.SubmittedAtUtc).ThenBy(x => x.Kind)
             .ThenBy(x => x.SourceId).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
