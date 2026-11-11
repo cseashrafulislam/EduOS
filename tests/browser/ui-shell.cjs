@@ -49,8 +49,15 @@ async function exercise(browser, bn) {
         if (bn) assert.equal(await page.locator('#loadingPlaceholder').evaluate(element =>
             getComputedStyle(element).animationName), 'none');
         await page.evaluate(() => { document.documentElement.dataset.workspaceTheme = 'dark'; });
-        assert.equal(await page.locator('#shellCard').evaluate(element =>
-            getComputedStyle(element).backgroundColor), 'rgb(23, 34, 53)');
+        const theme = await page.locator('#shellCard').evaluate(element => ({
+            color: getComputedStyle(element).backgroundColor,
+            rootTheme: document.documentElement.getAttribute('data-workspace-theme'),
+            matchesDarkSelector: element.matches(':root[data-workspace-theme="dark"] .edu-surface'),
+            darkSurfaceRules: [...document.styleSheets].flatMap(sheet => [...sheet.cssRules])
+                .filter(rule => rule.selectorText?.includes('data-workspace-theme="dark"') &&
+                    rule.selectorText?.includes('.edu-surface')).map(rule => rule.cssText.slice(0, 180))
+        }));
+        assert.equal(theme.color, 'rgb(23, 34, 53)', JSON.stringify(theme));
         await page.evaluate(() => window.EduOSNotify('<img src=x onerror=alert(1)>', 'error'));
         assert.equal(await page.locator('#eduToastStack img').count(), 0, 'unsafe message must remain text');
         assert.match(await page.locator('#eduToastStack [role="alert"]').innerText(), /<img src=x onerror=alert\(1\)>/);
