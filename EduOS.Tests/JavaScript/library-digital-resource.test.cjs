@@ -118,14 +118,18 @@ test('education content requires rights provenance and human review before readi
     assert.match(ui, /review\(resource, approve, button\)/);
 });
 
-test('LMS reuses approved subject library instead of duplicating files or publication state', () => {
+test('digital textbooks and study materials have one Library catalogue, not a second LMS list', () => {
     const lms = read('EduOS.App/wwwroot/js/learning/course-content.js');
     const lmsView = read('EduOS.App/Views/Learning/CourseContent.cshtml');
-    assert.match(lms, /selected\?\.subjectId/);
-    assert.match(lms, /api\/library\/digital\?/);
+    const library = read('EduOS.App/Views/Library/Digital.cshtml');
+    const catalogue = read('docs/academic/EDUCATION_CONTENT_CATALOGUE.md');
     assert.match(lms, /sessionValid\(\)/);
-    assert.match(lms, /clearPrivateLibrary\(\)/);
-    assert.match(lmsView, /id="contentLibraryRows"/);
+    assert.match(library, /id="digitalRows"/);
+    assert.match(lmsView, /only in Library/);
+    assert.match(lmsView, /lesson-only worksheet or note/);
+    assert.doesNotMatch(lmsView, /contentLibraryPanel|contentLibraryRows/);
+    assert.doesNotMatch(lms, /api\/library\/digital\?|loadSubjectLibrary|clearPrivateLibrary|LibraryRows|LibraryPanel/);
+    assert.match(catalogue, /sole catalogue and publication interface/);
     assert.doesNotMatch(lms, /localStorage|sessionStorage|indexedDB/i);
 });
 test('digital resource export never exposes storage keys or student identity', () => {
