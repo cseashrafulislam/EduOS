@@ -63,3 +63,39 @@ test('assistant preview requires explicit confirm and supports undo without navi
     assert.doesNotMatch(source, /(?:target|field|node)\.value\s*=/);
     assert.equal(assistant.matchLabel([{ labels: ['Public note'] }], 'Public note').kind, 'match');
 });
+
+test('localized labels and placeholder cannot disguise sensitive fields behind generic names', () => {
+    const cases = [
+        { labels: [{ textContent: 'বেতন' }] },
+        { labels: [{ textContent: 'Bank Account' }] },
+        { getAttribute: key => key === 'aria-label' ? 'উপস্থিতি' : null },
+        { getAttribute: key => key === 'placeholder' ? 'মোবাইল নম্বর' : null },
+        { dataset: { assistantDraft: 'true', assistantLabel: 'Payment' } },
+        { getAttribute: key => key === 'title' ? 'জাতীয় পরিচয়' : null }
+    ];
+    for (const change of cases) {
+        const target = field(change);
+        assert.equal(fieldDraft.safeTarget(target), false, JSON.stringify(change));
+        assert.equal(fieldDraft.apply(target, 'draft', eventHost), false);
+        assert.equal(target.value, '');
+    }
+    assert.equal(fieldDraft.safeTarget(field({ labels: [{ textContent: 'Public note / সাধারণ মন্তব্য' }] })), true);
+});
+test('explicit undo restores empty optional field with minlength/pattern without submitting', () => {
+    const target = field({
+        value: 'PUBLIC NOTE', minLength: 3, required: false, checkValidity: () => true,
+        getAttribute: key => key === 'pattern' ? '[A-Z ]+' : null
+    });
+    assert.equal(fieldDraft.apply(target, '', eventHost), false, 'ordinary empty draft must fail');
+    assert.equal(fieldDraft.apply(target, '', eventHost, { restoreEmpty: true }), true);
+    assert.equal(target.value, '');
+    assert.deepEqual(target.events.map(x => x.type), ['input']);
+    const required = field({
+        value: 'PUBLIC NOTE', minLength: 3, required: true, checkValidity: () => true,
+        getAttribute: key => key === 'pattern' ? '[A-Z ]+' : null
+    });
+    assert.equal(fieldDraft.apply(required, '', eventHost, { restoreEmpty: true }), false);
+    assert.equal(required.value, 'PUBLIC NOTE');
+    const assistantSource = fs.readFileSync(path.resolve(__dirname, '../../EduOS.App/wwwroot/js/platform/page-assistant.js'), 'utf8');
+    assert.match(assistantSource, /restoreEmpty: previous === ''/);
+});

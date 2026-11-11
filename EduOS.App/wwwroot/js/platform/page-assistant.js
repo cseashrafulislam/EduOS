@@ -194,7 +194,7 @@
                             reset(); message(t('Undo unavailable after a field/session change.', 'ঘর বা সেশন বদলেছে; ফেরানো যাচ্ছে না।')); return;
                         }
                         // Empty previous values are valid on undo; no business submit occurs.
-                        const restored = formDraft.apply(target, previous, hostWindow);
+                        const restored = formDraft.apply(target, previous, hostWindow, { restoreEmpty: previous === '' });
                         reset(); message(restored ? t('Previous text restored.', 'আগের লেখা ফিরেছে।')
                             : t('Could not restore. Review the field manually.', 'ফেরানো যায়নি। নিজে ঘর যাচাই করুন।'));
                     });

@@ -17,6 +17,17 @@
         return label.length >= 2 && label.length <= 100 && text.length >= 1 &&
             text.length <= 120 && !/[\r\n]/u.test(text) ? { label, value: text } : null;
     }
+    // Form authors must opt in. Labels are security-relevant: a harmless HTML
+    // name can still represent a protected field in Bengali or English.
+    const unsafeBn = /(?:পাসওয়ার্ড|পাসওয়ার্ড|গোপন|টোকেন|বেতন|পেরোল|বেতনভাতা|টাকা|মূল্য|ফি|মার্কস|নম্বর|গ্রেড|উপস্থিতি|স্টক|ইনভেন্টরি|অনুমোদন|পোস্টিং|ব্যাংক|ব্যাঙ্ক|হিসাব|জাতীয়.?পরিচয়|জাতীয়.?পরিচয়|জন্ম|ফোন|মোবাইল|ইমেইল|ই-মেইল|ঠিকানা|শিক্ষার্থী.?আইডি|অভিভাবক.?আইডি|কর্মচারী.?আইডি)/u;
+    function labelText(field) {
+        const labels = Array.from(field.labels || []).map(label => label.textContent || '');
+        const aria = field.getAttribute?.('aria-label');
+        const title = field.getAttribute?.('title');
+        if (aria) labels.push(aria);
+        if (title) labels.push(title);
+        return labels.join(' ');
+    }
     function safeTarget(field) {
         if (!field || field.dataset?.assistantDraft !== 'true' || field.disabled || field.readOnly ||
             field.isConnected === false || field.closest?.('[hidden], [inert], [aria-hidden="true"], .d-none') ||
@@ -25,24 +36,30 @@
         if (tag !== 'input' && tag !== 'textarea') return false;
         if (tag === 'input' && !['text', 'search'].includes(field.type)) return false;
         if (field.form?.dataset?.assistantDraft !== 'true') return false;
-        if (unsafe.test([field.name, field.id, field.autocomplete].join(' '))) return false;
+        const metadata = [field.name, field.id, field.autocomplete, labelText(field),
+            field.dataset?.assistantLabel, field.getAttribute?.('placeholder')].join(' ');
+        if (unsafe.test(metadata) || unsafeBn.test(metadata)) return false;
         if (field.closest?.('[data-assistant-sensitive="true"]')) return false;
         return true;
     }
-    function apply(field, value, hostWindow) {
+    function apply(field, value, hostWindow, options) {
         if (!safeTarget(field) || typeof value !== 'string' ||
             value.length > 120 || /[\r\n]/u.test(value) || typeof hostWindow?.Event !== 'function') return false;
+        // Undo can restore an originally empty optional field; never bypass
+        // the original field's required/pattern validation for new drafts.
+        const restoringEmpty = options?.restoreEmpty === true && value === '' &&
+            field.required !== true && field.getAttribute?.('required') == null;
         if (Number.isInteger(field.maxLength) && field.maxLength >= 0 && value.length > field.maxLength) return false;
         if (typeof field.checkValidity === 'function') {
             const original = field.value;
             // No speculative writes: reject known pattern/required constraints using
             // attribute validation where supported, otherwise defer to the canonical form.
             const pattern = field.getAttribute?.('pattern');
-            if (pattern) {
+            if (pattern && !restoringEmpty) {
                 try { if (!(new RegExp('^(?:' + pattern + ')$', 'u')).test(value)) return false; }
                 catch { return false; }
             }
-            if (field.minLength > 0 && value.length < field.minLength) return false;
+            if (!restoringEmpty && field.minLength > 0 && value.length < field.minLength) return false;
             if (original === value) return true;
         }
         field.value = value;
