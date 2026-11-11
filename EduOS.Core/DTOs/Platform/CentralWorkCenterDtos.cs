@@ -22,4 +22,13 @@ public sealed class CentralWorkCenterPageDto
     public bool InventoryIncluded { get; set; }
     public bool FacilitiesIncluded { get; set; }
     public bool FinanceIncluded { get; set; }
+    // Counts are calculated over the full authorized campus/source query, before paging.
+    // Empty collection means no entitled sources; zero counts are genuine known zeros.
+    public List<CentralWorkSourceCountDto> SourceCounts { get; set; } = new();
+}
+
+public sealed class CentralWorkSourceCountDto
+{
+    public string Source { get; set; } = string.Empty;
+    public int Count { get; set; }
 }

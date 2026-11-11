@@ -32,6 +32,12 @@
     </form>
     <p class="small text-muted">@(bn ? "প্রতিষ্ঠানব্যাপী Finance journal দেখতে ক্যাম্পাস ফিল্টার খালি রাখুন। অনুমোদন ও Posting মূল Finance পৃষ্ঠাতেই হবে।" : "Leave campus blank to include institution-wide Finance journals. Approvals and posting remain in the Finance module.")</p>
     <p id="cwcScope" class="small text-muted" aria-live="polite"></p>
+    <section aria-label="@(bn ? "আমার অপেক্ষমাণ কাজের সারাংশ" : "My actionable work summary")" class="mb-3">
+        <div id="cwcSummary" class="row g-2" aria-live="polite">
+            <div class="col-12 small text-muted">@(bn ? "কাজের সংখ্যা লোড হচ্ছে…" : "Loading actionable counts…")</div>
+        </div>
+        <p class="small text-muted mt-2 mb-0">@(bn ? "সংখ্যাগুলো অনুমোদিত ক্যাম্পাস ও দায়িত্ব অনুযায়ী সার্ভার থেকে গণনা করা হয়। কোনো কার্ডে ক্লিক করলে সেই কাজের তালিকা খুলবে।" : "Counts are server-calculated for your authorized campus and role. Select a card to filter the work list.")</p>
+    </section>
     <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
         <button id="cwcExport" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "এই পৃষ্ঠা CSV" : "Export current page (CSV)")</button>
         <button id="cwcPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "এই পৃষ্ঠা প্রিন্ট" : "Print current page")</button>

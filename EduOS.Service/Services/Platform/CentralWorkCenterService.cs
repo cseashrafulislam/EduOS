@@ -130,6 +130,21 @@ public sealed class CentralWorkCenterService(
         if (pending == null)
             return ApiResponse<CentralWorkCenterPageDto>.SuccessResponse(result);
 
+        // One authoritative union query produces the same scoped counts as the drill-down.
+        // Do not compute dashboard totals from a page or from a separate snapshot.
+        var grouped = await pending.GroupBy(x => x.Kind)
+            .Select(g => new { Kind = g.Key, Count = g.Count() }).ToListAsync(ct);
+        var counts = grouped.ToDictionary(x => x.Kind, x => x.Count);
+        if (inventory)
+        {
+            result.SourceCounts.Add(new CentralWorkSourceCountDto { Source = "ProcurementRequisition", Count = counts.GetValueOrDefault(1) });
+            result.SourceCounts.Add(new CentralWorkSourceCountDto { Source = "ProcurementPurchaseOrder", Count = counts.GetValueOrDefault(2) });
+        }
+        if (facilities)
+            result.SourceCounts.Add(new CentralWorkSourceCountDto { Source = "FacilityVisitorPolicy", Count = counts.GetValueOrDefault(3) });
+        if (finance && !campusId.HasValue)
+            result.SourceCounts.Add(new CentralWorkSourceCountDto { Source = "AccountingJournal", Count = counts.GetValueOrDefault(4) });
+
         // Filter at the canonical query before Count/Skip/Take; never filter a single page in the browser.
         if (!string.IsNullOrEmpty(source))
         {

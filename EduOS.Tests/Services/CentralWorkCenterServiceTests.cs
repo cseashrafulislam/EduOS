@@ -85,6 +85,8 @@ public sealed class CentralWorkCenterServiceTests
         first.StatusCode.Should().Be(200);
         first.Data!.InventoryIncluded.Should().BeTrue();
         first.Data.FacilitiesIncluded.Should().BeTrue();
+        first.Data.SourceCounts.Sum(x => x.Count).Should().Be(4);
+        first.Data.SourceCounts.Should().Contain(x => x.Source == "ProcurementPurchaseOrder" && x.Count == 2);
         first.Data.Pending.TotalCount.Should().Be(4);
         second.Data!.Pending.TotalCount.Should().Be(4);
         var rows = first.Data.Pending.Items.Concat(second.Data.Pending.Items).ToArray();
@@ -186,6 +188,8 @@ public sealed class CentralWorkCenterServiceTests
             source: "ProcurementRequisition");
         req.StatusCode.Should().Be(200);
         req.Data!.Pending.TotalCount.Should().Be(1);
+        req.Data.SourceCounts.Sum(x => x.Count).Should().Be(4);
+        req.Data.SourceCounts.Should().Contain(x => x.Source == "ProcurementRequisition" && x.Count == 1);
         req.Data.Pending.Items.Should().ContainSingle()
             .Which.Source.Should().Be("ProcurementRequisition");
         var orders = await service.GetPendingAsync(page: 1, pageSize: 1,
@@ -202,6 +206,8 @@ public sealed class CentralWorkCenterServiceTests
         policies.Data!.Pending.TotalCount.Should().Be(1);
         var noFinance = await service.GetPendingAsync(source: "AccountingJournal");
         noFinance.Data!.Pending.TotalCount.Should().Be(0);
+        noFinance.Data.SourceCounts.Should().Contain(x => x.Source == "ProcurementRequisition" && x.Count == 1);
+        noFinance.Data.SourceCounts.Should().NotContain(x => x.Source == "AccountingJournal");
         (await service.GetPendingAsync(source: "BadSource")).StatusCode.Should().Be(400);
         (await service.GetPendingAsync(source: "ProcurementPurchaseOrder", campusId: 999))
             .StatusCode.Should().Be(403);

@@ -18,6 +18,7 @@
     };
     let page = 1, lastPage = 1, request = 0, pending = null;
     let currentItems = [], currentScope = '', resultReady = false;
+    let currentCounts = [];
     const previous = byId('cwcPrevious'), next = byId('cwcNext');
     const source = byId('cwcSource'), pageSize = byId('cwcPageSize');
     let loading = false;
@@ -41,11 +42,49 @@
         const printButton = byId('cwcPrint');
         if (printButton) printButton.disabled = !available || currentItems.length === 0;
     }
+    function renderSummary(data) {
+        const host = byId('cwcSummary');
+        if (!host) return;
+        host.replaceChildren();
+        currentCounts = data.sourceCounts;
+        if (!currentCounts.length) {
+            const note = document.createElement('p');
+            note.className = 'small text-muted mb-0';
+            note.textContent = bn ? 'এই পরিসরে অনুমোদিত কোনো কাজের উৎস নেই।' : 'No entitled work sources in this scope.';
+            host.appendChild(note);
+            return;
+        }
+        for (const entry of currentCounts) {
+            const column = document.createElement('div');
+            column.className = 'col-12 col-sm-6 col-xl-3';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary w-100 h-100 text-start p-3';
+            button.setAttribute('aria-pressed', String(source.value === entry.source));
+            const label = document.createElement('span');
+            label.className = 'd-block small';
+            label.textContent = names[entry.source];
+            const count = document.createElement('strong');
+            count.className = 'd-block fs-4';
+            count.textContent = String(entry.count);
+            button.append(label, count);
+            button.addEventListener('click', () => {
+                if (loading) return;
+                source.value = entry.source;
+                page = 1;
+                load();
+            });
+            button.disabled = loading;
+            column.appendChild(button);
+            host.appendChild(column);
+        }
+    }
     function render(data) {
         const body = byId('cwcRows');
         body.replaceChildren();
         const result = data.pending;
         currentItems = result.items.slice();
+        renderSummary(data);
         resultReady = true;
         lastPage = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
         page = result.page;
@@ -111,6 +150,8 @@
         loading = true;
         resultReady = false;
         currentItems = [];
+        currentCounts = [];
+        byId('cwcSummary')?.replaceChildren();
         updateActions();
         byId('cwcPage').textContent = bn ? 'লোড হচ্ছে…' : 'Loading…';
         byId('cwcRows').replaceChildren();
@@ -129,7 +170,12 @@
                 !Number.isSafeInteger(result.pageSize) || result.pageSize < 1 ||
                 !Number.isSafeInteger(result.page) || result.page < 1 ||
                 result.page !== page || result.pageSize !== Number(pageSize.value) ||
-                result.items.length > result.pageSize)
+                result.items.length > result.pageSize ||
+                !Array.isArray(json.data.sourceCounts) ||
+                json.data.sourceCounts.some(x => !x || !Object.hasOwn(names, x.source) ||
+                    !Number.isSafeInteger(x.count) || x.count < 0) ||
+                new Set(json.data.sourceCounts.map(x => x.source)).size !== json.data.sourceCounts.length ||
+                json.data.sourceCounts.reduce((sum, x) => sum + x.count, 0) < result.totalCount)
                 throw new Error(bn ? 'তালিকার তথ্য সঠিক নয়' : 'Invalid work list response.');
             if (page > 1 && result.totalCount === 0) {
                 page = 1;
@@ -149,6 +195,8 @@
                 byId('cwcScope').textContent = '';
                 resultReady = false;
                 currentItems = [];
+                currentCounts = [];
+                byId('cwcSummary')?.replaceChildren();
             }
         } finally {
             if (pending === controller) {

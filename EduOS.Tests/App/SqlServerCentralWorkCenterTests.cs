@@ -115,6 +115,8 @@ public sealed class SqlServerCentralWorkCenterTests
         Assert.Equal(200, first.StatusCode);
         Assert.Equal(200, second.StatusCode);
         Assert.Equal(3, first.Data!.Pending.TotalCount);
+        Assert.Equal(3, first.Data.SourceCounts.Sum(x => x.Count));
+        Assert.Contains(first.Data.SourceCounts, x => x.Source == "AccountingJournal" && x.Count == 1);
         Assert.Equal(3, second.Data!.Pending.TotalCount);
         var items = first.Data.Pending.Items.Concat(second.Data.Pending.Items).ToArray();
         Assert.Equal(3, items.Length);
@@ -129,6 +131,8 @@ public sealed class SqlServerCentralWorkCenterTests
         Assert.Equal(200, campusOnly.StatusCode);
         Assert.Equal(2, campusOnly.Data!.Pending.TotalCount);
         Assert.False(campusOnly.Data.FinanceIncluded);
+        Assert.Equal(2, campusOnly.Data.SourceCounts.Sum(x => x.Count));
+        Assert.DoesNotContain(campusOnly.Data.SourceCounts, x => x.Source == "AccountingJournal");
         Assert.DoesNotContain(campusOnly.Data.Pending.Items,
             x => x.Source == "AccountingJournal");
         Assert.Equal(403, (await service.GetPendingAsync(campusId: campus.Id + 100)).StatusCode);
