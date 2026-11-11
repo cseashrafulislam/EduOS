@@ -17,6 +17,7 @@
         AccountingJournal: bn ? 'হিসাবের জার্নাল অনুমোদন' : 'Journal approval'
     };
     let page = 1, lastPage = 1, request = 0, pending = null;
+    let currentItems = [], currentScope = '', resultReady = false;
     const previous = byId('cwcPrevious'), next = byId('cwcNext');
     const source = byId('cwcSource'), pageSize = byId('cwcPageSize');
     let loading = false;
@@ -31,10 +32,21 @@
         row.appendChild(td);
         return td;
     }
+    function updateActions() {
+        const available = resultReady && !loading;
+        previous.disabled = !available || page <= 1;
+        next.disabled = !available || page >= lastPage;
+        const exportButton = byId('cwcExport');
+        if (exportButton) exportButton.disabled = !available || currentItems.length === 0;
+        const printButton = byId('cwcPrint');
+        if (printButton) printButton.disabled = !available || currentItems.length === 0;
+    }
     function render(data) {
         const body = byId('cwcRows');
         body.replaceChildren();
         const result = data.pending;
+        currentItems = result.items.slice();
+        resultReady = true;
         lastPage = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
         page = result.page;
         byId('cwcScope').textContent = (bn ? 'অনুমোদিত উৎস: ' : 'Authorized sources: ') +
@@ -43,8 +55,8 @@
              data.financeIncluded ? (bn ? 'ফাইন্যান্স' : 'Finance') : null]
                 .filter(Boolean).join(', ') || (bn ? 'অনুমোদিত কাজ নেই' : 'No entitled sources');
         byId('cwcPage').textContent = `${result.page} / ${lastPage} (${result.totalCount})`;
-        previous.disabled = loading || page <= 1;
-        next.disabled = loading || page >= lastPage;
+        currentScope = byId('cwcScope').textContent;
+        updateActions();
         if (!result.items.length) {
             const empty = document.createElement('tr');
             const td = cell(empty, bn ? 'কোনো অপেক্ষমাণ কাজ নেই' : 'No pending work in this scope.');
@@ -97,7 +109,9 @@
         const params = new URLSearchParams({ page: String(page), pageSize: pageSize.value });
         if (source.value) params.set('source', source.value);
         loading = true;
-        previous.disabled = next.disabled = true;
+        resultReady = false;
+        currentItems = [];
+        updateActions();
         byId('cwcPage').textContent = bn ? 'লোড হচ্ছে…' : 'Loading…';
         byId('cwcRows').replaceChildren();
         if (campus) params.set('campusId', campus);
@@ -110,6 +124,17 @@
             if (request !== serial) return;
             byId('cwcAlert').className = 'd-none';
             const result = json.data.pending;
+            if (!result || !Array.isArray(result.items) ||
+                !Number.isSafeInteger(result.totalCount) || result.totalCount < 0 ||
+                !Number.isSafeInteger(result.pageSize) || result.pageSize < 1 ||
+                !Number.isSafeInteger(result.page) || result.page < 1 ||
+                result.page !== page || result.pageSize !== Number(pageSize.value) ||
+                result.items.length > result.pageSize)
+                throw new Error(bn ? 'তালিকার তথ্য সঠিক নয়' : 'Invalid work list response.');
+            if (page > 1 && result.totalCount === 0) {
+                page = 1;
+                load(); return;
+            }
             if (result && result.totalCount > 0 && page > 1 &&
                 page > Math.ceil(result.totalCount / result.pageSize)) {
                 page = Math.ceil(result.totalCount / result.pageSize);
@@ -121,16 +146,50 @@
             if (error.name !== 'AbortError' && request === serial) {
                 alertMessage(error.message || 'Unable to load.');
                 byId('cwcPage').textContent = bn ? 'তালিকা পাওয়া যায়নি' : 'List unavailable';
+                byId('cwcScope').textContent = '';
+                resultReady = false;
+                currentItems = [];
             }
         } finally {
             if (pending === controller) {
                 pending = null;
                 loading = false;
-                previous.disabled = page <= 1;
-                next.disabled = page >= lastPage;
+                updateActions();
             }
         }
     }
+    // Export only the currently fetched, permission-scoped page; never infer or request unseen rows.
+    // The file is a local snapshot, not a replacement for source-module financial reports.
+    function exportCurrentPage() {
+        if (!resultReady || loading || !currentItems.length) return;
+        const safe = value => {
+            let s = value == null ? '' : String(value);
+            if (/^[\\s\\uFEFF]*[=+@\\-]/.test(s)) s = "'" + s;
+            return '"' + s.replace(/"/g, '""') + '"';
+        };
+        const header = ['Module', 'Reference', 'Campus', 'State', 'Submitted UTC', 'Source'];
+        const rows = currentItems.map(item => [
+            names[item.source] || item.source, item.reference,
+            item.campusId == null ? 'Institution-wide' : item.campusId,
+            item.state, item.submittedAtUtc, item.source
+        ]);
+        const csv = '\uFEFF' + [header, ...rows].map(row => row.map(safe).join(',')).join('\r\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'my-work-page-' + page + '.csv';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+    }
+    const exportButton = byId('cwcExport');
+    if (exportButton) exportButton.addEventListener('click', exportCurrentPage);
+    const printButton = byId('cwcPrint');
+    if (printButton) printButton.addEventListener('click', () => {
+        if (resultReady && !loading && currentItems.length) window.print();
+    });
     byId('cwcFilters').addEventListener('submit', event => {
         event.preventDefault(); page = 1; load();
     });
