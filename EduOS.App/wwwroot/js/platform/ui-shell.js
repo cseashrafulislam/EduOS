@@ -21,6 +21,19 @@
             candidates.find(link => link?.classList?.contains('active')) || null;
     }
 
+    // Only offer a next-step shortcut if the current server-authorized menu
+    // already exposes it. Never infer a destination from URL or role names.
+    function contextualSetupLink(links, current) {
+        const candidates = Array.from(links || []);
+        const setup = candidates.find(link => {
+            if (!link || typeof link.getAttribute !== 'function') return false;
+            const href = link.getAttribute('href') || '';
+            return /^\\/SmartSetup(?:\\/Index)?\\/?(?:[?#].*)?$/i.test(href) &&
+                link !== current && !link.closest?.('[hidden]');
+        });
+        return setup || null;
+    }
+
     function notificationData(message, kind) {
         if (typeof message !== 'string' || !message.trim()) return null;
         const types = new Set(['success', 'info', 'warning', 'error']);
@@ -35,7 +48,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports)
-        module.exports = { breadcrumbParts, breadcrumbSelection, notificationData, notificationDismissalMs };
+        module.exports = { breadcrumbParts, breadcrumbSelection, contextualSetupLink, notificationData, notificationDismissalMs };
     if (typeof document === 'undefined') return;
 
     const crumbs = document.getElementById('pageBreadcrumbs');
@@ -65,11 +78,34 @@
         crumbs.replaceChildren(items);
         crumbs.hidden = false;
     }
+    const contextual = document.getElementById('shellContextActions');
+    function renderContextActions() {
+        if (!contextual || !sidebar) return;
+        contextual.replaceChildren();
+        contextual.hidden = true;
+        if (!document.body?.dataset.authUserId || window.EduOSSessionTransitionPending?.()) return;
+        const links = sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link');
+        const current = breadcrumbSelection(links);
+        const setup = contextualSetupLink(links, current);
+        if (!setup) return;
+        const shortcut = document.createElement('a');
+        shortcut.className = 'shell-context-shortcut';
+        shortcut.href = setup.getAttribute('href');
+        shortcut.textContent = document.documentElement.lang?.toLowerCase().startsWith('bn')
+            ? 'স্মার্ট সেটআপ চালিয়ে যান' : 'Continue Smart Setup';
+        shortcut.setAttribute('aria-label', shortcut.textContent);
+        contextual.append(shortcut);
+        contextual.hidden = false;
+    }
     renderBreadcrumbs();
-    window.addEventListener('hashchange', renderBreadcrumbs);
+    renderContextActions();
+    window.addEventListener('hashchange', () => {
+        renderBreadcrumbs();
+        renderContextActions();
+    });
     // Sidebar grouping and active selection are progressive enhancements;
     // refresh the breadcrumb after that work without copying route metadata.
-    window.addEventListener('eduos:sidebar-navigation-ready', renderBreadcrumbs);
+    window.addEventListener('eduos:sidebar-navigation-ready', () => { renderBreadcrumbs(); renderContextActions(); });
 
     const host = document.getElementById('eduToastStack');
     const tenant = document.body?.dataset.authTenantId || '';

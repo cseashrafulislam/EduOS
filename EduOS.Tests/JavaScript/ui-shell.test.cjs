@@ -8,7 +8,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/ui-shell.js');
-const { breadcrumbParts, breadcrumbSelection, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
+const { breadcrumbParts, breadcrumbSelection, contextualSetupLink, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
 const site = read('EduOS.App/wwwroot/js/site.js');
 
 test('shared breadcrumb reduces duplicate levels and never creates navigation routes', () => {
@@ -116,4 +116,30 @@ test('breadcrumbs select the server-authorized active destination without guessi
     assert.equal(breadcrumbSelection([]), null);
     assert.match(js, /eduos:sidebar-navigation-ready/);
     assert.doesNotMatch(js, /location\.pathname\.split/);
+});
+
+test('contextual Smart Setup shortcut reuses only an authorized sidebar link, never a guessed route', () => {
+    const link = (href, hidden = false) => ({
+        getAttribute: key => key === 'href' ? href : null,
+        closest: selector => selector === '[hidden]' && hidden ? {} : null
+    });
+    const student = link('/Students/Index');
+    const setup = link('/SmartSetup/Index');
+    const blocked = link('/SmartSetup/Index', true);
+    assert.equal(contextualSetupLink([student, setup], student), setup);
+    assert.equal(contextualSetupLink([student, setup], setup), null);
+    assert.equal(contextualSetupLink([student, blocked], student), null);
+    assert.equal(contextualSetupLink([student, link('https://evil.example/SmartSetup')], student), null);
+    assert.equal(contextualSetupLink([student, link('//evil.example/SmartSetup')], student), null);
+    assert.equal(contextualSetupLink([student, link('/SmartSetup/Index/../../Other')], student), null);
+    assert.equal(contextualSetupLink([], null), null);
+    assert.match(layout, /id="shellContextActions"[\\s\\S]*?hidden><\\/nav>/);
+    assert.match(js, /contextual\\.replaceChildren\\(\\)/);
+    assert.match(js, /contextual\\.hidden = true/);
+    assert.match(js, /window\\.EduOSSessionTransitionPending/);
+    assert.match(js, /shortcut\\.href = setup\\.getAttribute\\('href'\\)/);
+    assert.match(js, /eduos:sidebar-navigation-ready/);
+    assert.match(css, /\\.shell-context-shortcut:focus-visible/);
+    assert.match(css, /max-width: 575\\.98px/);
+    assert.match(css, /data-workspace-theme="dark"\\] \\.shell-context-shortcut/);
 });

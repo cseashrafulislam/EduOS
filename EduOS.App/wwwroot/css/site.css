@@ -3897,3 +3897,29 @@ select,
 .dashboard-checklist-disclosure > summary:focus-visible,
 #admissionDraftDisclosure > summary:focus-visible,
 #admissionReadinessDisclosure > summary:focus-visible { outline: 3px solid var(--edu-primary, #2563eb); outline-offset: 3px; }
+
+/* UX-01/02 contextual Smart Setup: one permissioned menu-derived shortcut.
+   It is intentionally absent when the server does not render Smart Setup. */
+.shell-context-actions[hidden] { display: none !important; }
+.shell-context-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .2rem; }
+.shell-context-shortcut {
+    display: inline-flex; align-items: center; min-height: 2rem; max-width: 100%;
+    padding: .25rem .55rem; border: 1px solid var(--edu-border);
+    border-radius: .45rem; background: var(--edu-soft); color: var(--edu-primary-dark);
+    font-size: .75rem; font-weight: 600; text-decoration: none;
+    overflow-wrap: anywhere;
+}
+.shell-context-shortcut:hover { text-decoration: underline; }
+.shell-context-shortcut:focus-visible { outline: .15rem solid var(--edu-primary); outline-offset: .15rem; }
+@media (max-width: 575.98px) {
+    .shell-context-actions { width: 100%; }
+    .shell-context-shortcut { min-height: 2.75rem; }
+}
+:root[data-workspace-theme="dark"] .shell-context-shortcut {
+    background: #172235; color: #bfdbfe; border-color: #475569;
+}
+@media (prefers-color-scheme: dark) {
+    :root[data-workspace-theme="system"] .shell-context-shortcut {
+        background: #172235; color: #bfdbfe; border-color: #475569;
+    }
+}
