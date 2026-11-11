@@ -440,6 +440,12 @@ async function leaves(browser) {
         return response(route, 404, null, url.pathname);
     });
     await page.goto('http://eduos.test/StudentLeaves/Index');
+    // The fixture renders a Razor view without _Layout; supply the authenticated
+    // tenant/session attributes normally emitted by the real server layout.
+    await page.evaluate(() => {
+        document.body.dataset.authTenantId = '25';
+        document.body.dataset.authSessionReference = 'leave-browser-session';
+    });
     await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/attendance/student-leaves.js') });
     await page.locator('#leaveStudentTerm').fill('Leave Student');
     await page.locator('#leaveStudentSearch button[type="submit"]').click();
@@ -456,6 +462,14 @@ async function leaves(browser) {
     assert.equal(posts[0].clientRequestId, posts[1].clientRequestId);
     await page.locator('#leaveRows button').first().click();
     await page.waitForFunction(() => document.querySelector('#leaveRows')?.textContent.includes('Approved'));
+    await page.evaluate(() => {
+        document.querySelector('#leaveReason').value = 'Private draft';
+        document.body.dataset.authTenantId = 'other-institute';
+    });
+    await page.locator('#leaveRefresh').click();
+    await page.waitForFunction(() => document.querySelector('#leaveNotice')?.textContent.includes('Institution session changed'));
+    assert.equal(await page.locator('#leaveReason').inputValue(), '');
+    assert.equal(await page.locator('#leaveSubmit').isDisabled(), true);
     await page.close();
     console.log('Student leave browser: PASS — submission retry idempotency, review, CSRF and listing.');
 }
