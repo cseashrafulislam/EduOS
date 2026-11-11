@@ -39,8 +39,9 @@ async function exercise(browser, bn) {
         await page.addScriptTag({ path: navScript });
         await page.addScriptTag({ path: shellScript });
         assert.deepEqual(await page.locator('#pageBreadcrumbs li').allTextContents(), bn
-            ? ['ব্যবস্থাপনা', 'ফি ও হিসাব', 'Fee collection']
-            : ['Management', 'Fees & Accounting', 'Fee collection']);
+            ? ['ব্যবস্থাপনা', 'Fee collection']
+            : ['Management', 'Fee collection'],
+        'one authorized destination has no unnecessary intermediate accordion breadcrumb');
         assert.equal(await page.locator('#pageBreadcrumbs li[aria-current="page"]').count(), 1);
         assert.equal(await page.locator('#pageBreadcrumbs').isHidden(), bn,
             'mobile uses the title without a cramped breadcrumb');
