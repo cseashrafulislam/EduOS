@@ -8,7 +8,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/ui-shell.js');
-const { breadcrumbParts, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
+const { breadcrumbParts, breadcrumbSelection, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
 const site = read('EduOS.App/wwwroot/js/site.js');
 
 test('shared breadcrumb reduces duplicate levels and never creates navigation routes', () => {
@@ -102,4 +102,18 @@ test('mobile navigation traps keyboard focus and keeps inactive content inert', 
     assert.match(site, /window\.EduOSSessionTransitionPending\?\.\(\)/);
     assert.match(site, /if \(lastFocusedElement instanceof HTMLElement\) lastFocusedElement\.focus\(\)/);
     assert.match(css, /body\.sidebar-open\s*\{\s*overflow: hidden;/);
+});
+
+test('breadcrumbs select the server-authorized active destination without guessing URL segments', () => {
+    const link = (current, active) => ({
+        getAttribute: name => name === 'aria-current' ? current : null,
+        classList: { contains: name => name === 'active' && active }
+    });
+    const inactive = link(null, false), serverActive = link(null, true), current = link('page', false);
+    assert.equal(breadcrumbSelection([inactive, serverActive, current]), current);
+    assert.equal(breadcrumbSelection([inactive, serverActive]), serverActive);
+    assert.equal(breadcrumbSelection([inactive]), null);
+    assert.equal(breadcrumbSelection([]), null);
+    assert.match(js, /eduos:sidebar-navigation-ready/);
+    assert.doesNotMatch(js, /location\.pathname\.split/);
 });

@@ -609,6 +609,8 @@
     }
     restoreOpenGroup();
     restoreSections();
+    window.dispatchEvent(new Event('eduos:sidebar-navigation-ready'));
+
 
     for (const details of allDetails) {
         details.addEventListener('toggle', () => {

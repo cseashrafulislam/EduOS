@@ -10,7 +10,7 @@ const styles = read('EduOS.App/wwwroot/css/site.css');
 const script = read('EduOS.App/wwwroot/js/platform/feature-discovery.js');
 const sidebarScript = read('EduOS.App/wwwroot/js/sidebar-navigation.js');
 const { navigationLabelFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
-const { safeDestination, makeCatalog, filterCatalog, scopedState, remember, contextStatus } =
+const { safeDestination, destinationIdentity, makeCatalog, filterCatalog, scopedState, remember, contextStatus } =
     require('../../EduOS.App/wwwroot/js/platform/feature-discovery.js');
 
 const catalog = makeCatalog([
@@ -131,4 +131,22 @@ test('feature search inherits the canonical bilingual sidebar labels, including 
     assert.match(script, /link\.getAttribute\('aria-label'\)\?\.trim\(\)/);
     assert.doesNotMatch(script, /const translated = bangla/);
     assert.match(layout, /sidebar-navigation\.js" asp-append-version="true"[\s\S]*feature-discovery\.js" asp-append-version="true"/);
+});
+
+test('MVC Index aliases share one authorized search entry and saved shortcuts resolve only to current permissions', () => {
+    assert.equal(destinationIdentity('/Students/Index'), destinationIdentity('/students/'));
+    assert.notEqual(destinationIdentity('/Students/Edit'), destinationIdentity('/Students'));
+    assert.notEqual(destinationIdentity('/Students#one'), destinationIdentity('/Students#two'));
+    const entries = makeCatalog([
+        { href: '/Students/Index', label: 'Students' },
+        { href: '/Students', label: 'Duplicate alias' },
+        { href: '/Students/Edit', label: 'Edit' }
+    ]);
+    assert.deepEqual(entries.map(x => x.href), ['/Students/Index', '/Students/Edit']);
+    const saved = { version: 1, tenant: '22', session: 'A',
+        favorites: ['/Students', '/Secret', '/Students/Index'], recent: ['/Students/'] };
+    assert.deepEqual(scopedState(saved, '22', 'A', entries).favorites, ['/Students/Index']);
+    assert.deepEqual(scopedState(saved, '22', 'A', entries).recent, ['/Students/Index']);
+    assert.deepEqual(scopedState(saved, '23', 'A', entries).favorites, []);
+    assert.deepEqual(scopedState(saved, '22', 'A', []).favorites, []);
 });

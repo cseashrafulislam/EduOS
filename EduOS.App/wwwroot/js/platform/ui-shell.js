@@ -13,6 +13,14 @@
         return result.slice(0, 4);
     }
 
+    // Breadcrumbs are derived from authorized sidebar links, never from URL
+    // segments (which can contain private IDs or misleading untrusted labels).
+    function breadcrumbSelection(links) {
+        const candidates = Array.from(links || []);
+        return candidates.find(link => link?.getAttribute?.('aria-current') === 'page') ||
+            candidates.find(link => link?.classList?.contains('active')) || null;
+    }
+
     function notificationData(message, kind) {
         if (typeof message !== 'string' || !message.trim()) return null;
         const types = new Set(['success', 'info', 'warning', 'error']);
@@ -27,14 +35,14 @@
     }
 
     if (typeof module !== 'undefined' && module.exports)
-        module.exports = { breadcrumbParts, notificationData, notificationDismissalMs };
+        module.exports = { breadcrumbParts, breadcrumbSelection, notificationData, notificationDismissalMs };
     if (typeof document === 'undefined') return;
 
     const crumbs = document.getElementById('pageBreadcrumbs');
     const sidebar = document.getElementById('sidebarMenu');
     function renderBreadcrumbs() {
         if (!crumbs || !sidebar) return;
-        const active = sidebar.querySelector('nav[data-sidebar-section] a.nav-link[aria-current="page"]');
+        const active = breadcrumbSelection(sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link'));
         const nav = active?.closest('nav[data-sidebar-section]');
         const section = nav?.previousElementSibling?.classList.contains('menu-title')
             ? nav.previousElementSibling.textContent : '';
@@ -59,6 +67,9 @@
     }
     renderBreadcrumbs();
     window.addEventListener('hashchange', renderBreadcrumbs);
+    // Sidebar grouping and active selection are progressive enhancements;
+    // refresh the breadcrumb after that work without copying route metadata.
+    window.addEventListener('eduos:sidebar-navigation-ready', renderBreadcrumbs);
 
     const host = document.getElementById('eduToastStack');
     const tenant = document.body?.dataset.authTenantId || '';

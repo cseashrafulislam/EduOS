@@ -14,14 +14,27 @@
         } catch { return null; }
     }
 
+    // MVC's /Controller and /Controller/Index represent one destination.
+    // Normalize only for identity, retaining the original authorized href.
+    function destinationIdentity(href) {
+        const safe = safeDestination(href);
+        if (!safe) return null;
+        const hashAt = safe.indexOf('#');
+        const pathname = hashAt < 0 ? safe : safe.slice(0, hashAt);
+        const fragment = hashAt < 0 ? '' : safe.slice(hashAt);
+        const normalized = pathname.replace(/\\/Index\\/?$/i, '').replace(/\\/$/, '') || '/';
+        return (normalized + fragment).toLocaleLowerCase();
+    }
+
     function makeCatalog(links) {
         const seen = new Set();
         const catalog = [];
         for (const link of links) {
             const href = safeDestination(link?.href);
             const label = typeof link?.label === 'string' ? link.label.trim().slice(0, 100) : '';
-            if (!href || !label || seen.has(href.toLowerCase())) continue;
-            seen.add(href.toLowerCase());
+            const identity = destinationIdentity(href);
+            if (!identity || !label || seen.has(identity)) continue;
+            seen.add(identity);
             catalog.push({
                 href, label,
                 section: String(link.section || '').trim().slice(0, 70),
@@ -45,11 +58,16 @@
     }
 
     function scopedState(saved, tenant, session, catalog) {
+        const authorized = new Map(catalog.map(entry => [destinationIdentity(entry.href), entry.href]));
         const allowed = new Set(catalog.map(entry => entry.href));
         const matches = saved && saved.version === 1 && tenant && session &&
             saved.tenant === tenant && saved.session === session;
         const clean = list => matches && Array.isArray(list)
-            ? [...new Set(list.filter(value => typeof value === 'string' && allowed.has(value)))].slice(0, 8)
+            ? [...new Set(list.map(value => {
+                if (typeof value !== 'string' || !safeDestination(value)) return null;
+                // Resolve saved MVC aliases only to the current server-authorized link.
+                return allowed.has(value) ? value : authorized.get(destinationIdentity(value)) || null;
+            }).filter(Boolean))].slice(0, 8)
             : [];
         return { version: 1, tenant, session, favorites: clean(saved?.favorites), recent: clean(saved?.recent) };
     }
@@ -67,7 +85,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { safeDestination, makeCatalog, filterCatalog, scopedState, remember, contextStatus };
+        module.exports = { safeDestination, destinationIdentity, makeCatalog, filterCatalog, scopedState, remember, contextStatus };
     }
     if (typeof document === 'undefined') return;
 
