@@ -37,7 +37,9 @@ public sealed class StudentQuickEntryService(
             return ApiResponse<RunningStudentCreatedDto>.ErrorResponse("Student creation is not authorized.", 403);
         if (request == null || request.ClientRequestId == Guid.Empty || request.AcademicBatchId <= 0 ||
             request.AcademicCurriculumId <= 0 || request.AdmissionDate == default ||
-            request.EnrollmentDate == default || string.IsNullOrWhiteSpace(request.FullName) ||
+            request.EnrollmentDate == default || request.AdmissionDate > request.EnrollmentDate ||
+            request.DateOfBirth.HasValue && request.DateOfBirth.Value > request.AdmissionDate ||
+            string.IsNullOrWhiteSpace(request.FullName) ||
             request.FullName.Trim().Length is < 2 or > 200 ||
             string.IsNullOrWhiteSpace(request.RollNo) || request.RollNo.Trim().Length > 50 ||
             request.DateOfBirth > DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime) ||
@@ -67,7 +69,9 @@ public sealed class StudentQuickEntryService(
                         replay.AcademicBatchId != request.AcademicBatchId ||
                         replay.AcademicCurriculumId != request.AcademicCurriculumId ||
                         replay.RollNo != roll || replay.EnrollmentDate != request.EnrollmentDate ||
-                        existing.Phone != phone || existing.DateOfBirth != request.DateOfBirth)
+                        existing.Phone != phone || existing.DateOfBirth != request.DateOfBirth ||
+                        existing.FullNameBangla != Optional(request.FullNameBangla) ||
+                        existing.Gender != Optional(request.Gender) || existing.Address != Optional(request.Address))
                         throw new RejectEntry("Request reference was used for different student data.");
                     var linkedGuardian = await (from link in db.StudentGuardians.AsNoTracking()
                         join guardian in db.Guardians.AsNoTracking() on link.GuardianId equals guardian.Id

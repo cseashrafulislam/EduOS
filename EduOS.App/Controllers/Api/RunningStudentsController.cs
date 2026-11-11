@@ -10,6 +10,7 @@ namespace EduOS.App.Controllers.Api;
 [Route("api/students/running")]
 [Authorize(Roles = "TenantAdmin")]
 [RequireModule("STUDENT")]
+[RequireModule("ACADEMIC")]
 [AutoValidateAntiforgeryToken]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class RunningStudentsController(StudentQuickEntryService service) : ControllerBase

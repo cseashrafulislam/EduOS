@@ -13,6 +13,7 @@ public sealed class StudentsController : Controller
     public IActionResult Index() => View();
 
     [Authorize(Roles = "TenantAdmin")]
+    [RequireModule("ACADEMIC")]
     [HttpGet]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Create() => View();

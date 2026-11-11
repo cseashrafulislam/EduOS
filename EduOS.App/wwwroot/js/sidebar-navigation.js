@@ -20,7 +20,7 @@
         ],
         academics: [
             ['portal', 'My Learning Portal', 'আমার লার্নিং পোর্টাল', ['/StudentPortal', '/StudentSubjects', '/Alumni']],
-            ['learners', 'Admissions & Students', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/LearnerIdentities', '/StudentSupport']],
+            ['learners', 'Admissions & Students', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/LearnerIdentities', '/StudentSupport']],
             ['career', 'Career & Placement', 'ক্যারিয়ার ও কর্মসংস্থান', ['/CareerEmployers', '/CareerOpportunities', '/CareerPlacements']],
             ['research', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন', ['/ResearchProposals', '/ResearchGrants']],
             ['accreditation', 'Accreditation & Quality', 'স্বীকৃতি ও মান', ['/Accreditation']],
@@ -71,8 +71,8 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/StudentLifecycle', '/StudentTransferRequests']]
         ],
         'academics:learners': [
-            ['settings', 'Settings', 'সেটিংস', ['/Admissions/Forms', '/Admissions/AssessmentSetup']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/Admissions/NewApplication', '/Admissions/Applications', '/Admissions/Merit', '/Admissions/Assessments', '/Admissions/Offers', '/Admissions/Index', '/Students', '/LearnerIdentities/Index', '/StudentSupport']],
+            ['settings', 'Settings', 'সেটিংস', ['/Admissions/Forms', '/Admissions/AssessmentSetup', '/StudentGuardians', '/StudentDocuments']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Admissions/NewApplication', '/Admissions/Applications', '/Admissions/Merit', '/Admissions/Assessments', '/Admissions/Offers', '/Admissions/Index', '/Students', '/StudentLifecycle', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/LearnerIdentities/Index', '/StudentSupport']],
             ['reports', 'Reports', 'রিপোর্ট', ['/LearnerIdentities/AccessHistory']]
         ],
         'academics:career': [
