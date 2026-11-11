@@ -170,8 +170,14 @@ async function exercise(browser, mobile) {
             const selected = document.activeElement;
             const nav = selected?.closest('nav[data-sidebar-section]');
             if (!nav) return { matched: false, selected: selected?.outerHTML?.slice(0, 220), nav: null };
-            const visible = [...nav.querySelectorAll('summary, a.nav-link')].filter(element =>
-                element.getClientRects().length > 0 && !element.closest('[hidden], [inert]'));
+            const visible = [...nav.querySelectorAll('summary, a.nav-link')].filter(element => {
+                if (!element.getClientRects().length || element.closest('[hidden], [inert]')) return false;
+                for (let parent = element.parentElement; parent && parent !== nav; parent = parent.parentElement) {
+                    if (parent.tagName === 'DETAILS' && !parent.open &&
+                        !parent.querySelector(':scope > summary')?.contains(element)) return false;
+                }
+                return true;
+            });
             const label = element => element?.getAttribute('href') || element?.textContent.trim().slice(0, 70);
             return { matched: selected === visible[visible.length - 1],
                 selected: label(selected), last: label(visible[visible.length - 1]),
@@ -179,6 +185,11 @@ async function exercise(browser, mobile) {
         });
         assert.equal(endFocus.matched, true,
             'End moves focus to the last visible navigation control: ' + JSON.stringify(endFocus));
+        assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'SUMMARY',
+            'closed accordion contents must never steal keyboard End focus');
+        await page.keyboard.press('ArrowUp');
+        assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')),
+            '/TenantUsers/Index', 'ArrowUp skips links inside closed accordions');
         await institution.click();
         assert.equal(await institution.evaluate(el => el.parentElement.open), true);
         await page.waitForFunction(() => JSON.parse(

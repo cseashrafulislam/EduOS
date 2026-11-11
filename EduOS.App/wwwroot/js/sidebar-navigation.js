@@ -677,9 +677,16 @@
         const focused = event.target.closest?.('summary, a.nav-link');
         const nav = focused?.closest('nav[data-sidebar-section]');
         if (!nav || !sidebar.contains(nav)) return;
-        const targets = [...nav.querySelectorAll('summary, a.nav-link')].filter(element =>
-            element.getClientRects().length > 0 &&
-            !element.closest('[hidden], [inert]'));
+        const targets = [...nav.querySelectorAll('summary, a.nav-link')].filter(element => {
+            if (!element.getClientRects().length || element.closest('[hidden], [inert]')) return false;
+            // CSS can give descendants of a closed <details> nonzero rects.
+            // Its own <summary> is navigable; nested links/categories are not.
+            for (let parent = element.parentElement; parent && parent !== nav; parent = parent.parentElement) {
+                if (parent.tagName === 'DETAILS' && !parent.open &&
+                    !parent.querySelector(':scope > summary')?.contains(element)) return false;
+            }
+            return true;
+        });
         const index = targets.indexOf(focused);
         if (index < 0) return;
         const next = event.key === 'Home' ? 0 :
