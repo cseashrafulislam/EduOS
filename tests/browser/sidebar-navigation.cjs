@@ -166,14 +166,19 @@ async function exercise(browser, mobile) {
         assert.equal(await page.evaluate(() => document.activeElement?.textContent.includes(
             document.documentElement.lang === 'bn-BD' ? 'ব্যবহারকারী' : 'Users')), true);
         await page.keyboard.press('End');
-        assert.equal(await page.evaluate(() => {
+        const endFocus = await page.evaluate(() => {
             const selected = document.activeElement;
             const nav = selected?.closest('nav[data-sidebar-section]');
-            if (!nav) return false;
+            if (!nav) return { matched: false, selected: selected?.outerHTML?.slice(0, 220), nav: null };
             const visible = [...nav.querySelectorAll('summary, a.nav-link')].filter(element =>
                 element.getClientRects().length > 0 && !element.closest('[hidden], [inert]'));
-            return selected === visible[visible.length - 1];
-        }), true, 'End moves focus to the last visible, authorized navigation control');
+            const label = element => element?.getAttribute('href') || element?.textContent.trim().slice(0, 70);
+            return { matched: selected === visible[visible.length - 1],
+                selected: label(selected), last: label(visible[visible.length - 1]),
+                visible: visible.map(label), section: nav.dataset.sidebarSection };
+        });
+        assert.equal(endFocus.matched, true,
+            'End moves focus to the last visible navigation control: ' + JSON.stringify(endFocus));
         await institution.click();
         assert.equal(await institution.evaluate(el => el.parentElement.open), true);
         await page.waitForFunction(() => JSON.parse(
