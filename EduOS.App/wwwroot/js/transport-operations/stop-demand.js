@@ -49,7 +49,8 @@
     async function load() {
         if (!operatingDate.value || operatingDate.value < localToday()) { invalidate(); showError('Choose today or a future operating date.'); return; }
         const current = ++sequence, snapshot = filters();
-        loadedFilter = null; csvButton.disabled = true;
+        loadedFilter = null; csvButton.disabled = true; prev.disabled = true; next.disabled = true;
+        rows.replaceChildren();
         status.className = 'small text-muted mb-2';
         status.textContent = 'Loading route stop demand…';
         const q = new URLSearchParams(snapshot);
@@ -57,6 +58,8 @@
         try {
             const data = await getJson(endpoint + '?' + q.toString());
             if (current !== sequence || snapshot !== filters()) return;
+            const totalPages = Math.max(1, Number(data.totalPages) || 1);
+            if (page > totalPages) { page = totalPages; return load(); }
             rows.replaceChildren();
             for (const item of data.items || []) {
                 const tr = document.createElement('tr');
@@ -80,7 +83,8 @@
             status.textContent = 'Reservations effective on ' + operatingDate.value + '; not measured boardings.';
         } catch (error) {
             if (current !== sequence) return;
-            rows.replaceChildren(); prev.disabled = true; next.disabled = true;
+            loadedFilter = null; csvButton.disabled = true; rows.replaceChildren();
+            pageLabel.textContent = ''; prev.disabled = true; next.disabled = true;
             showError(error.message);
         }
     }
@@ -116,7 +120,8 @@
         } catch (error) { showError(error.message); }
         finally { csvButton.disabled = loadedFilter === null || loadedFilter !== filters(); }
     });
-    window.addEventListener('transport:routes-changed', () => load());
+    window.addEventListener('transport:routes-changed', invalidate);
+    window.addEventListener('transport:assignments-changed', invalidate);
     (async () => {
         try {
             const choices = await getJson('/api/transport/route-setup/campuses');
