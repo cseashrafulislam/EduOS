@@ -84,7 +84,10 @@
         const headers = { Accept: 'application/json' };
         const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
         if (body !== undefined) headers['Content-Type'] = 'application/json';
-        if (method !== 'GET' && token) headers.RequestVerificationToken = token;
+        if (method !== 'GET') {
+            if (!token) throw new Error('Session verification token is missing. Reload before saving. / নিরাপত্তা টোকেন নেই; পেজ রিলোড করুন।');
+            headers.RequestVerificationToken = token;
+        }
         const response = await fetch(url, {
             method, credentials: 'same-origin', cache: 'no-store',
             headers, ...(body === undefined ? {} : { body: JSON.stringify(body) })
@@ -307,7 +310,13 @@
             el('promotionForm').reset();
             invalidatePreview();
             promotionGuard?.markClean();
-            await selectStudent(reference, true);
+            // The progression POST has already succeeded. A follow-up refresh failure
+            // must never be reported as a failed write or invite a duplicate submission.
+            try {
+                await selectStudent(reference, true);
+            } catch {
+                notice('Progression saved. Student details could not refresh; reload to view the latest record. / পদোন্নতি সংরক্ষিত হয়েছে; নতুন তথ্য দেখতে পেজ রিলোড করুন।', true);
+            }
         } catch (error) {
             if (reference === state.reference && sameSession())
                 notice(error.message || 'Progression failed. Retry with the same request.');
