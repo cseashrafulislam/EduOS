@@ -277,3 +277,23 @@ test('shared field-state tokens cover validated pending/invalid/valid states acr
     assert.match(js, /const focused = toast\.contains\(document\.activeElement\)/);
     assert.match(js, /if \(focused && sameSession\(\)\)/);
 });
+
+test('collapsed navigation retains the authorized active breadcrumb but never exposes a hidden shortcut', () => {
+    const link = (href, active, attrs = {}, rects = []) => ({
+        getAttribute: key => key === 'href' ? href : key === 'aria-current' && active ? 'page' :
+            Object.hasOwn(attrs, key) ? attrs[key] : null,
+        classList: { contains: key => key === 'active' && active },
+        closest: () => null,
+        getClientRects: () => rects
+    });
+    const current = link('/Students', true);
+    const setup = link('/SmartSetup/Index', false);
+    assert.equal(shellLinkVisible(current), false);
+    assert.equal(breadcrumbSelection([current, setup]), current);
+    assert.equal(contextualSetupLink([current, setup], current), null);
+    for (const attrs of [{ hidden: '' }, { inert: '' }, { 'aria-hidden': 'true' },
+        { 'aria-disabled': 'true' }, { disabled: '' }]) {
+        assert.equal(breadcrumbSelection([link('/Students', true, attrs)]), null);
+    }
+    assert.match(js, /The active server-rendered destination remains the current page/);
+});
