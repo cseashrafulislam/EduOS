@@ -184,10 +184,11 @@ test('restricted links remain gated in Razor rather than client-side role filter
     assert.match(script, /selected\?\.closest\('\.sidebar-group'\)/);
     assert.match(script, /aria-current/);
     assert.match(styles, /\.sidebar-group-toggle:focus-visible/);
-    assert.match(styles, /\.sidebar-category-toggle:focus-visible/);
     assert.match(styles, /data-workspace-navigation="top"\] \.sidebar \.sidebar-submenu/);
-    assert.match(script, /allCategories\.push\(subDetails\)/);
-    assert.match(script, /if \(namedCategories\.length <= 1\)/);
+    assert.match(script, /for \(const child of children\.slice\(\)\.sort/);
+    assert.match(script, /submenu\.append\(child\)/);
+    assert.doesNotMatch(script, /sidebar-category|allCategories|state\.category|subDetails/);
+    assert.doesNotMatch(styles, /\.sidebar-category/);
     assert.doesNotMatch(script, /sidebar-group-count|sidebar-category-count|'other', 'Other'/);
     assert.doesNotMatch(styles, /\.sidebar-group-count|\.sidebar-category-count/);
 });
@@ -282,4 +283,14 @@ test('default Index aliases and anchored navigation preserve the exact active de
     assert.match(layout, /string CanonicalNavPath\(string path\)/);
     assert.match(script, /link\.setAttribute\('aria-current', 'page'\)/);
     assert.match(layout, /id="pageBreadcrumbs"/);
+});
+
+
+test('every authorized module link is directly available after opening its module', () => {
+    assert.match(script, /details\.append\(summary, submenu\)/);
+    assert.match(script, /for \(const child of children\.slice\(\)\.sort/);
+    assert.match(script, /categoryFor\(section, key, a\.getAttribute/);
+    assert.doesNotMatch(script, /createElement\('details'\);\s*subDetails/);
+    assert.doesNotMatch(script, /sidebar-category|categoryLinks|categoryToggle/);
+    assert.match(script, /const order = \{ operations: 0, reports: 1, settings: 2, other: 3 \}/);
 });
