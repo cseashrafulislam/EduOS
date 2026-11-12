@@ -91,7 +91,7 @@ public sealed class OnboardingGuardCanonicalStateTests
         var expired = CreateRequest(tenant.Id, "/Dashboard/Index");
         await guard.InvokeAsync(expired, db);
         Assert.Equal(StatusCodes.Status302Found, expired.Response.StatusCode);
-        var subscription = await db.TenantSubscriptions.SingleAsync();
+        var subscription = await db.TenantSubscriptions.IgnoreQueryFilters().SingleAsync();
         subscription.EndsAt = DateTime.UtcNow.AddDays(1);
         tenant.EmailVerifiedAt = null;
         await db.SaveChangesAsync();
