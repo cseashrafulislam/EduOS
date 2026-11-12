@@ -357,10 +357,17 @@
             state.fingerprint = null;
             state.selected.clear();
             el('smartSetupConfirm').checked = false;
+            const groups = new Map();
+            for (const record of result.created || []) {
+                const kind = record.kind || 'Master';
+                groups.set(kind, (groups.get(kind) || 0) + 1);
+            }
+            const details = [...groups].map(([kind, count]) => kind + ': ' + count).join(' · ');
             message(tr('Saved ' + result.createdCount + ' new master record(s); ' +
                 result.existingCount + ' already existed.',
                 result.createdCount + 'টি নতুন তথ্য সংরক্ষিত; ' +
-                result.existingCount + 'টি আগে থেকেই ছিল।'));
+                result.existingCount + 'টি আগে থেকেই ছিল।') +
+                (details ? ' — ' + details : ''));
             // Reload only the non-destructive preview. A successful POST remains
             // successful even if this follow-up GET fails.
             const [fresh, readiness] = await Promise.all([
