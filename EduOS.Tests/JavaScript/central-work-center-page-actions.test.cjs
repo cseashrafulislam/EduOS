@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 const source = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/platform/central-work-center.js'), 'utf8');
 const view = fs.readFileSync(path.join(root, 'EduOS.App/Views/CentralWorkCenter/Index.cshtml'), 'utf8');
+const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 function harness(fetchResponse) {
   const nodes = {}, requests = [], exports = [], prints = [];
@@ -31,7 +32,10 @@ function harness(fetchResponse) {
       if (tag === 'a') el.click = () => exports.push(el.download);
       return el;
     } };
-  const window = { addEventListener() {}, print() { prints.push(true); } };
+  document.body.dataset = { authTenantId: 'tenant-qa', authSessionReference: 'session-qa' };
+  const events = {};
+  const window = { addEventListener(type, callback) { events[type] = callback; },
+    print() { prints.push(true); }, EduOSSessionTransitionPending: () => false };
   const URL = { createObjectURL: () => 'blob:work', revokeObjectURL() {} };
   vm.runInNewContext(source, { document, window, URL, URLSearchParams, AbortController,
     Blob, Date, Number, String, Object,
@@ -39,7 +43,7 @@ function harness(fetchResponse) {
       requests.push({url,opts});
       return fetchResponse(url,opts);
     } }, {timeout:1000});
-  return { nodes, requests, exports, prints };
+  return { nodes, requests, exports, prints, document, window, events };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const item = {source:'ProcurementRequisition',sourceId:12,campusId:3,
@@ -96,7 +100,7 @@ test('server controls tenant, role, campus and source; export never requests ext
   assert.match(service,/visibleCampuses\.Contains/);
   assert.match(service,/pending = pending\.Where\(x => x.Kind == kind\)/);
   assert.match(source,/currentItems = result\.items\.slice\(\)/);
-  assert.match(source,/if \(!resultReady \|\| loading \|\| !currentItems\.length\) return/);
+  assert.match(source,/if \(!resultReady \|\| loading \|\| !currentItems\.length \|\| !sameSession\(\)\) return/);
   assert.match(source,/createObjectURL/);
   assert.doesNotMatch(source,/\/api\/.*export/);
 });
@@ -141,6 +145,34 @@ test('work center never exports a cross-page item before authorized page load su
   await tick();
   assert.equal(h.nodes.cwcExport.disabled,true);
   assert.equal(h.nodes.cwcRows.children.length,0);
+});
+
+test('session transition revokes previously loaded export and print actions', async () => {
+  const h = harness(() => success());
+  await tick();
+  assert.equal(h.nodes.cwcExport.disabled, false);
+  h.document.body.dataset.authSessionReference = 'session-other';
+  h.nodes.cwcExport.click();
+  h.nodes.cwcPrint.click();
+  assert.equal(h.exports.length, 0);
+  assert.equal(h.prints.length, 0);
+  h.events.pagehide();
+  assert.equal(h.nodes.cwcExport.disabled, true);
+  assert.equal(h.nodes.cwcPrint.disabled, true);
+});
+
+test('tenant change after load denies export and print without additional network requests', async () => {
+  const h = harness(() => success());
+  await tick();
+  const requestCount = h.requests.length;
+  h.document.body.dataset.authTenantId = 'tenant-other';
+  h.nodes.cwcExport.click();
+  h.nodes.cwcPrint.click();
+  assert.equal(h.exports.length, 0);
+  assert.equal(h.prints.length, 0);
+  assert.equal(h.requests.length, requestCount);
+  h.events.pagehide();
+  assert.equal(h.nodes.cwcNext.disabled, true);
 });
 
 test('Work Center paging, export and print are session-bound and fail closed on navigation', () => {
