@@ -81,6 +81,23 @@ public sealed partial class AcademicSetupService
             row.Capacity = request.Capacity;
             row.DisplayOrder = request.DisplayOrder;
             row.UpdatedAt = DateTime.UtcNow;
+            // A legacy default section is a compatibility representation of this
+            // formerly section-shaped batch; never let the two names/capacities drift.
+            if (_sections != null)
+            {
+                var legacy = await _sections.GetQueryable().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.AcademicBatchId == row.Id &&
+                    x.IsLegacyDefault && !x.IsDeleted, ct);
+                if (legacy != null)
+                {
+                    legacy.Name = row.Name;
+                    legacy.Capacity = row.Capacity;
+                    legacy.DisplayOrder = row.DisplayOrder;
+                    legacy.UpdatedAt = row.UpdatedAt;
+                    legacy.UpdatedBy = _currentUser.UserId;
+                    _sections.Update(legacy);
+                }
+            }
             row.UpdatedBy = _currentUser.UserId;
             _batches.Update(row);
             await _unitOfWork.SaveChangesAsync(ct);
