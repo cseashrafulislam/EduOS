@@ -30,6 +30,7 @@ namespace EduOS.App.Extensions
             s.Configure<MfaSettings>(c.GetSection(MfaSettings.SectionName)); s.AddAutoMapper(_ => { }, typeof(MappingProfile).Assembly);
             s.AddScoped<ICurrentUserService, CurrentUserService>();
             s.AddScoped<ScholarshipWorkflowService>();
+            s.AddScoped<AcademicSectionService>();
             s.AddScoped<ScholarshipDisbursementService>();
             s.AddScoped<CounselingWorkflowService>();
             s.AddScoped<CounselingPrivacyService>();
