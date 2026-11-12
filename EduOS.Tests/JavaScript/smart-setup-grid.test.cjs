@@ -13,7 +13,9 @@ function createElement(tag = 'div', id = '') {
         append(...values) { this.children.push(...values); },
         replaceChildren(...values) { this.children = [...values]; },
         setAttribute(key, value) { this.attributes[key] = String(value); },
+        removeAttribute(key) { delete this.attributes[key]; if (key === 'src') this.src = ''; },
         addEventListener(name, handler) { this.listeners[name] = handler; },
+        scrollIntoView() {},
         querySelectorAll(selector) {
             const all = [];
             function walk(node) {
@@ -35,11 +37,13 @@ function find(node, match) {
     }
     return null;
 }
-function setup() {
+function setup({ hostel = false } = {}) {
     const ids = ['smartSetupWorkspace', 'smartSetupNotice', 'smartSetupInstitution',
         'smartSetupVersion', 'smartSetupReload', 'smartSetupReadinessSummary',
         'smartSetupModules', 'smartSetupSelection', 'smartSetupApply',
-        'smartSetupConfirm', 'smartSetupForm'];
+        'smartSetupConfirm', 'smartSetupForm', 'smartSetupSelectAll',
+        'smartSetupClearSelected', 'smartSetupInline', 'smartSetupFrame',
+        'smartSetupInlineTitle', 'smartSetupInlineClose', 'smartSetupInlineRefresh'];
     const elems = new Map(ids.map(id => [id, createElement('div', id)]));
     const root = elems.get('smartSetupWorkspace');
     root.dataset.language = 'en-BD';
@@ -61,6 +65,10 @@ function setup() {
                 ] }
         ]
     };
+    if (hostel) data.modules.push({
+        code: 'HOSTEL', name: 'Hostel', nameBangla: 'হোস্টেল',
+        isAvailable: true, supportsSafeApply: false, entries: []
+    });
     const requests = [];
     async function fetch(url, init = {}) {
         requests.push({ url, init });
@@ -76,13 +84,20 @@ function setup() {
             } }) };
         }
         const value = url === '/api/smart-setup/preview' ? data :
-            data.modules.map(m => ({ moduleCode: m.code, isAvailable: true,
-                hasChecklist: false, requirements: [] }));
+            data.modules.map(m => ({
+                moduleCode: m.code, isAvailable: true,
+                hasChecklist: hostel && m.code === 'HOSTEL',
+                requirements: hostel && m.code === 'HOSTEL'
+                    ? [{ code: 'HOSTEL_ROOM', label: 'Rooms and capacity',
+                        labelBangla: 'কক্ষ ও ধারণক্ষমতা', configured: false,
+                        actionUrl: '/HostelOperations/Setup' }]
+                    : []
+            }));
         return { ok: true, json: async () => ({ success: true, data: value }) };
     }
     const context = {
         document: { body, getElementById: id => elems.get(id) || null,
-            createElement },
+            createElement, addEventListener() {} },
         window: { EduOSSessionTransitionPending: () => false,
             location: { search: '', origin: 'http://localhost' } },
         URL, URLSearchParams, Uint8Array, fetch,
@@ -96,7 +111,7 @@ function setup() {
     };
     const selectedBox = key => find(elems.get('smartSetupModules'),
         node => node.attributes?.['data-smart-row'] === key);
-    return { elems, data, requests, ready, selectedBox };
+    return { elems, data, requests, ready, selectedBox, body };
 }
 test('reviewed missing rows are rendered as pre-filled readonly columns, with no automatic POST', async () => {
     const h = setup();
@@ -145,4 +160,57 @@ test('select all only checks missing rows and cannot write without final confirm
     assert.equal(h.selectedBox('HR|OrganizationUnit|ACADEMIC').checked, true);
     assert.equal(h.elems.get('smartSetupApply').disabled, true);
     assert.equal(h.requests.filter(r => r.init.method === 'POST').length, 0);
+});
+
+
+test('select all missing initial records does not create data without confirmation', async () => {
+    const h = setup();
+    await h.ready();
+    h.elems.get('smartSetupSelectAll').listeners.click();
+    assert.equal(h.selectedBox('ACADEMIC|Medium|BANGLA').checked, true);
+    assert.equal(h.selectedBox('HR|OrganizationUnit|ADMIN').checked, true);
+    assert.equal(h.selectedBox('HR|OrganizationUnit|ACADEMIC').checked, true);
+    assert.equal(h.selectedBox('ACADEMIC|Medium|ENGLISH'), null);
+    assert.equal(h.elems.get('smartSetupApply').disabled, true);
+    h.elems.get('smartSetupConfirm').checked = true;
+    h.elems.get('smartSetupConfirm').listeners.change();
+    assert.equal(h.elems.get('smartSetupApply').disabled, false);
+    await h.elems.get('smartSetupForm').listeners.submit({ preventDefault() {} });
+    const posts = h.requests.filter(x => x.init.method === 'POST');
+    assert.equal(posts.length, 1);
+    const selected = JSON.parse(posts[0].init.body);
+    assert.equal(selected.entries.length, 3);
+    assert.equal(selected.modules.length, 2);
+    h.elems.get('smartSetupClearSelected').listeners.click();
+    assert.equal(h.elems.get('smartSetupApply').disabled, true);
+});
+
+test('Hostel prerequisite opens original authorized setup form inside Smart Setup', async () => {
+    const h = setup({ hostel: true });
+    await h.ready();
+    const button = find(h.elems.get('smartSetupModules'),
+        x => x.attributes?.['data-smart-setup-inline'] === 'HOSTEL:HOSTEL_ROOM');
+    assert.ok(button);
+    button.listeners.click();
+    assert.equal(h.elems.get('smartSetupInline').hidden, false);
+    assert.equal(h.elems.get('smartSetupFrame').src,
+        '/HostelOperations/Setup?smartSetupEmbedded=1');
+    assert.equal(h.requests.filter(x => x.init.method === 'POST').length, 0);
+    assert.ok(find(h.elems.get('smartSetupModules'),
+        x => x.tag === 'a' && x.href === '/HostelOperations/Setup'));
+    h.elems.get('smartSetupInlineClose').listeners.click();
+    await h.ready();
+    assert.equal(h.elems.get('smartSetupInline').hidden, true);
+    assert.equal(h.elems.get('smartSetupFrame').src, '');
+});
+
+test('changed institution session cannot reopen an embedded Setup form', async () => {
+    const h = setup({ hostel: true });
+    await h.ready();
+    h.body.dataset.authTenantId = '26';
+    const button = find(h.elems.get('smartSetupModules'),
+        x => x.attributes?.['data-smart-setup-inline'] === 'HOSTEL:HOSTEL_ROOM');
+    button.listeners.click();
+    assert.notEqual(h.elems.get('smartSetupInline').hidden, false);
+    assert.equal(h.elems.get('smartSetupFrame').src, undefined);
 });
