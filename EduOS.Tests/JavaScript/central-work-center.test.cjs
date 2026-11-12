@@ -18,8 +18,9 @@ function browser(payload) {
         fire(name) { this.handlers[name]?.({ preventDefault() {} }); }
     });
     for (const id of ['centralWorkCenter', 'cwcAlert', 'cwcFilters', 'cwcCampus', 'cwcRows',
-        'cwcPrevious', 'cwcNext', 'cwcPage', 'cwcSource', 'cwcPageSize', 'cwcScope', 'cwcSummary']) nodes[id] = element();
+        'cwcPrevious', 'cwcNext', 'cwcPage', 'cwcSource', 'cwcPageSize', 'cwcReference', 'cwcOrder', 'cwcScope', 'cwcSummary']) nodes[id] = element();
     nodes.cwcPageSize.value = '25';
+  nodes.cwcOrder.value = 'newest';
     // Mimic the current API's separately authorized source counts; keep totals consistent.
     if (!payload.sourceCounts) {
         const counts = new Map();
@@ -115,4 +116,17 @@ test('Cross-module API and shared page manual keep domain approvals and entitlem
         const manual = guideFor('/CentralWorkCenter/Index', lang);
         assert.ok(manual?.steps?.length >= 3 && manual.rules && manual.recovery);
     }
+});
+
+
+test('My Work query defaults to newest ordering and keeps reference filter server-side', async () => {
+    const b = browser({ pending: { totalCount: 0, page: 1, pageSize: 25, items: [] } });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.match(b.calls[0].url, /order=newest/);
+    b.nodes.cwcReference.value = 'PO-2026';
+    b.nodes.cwcOrder.value = 'oldest';
+    b.nodes.cwcFilters.fire('submit');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.match(b.calls[1].url, /reference=PO-2026/);
+    assert.match(b.calls[1].url, /order=oldest/);
 });
