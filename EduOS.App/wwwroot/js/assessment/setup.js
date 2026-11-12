@@ -201,7 +201,7 @@
         if (generation !== state.offeringGeneration || batchId !== Number(el('setupBatch').value)) return;
         state.offerings = data.items || [];
         fillSelect('setupOffering', state.offerings, 'reference',
-            x => `${x.code} — ${x.subjectName}`, 'Select subject');
+            x => `${x.academicSectionName || 'Legacy'} / ${x.code} — ${x.subjectName}`, 'Select subject');
     }
     async function addSubject() {
         if (state.busy || !state.current || Number(state.current.state) !== 1) return;
