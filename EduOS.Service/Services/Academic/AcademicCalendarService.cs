@@ -9,6 +9,12 @@ using EduOS.Core.Interfaces.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
+using System.Data;
+using System.Text.Json;
+using EduOS.Core.Enums.Domain;
+using EduOS.Core.Entities.System;
+using EduOS.Persistence.Context;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -24,6 +30,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
     private readonly ICurrentUserService _currentUser;
     private readonly TimeProvider _clock;
     private readonly ILogger<AcademicCalendarService> _logger;
+    private readonly EduOSDbContext _db;
+    private sealed record HolidayImportReceipt(string Fingerprint, ImportGovernmentHolidaysResultDto Result);
 
     public AcademicCalendarService(
         IGenericRepository<AcademicCalendarPolicy> policies,
@@ -35,7 +43,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         TimeProvider clock,
-        ILogger<AcademicCalendarService> logger)
+        ILogger<AcademicCalendarService> logger,
+        EduOSDbContext db)
     {
         _policies = policies;
         _events = events;
@@ -47,6 +56,192 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         _currentUser = currentUser;
         _clock = clock;
         _logger = logger;
+        _db = db;
+    }
+
+
+    public async Task<ApiResponse<GovernmentHolidayPreviewDto>> PreviewGovernmentHolidaysAsync(
+        long academicYearId, long? campusId, DateOnly fromDate, DateOnly toDate,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<GovernmentHolidayPreviewDto>();
+        var (data, message, status) = await GovernmentHolidayPreviewCoreAsync(
+            academicYearId, campusId, fromDate, toDate, cancellationToken);
+        return data == null ? Error<GovernmentHolidayPreviewDto>(message!, status) :
+            ApiResponse<GovernmentHolidayPreviewDto>.SuccessResponse(data);
+    }
+
+    public async Task<ApiResponse<ImportGovernmentHolidaysResultDto>> ImportGovernmentHolidaysAsync(
+        ImportGovernmentHolidaysRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied<ImportGovernmentHolidaysResultDto>();
+        if (request == null || request.ClientRequestId == Guid.Empty || !request.Confirmed ||
+            request.AcademicYearId <= 0 || request.CampusId is <= 0 ||
+            request.SourceVersion != BangladeshGovernmentHolidayCatalog.Version ||
+            request.SelectedCodes == null || request.SelectedCodes.Count is < 1 or > 50 ||
+            request.SelectedCodes.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 64) ||
+            request.SelectedCodes.Distinct(StringComparer.Ordinal).Count() != request.SelectedCodes.Count)
+            return Error<ImportGovernmentHolidaysResultDto>("Confirm a valid reviewed government holiday selection.");
+        var codes = request.SelectedCodes.OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        var fingerprint = string.Join("|", request.AcademicYearId, request.CampusId?.ToString() ?? "ALL",
+            request.FromDate.ToString("yyyy-MM-dd"), request.ToDate.ToString("yyyy-MM-dd"),
+            request.SourceVersion, string.Join(",", codes));
+        try
+        {
+            return await _unitOfWork.ExecuteInTransactionAsync(async token =>
+            {
+                await LockGovernmentHolidayImportAsync(token);
+                var receipt = await _db.AuditLogs.IgnoreQueryFilters().AsNoTracking()
+                    .Where(x => x.TenantId == _currentUser.TenantId &&
+                        x.Action == "AcademicCalendar.ImportGovernmentHolidays" &&
+                        x.RequestId == request.ClientRequestId.ToString("D"))
+                    .Select(x => x.NewValue).FirstOrDefaultAsync(token);
+                if (receipt != null)
+                {
+                    HolidayImportReceipt? saved;
+                    try { saved = JsonSerializer.Deserialize<HolidayImportReceipt>(receipt); }
+                    catch (JsonException) { return Error<ImportGovernmentHolidaysResultDto>("This request ID has already been used.", 409); }
+                    if (saved == null || saved.Fingerprint != fingerprint)
+                        return Error<ImportGovernmentHolidaysResultDto>("This request ID belongs to a different holiday selection.", 409);
+                    return ApiResponse<ImportGovernmentHolidaysResultDto>.SuccessResponse(saved.Result,
+                        "Previously saved holiday import returned.");
+                }
+                var (preview, message, status) = await GovernmentHolidayPreviewCoreAsync(
+                    request.AcademicYearId, request.CampusId, request.FromDate, request.ToDate, token);
+                if (preview == null) return Error<ImportGovernmentHolidaysResultDto>(message!, status);
+                var options = preview.Holidays.Where(x => codes.Contains(x.Code, StringComparer.Ordinal)).ToArray();
+                if (options.Length != codes.Length)
+                    return Error<ImportGovernmentHolidaysResultDto>("Selected holiday codes are not available in the current official list.", 409);
+                if (options.Any(x => x.Status == "Conflict"))
+                    return Error<ImportGovernmentHolidaysResultDto>("Existing calendar holidays conflict with this selection. Review them first.", 409);
+                if (options.Any(x => x.Status is not ("Missing" or "Existing")))
+                    return Error<ImportGovernmentHolidaysResultDto>("Selected holidays are not available.", 409);
+
+                var now = _clock.GetUtcNow().UtcDateTime;
+                var result = new ImportGovernmentHolidaysResultDto
+                {
+                    ExistingCount = options.Count(x => x.Status == "Existing")
+                };
+                var official = BangladeshGovernmentHolidayCatalog.InRange(request.FromDate, request.ToDate)
+                    .ToDictionary(x => x.Code);
+                foreach (var row in options.Where(x => x.Status == "Missing"))
+                {
+                    var holiday = official[row.Code];
+                    await _events.AddAsync(new AcademicCalendarEvent
+                    {
+                        TenantId = _currentUser.TenantId,
+                        CampusId = request.CampusId,
+                        AcademicYearId = request.AcademicYearId,
+                        AcademicTermId = null,
+                        EventType = CalendarEventKind.Holiday,
+                        Title = holiday.Name,
+                        StartDate = holiday.Start,
+                        EndDate = holiday.End,
+                        Description = "Source: Bangladesh Ministry of Public Administration (" +
+                            holiday.GazetteYear + " holiday gazette). " +
+                            holiday.Source + (holiday.MoonDependent
+                                ? " Date subject to moon sighting and official amendments." : "") +
+                            (string.IsNullOrEmpty(holiday.Note) ? "" : " " + holiday.Note),
+                        IsHoliday = true,
+                        IsPublicVisible = true,
+                        CreatedAt = now,
+                        CreatedBy = _currentUser.UserId
+                    });
+                    result.CreatedCodes.Add(row.Code);
+                }
+                await _unitOfWork.SaveChangesAsync(token);
+                result.CreatedCount = result.CreatedCodes.Count;
+                _db.AuditLogs.Add(new AuditLog
+                {
+                    TenantId = _currentUser.TenantId, UserId = _currentUser.UserId,
+                    Action = "AcademicCalendar.ImportGovernmentHolidays",
+                    EntityName = "AcademicCalendarEvent", IsSuccess = true,
+                    RequestId = request.ClientRequestId.ToString("D"),
+                    NewValue = JsonSerializer.Serialize(new HolidayImportReceipt(fingerprint, result)),
+                    OccurredAt = now
+                });
+                await _unitOfWork.SaveChangesAsync(token);
+                return ApiResponse<ImportGovernmentHolidaysResultDto>.SuccessResponse(result,
+                    "Selected government holidays saved without replacing existing events.");
+            }, IsolationLevel.Serializable, cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogWarning(ex, "Government holiday import conflict for tenant {TenantId}", _currentUser.TenantId);
+            return Error<ImportGovernmentHolidaysResultDto>("Calendar changed during import. Reload and retry.", 409);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Government holiday import failed for tenant {TenantId}", _currentUser.TenantId);
+            return Error<ImportGovernmentHolidaysResultDto>("Holiday import failed. No partial changes were saved.", 500);
+        }
+    }
+
+    private async Task<(GovernmentHolidayPreviewDto? Data, string? Message, int StatusCode)>
+        GovernmentHolidayPreviewCoreAsync(long academicYearId, long? campusId,
+            DateOnly fromDate, DateOnly toDate, CancellationToken ct)
+    {
+        if (!CanManage()) return (null, "Calendar management permission required.", 403);
+        if (!await CanManageCampusAsync(campusId, ct))
+            return (null, "Select a campus you are permitted to manage.", 403);
+        var range = NormalizeRange(fromDate, toDate);
+        if (!range.Success) return (null, range.Error, 400);
+        if (fromDate.Year < 2026 || toDate.Year > 2027)
+            return (null, "The reviewed official holiday catalog currently supports 2026 and 2027 only.", 400);
+        var tenant = await _db.Tenants.AsNoTracking()
+            .Where(x => x.Id == _currentUser.TenantId && !x.IsDeleted)
+            .Select(x => x.CountryCode).SingleOrDefaultAsync(ct);
+        if (!string.Equals(tenant, "BD", StringComparison.OrdinalIgnoreCase))
+            return (null, "Bangladesh government holiday presets require a Bangladesh institution.", 403);
+        var scope = await ResolveScopeAsync(academicYearId, null, campusId, ct);
+        if (!scope.Success) return (null, scope.Error, scope.StatusCode);
+        if (scope.Year!.CampusId.HasValue && scope.Year.CampusId != campusId)
+            return (null, "Choose the campus associated with this academic year.", 409);
+        if (!Within(fromDate, toDate, scope.Year))
+            return (null, "Government holiday range is outside the academic year.", 409);
+        var catalog = BangladeshGovernmentHolidayCatalog.InRange(fromDate, toDate);
+        var existing = await _events.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId &&
+                (x.CampusId == campusId || (campusId.HasValue && x.CampusId == null)) &&
+                x.StartDate <= toDate && x.EndDate >= fromDate &&
+                x.EventType == CalendarEventKind.Holiday)
+            .Select(x => new { x.Title, x.StartDate, x.EndDate, x.IsHoliday })
+            .ToListAsync(ct);
+        var preview = new GovernmentHolidayPreviewDto { SourceVersion = BangladeshGovernmentHolidayCatalog.Version };
+        foreach (var item in catalog)
+        {
+            var matching = existing.Where(x => string.Equals(x.Title, item.Name, StringComparison.OrdinalIgnoreCase) &&
+                x.StartDate <= item.End && x.EndDate >= item.Start).ToArray();
+            var exact = matching.Any(x => x.StartDate == item.Start && x.EndDate == item.End && x.IsHoliday);
+            preview.Holidays.Add(new GovernmentHolidayOptionDto
+            {
+                Code = item.Code, Title = item.Name, StartDate = item.Start,
+                EndDate = item.End, MoonDependent = item.MoonDependent, SourceUrl = item.Source,
+                Status = exact ? "Existing" : matching.Length != 0 ? "Conflict" : "Missing"
+            });
+        }
+        return (preview, null, 200);
+    }
+
+    private async Task LockGovernmentHolidayImportAsync(CancellationToken ct)
+    {
+        if (!_db.Database.IsRelational()) return; // EF InMemory integration tests.
+        if (!_db.Database.IsSqlServer())
+            throw new InvalidOperationException("Concurrent holiday import requires SQL Server.");
+        var tx = _db.Database.CurrentTransaction?.GetDbTransaction()
+            ?? throw new InvalidOperationException("Government holiday import requires a transaction.");
+        await using var cmd = _db.Database.GetDbConnection().CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "DECLARE @result int; EXEC @result = sys.sp_getapplock " +
+            "@Resource = @resource, @LockMode = 'Exclusive', @LockOwner = 'Transaction', " +
+            "@LockTimeout = 10000; SELECT @result;";
+        var param = cmd.CreateParameter();
+        param.ParameterName = "@resource";
+        param.Value = "EduOS.AcademicHolidayImport.Tenant." + _currentUser.TenantId;
+        cmd.Parameters.Add(param);
+        if (Convert.ToInt32(await cmd.ExecuteScalarAsync(ct)) < 0)
+            throw new InvalidOperationException("Another holiday import is in progress.");
     }
 
     public async Task<ApiResponse<AcademicCalendarPolicyDto>> GetPolicyAsync(long? campusId, CancellationToken cancellationToken = default)
