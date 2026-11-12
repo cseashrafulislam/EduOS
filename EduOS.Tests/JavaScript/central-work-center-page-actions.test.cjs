@@ -206,3 +206,12 @@ test('reference and ordering controls send scoped server query without expanding
   h.nodes.cwcExport.click();
   assert.equal(h.requests.length, count);
 });
+
+test('My Work restores only allowlisted shareable filters and prints the current table', () => {
+  assert.match(source, /Object\.hasOwn\(sourceRoutes, initialSource\)/);
+  assert.match(source, /initialReference.length <= 80/);
+  assert.match(source, /replaceState\(null, ''/);
+  assert.match(view, /id="cwcRetry"/);
+  assert.match(view, /id="cwcPrintable"/);
+  assert.match(view, /@@media print/);
+});
