@@ -13,7 +13,10 @@ test('new admission only shows one clean form with canonical fields and no draft
     assert.doesNotMatch(view, /admissionDraftHost|admissionReadinessDisclosure|transcript-draft\.js/);
     assert.match(view, /id="admissionForm" class="admission-application-form" novalidate/);
     assert.match(view, /id="admissionSubmitFeedback" class="d-none" role="alert"/);
-    assert.match(view, /admission-page-header/);
+    assert.match(view, /@if \(admissionFeature != "new"\)/);
+    assert.match(view, /aria-labelledby="@\(admissionFeature == "new" \? "newApplicationTitle" : "admissionTitle"\)"/);
+    assert.match(view, /<h2 id="newApplicationTitle">[^\n]*New Admission Application/);
+    assert.doesNotMatch(view, /<h3 id="newApplicationTitle">/);
     assert.match(view, /admissionStep01[\s\S]*?Admission details/);
     assert.match(view, /admissionStep02[\s\S]*?Applicant information/);
     assert.match(view, /admissionStep03[\s\S]*?Guardian & contact/);
