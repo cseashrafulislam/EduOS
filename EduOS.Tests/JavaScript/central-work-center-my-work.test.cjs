@@ -11,7 +11,7 @@ test('My Work uses canonical server-filtered pagination and role-protected API',
   const ui = read('EduOS.App/wwwroot/js/platform/central-work-center.js');
   const view = read('EduOS.App/Views/CentralWorkCenter/Index.cshtml');
   assert.match(api, /Authorize\(Roles = "TenantAdmin,Principal,InventoryManager"\)/);
-  assert.match(api, /GetPendingAsync\(page, pageSize, campusId, ct, source\)/);
+  assert.match(api, /GetPendingAsync\(page, pageSize, campusId, ct, source, reference, order\)/);
   assert.match(service, /pending = pending\.Where\(x => x\.Kind == kind\)/);
   assert.ok(service.indexOf('pending = pending.Where(x => x.Kind == kind)') <
             service.indexOf('result.Pending.TotalCount = await pending.CountAsync'));
@@ -29,4 +29,22 @@ test('Dashboard exposes My Work only to the canonical reviewer role family', () 
   const dashboard = read('EduOS.App/Views/Dashboard/Index.cshtml');
   assert.match(dashboard, /User\.IsInRole\("InventoryManager"\)/);
   assert.match(dashboard, /asp-controller="CentralWorkCenter" asp-action="Index"/);
+});
+
+test('My Work reference search and ordering stay server-side and preserve scoped source counts', () => {
+  const api = read('EduOS.App/Controllers/Api/CentralWorkCenterApiController.cs');
+  const service = read('EduOS.Service/Services/Platform/CentralWorkCenterService.cs');
+  const ui = read('EduOS.App/wwwroot/js/platform/central-work-center.js');
+  const view = read('EduOS.App/Views/CentralWorkCenter/Index.cshtml');
+  assert.match(view, /id="cwcReference"/);
+  assert.match(view, /id="cwcOrder"/);
+  assert.match(ui, /params\.set\('reference', reference\.value\.trim\(\)\)/);
+  assert.match(ui, /params\.set\('order', order\.value\)/);
+  assert.match(api, /string\? reference = null/);
+  assert.match(service, /pending = pending\.Where\(x => x\.Reference\.Contains\(reference\)\)/);
+  assert.ok(service.indexOf('pending = pending.Where(x => x.Reference.Contains(reference))') <
+            service.indexOf('var grouped = await pending.GroupBy'));
+  assert.match(service, /pending\.OrderByDescending\(x => x\.SubmittedAtUtc\)/);
+  assert.match(service, /reference is \{ Length: > 80 \}/);
+  assert.match(service, /order is not \("oldest" or "newest"\)/);
 });
