@@ -79,7 +79,7 @@
             if (!link || typeof link.getAttribute !== 'function') return false;
             const href = link.getAttribute('href') || '';
             return canonicalShellRoute(href) === '/smartsetup' &&
-                link !== current && shellLinkVisible(link);
+                link !== current && shellLinkEligible(link);
         });
         return setup || null;
     }
