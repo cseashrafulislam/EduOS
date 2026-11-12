@@ -21,6 +21,20 @@ public sealed class AcademicCalendarsController : ControllerBase
 
     public AcademicCalendarsController(IAcademicCalendarService service) => _service = service;
 
+    [HttpGet("government-holidays/preview")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> PreviewGovernmentHolidays(
+        [FromQuery] long academicYearId, [FromQuery] long? campusId,
+        [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate, CancellationToken cancellationToken) =>
+        ToAction(await _service.PreviewGovernmentHolidaysAsync(
+            academicYearId, campusId, fromDate, toDate, cancellationToken));
+
+    [HttpPost("government-holidays/import")]
+    [Authorize(Roles = "TenantAdmin,Principal,VicePrincipal")]
+    public async Task<IActionResult> ImportGovernmentHolidays(
+        [FromBody] ImportGovernmentHolidaysRequestDto request, CancellationToken cancellationToken) =>
+        ToAction(await _service.ImportGovernmentHolidaysAsync(request, cancellationToken));
+
     [HttpGet("policy")]
     public async Task<IActionResult> Policy([FromQuery] long? campusId, CancellationToken cancellationToken) =>
         ToAction(await _service.GetPolicyAsync(campusId, cancellationToken));
