@@ -56,6 +56,11 @@
     };
     const safePath = value => typeof value === 'string' && /^\/[a-z0-9][a-z0-9/\-]*$/i.test(value)
         ? value : '/TenantSettings/Index';
+    const setupLink = (path, module) => {
+        const url = new URL(safePath(path), window.location.origin);
+        url.searchParams.set('smartSetup', module);
+        return url.pathname + url.search;
+    };
     const selected = () => (state.preview?.modules || []).filter(x => state.selected.has(x.code));
     const validSelection = () => selected().length > 0 && selected().every(m =>
         m.supportsSafeApply && m.isAvailable && m.entries.every(e => e.status !== 'Conflict'));
@@ -122,7 +127,7 @@
                     li.append(status, label);
                     if (!task.configured) {
                         const link = node('a', 'small text-nowrap', tr('Configure', 'সেট করুন'));
-                        link.href = safePath(task.actionUrl);
+                        link.href = setupLink(task.actionUrl, m.code);
                         link.target = '_blank';
                         link.rel = 'noopener noreferrer';
                         li.append(link);
@@ -170,7 +175,7 @@
                 body.append(label);
             }
             const link = node('a', 'btn btn-sm btn-outline-secondary', tr('Open setup page', 'সেটআপ পেজ খুলুন'));
-            link.href = safePath(m.nextStepUrl);
+            link.href = setupLink(m.nextStepUrl, m.code);
             link.target = '_blank';
             link.rel = 'noopener noreferrer';
             body.append(link);
