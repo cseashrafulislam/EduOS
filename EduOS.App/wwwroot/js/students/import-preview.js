@@ -56,12 +56,25 @@
     const required = new Set(['SourceKey', 'StudentCode', 'FullName', 'CampusId', 'AcademicBatchId', 'RollNo']);
     let busy = false;
     let errors = [];
+    // A changed source/mapping invalidates every outstanding asynchronous preflight.
+    let inputGeneration = 0;
+    let previewFingerprint = null;
+    const staleInput = generation => generation !== inputGeneration;
+    function invalidatePreflight() {
+        inputGeneration++;
+        validated = null;
+        lastMapping = null;
+        previewFingerprint = null;
+        commit.classList.add('d-none');
+        results.classList.add('d-none');
+    }
 
     function message(text, failed) {
         alert.textContent = text || '';
         alert.className = 'alert ' + (failed ? 'alert-danger' : 'alert-info');
     }
     function reset() {
+        invalidatePreflight();
         mapping.classList.add('d-none');
         results.classList.add('d-none');
         errors = [];
@@ -90,6 +103,7 @@
         if (fileInput.files?.length) inspect.click();
     });
     mapping.addEventListener('change', () => {
+        invalidatePreflight();
         currentJob = null;
         currentFingerprint = null;
         cohortAdd.disabled = true;
@@ -124,10 +138,12 @@
     inspect.addEventListener('click', async () => {
         if (busy) return;
         busy = true; inspect.disabled = true;
+        const generation = inputGeneration;
         try {
             const data = new FormData();
             data.append('file', selectedFile());
             const headers = await send('/api/student-imports/headers', data);
+            if (staleInput(generation)) return;
             const templateHeaders = fields.map(field => field.dataset.importField);
             // Reject ambiguous spreadsheet headings before mapping any student fields.
             // Distinct original labels with equal case/spacing are not distinct columns.
@@ -150,6 +166,7 @@
             results.classList.add('d-none');
             if (advancedMapping) advancedMapping.open = !isTemplate;
             await refreshResume();
+            if (staleInput(generation)) return;
             const missing = fields.filter(x => required.has(x.dataset.importField) && !x.value)
                 .map(x => x.dataset.importField);
             message(missing.length
@@ -158,7 +175,7 @@
                     ? 'Excel template recognized. Column mapping is ready; run dry-run validation.'
                     : 'Headers differ from the official template. Review every mapped field before dry-run.',
                 missing.length > 0);
-        } catch (error) { message(error.message, true); }
+        } catch (error) { if (!staleInput(generation)) message(error.message, true); }
         finally { busy = false; inspect.disabled = false; }
     });
     function chosenMapping() {
@@ -235,15 +252,23 @@
         event.preventDefault();
         if (busy || mapping.classList.contains('d-none')) return;
         busy = true; preview.disabled = true;
+        const generation = inputGeneration;
         try {
+            const file = selectedFile();
+            const mappingJson = chosenMapping();
             const data = new FormData();
-            data.append('file', selectedFile());
-            data.append('mappingJson', chosenMapping());
+            data.append('file', file);
+            data.append('mappingJson', mappingJson);
+            const fp = await jobTools.fingerprint(file, mappingJson);
+            if (staleInput(generation)) return;
             const report = await send('/api/student-imports/preview', data);
-            lastMapping = chosenMapping();
+            if (staleInput(generation)) return;
+            const status = await getJobStatus(fp, report.totalRows);
+            if (staleInput(generation)) return;
+            lastMapping = mappingJson;
             validated = report;
-            const fp = await jobTools.fingerprint(selectedFile(), lastMapping);
-            showJobStatus(fp, await getJobStatus(fp, report.totalRows));
+            previewFingerprint = fp;
+            showJobStatus(fp, status);
             commit.classList.toggle('d-none', report.invalidRows !== 0 || report.validRows < 1 ||
                 currentJob?.requiresReview);
             errors = Array.isArray(report.errors) ? report.errors : [];
@@ -262,8 +287,10 @@
             results.classList.remove('d-none');
             message('Read-only preflight completed. No student records were created.', false);
          } catch (error) {
-            results.classList.add('d-none'); commit.classList.add('d-none');
-            validated = null; message(error.message, true);
+            if (!staleInput(generation)) {
+                invalidatePreflight();
+                message(error.message, true);
+            }
         }
         finally { busy = false; preview.disabled = false; }
     });
@@ -305,6 +332,11 @@
             const mappingJson = chosenMapping();
             const fp = await jobTools.fingerprint(file, mappingJson);
             const saved = await matchingCheckpoint();
+            if (!continuing && (!previewFingerprint ||
+                previewFingerprint.fileHash !== fp.fileHash ||
+                previewFingerprint.mappingHash !== fp.mappingHash ||
+                lastMapping !== mappingJson))
+                throw new Error('File or column mapping changed after dry-run. Validate again.');
             if (!continuing && (!validated || validated.invalidRows !== 0 ||
                 validated.totalRows < 1))
                 throw new Error('Complete a valid dry-run before starting.');
