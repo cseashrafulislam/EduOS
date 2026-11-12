@@ -43,3 +43,15 @@ test('module entitlement mapping matches actual platform catalog codes', () => {
     assert.match(readiness, /configuration\.GetValue<bool>\("PilotRelease:Enabled"\)/);
     assert.match(readiness, /IsCurrentTenantModuleAvailableAsync/);
 });
+
+test('Smart Setup row-level write contract does not trust browser names', () => {
+    const dto = read('EduOS.Core/DTOs/SaaS/SmartSetupDtos.cs');
+    const service = read('EduOS.Service/Services/Tenants/SmartSetupService.cs');
+    const wizard = read('EduOS.App/wwwroot/js/tenant/smart-setup.js');
+    assert.match(dto, /List<SmartSetupSelectedEntryDto>\? Entries/);
+    assert.match(service, /Selected setup row is not in this institution template/);
+    assert.match(service, /r\.Kind == x\.Kind && r\.Code == x\.Code/);
+    assert.match(service, /\|rows:/);
+    assert.match(wizard, /Save Checked Records|smartSetupApply/);
+    assert.match(wizard, /entries: /);
+});

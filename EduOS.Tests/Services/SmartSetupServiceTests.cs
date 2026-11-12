@@ -278,4 +278,76 @@ public sealed class SmartSetupServiceTests
         Assert.Contains(preview.Data.Modules.Single(x => x.Code == "HR").Entries,
             x => x.Code == "LECTURER");
     }
+    [Fact]
+    public async Task Row_selection_saves_only_checked_masters_and_preserves_other_missing_rows()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "HR"]);
+        var request = Request(f, "ACADEMIC", "HR");
+        request.Entries =
+        [
+            new() { Module = "ACADEMIC", Kind = "Medium", Code = "BANGLA" },
+            new() { Module = "HR", Kind = "Designation", Code = "OFFICE-STAFF" }
+        ];
+        var result = await f.Service.ApplyAsync(request);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(2, result.Data!.CreatedCount);
+        Assert.Single(await f.Db.Mediums.ToListAsync());
+        Assert.Equal("BANGLA", (await f.Db.Mediums.SingleAsync()).Code);
+        Assert.Single(await f.Db.Designations.ToListAsync());
+        Assert.Empty(await f.Db.OrganizationUnits.ToListAsync());
+        var preview = await f.Service.PreviewAsync();
+        Assert.Contains(preview.Data!.Modules.Single(x => x.Code == "ACADEMIC").Entries,
+            x => x.Code == "ENGLISH" && x.Status == "Missing");
+        var replay = await f.Service.ApplyAsync(request);
+        Assert.True(replay.Success);
+        Assert.Equal(1, await f.Db.AuditLogs.CountAsync(x => x.Action == "SmartSetup.Apply"));
+    }
+
+    [Fact]
+    public async Task Row_selection_rejects_unknown_duplicate_and_mismatched_keys_without_writes()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "HR"]);
+        var request = Request(f, "ACADEMIC");
+        request.Entries = [new() { Module = "ACADEMIC", Kind = "Medium", Code = "INVENTED" }];
+        Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
+        request.Entries = [new() { Module = "HR", Kind = "Designation", Code = "OFFICE-STAFF" }];
+        Assert.Equal(400, (await f.Service.ApplyAsync(request)).StatusCode);
+        request.Entries =
+        [
+            new() { Module = "ACADEMIC", Kind = "Medium", Code = "ENGLISH" },
+            new() { Module = "ACADEMIC", Kind = "Medium", Code = "ENGLISH" }
+        ];
+        Assert.Equal(400, (await f.Service.ApplyAsync(request)).StatusCode);
+        Assert.Empty(await f.Db.Mediums.ToListAsync());
+        Assert.Empty(await f.Db.Designations.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Row_selection_rechecks_conflicts_without_rejecting_unselected_legacy_conflicts()
+    {
+        await using var f = await Open(modules: ["ACADEMIC"]);
+        f.Db.Mediums.Add(new EduOS.Core.Entities.Academic.Medium
+        {
+            TenantId = f.Tenant, Code = "BANGLA", Name = "Legacy Bangla", IsActive = true
+        });
+        await f.Db.SaveChangesAsync();
+        var request = Request(f, "ACADEMIC");
+        request.Entries = [new() { Module = "ACADEMIC", Kind = "Medium", Code = "ENGLISH" }];
+        Assert.True((await f.Service.ApplyAsync(request)).Success);
+        Assert.Equal(2, await f.Db.Mediums.CountAsync());
+        Assert.Equal("Legacy Bangla", (await f.Db.Mediums.SingleAsync(x => x.Code == "BANGLA")).Name);
+    }
+
+    [Fact]
+    public async Task Row_scoped_receipt_cannot_replay_different_checked_entries()
+    {
+        await using var f = await Open(modules: ["ACADEMIC"]);
+        var request = Request(f, "ACADEMIC");
+        request.Entries = [new() { Module = "ACADEMIC", Kind = "Medium", Code = "ENGLISH" }];
+        Assert.True((await f.Service.ApplyAsync(request)).Success);
+        request.Entries = [new() { Module = "ACADEMIC", Kind = "Medium", Code = "BANGLA" }];
+        Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
+        Assert.Single(await f.Db.Mediums.ToListAsync());
+    }
+
 }

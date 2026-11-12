@@ -79,6 +79,25 @@ public sealed class SmartSetupService(
             selection.Any(x => !SmartSetupCatalog.Sections.Any(s => s.Apply && s.Code == x)))
             return ApiResponse<SmartSetupApplyResultDto>.ErrorResponse("Unknown or duplicate setup module.");
 
+        // Legacy callers still select whole modules. A new UI submits exact
+        // template keys; empty/duplicate/mismatched selections fail closed.
+        var requestedRows = request.Entries;
+        if (requestedRows != null && (requestedRows.Count is < 1 or > 50 ||
+            requestedRows.Any(x => x == null || string.IsNullOrWhiteSpace(x.Module) ||
+                string.IsNullOrWhiteSpace(x.Kind) || string.IsNullOrWhiteSpace(x.Code) ||
+                x.Module.Length > 32 || x.Kind.Length > 64 || x.Code.Length > 64)))
+            return ApiResponse<SmartSetupApplyResultDto>.ErrorResponse("Select valid reviewed setup rows.");
+        var rows = requestedRows?.Select(x => new SmartSetupSelectedEntryDto
+        {
+            Module = x.Module.Trim().ToUpperInvariant(),
+            Kind = x.Kind.Trim(), Code = x.Code.Trim().ToUpperInvariant()
+        }).ToArray();
+        if (rows != null && (rows.Select(x => x.Module + "|" + x.Kind + "|" + x.Code)
+                .Distinct(StringComparer.Ordinal).Count() != rows.Length ||
+            rows.Any(x => !selection.Contains(x.Module, StringComparer.Ordinal)) ||
+            selection.Any(x => !rows.Any(r => r.Module == x))))
+            return ApiResponse<SmartSetupApplyResultDto>.ErrorResponse("Duplicate or mismatched setup rows.");
+
         try
         {
             // Revalidate every entitlement inside the transaction, never trust preview or UI.
@@ -87,7 +106,10 @@ public sealed class SmartSetupService(
                 await LockTenantAsync(token);
                 var fingerprint = request.InstitutionTypeId.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                     "|" + request.TemplateVersion + "|" +
-                    string.Join(",", selection.OrderBy(x => x, StringComparer.Ordinal));
+                    string.Join(",", selection.OrderBy(x => x, StringComparer.Ordinal)) +
+                    (rows == null ? "" : "|rows:" + string.Join(";", rows
+                        .Select(x => x.Module + "|" + x.Kind + "|" + x.Code)
+                        .OrderBy(x => x, StringComparer.Ordinal)));
                 var receiptText = await db.AuditLogs.AsNoTracking()
                     .Where(x => x.TenantId == user.TenantId && x.Action == "SmartSetup.Apply" &&
                         x.RequestId == request.ClientRequestId.ToString("D"))
@@ -109,15 +131,31 @@ public sealed class SmartSetupService(
                     var section = preview.Modules.Single(x => x.Code == name);
                     if (!section.IsAvailable)
                         throw new SetupConflict("Module is disabled or not included in the active subscription.", 403);
-                    if (section.Entries.Any(x => x.Status == "Conflict"))
+                    if (rows == null && section.Entries.Any(x => x.Status == "Conflict"))
                         throw new SetupConflict("Existing master data conflicts with this template. Review it before applying.");
+                    if (rows != null)
+                    {
+                        foreach (var key in rows.Where(x => x.Module == name))
+                        {
+                            var match = section.Entries.SingleOrDefault(x =>
+                                x.Kind == key.Kind && x.Code == key.Code);
+                            if (match == null)
+                                throw new SetupConflict("Selected setup row is not in this institution template.");
+                            if (match.Status == "Conflict")
+                                throw new SetupConflict("Selected row conflicts with existing master data.");
+                            if (match.Status != "Missing" && match.Status != "Existing")
+                                throw new SetupConflict("Selected setup row is no longer available.", 403);
+                        }
+                    }
                 }
                 var created = new List<SmartSetupEntryDto>();
                 var existing = 0;
                 var now = DateTime.UtcNow;
                 foreach (var name in selection)
                 {
-                    foreach (var candidate in preview.Modules.Single(x => x.Code == name).Entries)
+                    foreach (var candidate in preview.Modules.Single(x => x.Code == name).Entries
+                        .Where(x => rows == null || rows.Any(r => r.Module == name &&
+                            r.Kind == x.Kind && r.Code == x.Code)))
                     {
                         if (candidate.Status == "Existing") { existing++; continue; }
                         if (candidate.Status != "Missing") throw new SetupConflict("Setup changed. Reload the preview.");
@@ -218,6 +256,7 @@ public sealed class SmartSetupService(
                 module.Entries.Add(new SmartSetupEntryDto
                 {
                     Kind = seed.Kind, Code = seed.Code, Name = seed.Name,
+                    Detail = seed.Frequency?.ToString(),
                     Status = !available ? "Disabled" : same ? "Existing" :
                         competing.Count == 0 ? "Missing" : "Conflict"
                 });
