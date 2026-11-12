@@ -14,6 +14,7 @@
     let channel = null;
     let pending = null;
     let recheckRequested = false;
+    let recheckQuiet = true;
     let sessionChangePending = false;
     let navigationPending = false;
     let wasHidden = document.visibilityState === 'hidden';
@@ -53,7 +54,10 @@
         if (pending) {
             // Explicit operations/session rotations require a fresh snapshot.
             // Duplicated focus + visibility events never create a request loop.
-            if (forceRecheck) recheckRequested = true;
+            if (forceRecheck) {
+                recheckRequested = true;
+                if (!quiet) recheckQuiet = false;
+            }
             return pending;
         }
         block(quiet && !sessionChangePending &&
@@ -82,6 +86,7 @@
                         throw new Error('Invalid session response');
                     if (expectedReference !== original) {
                         recheckRequested = true;
+                        recheckQuiet = false;
                         return;
                     }
                     if (current !== original || currentTenant !== originalTenant) {
@@ -118,8 +123,10 @@
         })().finally(() => {
             pending = null;
             if (recheckRequested && !navigationPending) {
+                const quietAgain = recheckQuiet && !sessionChangePending;
                 recheckRequested = false;
-                void check();
+                recheckQuiet = true;
+                void check({ quiet: quietAgain });
             }
         });
         return pending;
@@ -142,7 +149,7 @@
         document.body.dataset.authSessionReference = reference;
         // A pending response may describe the old cookie; verify again before
         // showing this page after adopting a same-institution rotated session.
-        if (pending) recheckRequested = true;
+        if (pending) { recheckRequested = true; recheckQuiet = false; }
         else void check();
         return true;
     };
@@ -191,9 +198,9 @@
                 // the old cookie while logout/institution switching is in flight.
                 sessionChangePending = true;
                 block();
-                void check();
+                void check({ forceRecheck: true });
                 // Logout submits before the response clears the cookie.
-                window.setTimeout(() => { void check(); }, 1200);
+                window.setTimeout(() => { void check({ forceRecheck: true }); }, 1200);
             };
         } catch { channel = null; }
     }
