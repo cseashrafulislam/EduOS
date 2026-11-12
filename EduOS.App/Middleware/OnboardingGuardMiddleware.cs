@@ -15,6 +15,9 @@ namespace EduOS.App.Middleware
         private static readonly PathString[] AllowedPathPrefixes =
         [
             "/Account",
+            // Language selection is a CSRF-protected preference POST and must
+            // remain available before onboarding is finished.
+            "/localization/set-language",
             "/Pricing",
             "/Error",
             "/api/auth",
