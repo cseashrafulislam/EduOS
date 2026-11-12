@@ -6,5 +6,6 @@ namespace EduOS.Core.Interfaces.IServices;
 public interface ICentralWorkCenterService
 {
     Task<ApiResponse<CentralWorkCenterPageDto>> GetPendingAsync(
-        int page = 1, int pageSize = 25, long? campusId = null, CancellationToken ct = default, string? source = null);
+        int page = 1, int pageSize = 25, long? campusId = null, CancellationToken ct = default, string? source = null,
+        string? reference = null, string? order = null);
 }
