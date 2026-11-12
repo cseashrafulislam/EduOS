@@ -118,10 +118,6 @@
         if (event.matches) setSidebarOpen(false);
     });
 
-    document.querySelector('[data-language-selector]')?.addEventListener('change', event => {
-        event.currentTarget.form?.requestSubmit();
-    });
-
     // Connectivity is advisory: never queue authenticated academic or financial writes offline.
     const connectivityNotice = document.querySelector('[data-connectivity-notice]');
     function updateConnectivityNotice() {

@@ -40,7 +40,21 @@
         awaiting = T["PaymentAwaitingVerification"].Value,
         processing = T["PaymentProcessing"].Value,
         continueSetup = T["ContinueSetup"].Value,
-        reload = T["ReloadStatus"].Value
+        reload = T["ReloadStatus"].Value,
+        paymentVerified = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase)
+            ? "পেমেন্ট অনুমোদিত হয়েছে। আপনি এখন EduOS ব্যবহার করতে পারবেন। অন্য সেটআপ পরে সম্পন্ন করতে পারবেন।"
+            : "Your payment is verified. You can use EduOS now and finish other setup later.",
+        openWorkspace = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase)
+            ? "EduOS খুলুন" : "Open EduOS",
+        finishLater = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase)
+            ? "ড্যাশবোর্ডে যান; বাকি সেটআপ পরে" : "Go to dashboard; finish setup later",
+        nextSetup = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase)
+            ? "বাকি সেটআপ এখন করুন" : "Continue remaining setup",
+        activatingWorkspace = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase)
+            ? "অ্যাক্সেস যাচাই হচ্ছে..." : "Verifying access...",
+        activationFailed = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase)
+            ? "পেমেন্ট/সাবস্ক্রিপশন যাচাই হয়নি। স্ট্যাটাস রিফ্রেশ করুন বা সাপোর্টে যোগাযোগ করুন।"
+            : "The active subscription could not be verified. Refresh your status or contact support."
     };
     var pageJson = System.Text.Json.JsonSerializer.Serialize(pageStrings);
 }

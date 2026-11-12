@@ -53,6 +53,7 @@
                         @T["StepsCompleted", 0, 0]
                     </div>
                     <a id="onboardingContinue" class="btn btn-primary btn-sm w-100 mt-3 d-none" href="#">@(onboardingBangla ? "বর্তমান ধাপে যান" : "Continue current step")</a>
+                    <a id="onboardingWorkspace" class="btn btn-outline-primary btn-sm w-100 mt-2 d-none" href="/Dashboard/Index">@(onboardingBangla ? "EduOS খুলুন — বাকি সেটআপ পরে" : "Open EduOS — finish setup later")</a>
                 </div>
 
                 <nav id="stepsList" aria-label="@T["SetupWizard"]">
@@ -202,6 +203,8 @@
 
         function renderSidebar(status) {
             updateProgress(status);
+            const workspace = document.getElementById('onboardingWorkspace');
+            workspace?.classList.toggle('d-none', !status.hasWorkspaceAccess);
             const list = document.getElementById('stepsList');
             const steps = Array.isArray(status.stages) ? status.stages : [];
             if (!steps.length) { showLoadError(); return; }
@@ -227,6 +230,7 @@
         function showLoadError() {
             const list = document.getElementById('stepsList');
             const continueLink = document.getElementById('onboardingContinue');
+            document.getElementById('onboardingWorkspace')?.classList.add('d-none');
             continueLink.removeAttribute('href');
             continueLink.classList.add('d-none');
             const error = document.createElement('div');

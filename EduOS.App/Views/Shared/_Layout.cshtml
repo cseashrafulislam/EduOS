@@ -1067,7 +1067,8 @@
                         <span>@T["InstallApp"]</span>
                     </button>
 
-                    <form asp-controller="Localization" asp-action="SetLanguage" method="post" class="language-form">
+                    <form action="/localization/set-language" method="post" class="language-form">
+                        @Html.AntiForgeryToken()
                         <input type="hidden" name="returnUrl" value="@returnUrl" />
                         <label class="visually-hidden" for="uiCulture">@T["Language"]</label>
                         <svg class="edu-icon language-icon" aria-hidden="true"><use href="/images/eduos-icons.svg#globe" /></svg>
@@ -1243,6 +1244,7 @@
     <script src="~/lib/jquery/dist/jquery.min.js" asp-append-version="true"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/platform/language-selector.js" asp-append-version="true"></script>
     <script src="~/js/sidebar-navigation.js" asp-append-version="true"></script>
     <script src="~/js/platform/ui-shell.js" asp-append-version="true"></script>
     <script src="~/js/platform/native-form-validation.js" asp-append-version="true"></script>

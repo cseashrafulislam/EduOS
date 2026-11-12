@@ -19,6 +19,9 @@
         document.getElementById('manualForm')?.addEventListener('submit', submitManualPayment);
         document.getElementById('depositSlipFile')?.addEventListener('change', updateReceiptLabel);
 
+        // Invoice IDs are optional after approval. Verify the canonical active
+        // subscription even when the original payment link was opened without it.
+        if (await showVerifiedWorkspaceState()) return;
         if (!invoiceId) {
             renderInvoiceError(i18n.noInvoice, false);
             disablePaymentMethods();
@@ -96,9 +99,12 @@
     }
 
     async function applyPaymentState() {
+        if (await showVerifiedWorkspaceState()) return;
         const status = Number(invoice?.paymentStatus);
-        if (status === 3 || Number(invoice?.dueAmount) <= 0) {
-            showStatus(i18n.alreadyPaid, true);
+        // Invoice status or a zero due amount alone are NOT proof that the
+        // subscription was activated and verified; never grant access from them.
+        if (status === 3 || status === 4 || Number(invoice?.dueAmount) <= 0) {
+            showStatus(i18n.processing || i18n.awaiting, false);
             return;
         }
         if (status === 7) {
@@ -119,6 +125,95 @@
             }
         } catch {
             // The invoice remains usable when optional payment-history lookup fails.
+        }
+    }
+
+    let verifiedWorkspaceStatus = null;
+
+    async function showVerifiedWorkspaceState() {
+        try {
+            const response = await fetch('/api/onboarding/status', {
+                cache: 'no-store', credentials: 'same-origin',
+                headers: { Accept: 'application/json' }
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || !payload?.success || !payload.data) return false;
+            const status = payload.data;
+            if (!status.canEnterWorkspace && !status.hasWorkspaceAccess) return false;
+            verifiedWorkspaceStatus = status;
+            disablePaymentMethods();
+            const panel = document.getElementById('paymentStatus');
+            if (!panel) return true;
+            panel.className = 'payment-status-panel success';
+            const notice = paragraph(i18n.paymentVerified || 'Payment verified. Finish setup later.');
+            const controls = document.createElement('div');
+            controls.className = 'd-flex flex-wrap gap-2 mt-3';
+            const useNow = document.createElement('button');
+            useNow.type = 'button';
+            useNow.className = 'btn btn-primary';
+            useNow.textContent = i18n.openWorkspace || 'Open EduOS';
+            useNow.addEventListener('click', () => enterVerifiedWorkspace(useNow, '/Dashboard/Index'));
+            const setupNow = document.createElement('button');
+            setupNow.type = 'button';
+            setupNow.className = 'btn btn-outline-primary';
+            setupNow.textContent = i18n.nextSetup || 'Continue setup';
+            setupNow.addEventListener('click', () => enterVerifiedWorkspace(setupNow, '/Account/CampusSetup'));
+            controls.append(useNow, setupNow);
+            panel.replaceChildren(notice, controls);
+            if (invoiceDetails && !invoice) invoiceDetails.replaceChildren(
+                paragraph(i18n.paymentVerified || 'Subscription is active.', 'text-success'));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function remainingSetupPath(status) {
+        const step = status?.currentStage;
+        const value = typeof step === 'number' ? step : {
+            Payment: 4, CampusSetup: 5, AcademicSetup: 6, ModuleSetup: 7,
+            BrandingSetup: 8, GeneralSettings: 9, GatewaySetup: 10, Completed: 11
+        }[step];
+        const routes = {
+            4: '/Account/CampusSetup', 5: '/Account/CampusSetup',
+            6: '/Account/AcademicSetup', 7: '/Account/ModuleSetup',
+            8: '/Account/BrandingSetup', 9: '/Account/GeneralSettings',
+            10: '/Account/GatewaySetup', 11: '/Dashboard/Index'
+        };
+        return routes[value] || '/Account/CampusSetup';
+    }
+
+    async function enterVerifiedWorkspace(button, target) {
+        if (button.disabled) return;
+        const label = button.textContent;
+        button.disabled = true;
+        button.textContent = i18n.activatingWorkspace || 'Verifying access...';
+        try {
+            if (!verifiedWorkspaceStatus?.hasWorkspaceAccess) {
+                const response = await fetch('/api/onboarding/enter-workspace', {
+                    method: 'POST', cache: 'no-store', credentials: 'same-origin',
+                    headers: {
+                        Accept: 'application/json', 'RequestVerificationToken': antiforgeryToken()
+                    }
+                });
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success)
+                    throw new Error(responseError(payload, i18n.activationFailed));
+            }
+            if (target === '/Account/CampusSetup') {
+                const response = await fetch('/api/onboarding/status', {
+                    cache: 'no-store', credentials: 'same-origin',
+                    headers: { Accept: 'application/json' }
+                });
+                const payload = await response.json().catch(() => null);
+                if (response.ok && payload?.success && payload.data)
+                    target = remainingSetupPath(payload.data);
+            }
+            window.location.assign(target);
+        } catch (error) {
+            showAlert('danger', error.message || i18n.activationFailed);
+            button.disabled = false;
+            button.textContent = label;
         }
     }
 
