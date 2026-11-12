@@ -169,7 +169,7 @@
         if (!wasHidden) return;
         wasHidden = false;
         lostFocus = false; // Focus immediately after visibility is the same activation.
-        void check({ quiet: true });
+        void check({ quiet: true, forceRecheck: true });
     });
     window.addEventListener('blur', () => { lostFocus = true; });
     window.addEventListener('focus', () => {
@@ -177,7 +177,7 @@
         // verify a real window return even if visibilitychange did not fire.
         if (!lostFocus || wasHidden || document.visibilityState !== 'visible') return;
         lostFocus = false;
-        void check({ quiet: true });
+        void check({ quiet: true, forceRecheck: true });
     });
 
     // Broadcast contains no user ID, tenant ID, SID, or other private data.
