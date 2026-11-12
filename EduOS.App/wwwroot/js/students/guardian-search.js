@@ -2,6 +2,7 @@ export function setupGuardianSearch({ $, api, state, render, notice }) {
     $('guardianSearchForm').addEventListener('submit', async event => {
         event.preventDefault();
         if (state.busy || state.selecting || !state.sameSession()) return;
+        ++state.selectionVersion;
         const search = $('guardianSearch').value.trim();
         if (search.length < 2) return notice('Enter at least two characters.');
         const list = $('guardianMatches');
@@ -17,7 +18,7 @@ export function setupGuardianSearch({ $, api, state, render, notice }) {
                 button.type = 'button'; button.className = 'btn btn-outline-secondary m-1';
                 button.textContent = item.studentCode + ' — ' + item.fullName;
                 button.addEventListener('click', async () => {
-                    if (!state.confirmStudentSwitch()) return;
+                    if (state.busy || state.selecting || !state.sameSession() || !state.confirmStudentSwitch()) return;
                     const selection = ++state.selectionVersion;
                     state.setSelecting(true);
                     try {
@@ -36,5 +37,9 @@ export function setupGuardianSearch({ $, api, state, render, notice }) {
             if (!list.childElementCount) notice('No matching students.');
         } catch (error) { if (request === state.searchVersion && state.sameSession()) notice(error.message, true); }
     });
-    $('guardianSearch').addEventListener('input', () => { ++state.searchVersion; });
+    $('guardianSearch').addEventListener('input', () => {
+        ++state.searchVersion;
+        ++state.selectionVersion;
+        $('guardianMatches').replaceChildren();
+    });
 }

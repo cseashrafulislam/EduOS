@@ -13,6 +13,9 @@ export function setupGuardianReuse({ $, api, state, render, notice }) {
             notice('Enter a valid guardian reference from a linked student.', true);
             return;
         }
+        if (!$('guardianExistingConfirm').checked) return notice('Confirm the selected student and existing guardian before linking.', true);
+        if (state.student.guardians?.some(link => String(link.guardianReference).toLowerCase() === guardianReference.toLowerCase()))
+            return notice('Guardian already linked to this student. Edit the existing relationship instead.', true);
         const payload = {
             studentReference: state.student.studentReference,
             guardianReference,

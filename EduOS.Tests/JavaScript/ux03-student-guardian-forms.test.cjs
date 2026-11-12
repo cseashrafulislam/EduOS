@@ -67,7 +67,7 @@ test('guardian creation holds one in-flight POST and uses stable ID on unchanged
     const h = harness('guardian-save.js', 'setupGuardianSave', (url, method, payload) => {
         const pending = deferred(); writes.push({ url, method, payload, ...pending }); return pending.promise;
     });
-    h.setup(); h.$('guardianName').value = 'Parent One';
+    h.setup(); h.$('guardianCreateConfirm').checked = true; h.$('guardianName').value = 'Parent One';
     h.$('guardianCreateForm').dirty = true;
     h.submit('guardianCreateForm'); h.submit('guardianCreateForm'); await h.flush();
     assert.equal(writes.length, 1); assert.equal(h.$('guardianCreateForm').inert, true);
@@ -88,7 +88,7 @@ test('guardian creation holds one in-flight POST and uses stable ID on unchanged
 
 test('acknowledged guardian creation is never reported as a failed POST on render error', async () => {
     const h = harness('guardian-save.js', 'setupGuardianSave', async () => ({ studentReference }));
-    h.setup(); h.throwOnRender = true;
+    h.setup(); h.$('guardianCreateConfirm').checked = true; h.throwOnRender = true;
     await h.submit('guardianCreateForm');
     assert.equal(h.state.requiresRefresh, true);
     assert.match(h.messages.at(-1).message, /was saved/i);
@@ -99,7 +99,7 @@ test('acknowledged guardian creation is never reported as a failed POST on rende
 test('guardian creation ignores a confirmed response from a switched institution session', async () => {
     const pending = deferred();
     const h = harness('guardian-save.js', 'setupGuardianSave', () => pending.promise);
-    h.setup(); h.submit('guardianCreateForm'); await h.flush();
+    h.setup(); h.$('guardianCreateConfirm').checked = true; h.submit('guardianCreateForm'); await h.flush();
     h.session = false; pending.resolve({ studentReference }); await h.flush();
     assert.equal(h.renders.length, 0);
     assert.equal(h.messages.length, 0);
@@ -110,7 +110,7 @@ test('existing guardian link single-flight retry preserves the unsaved form afte
     const h = harness('guardian-reuse.js', 'setupGuardianReuse', (url, method, payload) => {
         const pending = deferred(); writes.push({ url, method, payload, ...pending }); return pending.promise;
     });
-    h.setup(); h.$('guardianExistingReference').value = guardianReference;
+    h.setup(); h.$('guardianExistingConfirm').checked = true; h.$('guardianExistingReference').value = guardianReference;
     h.$('guardianReuseForm').dirty = true;
     h.submit('guardianReuseForm'); h.submit('guardianReuseForm'); await h.flush();
     assert.equal(writes.length, 1);
@@ -128,7 +128,7 @@ test('existing guardian link single-flight retry preserves the unsaved form afte
 
 test('existing guardian accepted link followed by a broken display remains a confirmed write', async () => {
     const h = harness('guardian-reuse.js', 'setupGuardianReuse', async () => ({ studentReference }));
-    h.setup(); h.$('guardianExistingReference').value = guardianReference;
+    h.setup(); h.$('guardianExistingConfirm').checked = true; h.$('guardianExistingReference').value = guardianReference;
     h.throwOnRender = true;
     await h.submit('guardianReuseForm');
     assert.equal(h.state.requiresRefresh, true);

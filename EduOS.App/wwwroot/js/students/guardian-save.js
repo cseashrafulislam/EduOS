@@ -8,6 +8,7 @@ export function setupGuardianSave({ $, api, state, render, notice }) {
         if (state.busy || state.selecting || state.requiresRefresh || !state.sameSession() || !state.student) return;
         if (state.hasPendingInlineDraft?.()) return notice('Finish or cancel the unsaved guardian relationship edit first.', true);
         if (!form.reportValidity()) return;
+        if (!$('guardianCreateConfirm').checked) return notice('Confirm creation of a new guardian for the selected student.', true);
         const payload = {
             studentReference: state.student.studentReference,
             studentRowVersion: state.student.studentRowVersion,
