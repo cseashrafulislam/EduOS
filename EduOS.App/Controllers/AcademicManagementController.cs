@@ -32,7 +32,10 @@ public sealed class AcademicManagementController : Controller
     public IActionResult Classes() => Feature("classes");
 
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public IActionResult Sections() => Feature("sections");
+    public IActionResult Batches() => Feature("sections");
+
+    [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public IActionResult Sections() => View("SectionRegister");
 
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public IActionResult Rooms() => Feature("rooms");
