@@ -53,6 +53,24 @@ function compare(before,after) {
   if(before.schema!==1||after.schema!==1) throw Error('Unsupported schema');
   for(const k of ['role','tenantAlias','campusAlias','locale','device','metric','sampleCountPerRoute'])
     if(before.context[k]!==after.context[k]) throw Error('Mismatched benchmark context: '+k);
+  for(const report of [before,after]) {
+    if(!report.context || !Array.isArray(report.routes) || !report.routes.length)
+      throw Error('Missing benchmark context or routes');
+    if(!Number.isInteger(report.context.sampleCountPerRoute) || report.context.sampleCountPerRoute<5)
+      throw Error('Invalid benchmark sample count');
+    for(const key of ['role','tenantAlias','campusAlias','locale','device','metric'])
+      if(typeof report.context[key]!=='string' || !report.context[key].trim() ||
+         ['UNSPECIFIED','UNVERIFIED'].includes(report.context[key]))
+        throw Error('Explicit benchmark context required: '+key);
+    for(const r of report.routes) {
+      if(!r || typeof r.id!=='string' || !/^[\\w-]{1,80}$/.test(r.id) ||
+         r.samples!==report.context.sampleCountPerRoute ||
+         r.success!==r.samples || r.failures!==0 ||
+         !r.statuses || r.statuses['200']!==r.samples ||
+         Object.keys(r.statuses).some(k=>k!=='200'))
+        throw Error('Incomplete or invalid benchmark route');
+    }
+  }
   const map=new Map(before.routes.map(r=>[r.id,r]));
   if(map.size!==before.routes.length||after.routes.length!==before.routes.length||new Set(after.routes.map(r=>r.id)).size!==after.routes.length) throw Error('Route set mismatch');
   return after.routes.map(r=>{
