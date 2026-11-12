@@ -199,7 +199,7 @@ test('sidebar keyboard and persisted navigation state are scoped to the rendered
     assert.match(script, /if \(!matchesScope\(\)\) return;/);
     assert.match(script, /\['ArrowDown', 'ArrowUp', 'Home', 'End'\]/);
     assert.match(script, /!element\.getClientRects\(\)\.length/);
-    assert.match(script, /element\.closest\('\[hidden\], \[inert\]'\)/);
+    assert.match(script, /element\.closest\('\[hidden\], \[inert\], \[aria-hidden="true"\], \[aria-disabled="true"\]'\)/);
     assert.match(script, /parent\.tagName === 'DETAILS' && !parent\.open/,
         'keyboard candidates must exclude links in collapsed accordion groups');
     assert.match(script, /parent\.querySelector\(':scope > summary'\)\?\.contains\(element\)/,
@@ -253,7 +253,8 @@ test('collapsible section headings support keyboard entry and focus-safe Escape'
     assert.match(script, /button\.addEventListener\('keydown', event => \{/);
     assert.match(script, /event\.key !== 'ArrowDown' \|\| isTop\(\)/);
     assert.match(script, /if \(nav\.hidden\) button\.click\(\)/);
-    assert.match(script, /nav\.querySelector\('summary, a\.nav-link'\)/);
+    assert.match(script, /sidebar\.addEventListener\('keydown', event => \{/);
+    assert.match(script, /nav\.querySelectorAll\('summary, a\.nav-link'\)/);
     assert.match(script, /nav\.addEventListener\('keydown', event => \{/);
     assert.match(script, /event\.key !== 'Escape' \|\| isTop\(\) \|\| nav\.hidden/);
     assert.match(script, /showSection\(section, false\)/);
