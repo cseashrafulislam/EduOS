@@ -155,75 +155,6 @@
                         <span>@(currentCulture == "bn-BD" ? "কেন্দ্রীয় অনুমোদন তালিকা" : "Central Work Center")</span>
                     </a>
                 }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/TenantUsers")" href="/TenantUsers/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "ব্যবহারকারী ও ভূমিকা ব্যবস্থাপনা" : "User & Role Management")</span>
-                    </a>
-                    <a class="nav-link @ActiveFor("/TenantPermissionOverrides")" href="/TenantPermissionOverrides/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "সদস্যের বিশেষ অনুমতি" : "Member Permission Exceptions")</span>
-                    </a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    @foreach (var institutionTask in new[] {
-                        (Path: "/InstitutionManagement/Profile", En: "Institution Profile", Bn: "প্রতিষ্ঠানের প্রোফাইল"),
-                        (Path: "/InstitutionManagement/Campuses", En: "Campus Management", Bn: "ক্যাম্পাস পরিচালনা"),
-                        (Path: "/InstitutionManagement/Regional", En: "Language & Region", Bn: "ভাষা ও আঞ্চলিক সেটিংস"),
-                        (Path: "/InstitutionManagement/Branding", En: "Institution Branding", Bn: "প্রতিষ্ঠানের ব্র্যান্ডিং"),
-                        (Path: "/InstitutionManagement/Subdomain", En: "Portal Subdomain", Bn: "পোর্টাল সাবডোমেইন"),
-                        (Path: "/InstitutionManagement/History", En: "Change History", Bn: "পরিবর্তনের ইতিহাস")
-                    })
-                    {
-                        <a class="nav-link @ActiveFor(institutionTask.Path)" href="@institutionTask.Path">
-                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
-                            <span>@(currentCulture == "bn-BD" ? institutionTask.Bn : institutionTask.En)</span>
-                        </a>
-                    }
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/TenantDomains")" href="/TenantDomains/Index"><span>@(currentCulture == "bn-BD" ? "নিজস্ব ডোমেইন" : "Custom Domains")</span></a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/TenantTerminology")" href="/TenantTerminology/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের পরিভাষা" : "Institution Terminology")</span>
-                    </a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/TenantSettings")" href="/TenantSettings/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের সেটিংস" : "Institution Settings")</span></a>
-                    <a class="nav-link @ActiveFor("/SmartSetup")" href="/SmartSetup/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "স্মার্ট সেটআপ" : "Smart Institution Setup")</span>
-                    </a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/NumberSeries")" href="/NumberSeries/Index"><span>@(currentCulture == "bn-BD" ? "নম্বর সিরিজ" : "Number Series")</span></a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/TenantModules")" href="/TenantModules/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের মডিউল" : "Institution Modules")</span></a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/SubscriptionBilling")" href="/SubscriptionBilling/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing")</span>
-                    </a>
-                }
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    <a class="nav-link @ActiveFor("/IntegrationAdministration")" href="/IntegrationAdministration/Index">
-                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "ইন্টিগ্রেশন পরিচালনা" : "Integration Administration")</span>
-                    </a>
-                }
                 @* The Account/InstitutionProfile and Account/CampusSetup routes belong to the
                    onboarding wizard. The post-onboarding institution workspace is canonical here. *@
                 @if (User?.IsInRole("TenantAdmin") == true)
@@ -1017,6 +948,82 @@
 
 
 
+            </nav>
+
+            @* Daily workflows appear before the infrequently used TenantAdmin setup.
+               All role guards and canonical destinations are preserved. *@
+            <hr class="sidebar-divider" />
+            <div class="menu-title">@(currentCulture == "bn-BD" ? "প্রশাসন ও সেটআপ" : "Administration & Setup")</div>
+            <nav class="nav flex-column" data-sidebar-section="setup" aria-label="@(currentCulture == "bn-BD" ? "প্রশাসন ও সেটআপ" : "Administration & Setup")">
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantUsers")" href="/TenantUsers/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#users" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "ব্যবহারকারী ও ভূমিকা ব্যবস্থাপনা" : "User & Role Management")</span>
+                    </a>
+                    <a class="nav-link @ActiveFor("/TenantPermissionOverrides")" href="/TenantPermissionOverrides/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#shield" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "সদস্যের বিশেষ অনুমতি" : "Member Permission Exceptions")</span>
+                    </a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    @foreach (var institutionTask in new[] {
+                        (Path: "/InstitutionManagement/Profile", En: "Institution Profile", Bn: "প্রতিষ্ঠানের প্রোফাইল"),
+                        (Path: "/InstitutionManagement/Campuses", En: "Campus Management", Bn: "ক্যাম্পাস পরিচালনা"),
+                        (Path: "/InstitutionManagement/Regional", En: "Language & Region", Bn: "ভাষা ও আঞ্চলিক সেটিংস"),
+                        (Path: "/InstitutionManagement/Branding", En: "Institution Branding", Bn: "প্রতিষ্ঠানের ব্র্যান্ডিং"),
+                        (Path: "/InstitutionManagement/Subdomain", En: "Portal Subdomain", Bn: "পোর্টাল সাবডোমেইন"),
+                        (Path: "/InstitutionManagement/History", En: "Change History", Bn: "পরিবর্তনের ইতিহাস")
+                    })
+                    {
+                        <a class="nav-link @ActiveFor(institutionTask.Path)" href="@institutionTask.Path">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? institutionTask.Bn : institutionTask.En)</span>
+                        </a>
+                    }
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantDomains")" href="/TenantDomains/Index"><span>@(currentCulture == "bn-BD" ? "নিজস্ব ডোমেইন" : "Custom Domains")</span></a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantTerminology")" href="/TenantTerminology/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের পরিভাষা" : "Institution Terminology")</span>
+                    </a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantSettings")" href="/TenantSettings/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের সেটিংস" : "Institution Settings")</span></a>
+                    <a class="nav-link @ActiveFor("/SmartSetup")" href="/SmartSetup/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#institution" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "স্মার্ট সেটআপ" : "Smart Institution Setup")</span>
+                    </a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/NumberSeries")" href="/NumberSeries/Index"><span>@(currentCulture == "bn-BD" ? "নম্বর সিরিজ" : "Number Series")</span></a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/TenantModules")" href="/TenantModules/Index"><span>@(currentCulture == "bn-BD" ? "প্রতিষ্ঠানের মডিউল" : "Institution Modules")</span></a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/SubscriptionBilling")" href="/SubscriptionBilling/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing")</span>
+                    </a>
+                }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/IntegrationAdministration")" href="/IntegrationAdministration/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "ইন্টিগ্রেশন পরিচালনা" : "Integration Administration")</span>
+                    </a>
+                }
             </nav>
             }
         </aside>
