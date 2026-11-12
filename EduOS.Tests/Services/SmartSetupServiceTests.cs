@@ -1,6 +1,9 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Assessment;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IServices;
@@ -101,7 +104,7 @@ public sealed class SmartSetupServiceTests
     private static ApplySmartSetupRequestDto Request(Fixture f, params string[] modules) => new()
     {
         ClientRequestId = Guid.NewGuid(), InstitutionTypeId = f.InstitutionType,
-        TemplateVersion = "2026.11.2", Confirmed = true, Modules = modules.ToList()
+        TemplateVersion = "2026.11.3", Confirmed = true, Modules = modules.ToList()
     };
 
     [Fact]
@@ -116,7 +119,9 @@ public sealed class SmartSetupServiceTests
         var request = Request(f, "ACADEMIC", "HR", "FEES", "INVENTORY");
         var first = await f.Service.ApplyAsync(request);
         Assert.True(first.Success, first.Message);
-        Assert.Equal(50, first.Data!.CreatedCount);
+        var expected = preview.Data.Modules.Where(x => request.Modules.Contains(x.Code))
+            .Sum(x => x.Entries.Count(e => e.Status == "Missing"));
+        Assert.Equal(expected, first.Data!.CreatedCount);
         Assert.Equal(2, await f.Db.Mediums.CountAsync(x => x.TenantId == f.Tenant));
         Assert.Equal(12, await f.Db.OrganizationUnits.CountAsync(x => x.TenantId == f.Tenant));
         Assert.Equal(12, await f.Db.Designations.CountAsync(x => x.TenantId == f.Tenant));
@@ -130,7 +135,7 @@ public sealed class SmartSetupServiceTests
         Assert.Equal(0, await f.Db.StudentEnrollments.CountAsync());
         var replay = await f.Service.ApplyAsync(request);
         Assert.True(replay.Success, replay.Message);
-        Assert.Equal(50, replay.Data!.CreatedCount);
+        Assert.Equal(expected, replay.Data!.CreatedCount);
         Assert.Equal(0, replay.Data.ExistingCount);
         Assert.Equal(1, await f.Db.AuditLogs.CountAsync(x => x.Action == "SmartSetup.Apply" && x.TenantId == f.Tenant));
     }
@@ -151,17 +156,118 @@ public sealed class SmartSetupServiceTests
                 {
                     Module = m.Code, Kind = e.Kind, Code = e.Code
                 })).ToList();
-        Assert.Equal(86, request.Entries.Count);
+        Assert.True(request.Entries.Count > 86 && request.Entries.Count <= 200);
         var saved = await f.Service.ApplyAsync(request);
         Assert.True(saved.Success, saved.Message);
-        Assert.Equal(86, saved.Data!.CreatedCount);
+        Assert.Equal(request.Entries.Count, saved.Data!.CreatedCount);
         Assert.Equal(0, await f.Db.FeeStructures.CountAsync());
         Assert.Equal(0, await f.Db.StudentEnrollments.CountAsync());
         Assert.Equal(0, await f.Db.HostelRooms.CountAsync());
         var replay = await f.Service.ApplyAsync(request);
         Assert.True(replay.Success);
-        Assert.Equal(86, replay.Data!.CreatedCount);
+        Assert.Equal(request.Entries.Count, replay.Data!.CreatedCount);
         Assert.Single(await f.Db.AuditLogs.Where(x => x.Action == "SmartSetup.Apply").ToListAsync());
+    }
+
+
+    [Fact]
+    public async Task Bangladesh_grading_subject_account_and_payroll_templates_are_canonical_and_retry_safe()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "EXAM", "FINANCE", "HR"]);
+        var preview = await f.Service.PreviewAsync();
+        Assert.True(preview.Success, preview.Message);
+        var requested = new[] { "ACADEMIC", "ASSESSMENT", "FINANCE", "PAYROLL" };
+        var selected = preview.Data!.Modules.Where(x => requested.Contains(x.Code))
+            .SelectMany(x => x.Entries.Where(e => e.Status == "Missing").Select(e =>
+                new SmartSetupSelectedEntryDto { Module = x.Code, Kind = e.Kind, Code = e.Code }))
+            .ToList();
+        Assert.Contains(selected, x => x.Kind == "GradeScheme" && x.Code == "BD-GPA-5");
+        Assert.Contains(selected, x => x.Kind == "GradeScheme" && x.Code == "BD-CGPA-4");
+        Assert.Contains(selected, x => x.Kind == "Subject" && x.Code == "ICT");
+        Assert.Contains(selected, x => x.Kind == "Account" && x.Code == "1000");
+        Assert.Contains(selected, x => x.Kind == "SalaryComponent" && x.Code == "BASIC");
+        Assert.InRange(selected.Count, 50, 200);
+        var request = Request(f, requested);
+        request.Entries = selected;
+        var saved = await f.Service.ApplyAsync(request);
+        Assert.True(saved.Success, saved.Message);
+        Assert.Equal(selected.Count, saved.Data!.CreatedCount);
+        Assert.Equal(2, await f.Db.GradeSchemes.CountAsync());
+        Assert.Equal(17, await f.Db.GradeRules.CountAsync());
+        var five = await f.Db.GradeSchemes.SingleAsync(x => x.Code == "BD-GPA-5");
+        var four = await f.Db.GradeSchemes.SingleAsync(x => x.Code == "BD-CGPA-4");
+        Assert.False(five.IsDefault);
+        Assert.False(four.IsDefault);
+        Assert.False(five.UseCreditWeightedGpa);
+        Assert.True(four.UseCreditWeightedGpa);
+        Assert.Equal(5m, await f.Db.GradeRules.Where(x => x.GradeSchemeId == five.Id && x.MinMarks == 80m)
+            .Select(x => x.GradePoint).SingleAsync());
+        Assert.Equal(3.75m, await f.Db.GradeRules.Where(x => x.GradeSchemeId == four.Id && x.MinMarks == 75m)
+            .Select(x => x.GradePoint).SingleAsync());
+        Assert.True(await f.Db.Subjects.AnyAsync(x => x.Code == "ICT" && x.DefaultCreditHours == 0m));
+        Assert.Empty(await f.Db.CurriculumSubjects.ToListAsync());
+        Assert.Equal(15, await f.Db.Accounts.CountAsync());
+        var assetGroup = await f.Db.Accounts.SingleAsync(x => x.Code == "1000");
+        var assetPosting = await f.Db.Accounts.SingleAsync(x => x.Code == "1100");
+        Assert.True(assetGroup.IsGroup);
+        Assert.False(assetGroup.AllowsPosting);
+        Assert.Equal(assetGroup.Id, assetPosting.ParentAccountId);
+        Assert.False(assetPosting.IsCashInHand);
+        Assert.Empty(await f.Db.Journals.ToListAsync());
+        Assert.Equal(10, await f.Db.SalaryComponents.CountAsync());
+        Assert.Equal(SalaryComponentType.Earning,
+            (await f.Db.SalaryComponents.SingleAsync(x => x.Code == "BASIC")).Type);
+        Assert.Equal(SalaryComponentType.Deduction,
+            (await f.Db.SalaryComponents.SingleAsync(x => x.Code == "LOAN-RECOVERY")).Type);
+        Assert.Empty(await f.Db.SalaryStructures.ToListAsync());
+        var replay = await f.Service.ApplyAsync(request);
+        Assert.True(replay.Success, replay.Message);
+        Assert.Equal(saved.Data.CreatedCount, replay.Data!.CreatedCount);
+        var retry = Request(f, requested);
+        retry.Entries = selected;
+        var existing = await f.Service.ApplyAsync(retry);
+        Assert.True(existing.Success, existing.Message);
+        Assert.Equal(0, existing.Data!.CreatedCount);
+        Assert.Equal(selected.Count, existing.Data.ExistingCount);
+        Assert.Equal(2, await f.Db.GradeSchemes.CountAsync());
+        Assert.Equal(17, await f.Db.GradeRules.CountAsync());
+        Assert.Equal(15, await f.Db.Accounts.CountAsync());
+        Assert.Equal(10, await f.Db.SalaryComponents.CountAsync());
+    }
+
+    [Fact]
+    public async Task Existing_custom_grades_and_mismatched_accounts_are_not_overwritten()
+    {
+        await using var f = await Open(modules: ["EXAM", "FINANCE"]);
+        f.Db.GradeSchemes.Add(new GradeScheme
+        {
+            TenantId = f.Tenant, Code = "BD-GPA-5", Name = "Bangladesh Board GPA 5.00",
+            IsActive = true, CreatedAt = DateTime.UtcNow
+        });
+        f.Db.Accounts.Add(new Account
+        {
+            TenantId = f.Tenant, Code = "1000", Name = "Assets", IsGroup = false,
+            AccountType = AccountType.Asset, AllowsPosting = true, IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        });
+        await f.Db.SaveChangesAsync();
+        var preview = await f.Service.PreviewAsync();
+        Assert.Equal("Conflict", preview.Data!.Modules.Single(x => x.Code == "ASSESSMENT")
+            .Entries.Single(x => x.Code == "BD-GPA-5").Status);
+        Assert.Equal("Conflict", preview.Data.Modules.Single(x => x.Code == "FINANCE")
+            .Entries.Single(x => x.Code == "1000").Status);
+        var selected = Request(f, "ASSESSMENT", "FINANCE");
+        selected.Entries =
+        [
+            new() { Module = "ASSESSMENT", Kind = "GradeScheme", Code = "BD-GPA-5" },
+            new() { Module = "FINANCE", Kind = "Account", Code = "1000" }
+        ];
+        var response = await f.Service.ApplyAsync(selected);
+        Assert.Equal(409, response.StatusCode);
+        Assert.Single(await f.Db.GradeSchemes.ToListAsync());
+        Assert.Empty(await f.Db.GradeRules.ToListAsync());
+        Assert.Single(await f.Db.Accounts.ToListAsync());
+        Assert.Empty(await f.Db.AuditLogs.Where(x => x.Action == "SmartSetup.Apply").ToListAsync());
     }
 
     [Fact]
