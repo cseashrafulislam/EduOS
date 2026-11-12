@@ -40,6 +40,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
     private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicSection>? _sections;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<Campus> _campuses;
@@ -93,7 +94,8 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         IGenericRepository<Tenant>? issuingTenants = null,
         IGenericRepository<AssessmentAttemptRegistration>? attemptRegistrations = null,
         IGenericRepository<AcademicTrack>? academicTracks = null,
-        EduOS.Persistence.Context.EduOSDbContext? obeDb = null)
+        EduOS.Persistence.Context.EduOSDbContext? obeDb = null,
+        IGenericRepository<AcademicSection>? sections = null)
     {
         _assessments = assessments; _subjects = subjects; _markReviews = markReviews;
         _rescrutinyEvents = rescrutinyEvents;
@@ -106,7 +108,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
         _marks = marks; _publications = publications; _summaries = summaries;
         _gradeSchemes = gradeSchemes; _grades = grades; _enrollments = enrollments;
         _subjectNames = subjectNames; _registrations = registrations; _offerings = offerings;
-        _curriculumSubjects = curriculumSubjects; _batches = batches; _years = years;
+        _curriculumSubjects = curriculumSubjects; _batches = batches; _sections = sections; _years = years;
         _terms = terms; _campuses = campuses; _campusAccesses = campusAccesses; _rooms = rooms; _students = students;
         _employees = employees; _instructors = instructors; _components = components;
         _componentMarks = componentMarks; _templates = templates;
