@@ -101,8 +101,9 @@ public sealed partial class AcademicSetupService
             var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive && !x.IsDeleted, ct);
             if (batch == null) return Error<SubjectOfferingDto>("Active academic batch not found.", 404);
-            if (_sections == null) return Error<SubjectOfferingDto>("Academic section service unavailable.", 503);
-            var section = request.AcademicSectionId.HasValue
+            if (_sections == null && request.AcademicSectionId.HasValue)
+                return Error<SubjectOfferingDto>("Academic section service unavailable.", 503);
+            var section = request.AcademicSectionId.HasValue && _sections != null
                 ? await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == request.AcademicSectionId.Value &&
                     x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted, ct)
@@ -111,7 +112,8 @@ public sealed partial class AcademicSetupService
                 return Error<SubjectOfferingDto>("Section does not belong to this active batch.", 409);
             // New cohorts must select a real section. Legacy batch-as-section callers may
             // keep writing unscoped offerings while they migrate to dedicated sections.
-            if (!request.AcademicSectionId.HasValue && !await _sections.GetQueryable().AsNoTracking()
+            if (!request.AcademicSectionId.HasValue && _sections != null &&
+                !await _sections.GetQueryable().AsNoTracking()
                 .AnyAsync(x => x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
                     x.IsLegacyDefault && !x.IsDeleted, ct))
                 return Error<SubjectOfferingDto>("Select a section for this academic batch.", 409);
