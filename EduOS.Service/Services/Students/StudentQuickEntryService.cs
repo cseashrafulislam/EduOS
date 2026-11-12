@@ -148,7 +148,7 @@ public sealed class StudentQuickEntryService(
                 var enrolled = await academicEnrollments.EnrollAsync(new CreateStudentEnrollmentRequestDto
                 {
                     ClientRequestId = request.ClientRequestId, StudentReference = reference,
-                    AcademicBatchId = request.AcademicBatchId,
+                    AcademicBatchId = request.AcademicBatchId, AcademicSectionId = request.AcademicSectionId,
                     AcademicCurriculumId = request.AcademicCurriculumId,
                     EnrollmentDate = request.EnrollmentDate, RollNo = roll
                 }, token);
