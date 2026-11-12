@@ -337,26 +337,35 @@
 </div>
 
 <div class="modal fade" id="intakeFormModal" tabindex="-1" aria-labelledby="intakeFormModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content border-0 rounded-4">
+    <div class="modal-dialog admission-intake-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content admission-intake-content border-0 rounded-4">
             <div class="modal-header">
-                <h2 class="modal-title h5" id="intakeFormModalTitle">Admission Form / ভর্তি ফরম</h2>
+                <div>
+                    <h2 class="modal-title h5 fw-bold" id="intakeFormModalTitle">@(bn ? "ভর্তি ফরম তৈরি / সম্পাদনা" : "Admission Form Setup")</h2>
+                    <p class="small text-muted mb-0">@(bn ? "ভর্তির তথ্য, সময়সীমা ও প্রয়োজনীয় কাগজপত্র" : "Intake details, application window and requirements")</p>
+                </div>
                 <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="@T["Close"]"></button>
             </div>
-            <form id="intakeFormEditor" novalidate aria-describedby="intakeEditorHelp">
-                <div class="modal-body">
-                    <p id="intakeEditorHelp" class="small text-muted">@(bn ? "ফরমের তথ্য যাচাই করে খসড়া সংরক্ষণ করুন। ভুল থাকলে উপরের তালিকা থেকে সংশোধন করুন।" : "Review the intake before saving a draft. Use the error summary to navigate invalid fields.")</p>
+            <form id="intakeFormEditor" novalidate aria-describedby="intakeEditorHelp" class="admission-intake-editor">
+                <div class="modal-body admission-intake-body">
+                    <p id="intakeEditorHelp" class="small text-muted mb-3">@(bn ? "প্রয়োজনীয় তথ্য পূরণ করে খসড়া সংরক্ষণ করুন। প্রকাশ করার আগে ফরমটি সম্পাদনা করা যাবে।" : "Fill the required details and save as draft. You can review and edit before publishing.")</p>
                     <input id="intakeFormId" type="hidden" />
                     <input id="intakeFormRowVersion" type="hidden" />
                     <input id="intakeFormRequestId" type="hidden" />
+                    <h3 class="h6 fw-semibold intake-editor-section-title">@(bn ? "ফরমের পরিচিতি" : "Form identity")</h3>
                     <div class="row g-3">
-                        <div class="col-md-4"><label class="form-label" for="intakeCode">Code *</label><input id="intakeCode" class="form-control" maxlength="50" pattern="[A-Za-z][A-Za-z0-9_-]*" required /></div>
-                        <div class="col-md-8"><label class="form-label" for="intakeTitle">Title / শিরোনাম *</label><input id="intakeTitle" class="form-control" maxlength="200" required /></div>
-                        <div class="col-12"><small class="text-muted">Form description is not stored by the current canonical intake model.</small></div>
+                        <div class="col-md-4"><label class="form-label" for="intakeCode">@(bn ? "ফরম কোড" : "Form code") *</label><input id="intakeCode" class="form-control" minlength="2" maxlength="50" pattern="[A-Za-z][A-Za-z0-9_-]*" placeholder="ADM_2027" autocomplete="off" required /><div class="form-text">@(bn ? "ইংরেজি অক্ষর দিয়ে শুরু করুন; কোডটি আলাদা হতে হবে।" : "Start with a letter. Letters, numbers, _ and - only; unique per institution.")</div></div>
+                        <div class="col-md-8"><label class="form-label" for="intakeTitle">@(bn ? "শিরোনাম" : "Form title") *</label><input id="intakeTitle" class="form-control" minlength="2" maxlength="200" placeholder="@(bn ? "যেমন: প্রথম শ্রেণি ভর্তি ২০২৭" : "e.g. Class One Admission 2027")" required /><div class="form-text">@(bn ? "আবেদনকারীরা এই নামটি দেখবেন।" : "This title is shown to applicants.")</div></div>
+                    </div>
+                    <h3 class="h6 fw-semibold intake-editor-section-title">@(bn ? "একাডেমিক তথ্য" : "Academic scope")</h3>
+                    <div class="row g-3">
                         <div class="col-md-3"><label class="form-label" for="intakeYearId">Academic Year *</label><select id="intakeYearId" class="form-select" required></select></div>
                         <div class="col-md-3"><label class="form-label" for="intakeTermId">Term</label><select id="intakeTermId" class="form-select"></select></div>
                         <div class="col-md-3"><label class="form-label" for="intakeCampusId">Campus *</label><select id="intakeCampusId" class="form-select" required></select></div>
                         <div class="col-md-3"><label class="form-label" for="intakeUnitId">Class / Level *</label><select id="intakeUnitId" class="form-select" required></select></div>
+                    </div>
+                    <h3 class="h6 fw-semibold intake-editor-section-title">@(bn ? "আবেদনের সময়সীমা ও ফি" : "Application window and fee")</h3>
+                    <div class="row g-3">
                         <div class="col-md-3"><label class="form-label" for="intakeOpensAt">Opens *</label><input id="intakeOpensAt" class="form-control" type="datetime-local" required /></div>
                         <div class="col-md-3"><label class="form-label" for="intakeClosesAt">Closes *</label><input id="intakeClosesAt" class="form-control" type="datetime-local" required /></div>
                         <div class="col-md-3"><label class="form-label" for="intakeFee">Application Fee</label><input id="intakeFee" class="form-control" type="number" min="0" max="1000000" step="0.01" value="0" required /></div>
@@ -364,20 +373,22 @@
                     </div>
 
                     <div class="intake-builder-section">
-                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Custom Fields / অতিরিক্ত প্রশ্ন</h3><button id="addIntakeFieldButton" class="btn btn-sm btn-outline-secondary" type="button">Add field</button></div>
+                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Custom Fields / অতিরিক্ত প্রশ্ন</h3><button id="addIntakeFieldButton" class="btn btn-sm btn-outline-primary" type="button">@(bn ? "+ প্রশ্ন যোগ করুন" : "+ Add question")</button></div>
+                        <p class="small text-muted mb-2">@(bn ? "ঐচ্ছিক: প্রয়োজন হলে আবেদনকারীর অতিরিক্ত প্রশ্ন যোগ করুন (সর্বোচ্চ ৫০টি)।" : "Optional: add questions applicants must answer (up to 50).")</p>
                         <div id="intakeFieldRows" class="intake-builder-rows"></div>
                     </div>
 
                     <div class="intake-builder-section">
-                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Document Requirements / প্রয়োজনীয় কাগজপত্র</h3><button id="addDocumentRequirementButton" class="btn btn-sm btn-outline-secondary" type="button">Add document</button></div>
-                        <p class="text-muted small mb-1">Requirements are saved with the draft intake form and enforced on uploads and qualification. Configure document types in Document Administration first.</p>
+                        <div class="admission-heading-actions"><h3 class="h6 mb-0">Document Requirements / প্রয়োজনীয় কাগজপত্র</h3><button id="addDocumentRequirementButton" class="btn btn-sm btn-outline-primary" type="button">@(bn ? "+ নথি যোগ করুন" : "+ Add document")</button></div>
+                        <p class="text-muted small mb-2">@(bn ? "ঐচ্ছিক: নথির ধরন আগে Document Administration-এ থাকতে হবে (সর্বোচ্চ ২০টি)।" : "Optional: add required uploads (up to 20). Document types must already exist in Document Administration.")</p>
                         <div id="documentRequirementRows" class="intake-builder-rows"></div>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer admission-intake-footer">
+                    <span class="small text-muted me-auto">@(bn ? "সংরক্ষণ করলে খসড়া হবে, প্রকাশিত হবে না।" : "Saving creates a draft, not a published form.")</span>
                     <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">@T["Cancel"]</button>
                     <button id="saveIntakeFormButton" class="btn btn-primary" type="submit"
-                            data-idle-label="Save Draft / খসড়া সংরক্ষণ" data-loading-label="Saving...">Save Draft / খসড়া সংরক্ষণ</button>
+                            data-idle-label="@(bn ? "খসড়া সংরক্ষণ" : "Save draft")" data-loading-label="@(bn ? "সংরক্ষণ হচ্ছে..." : "Saving...")">@(bn ? "খসড়া সংরক্ষণ" : "Save draft")</button>
                 </div>
             </form>
         </div>
