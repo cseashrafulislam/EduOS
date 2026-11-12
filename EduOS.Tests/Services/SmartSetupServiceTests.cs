@@ -136,6 +136,35 @@ public sealed class SmartSetupServiceTests
     }
 
     [Fact]
+    public async Task One_confirmed_apply_can_create_all_seven_enabled_safe_reference_groups()
+    {
+        await using var f = await Open(modules:
+            ["ACADEMIC", "HR", "FINANCE", "INVENTORY", "LIBRARY", "COMMUNICATION", "DOCUMENTS"]);
+        var preview = await f.Service.PreviewAsync();
+        Assert.True(preview.Success, preview.Message);
+        var request = Request(f, "ACADEMIC", "HR", "FEES", "INVENTORY",
+            "LIBRARY", "COMMUNICATION", "DOCUMENTS");
+        request.Entries = preview.Data!.Modules
+            .Where(m => request.Modules.Contains(m.Code))
+            .SelectMany(m => m.Entries.Where(e => e.Status == "Missing")
+                .Select(e => new SmartSetupSelectedEntryDto
+                {
+                    Module = m.Code, Kind = e.Kind, Code = e.Code
+                })).ToList();
+        Assert.Equal(86, request.Entries.Count);
+        var saved = await f.Service.ApplyAsync(request);
+        Assert.True(saved.Success, saved.Message);
+        Assert.Equal(86, saved.Data!.CreatedCount);
+        Assert.Equal(0, await f.Db.FeeStructures.CountAsync());
+        Assert.Equal(0, await f.Db.StudentEnrollments.CountAsync());
+        Assert.Equal(0, await f.Db.HostelRooms.CountAsync());
+        var replay = await f.Service.ApplyAsync(request);
+        Assert.True(replay.Success);
+        Assert.Equal(86, replay.Data!.CreatedCount);
+        Assert.Single(await f.Db.AuditLogs.Where(x => x.Action == "SmartSetup.Apply").ToListAsync());
+    }
+
+    [Fact]
     public async Task Conflicting_existing_fee_head_never_creates_second_master_or_overwrites_it()
     {
         await using var f = await Open(modules: ["FINANCE"]);
