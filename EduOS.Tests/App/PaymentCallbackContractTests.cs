@@ -86,6 +86,25 @@ public class PaymentCallbackContractTests
     }
 
     [Fact]
+    public void First_verified_paid_period_activates_workspace_without_approving_unfinished_setup()
+    {
+        var activation = Slice(ReadService(),
+            "private async Task ActivatePaidSubscriptionAsync",
+            "private async Task FailPendingGatewayAsync");
+        activation.Should().Contain("invoice.State != InvoiceState.Paid");
+        activation.Should().Contain("subscription.State = SubscriptionState.Active;");
+        activation.Should().Contain("!subscription.PreviousSubscriptionId.HasValue");
+        activation.Should().Contain("subscription.StartsAt <= now && subscription.EndsAt > now");
+        activation.Should().Contain("tenant.OnboardingStage == OnboardingStage.Payment");
+        activation.Should().Contain("OnboardingWorkspacePolicy.CanActivate(tenant, subscription, now)");
+        activation.Should().Contain("tenant.OnboardingStage = OnboardingStage.CampusSetup;");
+        activation.Should().Contain("tenant.State = TenantState.Active;");
+        activation.Should().Contain("await _uow.SaveChangesAsync();");
+        activation.Should().NotContain("OnboardingCompletedAt");
+        activation.Should().NotContain("tenant.Subdomain");
+    }
+
+    [Fact]
     public void Unsafe_receipts_cannot_be_read_or_approved_without_real_scan()
     {
         var service = ReadService();
