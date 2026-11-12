@@ -31,6 +31,8 @@ public sealed class AssessmentSetupBatchDto
 
 public sealed class AssessmentSetupOfferingDto
 {
+    public long? AcademicSectionId { get; set; }
+    public string? AcademicSectionName { get; set; }
     public Guid Reference { get; set; }
     public string Code { get; set; } = string.Empty;
     public string SubjectName { get; set; } = string.Empty;
