@@ -22,7 +22,7 @@ function element(tag = 'div', id = '') {
     };
 }
 
-function harness({ url = '/HrSetup/Index?smartSetup=HR', edit = false } = {}) {
+function harness({ url = '/HrSetup/Index?smartSetup=HR', edit = false, entries = null, requirements = null } = {}) {
     const parsed = new URL('http://localhost' + url);
     const main = element('main', 'main-content');
     const body = { dataset: { authTenantId: '11', authSessionReference: 'session-1' } };
@@ -46,13 +46,15 @@ function harness({ url = '/HrSetup/Index?smartSetup=HR', edit = false } = {}) {
     const payload = {
         institutionTypeId: 20, institutionTypeName: 'School and College',
         templateVersion: '2026.11.1',
-        modules: [{ code: 'HR', isAvailable: true, supportsSafeApply: true, entries: previews, name: 'HR' }]
+        modules: [{ code: new URLSearchParams(parsed.search).get('smartSetup') || 'HR',
+            isAvailable: true, supportsSafeApply: true, entries: entries || previews, name: 'Setup' }]
     };
     const fetch = async (route, options = {}) => {
         calls.push({ route, options });
         const data = route.endsWith('/preview') ? payload :
             route.includes('/readiness?') ?
-                [{ moduleCode: 'HR', isAvailable: true, requirements: [] }] :
+                [{ moduleCode: new URLSearchParams(parsed.search).get('smartSetup') || 'HR',
+                    isAvailable: true, requirements: requirements || [] }] :
                 { createdCount: 3, existingCount: 0 };
         return { ok: true, json: async () => ({ success: true, data }) };
     };
@@ -135,4 +137,49 @@ test('Smart Setup destination requires confirmation and uses original CSRF-prote
     assert.deepEqual(Array.from(request.modules), ['HR']);
     assert.equal(request.confirmed, true);
     assert.equal(h.getReloadCount(), 1);
+});
+
+test('completed academic defaults and work on another academic page do not show a panel', async () => {
+    const h = harness({
+        url: '/AcademicManagement/Years?smartSetup=ACADEMIC',
+        entries: [
+            { kind: 'Medium', code: 'BANGLA', name: 'Bangla', status: 'Existing' },
+            { kind: 'Medium', code: 'ENGLISH', name: 'English', status: 'Existing' }
+        ],
+        requirements: [
+            { configured: false, actionUrl: '/AcademicManagement/Curricula', label: 'Reviewed curriculum' },
+            { configured: false, actionUrl: '/AcademicManagement/Sections', label: 'Sections' }
+        ]
+    });
+    await h.ready();
+    assert.equal(h.main.children[0].className.includes('d-none'), true);
+    assert.equal(h.calls.filter(x => x.options.method === 'POST').length, 0);
+});
+
+test('academic curriculum shows only its own incomplete prerequisite', async () => {
+    const h = harness({
+        url: '/AcademicManagement/Curricula?smartSetup=ACADEMIC',
+        entries: [
+            { kind: 'Medium', code: 'BANGLA', name: 'Bangla', status: 'Existing' },
+            { kind: 'Medium', code: 'ENGLISH', name: 'English', status: 'Existing' }
+        ],
+        requirements: [
+            { configured: false, actionUrl: '/AcademicManagement/Curricula', label: 'Reviewed curriculum' },
+            { configured: false, actionUrl: '/AcademicManagement/Sections', label: 'Sections' }
+        ]
+    });
+    await h.ready();
+    assert.equal(h.main.children[0].className.includes('d-none'), false);
+    assert.ok(descend(h.main, x => x.textContent === 'Reviewed curriculum'));
+    assert.equal(descend(h.main, x => x.textContent === 'Bangla (BANGLA)'), null);
+    assert.equal(descend(h.main, x => x.textContent === 'Sections'), null);
+});
+
+test('only completed HR presets do not render another setup panel', async () => {
+    const h = harness({
+        entries: [{ kind: 'OrganizationUnit', code: 'ADMIN', name: 'Administration', status: 'Existing' }]
+    });
+    await h.ready();
+    assert.equal(h.main.children[0].className.includes('d-none'), true);
+    assert.equal(h.controls.get('hrSetupDepartmentCode').value, '');
 });

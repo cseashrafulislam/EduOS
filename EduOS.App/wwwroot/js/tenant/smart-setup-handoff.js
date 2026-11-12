@@ -58,7 +58,8 @@
         const nodes = ids.map(id => document.getElementById(id));
         return nodes.every(Boolean) ? nodes : null;
     };
-    const panel = elem('section', 'card border-primary mb-3', undefined);
+    // Show a panel only for pending work on this exact page.
+    const panel = elem('section', 'card border-primary mb-3 d-none', undefined);
     panel.setAttribute('aria-label', t('Smart setup suggestions', 'স্মার্ট সেটআপ প্রস্তাব'));
     const content = elem('div', 'card-body');
     const heading = elem('h2', 'h5 mb-2', t('Smart setup — reviewed suggestions', 'স্মার্ট সেটআপ — যাচাইকৃত প্রস্তাব'));
@@ -73,6 +74,7 @@
     panel.append(content);
     main.prepend(panel);
     const inform = (text, error = false) => {
+        panel.className = 'card border-primary mb-3';
         notice.className = 'alert ' + (error ? 'alert-danger' : 'alert-info') + ' py-2';
         notice.textContent = text;
     };
@@ -138,12 +140,21 @@
                     'এই প্রতিষ্ঠানের জন্য মডিউলটি উপলব্ধ নয়।'), true);
                 return;
             }
+            // The Academic Medium master is not edited on Academic Years.
+            // The canonical Smart Setup wizard owns medium default application.
+            const entries = (setup.entries || []).filter(x => x.status !== 'Existing' &&
+                (module !== 'ACADEMIC' || formFields(x)));
+            const missing = entries.filter(x => x.status === 'Missing');
+            const conflict = entries.some(x => x.status === 'Conflict');
+            const relevantRequirements = (readiness.requirements || []).filter(need =>
+                !need.configured && typeof need.actionUrl === 'string' &&
+                need.actionUrl.toLowerCase().replace(/[/]$/, '') ===
+                    location.pathname.toLowerCase().replace(/[/]$/, ''));
+            if (!entries.length && !relevantRequirements.length) return;
+            panel.className = 'card border-primary mb-3';
             output.replaceChildren();
             output.append(elem('p', 'small fw-semibold mb-2',
                 (bn ? setup.nameBangla : setup.name) + ' · ' + preview.institutionTypeName));
-            const entries = setup.entries || [];
-            const missing = entries.filter(x => x.status === 'Missing');
-            const conflict = entries.some(x => x.status === 'Conflict');
             if (entries.length) {
                 const list = elem('ul', 'list-unstyled mb-3');
                 for (const entry of entries) {
@@ -180,9 +191,9 @@
                 output.append(elem('p', 'small text-info',
                     t('One missing suggestion was placed in each empty matching form. Review before saving.',
                         'ফাঁকা সংশ্লিষ্ট ফর্মে একটি করে প্রস্তাব বসানো হয়েছে। সংরক্ষণের আগে যাচাই করুন।')));
-            if (readiness.requirements?.length) {
+            if (relevantRequirements.length) {
                 const list = elem('ul', 'small mb-3');
-                for (const need of readiness.requirements.filter(x => !x.configured)) {
+                for (const need of relevantRequirements) {
                     list.append(elem('li', '', bn ? need.labelBangla : need.label));
                 }
                 if (list.children.length) {
@@ -233,14 +244,6 @@
                 });
                 form.append(label, save);
                 output.append(form);
-            } else if (!missing.length && entries.length) {
-                output.append(elem('p', 'small text-success',
-                    t('Reviewed defaults already exist; no duplicate records required.',
-                        'প্রস্তাবিত তথ্য আগে থেকেই আছে; ডুপ্লিকেট যোগ হবে না।')));
-            } else if (!entries.length) {
-                output.append(elem('p', 'small text-muted',
-                    t('No generic records can safely be invented. Enter verified institution-specific data in this page.',
-                        'এখানে অনুমানভিত্তিক তথ্য তৈরি করা যাবে না। প্রতিষ্ঠানের যাচাইকৃত তথ্য এই পেজে দিন।')));
             }
             const back = elem('a', 'btn btn-sm btn-outline-secondary mt-2',
                 t('Back to Smart Setup', 'স্মার্ট সেটআপে ফিরুন'));

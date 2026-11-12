@@ -140,9 +140,11 @@
                     tr('No mandatory reference setup; review applicable policies before operating.',
                         'বাধ্যতামূলক প্রাথমিক তথ্য নেই; কাজের আগে প্রযোজ্য নীতিমালা যাচাই করুন।')));
             }
-            if (m.entries?.length) {
+            // Entries already present are not pending tasks.
+            const pendingEntries = (m.entries || []).filter(item => item.status !== 'Existing');
+            if (pendingEntries.length) {
                 const list = node('ul', 'list-unstyled small mb-3');
-                for (const item of m.entries) {
+                for (const item of pendingEntries) {
                     const li = node('li', 'd-flex justify-content-between border-bottom py-1 gap-2');
                     li.append(node('span', '', item.name + ' (' + item.code + ')'));
                     const status = item.status === 'Missing' ? tr('To add', 'যোগ হবে') :
@@ -156,7 +158,7 @@
             }
             const missing = (m.entries || []).filter(e => e.status === 'Missing').length;
             const conflict = (m.entries || []).some(e => e.status === 'Conflict');
-            if (m.supportsSafeApply && m.isAvailable) {
+            if (m.supportsSafeApply && m.isAvailable && (missing > 0 || conflict)) {
                 const label = node('label', 'form-check mb-2');
                 const input = node('input', 'form-check-input me-2');
                 input.type = 'checkbox';
@@ -174,11 +176,22 @@
                     tr('Already configured', 'সেটআপ আগে থেকেই আছে')));
                 body.append(label);
             }
-            const link = node('a', 'btn btn-sm btn-outline-secondary', tr('Open setup page', 'সেটআপ পেজ খুলুন'));
-            link.href = setupLink(m.nextStepUrl, m.code);
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            body.append(link);
+            // Continue with the first unmet prerequisite, not a generic landing page.
+            const pendingTasks = readiness?.isAvailable
+                ? (readiness.requirements || []).filter(task => !task.configured)
+                : [];
+            const hasEditablePresetForm = ['HR', 'INVENTORY', 'LIBRARY', 'COMMUNICATION', 'DOCUMENTS']
+                .includes(m.code);
+            if (m.isAvailable && (pendingTasks.length || (missing > 0 && hasEditablePresetForm))) {
+                const target = pendingTasks[0]?.actionUrl || m.nextStepUrl;
+                const link = node('a', 'btn btn-sm btn-outline-secondary',
+                    pendingTasks.length ? tr('Continue missing setup', 'বাকি সেটআপ সম্পন্ন করুন') :
+                        tr('Open setup page', 'সেটআপ পেজ খুলুন'));
+                link.href = setupLink(target, m.code);
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                body.append(link);
+            }
             card.append(body);
             wrapper.append(card);
             host.append(wrapper);
