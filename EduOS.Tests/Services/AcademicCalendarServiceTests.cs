@@ -265,7 +265,8 @@ public class AcademicCalendarServiceTests
         context,
         currentUser,
         TimeProvider.System,
-        NullLogger<AcademicCalendarService>.Instance);
+        NullLogger<AcademicCalendarService>.Instance,
+        context);
 
     private static async Task<CalendarSeed> SeedAsync(DbContextOptions<EduOSDbContext> options, long tenantId)
     {
