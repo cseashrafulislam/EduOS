@@ -126,6 +126,7 @@
                     tr(entries.length + ' pre-filled record(s)', entries.length + 'টি তথ্য আগে থেকে পূরণ করা')));
             body.append(header);
             if (entries.length) {
+                const hasDetail = entries.some(item => !!item.detail);
                 body.append(node('p', 'small text-muted mb-2',
                     tr('Review each automatically filled column, tick the rows you want, then save below. Values come from the approved institution template.',
                         'স্বয়ংক্রিয়ভাবে পূরণ করা তথ্যগুলো যাচাই করুন, প্রয়োজনীয় Row-তে টিক দিন, তারপর নিচে Save করুন।')));
@@ -140,10 +141,10 @@
                 selectAll.setAttribute('aria-label', tr('Select all missing records in ' + m.name,
                     m.nameBangla + ' এর সব অনুপস্থিত তথ্য নির্বাচন'));
                 selectAll.setAttribute('data-smart-all', m.code);
-                selectCell.append(selectAll);
+                selectCell.append(selectAll, node('span', 'small ms-2', tr('All', 'সব')));
                 headerRow.append(selectCell);
                 for (const name of [tr('Type', 'ধরন'), tr('Code', 'কোড'), tr('Name', 'নাম'),
-                    tr('Detail', 'বিবরণ'), tr('Status', 'অবস্থা')]) {
+                    ...(hasDetail ? [tr('Detail', 'বিবরণ')] : [])]) {
                     const th = node('th', '', name);
                     th.scope = 'col';
                     headerRow.append(th);
@@ -174,18 +175,27 @@
                     });
                     checkCell.append(check);
                     row.append(checkCell);
-                    const kindCell = node('td', 'small', item.kind);
-                    row.append(kindCell);
-                    for (const [value, fieldName] of [
+                    const labels = {
+                        Medium: tr('Medium', 'মাধ্যম'),
+                        OrganizationUnit: tr('Department', 'বিভাগ'),
+                        Designation: tr('Designation', 'পদবি'),
+                        FeeHead: tr('Fee head', 'ফি-এর ধরন'),
+                        AssetCategory: tr('Asset category', 'সম্পদের ধরন'),
+                        BookCategory: tr('Book category', 'বইয়ের ধরন'),
+                        NoticeCategory: tr('Notice category', 'নোটিশের ধরন'),
+                        DocumentType: tr('Document type', 'ডকুমেন্টের ধরন')
+                    };
+                    row.append(node('td', 'small', labels[item.kind] || item.kind));
+                    const columns = [
                         [item.code, tr('Code', 'কোড')],
-                        [item.name, tr('Name', 'নাম')],
-                        [item.detail || '', tr('Detail', 'বিবরণ')]
-                    ]) {
+                        [item.name, tr('Name', 'নাম')]
+                    ];
+                    if (hasDetail) columns.push([item.detail || '', tr('Detail', 'বিবরণ')]);
+                    for (const [value, fieldName] of columns) {
                         const td = node('td');
                         td.append(makeField(value, fieldName + ': ' + item.name));
                         row.append(td);
                     }
-                    row.append(node('td', 'small text-success', tr('Ready to add', 'যোগ করা যাবে')));
                     tbody.append(row);
                     boxes.push(check);
                 }
