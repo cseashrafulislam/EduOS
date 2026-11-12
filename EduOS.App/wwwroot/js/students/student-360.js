@@ -24,6 +24,15 @@
                 ['fromStatus', 'From', 'আগের অবস্থা'], ['toStatus', 'To', 'নতুন অবস্থা'],
                 ['reason', 'Reason', 'কারণ']]
         },
+        subjects: {
+            url: '/api/student-subjects/students/' + encodeURIComponent(reference) + '/history',
+            columns: [['registeredAt', 'Registered', 'নিবন্ধনের সময়'],
+                ['subjectCode', 'Subject code', 'বিষয় কোড'], ['subjectName', 'Subject', 'বিষয়'],
+                ['rollNo', 'Enrollment roll', 'ভর্তির রোল'],
+                ['registrationState', 'Registration', 'নিবন্ধন অবস্থা'],
+                ['creditHoursSnapshot', 'Credits at registration', 'নিবন্ধনকালীন ক্রেডিট'],
+                ['approvedAt', 'Approved', 'অনুমোদনের সময়']]
+        },
         guardian: {
             url: '/api/student-guardians/students/' + encodeURIComponent(reference) + '/history',
             columns: [['occurredAt', 'When', 'সময়'], ['linkId', 'Link', 'সংযোগ'],
@@ -62,7 +71,7 @@
             for (const [field] of cfg.columns) {
                 let value = item[field];
                 if (typeof value === 'boolean') value = value ? msg('Yes', 'হ্যাঁ') : msg('No', 'না');
-                if (field === 'occurredAt' && value) {
+                if (['occurredAt', 'registeredAt', 'approvedAt'].includes(field) && value) {
                     const date = new Date(value);
                     value = Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(bn ? 'bn-BD' : 'en-BD');
                 }
@@ -177,7 +186,7 @@
             const value = item[field];
             if (typeof value === 'boolean') return value ? msg('Yes', 'হ্যাঁ') : msg('No', 'না');
             if (value == null) return '';
-            if (field === 'occurredAt') {
+            if (['occurredAt', 'registeredAt', 'approvedAt'].includes(field)) {
                 const d = new Date(value);
                 return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(bn ? 'bn-BD' : 'en-BD');
             }
