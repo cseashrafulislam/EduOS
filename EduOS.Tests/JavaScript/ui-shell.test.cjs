@@ -227,3 +227,40 @@ test('shared link visibility excludes hidden, inert, aria-hidden and disabled sh
     assert.equal(shellLinkVisible(null), false);
     assert.match(js, /\[aria-hidden="true"\]/);
 });
+
+test('shared navigation excludes CSS-hidden and aria-disabled destinations before breadcrumb/next-step selection', () => {
+    const link = (attrs = {}, ancestor = null) => ({
+        nodeType: 1,
+        getAttribute: key => Object.hasOwn(attrs, key) ? attrs[key] : null,
+        closest: () => ancestor,
+        getClientRects: () => [1]
+    });
+    assert.equal(shellLinkVisible(link({ 'aria-hidden': 'true' })), false);
+    assert.equal(shellLinkVisible(link({ disabled: '' })), false);
+    assert.equal(shellLinkVisible(link({}, {})), false);
+    const original = global.getComputedStyle;
+    try {
+        global.getComputedStyle = () => ({ visibility: 'hidden', display: 'block' });
+        assert.equal(shellLinkVisible(link()), false);
+        global.getComputedStyle = () => ({ visibility: 'visible', display: 'none' });
+        assert.equal(shellLinkVisible(link()), false);
+        global.getComputedStyle = () => ({ visibility: 'visible', display: 'block' });
+        assert.equal(shellLinkVisible(link()), true);
+    } finally {
+        if (original === undefined) delete global.getComputedStyle;
+        else global.getComputedStyle = original;
+    }
+    assert.match(js, /getComputedStyle\(link\)/);
+    assert.match(js, /\[aria-disabled="true"\]/);
+});
+
+test('shared field-state tokens cover validated pending/invalid/valid states across appearance modes', () => {
+    for (const state of ['invalid', 'valid', 'pending']) {
+        assert.ok(css.includes('.edu-field-state[data-state="' + state + '"]'));
+    }
+    assert.match(css, /:root\[data-workspace-theme="dark"\] \.edu-field-state/);
+    assert.match(css, /:root\[data-workspace-theme="system"\] \.edu-field-state/);
+    assert.match(css, /\.edu-field-state \{[^}]*overflow-wrap: anywhere/);
+    assert.match(js, /const focused = toast\.contains\(document\.activeElement\)/);
+    assert.match(js, /if \(focused && sameSession\(\)\)/);
+});

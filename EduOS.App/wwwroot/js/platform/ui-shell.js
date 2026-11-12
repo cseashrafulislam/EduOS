@@ -30,9 +30,19 @@
             link.getAttribute('aria-disabled') === 'true' ||
             link.getAttribute('hidden') !== null ||
             link.getAttribute('inert') !== null ||
-            link.closest?.('[hidden], [inert], [aria-hidden="true"]')) return false;
-        // Avoid a visually collapsed group masquerading as the current page.
+            link.getAttribute('aria-hidden') === 'true' ||
+            link.getAttribute('disabled') !== null ||
+            link.closest?.('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]')) return false;
+        // A hidden/collapsed link is never a valid shortcut or breadcrumb.
         if (link.getClientRects && link.getClientRects().length === 0) return false;
+        // Visibility:hidden can still have layout rectangles. Check the actual
+        // rendered state, without assuming that an element is an HTMLElement
+        // (the pure helper is also exercised by server-side Node tests).
+        if (typeof getComputedStyle === 'function' && link.nodeType === 1) {
+            const style = getComputedStyle(link);
+            if (style.visibility === 'hidden' || style.visibility === 'collapse' ||
+                style.display === 'none') return false;
+        }
         return true;
     }
 
@@ -74,6 +84,8 @@
             if (!shellLinkVisible(candidate)) continue;
             const candidateRoute = canonicalShellRoute(candidate.getAttribute('href'));
             if (!candidateRoute || candidateRoute === currentRoute) continue;
+            // A duplicate MVC Index alias later in the same menu is not a
+            // distinct step; choose the first distinct authorized destination.
             return candidate;
         }
         return null;
@@ -224,7 +236,15 @@
         dismiss.className = 'edu-toast-dismiss';
         dismiss.textContent = '×';
         dismiss.setAttribute('aria-label', bangla ? 'বিজ্ঞপ্তি বন্ধ করুন' : 'Dismiss notification');
-        dismiss.addEventListener('click', () => toast.remove());
+        dismiss.addEventListener('click', () => {
+            // Keyboard users must not lose focus to the document body when
+            // dismissing a focused toast. Prefer another visible notice.
+            const focused = toast.contains(document.activeElement);
+            const replacement = toast.nextElementSibling?.querySelector('button') ||
+                toast.previousElementSibling?.querySelector('button');
+            toast.remove();
+            if (focused && sameSession()) (replacement || document.getElementById('main-content'))?.focus?.();
+        });
         toast.append(text, dismiss);
         // Bounded presentation state: no storage and no hidden stale notifications.
         if (host.children.length >= 3) {

@@ -3943,6 +3943,27 @@ select,
     :root[data-workspace-theme="system"] .shell-context-shortcut--next { background: transparent; }
 }
 
+/* Shared shell field-state tokens: opt-in only, no business validation or save logic.
+   Keep invalid/pending/success feedback legible in light, dark and system themes. */
+.edu-field-state { display: block; margin-top: .3rem; font-size: .8rem; line-height: 1.45; color: var(--edu-muted); overflow-wrap: anywhere; }
+.edu-field-state[data-state="invalid"], .edu-field-state--invalid { color: #b91c1c; }
+.edu-field-state[data-state="valid"], .edu-field-state--valid { color: #166534; }
+.edu-field-state[data-state="pending"], .edu-field-state--pending { color: #1d4ed8; }
+:root[data-workspace-theme="dark"] .edu-field-state[data-state="invalid"],
+:root[data-workspace-theme="dark"] .edu-field-state--invalid { color: #fca5a5; }
+:root[data-workspace-theme="dark"] .edu-field-state[data-state="valid"],
+:root[data-workspace-theme="dark"] .edu-field-state--valid { color: #86efac; }
+:root[data-workspace-theme="dark"] .edu-field-state[data-state="pending"],
+:root[data-workspace-theme="dark"] .edu-field-state--pending { color: #93c5fd; }
+@media (prefers-color-scheme: dark) {
+    :root[data-workspace-theme="system"] .edu-field-state[data-state="invalid"],
+    :root[data-workspace-theme="system"] .edu-field-state--invalid { color: #fca5a5; }
+    :root[data-workspace-theme="system"] .edu-field-state[data-state="valid"],
+    :root[data-workspace-theme="system"] .edu-field-state--valid { color: #86efac; }
+    :root[data-workspace-theme="system"] .edu-field-state[data-state="pending"],
+    :root[data-workspace-theme="system"] .edu-field-state--pending { color: #93c5fd; }
+}
+
 /* UX-01/02: contextual shortcuts remain navigable at zoomed/mobile sizes,
    without obscuring focus or changing canonical form/transaction styling. */
 .shell-context-actions { min-width: 0; align-items: center; }
