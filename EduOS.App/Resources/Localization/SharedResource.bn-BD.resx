@@ -516,7 +516,7 @@
   <data name="BrandingSetupTitle" xml:space="preserve"><value>ব্র্যান্ডিং ও পোর্টাল ঠিকানা</value></data>
   <data name="BrandingSetupHelp" xml:space="preserve"><value>নিরাপদ পোর্টাল ঠিকানা এবং শিক্ষার্থী-অভিভাবকদের পরিচিত ভিজ্যুয়াল পরিচয় নির্ধারণ করুন।</value></data>
   <data name="PortalAddress" xml:space="preserve"><value>পোর্টাল ঠিকানা</value></data>
-  <data name="PortalAddressHelp" xml:space="preserve"><value>প্রতিষ্ঠানের ওয়ার্কস্পেস চালু করতে এই স্বতন্ত্র ঠিকানাটি আবশ্যক।</value></data>
+  <data name="PortalAddressHelp" xml:space="preserve"><value>নিজস্ব পোর্টাল ঠিকানা পরে সেট করা যাবে। যাচাইকৃত সাবস্ক্রিপশন থাকলে EduOS ওয়ার্কস্পেস এখনই ব্যবহার করা যাবে।</value></data>
   <data name="PortalSubdomain" xml:space="preserve"><value>সাবডোমেইন</value></data>
   <data name="SubdomainPlaceholder" xml:space="preserve"><value>apnar-protisthan</value></data>
   <data name="SaveSubdomain" xml:space="preserve"><value>ঠিকানা সংরক্ষণ করুন</value></data>
@@ -548,7 +548,7 @@
   <data name="PrimaryColor" xml:space="preserve"><value>প্রধান রং</value></data>
   <data name="SecondaryColor" xml:space="preserve"><value>দ্বিতীয় রং</value></data>
   <data name="AccentColor" xml:space="preserve"><value>বিশেষ রং</value></data>
-  <data name="BrandingRequiredNote" xml:space="preserve"><value>পোর্টাল ঠিকানা আবশ্যক। অ্যাডমিন পরে ছবি ও রং পরিবর্তন করতে পারবেন।</value></data>
+  <data name="BrandingRequiredNote" xml:space="preserve"><value>যাচাইকৃত পেমেন্টের পর EduOS ব্যবহারের জন্য ব্র্যান্ডিং আবশ্যক নয়। এই ব্র্যান্ডিং ধাপ শেষ করতে স্বতন্ত্র পোর্টাল ঠিকানা দিন; ছবি ও রং পরে পরিবর্তন করা যাবে।</value></data>
   <data name="BrandingSaveFailed" xml:space="preserve"><value>ব্র্যান্ডিং সংরক্ষণ করা যায়নি। পোর্টাল ঠিকানা ও রং যাচাই করুন।</value></data>
   <data name="BrandingPartialSaveRecovery" xml:space="preserve"><value>সংযোগ বিচ্ছিন্ন হওয়ার আগে কিছু ব্র্যান্ড রঙ সংরক্ষিত হয়ে থাকতে পারে। সম্ভব হলে সর্বশেষ সংরক্ষিত রঙ আবার লোড করা হয়েছে। পুনরায় চেষ্টা করার আগে তিনটি রঙ যাচাই করুন; পরবর্তী সেটআপ ধাপ নিশ্চিত নয়; রিলোড করে অবস্থা যাচাই করুন।</value></data>
   <data name="GeneralSettingsTitle" xml:space="preserve"><value>আঞ্চলিক পছন্দ</value></data>
