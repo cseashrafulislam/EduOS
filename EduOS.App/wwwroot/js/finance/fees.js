@@ -381,7 +381,14 @@ async function ledger(){
   if(!isCurrent('ledger',request)||state.student!==ref||e('feeStudent').value!==ref)return;
   e('feeLedgerSummary').textContent=r.studentName+' ('+r.studentCode+')'+t(' — Gross billed: ',' — মোট বিল: ')+amount(r.totalBilled)+t(' Credit notes: ',' ক্রেডিট নোট: ')+amount(r.totalCreditNotes)+t(' Net billed: ',' নিট বিল: ')+amount(r.netBilled)+t(' Net paid: ',' নিট পরিশোধ: ')+amount(r.netPaid)+t(' Due: ',' বকেয়া: ')+amount(r.totalDue)+' BDT';
   await Promise.all([invoices(),receipts()]);
- }catch(err){if(isCurrent('ledger',request)&&err.name!=='AbortError')alert('danger',err.message);}
+ }catch(err){
+  if(isCurrent('ledger',request)&&err.name!=='AbortError'){
+   if(!state.paymentBusy)alert('danger',err.message);
+   throw err;
+  }
+  return false;
+ }
+ return isCurrent('ledger',request)&&state.student===ref&&e('feeStudent').value===ref;
 }
 async function collect(ev){
  ev.preventDefault();if(state.paymentBusy||!state.invoice||!ev.currentTarget.reportValidity())return;
@@ -414,8 +421,19 @@ async function collect(ev){
      amount(preview.amount)+t(' BDT for ',' টাকা, ইনভয়েস ')+preview.invoices[0].invoiceNumber+
      t('? Current remaining due: ','? বর্তমান অবশিষ্ট বকেয়া: ')+amount(preview.invoices[0].dueAfter)+' BDT.'))return;
  if(state.student!==student||e('feeStudent').value!==student||state.invoice!==invoice)return;
- try{const r=await api('/payments','POST',body);if(state.student!==student||e('feeStudent').value!==student)return;clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');paymentGuard?.markClean();await ledger();if(state.student===student)alert('success',t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+r.receiptNumber);}
- catch(err){alert('danger',err.message+t(' Keep values unchanged for a safe retry.',' নিরাপদে আবার চেষ্টা করতে তথ্য অপরিবর্তিত রাখুন।'));}
+ let receipt;
+ try{receipt=await api('/payments','POST',body);}
+ catch(err){return alert('danger',err.message+t(' Keep values unchanged for a safe retry.',' নিরাপদে আবার চেষ্টা করতে তথ্য অপরিবর্তিত রাখুন।'));}
+ // A successful POST is final. Never label a subsequent read failure as a payment failure.
+ clear('payment');state.invoice=null;e('feePaymentPanel').classList.add('d-none');paymentGuard?.markClean();
+ let refreshed=false;
+ try{refreshed=await ledger();}
+ catch(_){/* Ledger read failure must not invite a duplicate financial write. */}
+ if(state.student===student&&e('feeStudent').value===student){
+  alert(refreshed?'success':'warning',refreshed
+   ?t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+receipt.receiptNumber
+   :t('Receipt recorded: ','রসিদ নথিভুক্ত হয়েছে: ')+receipt.receiptNumber+t('. Ledger refresh failed; reload the ledger before collecting again. Do not submit this payment again.','. লেজার রিফ্রেশ হয়নি; পরবর্তী সংগ্রহের আগে লেজার রিলোড করুন। এই পেমেন্ট আবার জমা দেবেন না।'));
+ }
  }finally{
   state.paymentBusy=false;e('feeCollect').disabled=false;e('feePaymentForm').inert=false;
   for(const id of ['feeStudentSearch','feeStudent','feeFindStudent','feeLoadLedger'])e(id).disabled=false;
