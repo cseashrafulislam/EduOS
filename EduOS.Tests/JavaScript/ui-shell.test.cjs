@@ -139,15 +139,15 @@ test('contextual Smart Setup shortcut reuses only an authorized sidebar link, ne
     assert.equal(contextualSetupLink([student, link('//evil.example/SmartSetup')], student), null);
     assert.equal(contextualSetupLink([student, link('/SmartSetup/Index/../../Other')], student), null);
     assert.equal(contextualSetupLink([], null), null);
-    assert.match(layout, /id="shellContextActions"[\\s\\S]*?hidden><\\/nav>/);
-    assert.match(js, /contextual\\.replaceChildren\\(\\)/);
-    assert.match(js, /contextual\\.hidden = true/);
-    assert.match(js, /window\\.EduOSSessionTransitionPending/);
-    assert.match(js, /shortcut\\.href = setup\\.getAttribute\\('href'\\)/);
+    assert.match(layout, /id="shellContextActions"[\s\S]*?hidden><\/nav>/);
+    assert.match(js, /contextual\.replaceChildren\(\)/);
+    assert.match(js, /contextual\.hidden = true/);
+    assert.match(js, /window\.EduOSSessionTransitionPending/);
+    assert.match(js, /shortcut\.href = setup\.getAttribute\('href'\)/);
     assert.match(js, /eduos:sidebar-navigation-ready/);
-    assert.match(css, /\\.shell-context-shortcut:focus-visible/);
-    assert.match(css, /max-width: 575\\.98px/);
-    assert.match(css, /data-workspace-theme="dark"\\] \\.shell-context-shortcut/);
+    assert.match(css, /\.shell-context-shortcut:focus-visible/);
+    assert.match(css, /max-width: 575\.98px/);
+    assert.match(css, /data-workspace-theme="dark"\] \.shell-context-shortcut/);
 });
 
 test('hidden, inert and disabled sidebar links cannot become active breadcrumb or setup action', () => {
@@ -166,15 +166,15 @@ test('hidden, inert and disabled sidebar links cannot become active breadcrumb o
     assert.equal(breadcrumbSelection([hidden]), null);
     assert.equal(contextualSetupLink([visible, inert, disabled], visible), null);
     assert.match(js, /shellSessionValid/);
-    assert.match(js, /window.addEventListener\\('pageshow'/);
-    assert.match(js, /document.addEventListener\\('visibilitychange'/);
+    assert.match(js, /window.addEventListener\('pageshow'/);
+    assert.match(js, /document.addEventListener\('visibilitychange'/);
 });
 
 test('shared notices preserve critical and keyboard-focused messages when toast stack is full', () => {
-    assert.match(js, /node.matches\\('\\.edu-toast--error, \\.edu-toast--warning'\\)/);
-    assert.match(js, /node.contains\\(document.activeElement\\)/);
-    assert.match(js, /if \\(!removable\\) return null/);
-    assert.match(js, /shellSessionValid\\(\\)/);
+    assert.match(js, /node.matches\('\.edu-toast--error, \.edu-toast--warning'\)/);
+    assert.match(js, /node.contains\(document.activeElement\)/);
+    assert.match(js, /if \(!removable\) return null/);
+    assert.match(js, /shellSessionValid\(\)/);
 });
 
 test('opt-in next-page shortcut never invents routes or crosses authorized menu sections', () => {
