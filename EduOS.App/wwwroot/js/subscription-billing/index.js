@@ -82,14 +82,25 @@ function renderUpcoming(){
   box.textContent=(u.state===7?t("Renewal invoice awaiting payment. ","নবায়নের ইনভয়েস পরিশোধের অপেক্ষায়। "):u.state===2?t("Prepaid renewal scheduled. ","অগ্রিম পরিশোধিত নবায়ন নির্ধারিত। "):t("Renewal scheduled. ","নবায়ন নির্ধারিত। "))+
    (u.planName||t("Subscription","সাবস্ক্রিপশন"))+" · "+date(u.startsAt)+t(" to "," থেকে ")+date(u.endsAt)+
    t(". Your current period remains effective until its existing end date.","। বর্তমান মেয়াদ আগের নির্ধারিত তারিখ পর্যন্ত চালু থাকবে।");
+  if(u.state===7){
+   const version=state.version;
+   api("/api/subscription/invoices/unpaid").then(invoices=>{
+    if(version!==state.version||state.upcoming?.id!==u.id)return;
+    const invoice=Array.isArray(invoices)?invoices.find(i=>
+     Number(i.tenantSubscriptionId)===Number(u.id)&&Number(i.dueAmount)>0&&[2,3].includes(Number(i.state))):null;
+    if(invoice){const a=document.createElement("a");a.href="/Account/Payment?invoiceId="+encodeURIComponent(invoice.id);
+     a.className="btn btn-primary btn-sm";a.textContent=t("Pay next period","পরবর্তী মেয়াদের পেমেন্ট");actions.append(a);}
+   }).catch(()=>{});
+  }
   return;
  }
  if(!s||![1,2,3].includes(s.state)||s.billingCycleCode==="Lifetime"){
   box.textContent=t("No eligible active subscription for early renewal.","আগাম নবায়নের জন্য যোগ্য সক্রিয় সাবস্ক্রিপশন নেই।");return;
  }
  const remaining=new Date(s.endsAt).getTime()-Date.now();
- if(!Number.isFinite(remaining)||remaining<=0||remaining>30*86400000||!s.rowVersion){
-  box.textContent=t("You can request a renewal invoice during the final 30 days of the current period.","বর্তমান মেয়াদের শেষ ৩০ দিনে নবায়নের ইনভয়েস চাইতে পারবেন।");return;
+ if(!Number.isFinite(remaining)||remaining<=0||!s.rowVersion||
+   (s.billingCycleCode!=="Monthly"&&remaining>30*86400000)){
+  box.textContent=t("Monthly plans may renew during their active period. Other plans can request renewal in the last 30 days.","মাসিক প্ল্যান সক্রিয় থাকাকালে পরবর্তী মাসের নবায়ন করা যায়। অন্য প্ল্যানের জন্য শেষ ৩০ দিনে নবায়ন করা যাবে।");return;
  }
  box.textContent=s.autoRenew
   ?t("Auto-renew is enabled: an invoice will be scheduled automatically during the final 30 days. You may also request it now. No payment is collected automatically.","স্বয়ংক্রিয় নবায়ন চালু: শেষ ৩০ দিনে ইনভয়েস নির্ধারিত হবে। এখনই চাইতে পারেন; স্বয়ংক্রিয়ভাবে টাকা কাটা হবে না।")
