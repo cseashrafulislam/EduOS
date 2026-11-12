@@ -11,6 +11,7 @@
     let selectedCycle = 1;
     let pendingRequestId = null;
     let existingSubscription = null;
+    let isSubmitting = false;
 
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
 
@@ -215,6 +216,10 @@
 
     function selectPlan(planId) {
         if (existingSubscription || !positiveInteger(planId)) return;
+        if (selectedPlanId !== planId) {
+            pendingRequestId = null;
+            clearAlert();
+        }
         selectedPlanId = planId;
         continueButton.disabled = false;
         plansGrid.querySelectorAll('.plan-selection-card').forEach(card => {
@@ -234,6 +239,10 @@
         const button = event.target.closest('button[data-cycle]');
         const cycle = positiveInteger(button?.dataset.cycle);
         if (!button || !cycle || cycle > 4) return;
+        if (selectedCycle !== cycle) {
+            pendingRequestId = null;
+            clearAlert();
+        }
         selectedCycle = cycle;
         billingToggle.querySelectorAll('button[data-cycle]').forEach(item => {
             const active = item === button;
@@ -244,7 +253,9 @@
     }
 
     async function createSubscription() {
-        if (existingSubscription || !selectedPlanId) return;
+        if (existingSubscription || !selectedPlanId || isSubmitting) return;
+        isSubmitting = true;
+        clearAlert();
         setLoading(continueButton, true);
         try {
             const response = await fetch('/api/subscription', {
@@ -260,13 +271,9 @@
                 })
             });
             const payload = await response.json().catch(() => null);
-            if (response.status === 409) {
-                const recovered = await recoverExistingSubscription();
-                if (!recovered) showAlert('danger', i18n.createFailed);
-                return;
-            }
+            if (response.status === 409 && await recoverExistingSubscription()) return;
             if (!response.ok || !payload?.success || !payload.data) {
-                showAlert('danger', i18n.createFailed);
+                showAlert('danger', subscriptionError(response, payload));
                 return;
             }
 
@@ -277,7 +284,8 @@
                     window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
                     return;
                 }
-                showAlert('danger', i18n.createFailed);
+                // The subscription was committed. Payment can find the invoice from the server.
+                window.location.assign('/Account/Payment');
                 return;
             }
             if (Number(payload.data.state) === 1 || Number(payload.data.state) === 2) {
@@ -289,8 +297,35 @@
         } catch {
             showAlert('danger', i18n.networkError);
         } finally {
+            isSubmitting = false;
             setLoading(continueButton, false);
         }
+    }
+
+    function subscriptionError(response, payload) {
+        if (typeof payload?.message === 'string' && payload.message.trim())
+            return payload.message.trim();
+        const validationErrors = payload?.errors && typeof payload.errors === 'object'
+            ? Object.values(payload.errors).flat().filter(value => typeof value === 'string' && value.trim())
+            : [];
+        if (validationErrors.length) return validationErrors.slice(0, 2).join(' ');
+        if (response.status === 401 || response.status === 403)
+            return i18n.isBangla ? 'আপনার সেশন বা অনুমতি যাচাই করা যায়নি। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।'
+                : 'Your session or permission could not be verified. Refresh the page and try again.';
+        if (response.status === 429)
+            return i18n.isBangla ? 'অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।'
+                : 'Too many attempts. Please try again later.';
+        if (response.status === 400)
+            return i18n.isBangla ? 'অনুরোধটি গ্রহণ করা যায়নি। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।'
+                : 'The request was not accepted. Refresh the page and try again.';
+        return i18n.createFailed || '';
+    }
+
+    function clearAlert() {
+        const container = document.getElementById('alertContainer');
+        if (!container) return;
+        container.className = 'd-none';
+        container.textContent = '';
     }
 
     async function advanceFreeSubscription() {
@@ -317,7 +352,9 @@
         retry.type = 'button';
         retry.className = 'btn btn-sm btn-outline-primary';
         retry.textContent = i18n.retry || '';
-        retry.addEventListener('click', initialize, { once: true });
+        retry.addEventListener('click', async () => {
+            if (!await recoverExistingSubscription()) await loadPlans();
+        });
         state.append(retry);
         plansGrid.replaceChildren(state);
         setGridBusy(false);
