@@ -3236,7 +3236,7 @@ select,
     padding-bottom: .9rem;
     border-bottom: 1px solid var(--edu-border, #e2e8f0);
 }
-.admission-new-heading h3 { margin: 0; font-size: 1.15rem; }
+.admission-new-heading h2 { margin: 0; font-size: 1.2rem; color: var(--edu-text, #0f172a); font-weight: 700; }
 .admission-required-note { font-size: .77rem; color: var(--edu-muted, #64748b); }
 .admission-application-form { display: grid; gap: 1rem; min-width: 0; }
 .admission-form-section {
