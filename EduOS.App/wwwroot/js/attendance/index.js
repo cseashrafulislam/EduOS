@@ -18,7 +18,7 @@
     if (!form || !rows || !date) return;
     let loaded = false, roster = null, dirty = false;
     let saving = false, finalizing = false, correcting = false;
-    let acceptedDate = '', acceptedBatch = '', acceptedSubject = '';
+    let acceptedDate = '', acceptedBatch = '', acceptedSection = '', acceptedSubject = '';
     let historicalSessionId = null;
     let historicalQuery = { search: '', state: '' };
     let rosterPage = 1, rosterPages = 0, rosterRequest = 0;
@@ -29,6 +29,7 @@
     }
     let batchPage = 1, batchPages = 0, batchRequest = 0;
     let subjectPage = 1, subjectPages = 0, subjectRequest = 0;
+    let sectionPage = 1, sectionPages = 0, sectionRequest = 0;
     const local = new Date();
     date.value = [local.getFullYear(), String(local.getMonth() + 1).padStart(2, '0'), String(local.getDate()).padStart(2, '0')].join('-');
     acceptedDate = date.value;
@@ -72,6 +73,8 @@
         ++subjectRequest;
         subjectPage = 1;
         resetSubjects('Select an academic batch');
+        ++sectionRequest;
+        selectOptions('attendanceAcademicSection', [], 'Select a batch first');
         selectOptions('sectionId', [], 'Loading authorized batches…');
         el('attendanceBatchPrevious').disabled = true;
         el('attendanceBatchNext').disabled = true;
@@ -115,6 +118,49 @@
         el('attendanceSubjectNext').disabled = true;
         el('attendanceSubjectPage').textContent = '';
     }
+    async function loadSections() {
+        if (dirty && !confirm('Discard unsaved attendance before changing academic sections?')) {
+            el('sectionId').value = acceptedBatch; return;
+        }
+        acceptedBatch = el('sectionId').value;
+        acceptedSection = '';
+        historicalSessionId = null;
+        resetHistoricalQuery();
+        rosterPage = 1;
+        invalidate();
+        const seq = ++sectionRequest;
+        const batchId = Number(el('sectionId').value);
+        selectOptions('attendanceAcademicSection', [], batchId ? 'Loading sections…' : 'Select a batch');
+        el('attendanceSectionPrevious').disabled = true;
+        el('attendanceSectionNext').disabled = true;
+        el('attendanceSectionPage').textContent = '';
+        resetSubjects();
+        if (!batchId || !date.value) return;
+        try {
+            const params = new URLSearchParams({ academicBatchId: String(batchId),
+                attendanceDate: date.value, page: String(sectionPage), pageSize: '25' });
+            const response = await api('/api/student-attendance/sections?' + params);
+            if (seq !== sectionRequest || batchId !== Number(el('sectionId').value)) return;
+            const data = response.data || {};
+            const previous = el('attendanceAcademicSection').value;
+            selectOptions('attendanceAcademicSection', (data.items || []).map(x =>
+                ({ id: x.id, name: x.name + ' (' + x.code + ')' })), 'Select academic section');
+            if ([...el('attendanceAcademicSection').options].some(x => x.value === previous))
+                el('attendanceAcademicSection').value = previous;
+            else if ((data.items || []).length === 1)
+                el('attendanceAcademicSection').value = String(data.items[0].id);
+            acceptedSection = el('attendanceAcademicSection').value;
+            sectionPages = data.totalPages || 0;
+            el('attendanceSectionPage').textContent = 'Page ' + sectionPage + ' of ' +
+                sectionPages + ' · ' + (data.totalCount || 0) + ' sections';
+            el('attendanceSectionPrevious').disabled = sectionPage <= 1;
+            el('attendanceSectionNext').disabled = sectionPage >= sectionPages;
+            subjectPage = 1;
+            await loadSubjects();
+        } catch (error) {
+            if (seq === sectionRequest) status('danger', error.message);
+        }
+    }
     async function loadSubjects() {
         if (dirty && !confirm('Discard unsaved attendance before changing subjects?')) {
             el('sectionId').value = acceptedBatch; return;
@@ -131,6 +177,8 @@
         try {
             const params = new URLSearchParams({
                 academicBatchId: String(batchId), attendanceDate: date.value,
+                ...(el('attendanceAcademicSection').value ?
+                    { academicSectionId: el('attendanceAcademicSection').value } : {}),
                 search: el('attendanceSubjectSearch').value.trim(),
                 page: String(subjectPage), pageSize: '25'
             });
@@ -231,6 +279,7 @@
     function requestScope() {
         const selected = el('attendanceSubject').value;
         return { academicBatchId: Number(el('sectionId').value),
+            academicSectionId: Number(el('attendanceAcademicSection').value) || null,
             attendanceDate: date.value, subjectOfferingId: selected ? Number(selected) : null };
     }
     function makeCell(value) { const cell = document.createElement('td'); cell.textContent = value === null || value === undefined ? '' : String(value); return cell; }
@@ -504,7 +553,22 @@
             ' · Excused ' + total.excused + ' · Unmarked ' + total.unmarked +
             (dirty ? ' · Unsaved edits on this page' : '');
     }
-    el('sectionId').addEventListener('change', () => { subjectPage = 1; loadSubjects(); });
+    el('sectionId').addEventListener('change', () => {
+        sectionPage = 1; loadSections();
+    });
+    el('attendanceAcademicSection').addEventListener('change', () => {
+        if (dirty && !confirm('Discard unsaved attendance before changing sections?')) {
+            el('attendanceAcademicSection').value = acceptedSection; return;
+        }
+        acceptedSection = el('attendanceAcademicSection').value;
+        subjectPage = 1; loadSubjects();
+    });
+    el('attendanceSectionPrevious').addEventListener('click', () => {
+        if (sectionPage > 1) { sectionPage--; loadSections(); }
+    });
+    el('attendanceSectionNext').addEventListener('click', () => {
+        if (sectionPage < sectionPages) { sectionPage++; loadSections(); }
+    });
     el('attendanceSubject').addEventListener('change', () => {
         if (dirty && !confirm('Discard unsaved attendance before changing subjects?')) {
             el('attendanceSubject').value = acceptedSubject; return;
@@ -568,6 +632,7 @@
             name: String(detail.batchLabel || 'Selected academic batch') }], 'Select authorized academic batch');
         el('sectionId').value = String(batchId);
         resetSubjects();
+        selectOptions('attendanceAcademicSection', [], 'Section resolved from session');
         const subject = el('attendanceSubject');
         if (offeringId !== null) {
             const option = document.createElement('option');
