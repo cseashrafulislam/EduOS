@@ -32,6 +32,8 @@
     const match = routes.find(([prefix]) => path === prefix ||
         path.startsWith(prefix + '/'));
     if (!match) return;
+    // The explicit setup handoff renders a richer, editable preview on this page.
+    if (new URLSearchParams(location.search).get('smartSetup')?.toUpperCase() === match[1]) return;
     const session = body.dataset.authSessionReference;
     const tenant = body.dataset.authTenantId;
     const valid = () => session === body.dataset.authSessionReference &&
