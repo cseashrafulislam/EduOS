@@ -37,7 +37,7 @@ public interface IAcademicSetupService
     Task<ApiResponse<PagedResult<AcademicBatchDto>>> GetBatchesAsync(string? search, long? campusId, long? academicYearId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicBatchDto>> GetBatchAsync(long id, CancellationToken cancellationToken = default);
     Task<ApiResponse<AcademicBatchDto>> UpdateBatchAsync(long id, UpdateAcademicBatchRequestDto request, CancellationToken cancellationToken = default);
-    Task<ApiResponse<PagedResult<SubjectOfferingDto>>> GetSubjectOfferingsAsync(long academicBatchId, string? search, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<SubjectOfferingDto>>> GetSubjectOfferingsAsync(long academicBatchId, string? search, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default, long? academicSectionId = null);
     Task<ApiResponse<SubjectOfferingDto>> CreateSubjectOfferingAsync(SaveSubjectOfferingRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<SubjectOfferingDto>> UpdateSubjectOfferingAsync(Guid reference, UpdateSubjectOfferingRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<RoomDto>> CreateRoomAsync(SaveRoomRequestDto request, CancellationToken cancellationToken = default);
