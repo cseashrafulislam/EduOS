@@ -3,6 +3,10 @@ using System.Text.Json;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Academic;
+using EduOS.Core.Entities.Assessment;
+using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Payroll;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.HR;
 using EduOS.Core.Entities.Inventory;
@@ -70,7 +74,7 @@ public sealed class SmartSetupService(
         if (!Allowed) return ApiResponse<SmartSetupApplyResultDto>.ErrorResponse("Tenant administrator permission required.", 403);
         if (request == null || !request.Confirmed || request.ClientRequestId == Guid.Empty ||
             request.InstitutionTypeId <= 0 || request.TemplateVersion != SmartSetupCatalog.Version ||
-            request.Modules == null || request.Modules.Count is < 1 or > 7 ||
+            request.Modules == null || request.Modules.Count is < 1 or > 10 ||
             request.Modules.Any(x => string.IsNullOrWhiteSpace(x)))
             return ApiResponse<SmartSetupApplyResultDto>.ErrorResponse("Review the current template and explicitly confirm the selected modules.");
 
@@ -256,7 +260,20 @@ public sealed class SmartSetupService(
                 module.Entries.Add(new SmartSetupEntryDto
                 {
                     Kind = seed.Kind, Code = seed.Code, Name = seed.Name,
-                    Detail = seed.Frequency?.ToString(),
+                    Detail = seed.Kind switch
+                    {
+                        "FeeHead" => seed.Frequency?.ToString(),
+                        "GradeScheme" => seed.Code == "BD-GPA-5"
+                            ? "7 grade bands · maximum GPA 5.00 · no default"
+                            : "10 grade bands · maximum CGPA 4.00 · no default",
+                        "Account" => seed.IsGroup
+                            ? seed.AccountType + " · Group / non-posting"
+                            : seed.AccountType + " · Under " + seed.ParentCode + " · Posting",
+                        "SalaryComponent" => seed.SalaryType + " · taxable flag: " +
+                            (seed.IsTaxable ? "Yes" : "No") + " (review before payroll)",
+                        "Subject" => "Subject master only · no curriculum allocation",
+                        _ => null
+                    },
                     Status = !available ? "Disabled" : same ? "Existing" :
                         competing.Count == 0 ? "Missing" : "Conflict"
                 });
@@ -281,6 +298,26 @@ public sealed class SmartSetupService(
                     all.AddRange(await db.Mediums.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
                         .Select(x => new Existing("Medium", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
+                    break;
+                case "Subject":
+                    all.AddRange(await db.Subjects.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
+                        (codes.Contains(x.Code) || names.Contains(x.Name)))
+                        .Select(x => new Existing("Subject", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
+                    break;
+                case "GradeScheme":
+                    all.AddRange(await db.GradeSchemes.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
+                        (codes.Contains(x.Code) || names.Contains(x.Name)))
+                        .Select(x => new Existing("GradeScheme", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
+                    break;
+                case "Account":
+                    all.AddRange(await db.Accounts.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
+                        (codes.Contains(x.Code) || names.Contains(x.Name)))
+                        .Select(x => new Existing("Account", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
+                    break;
+                case "SalaryComponent":
+                    all.AddRange(await db.SalaryComponents.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
+                        (codes.Contains(x.Code) || names.Contains(x.Name)))
+                        .Select(x => new Existing("SalaryComponent", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "OrganizationUnit":
                     all.AddRange(await db.OrganizationUnits.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
