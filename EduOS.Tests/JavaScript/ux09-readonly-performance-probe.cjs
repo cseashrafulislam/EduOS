@@ -11,14 +11,14 @@ function validate(c) {
   if (!c || !Array.isArray(c.routes) || !c.routes.length) throw Error('Explicit read-only routes required');
   const base=new URL(c.baseUrl);
   if (base.protocol!=='https:' && !['localhost','127.0.0.1','[::1]'].includes(base.hostname)) throw Error('Remote HTTPS required');
-  if (base.username || base.password || base.search || base.hash) throw Error('Credentials/query forbidden in base URL');
+  if (base.username || base.password || base.search || base.hash || base.pathname!=='/') throw Error('Credentials/query/path forbidden in base URL');
   if (!Number.isInteger(c.samples)||c.samples<5||c.samples>100) throw Error('samples must be 5..100');
   if (!Number.isInteger(c.timeoutMs)||c.timeoutMs<100||c.timeoutMs>30000) throw Error('timeoutMs must be 100..30000');
   const ids=new Set();
   for (const r of c.routes) {
     if (!r || typeof r.id!=='string' || !/^[\w-]{1,80}$/.test(r.id) || ids.has(r.id)) throw Error('Unique safe route ID required');
     ids.add(r.id);
-    if (typeof r.path!=='string'||!r.path.startsWith('/')||r.path.startsWith('//')||r.path.includes('..')||/[?#]/.test(r.path)) throw Error('Only absolute GET paths without query/traversal allowed');
+    if (typeof r.path!=='string'||!/^\/[A-Za-z0-9/_\-.]*$/.test(r.path)||r.path.startsWith('//')||r.path.split('/').some(s=>s==='.'||s==='..')) throw Error('Only canonical absolute GET paths without encoded/query/traversal characters allowed');
     if (new URL(r.path,base).origin!==base.origin) throw Error('Cross-origin route denied');
   }
   return base;
@@ -54,10 +54,10 @@ function compare(before,after) {
   for(const k of ['role','tenantAlias','campusAlias','locale','device','metric','sampleCountPerRoute'])
     if(before.context[k]!==after.context[k]) throw Error('Mismatched benchmark context: '+k);
   const map=new Map(before.routes.map(r=>[r.id,r]));
-  if(map.size!==before.routes.length||after.routes.length!==before.routes.length) throw Error('Route set mismatch');
+  if(map.size!==before.routes.length||after.routes.length!==before.routes.length||new Set(after.routes.map(r=>r.id)).size!==after.routes.length) throw Error('Route set mismatch');
   return after.routes.map(r=>{
     const old=map.get(r.id);
-    if(!old||old.failures||r.failures||old.p95Ms===null||r.p95Ms===null) throw Error('Cannot compare failed route: '+r.id);
+    if(!old||old.failures||r.failures||![old.p75Ms,old.p95Ms,r.p75Ms,r.p95Ms].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0)) throw Error('Cannot compare failed or invalid route: '+r.id);
     return {id:r.id,baselineP75Ms:old.p75Ms,candidateP75Ms:r.p75Ms,
       deltaP75Pct:Number(((r.p75Ms-old.p75Ms)/Math.max(old.p75Ms,.01)*100).toFixed(2)),
       baselineP95Ms:old.p95Ms,candidateP95Ms:r.p95Ms,
