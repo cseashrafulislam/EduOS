@@ -13,6 +13,8 @@ function harness(fetchResponse) {
     return { tag, children: [], handlers: {}, textContent: '', value: '', disabled: false,
       className: '', href: '', download: '', colSpan: 1,
       appendChild(child) { this.children.push(child); return child; },
+      append(...children) { this.children.push(...children); },
+      setAttribute(name, value) { (this.attributes ||= {})[name] = String(value); },
       replaceChildren(...children) { this.children = children; },
       addEventListener(type, cb) { this.handlers[type] = cb; },
       click() { this.handlers.click?.(); },
@@ -97,4 +99,46 @@ test('server controls tenant, role, campus and source; export never requests ext
   assert.match(source,/if \(!resultReady \|\| loading \|\| !currentItems\.length\) return/);
   assert.match(source,/createObjectURL/);
   assert.doesNotMatch(source,/\/api\/.*export/);
+});
+
+test('work center rejects unentitled source counts and never exports those rows', async () => {
+  const cases = [
+    {source:'Unrecognized',count:1},
+    {source:'ProcurementRequisition',count:-1},
+    {source:'ProcurementRequisition',count:0}
+  ];
+  for (const count of cases) {
+    const h = harness(() => ({ok:true,json:async()=>({success:true,data:{
+      inventoryIncluded:true,sourceCounts:[count],
+      pending:{page:1,pageSize:25,totalCount:1,items:[item]}
+    }})}));
+    await tick();
+    assert.equal(h.nodes.cwcExport.disabled,true);
+    assert.equal(h.nodes.cwcPrint.disabled,true);
+    assert.equal(h.nodes.cwcRows.children.length,0);
+    assert.match(h.nodes.cwcPage.textContent,/unavailable/i);
+    h.nodes.cwcExport.click();
+    assert.equal(h.exports.length,0);
+  }
+});
+
+test('work center never exports a cross-page item before authorized page load succeeds', async () => {
+  let resolveSecond;
+  let calls=0;
+  const h=harness(()=> {
+    calls++;
+    return calls===1 ? success(60) : new Promise(resolve=> {resolveSecond=resolve;});
+  });
+  await tick();
+  assert.equal(h.nodes.cwcExport.disabled,false);
+  h.nodes.cwcNext.click();
+  assert.equal(h.nodes.cwcExport.disabled,true);
+  assert.equal(h.nodes.cwcPrint.disabled,true);
+  h.nodes.cwcExport.click(); h.nodes.cwcPrint.click();
+  assert.equal(h.exports.length,0);
+  assert.equal(h.prints.length,0);
+  resolveSecond({ok:false,json:async()=>({success:false,message:'Unavailable'})});
+  await tick();
+  assert.equal(h.nodes.cwcExport.disabled,true);
+  assert.equal(h.nodes.cwcRows.children.length,0);
 });

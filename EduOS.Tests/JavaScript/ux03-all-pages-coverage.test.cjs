@@ -34,13 +34,15 @@ function environment(lang) {
 
 test('all Razor views receive an explicit source-only, non-certified route/role/mobile/bilingual record', () => {
     const result = audit();
-    assert.equal(result.totals.views, 295);
+    assert.equal(result.totals.views, 296);
     assert.ok(result.totals.rows >= result.totals.views);
     assert.ok(result.totals.MVCActionRows >= 200);
     assert.ok(result.totals.unresolvedViewRows > 0);
     assert.equal(result.totals.authenticatedAcceptancePassed, 0);
     const seen = new Set(result.records.map(row => row.view));
-    assert.equal(seen.size, 295);
+    assert.equal(seen.size, result.totals.views);
+    assert.ok(seen.has('EduOS.App/Views/Shared/OfficialEducationBooks.cshtml'),
+        'shared official education directory remains in source inventory');
     for (const row of result.records) {
         assert.match(row.status, /SOURCE INVENTORY ONLY/);
         assert.match(row.roleTenant, /NOT VERIFIED/);
