@@ -8,6 +8,9 @@ public interface IStudentAttendanceService
     Task<ApiResponse<PagedResult<StudentAttendanceBatchChoiceDto>>> GetBatchChoicesAsync(
         DateOnly? attendanceDate, string? search, int page = 1, int pageSize = 25,
         CancellationToken cancellationToken = default);
+    Task<ApiResponse<PagedResult<StudentAttendanceSectionChoiceDto>>> GetSectionChoicesAsync(
+        long academicBatchId, DateOnly attendanceDate, int page = 1, int pageSize = 25,
+        CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>> GetSubjectChoicesAsync(
         long academicBatchId, DateOnly attendanceDate, string? search,
         int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
