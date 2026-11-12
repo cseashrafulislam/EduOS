@@ -114,6 +114,7 @@
                     <span>@(currentCulture == "bn-BD" ? "পেজ খুঁজুন · পছন্দের তালিকা" : "Find pages · Favorites")</span>
                     <kbd>Ctrl K</kbd>
                 </button>
+                <nav id="sidebarFavoriteShortcuts" class="sidebar-favorites" aria-label="@(currentCulture == "bn-BD" ? "প্রিয় পেজের শর্টকাট" : "Favorite page shortcuts")" hidden></nav>
             }
 
             @if (User?.IsInRole("SuperAdmin") == true)
@@ -141,7 +142,7 @@
             }
             else
             {
-            <div class="menu-title">@T["Main"]</div>
+            <div class="menu-title">@(currentCulture == "bn-BD" ? "ওয়ার্কস্পেস" : "Workspace")</div>
             <nav class="nav flex-column" data-sidebar-section="setup" data-shell-next-task="true">
                 <a class="nav-link @ActiveFor("/Dashboard")" href="/Dashboard/Index">
                     <svg class="edu-icon"><use href="/images/eduos-icons.svg#dashboard" /></svg>
@@ -152,40 +153,14 @@
                 {
                     <a class="nav-link @ActiveFor("/CentralWorkCenter")" href="/CentralWorkCenter/Index">
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
-                        <span>@(currentCulture == "bn-BD" ? "কেন্দ্রীয় অনুমোদন তালিকা" : "Central Work Center")</span>
+                        <span>@(currentCulture == "bn-BD" ? "আমার কাজ ও অনুমোদন" : "My Work & Approvals")</span>
                     </a>
-                }
-                @* The Account/InstitutionProfile and Account/CampusSetup routes belong to the
-                   onboarding wizard. The post-onboarding institution workspace is canonical here. *@
-                @if (User?.IsInRole("TenantAdmin") == true)
-                {
-                    @* Onboarding Account/AcademicSetup and Account/ModuleSetup remain valid
-                       wizard URLs, but are not duplicate daily-management sidebar entries. *@
-                    @foreach (var academicLink in new[] {
-                        (Action: "Years", En: "Academic Years", Bn: "শিক্ষাবর্ষ"),
-                        (Action: "Terms", En: "Terms / Semesters", Bn: "টার্ম / সেমিস্টার"),
-                        (Action: "Departments", En: "Departments", Bn: "বিভাগ"),
-                        (Action: "Classes", En: "Programmes, Classes & Grades", Bn: "প্রোগ্রাম, শ্রেণি ও গ্রেড"),
-                        (Action: "Sections", En: "Sections / Cohorts", Bn: "শাখা / ব্যাচ"),
-                        (Action: "Rooms", En: "Rooms", Bn: "কক্ষ"),
-                        (Action: "Subjects", En: "Subjects", Bn: "বিষয়"),
-                        (Action: "Curricula", En: "Curriculum", Bn: "পাঠ্যক্রম"),
-                        (Action: "Prerequisites", En: "Subject Prerequisites", Bn: "বিষয়ের পূর্বশর্ত"),
-                        (Action: "Offerings", En: "Subject Offerings", Bn: "ব্যাচের বিষয় অফার")
-                    })
-                    {
-                        var academicPath = "/AcademicManagement/" + academicLink.Action;
-                        <a class="nav-link @ActiveFor(academicPath)" href="@academicPath">
-                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
-                            <span>@(currentCulture == "bn-BD" ? academicLink.Bn : academicLink.En)</span>
-                        </a>
-                    }
                 }
             </nav>
 
             <hr class="sidebar-divider" />
-            <div class="menu-title">@T["Academics"]</div>
-            <nav class="nav flex-column" data-sidebar-section="academics">
+            <div class="menu-title">@(currentCulture == "bn-BD" ? "দৈনন্দিন কার্যক্রম" : "Daily Operations")</div>
+            <nav class="nav flex-column" data-sidebar-section="academics" data-sidebar-static="true" aria-label="@(currentCulture == "bn-BD" ? "দৈনন্দিন একাডেমিক কাজ" : "Daily academic work")">
                 @if (User?.IsInRole("Student") == true || User?.IsInRole("Guardian") == true || User?.IsInRole("Parent") == true)
                 {
                     <a class="nav-link @ActiveFor("/StudentPortal")" href="/StudentPortal/Index">
@@ -549,9 +524,7 @@
 
             </nav>
 
-            <hr class="sidebar-divider" />
-            <div class="menu-title">@T["Management"]</div>
-            <nav class="nav flex-column" data-sidebar-section="management">
+            <nav class="nav flex-column" data-sidebar-section="management" data-sidebar-static="true" aria-label="@(currentCulture == "bn-BD" ? "দৈনন্দিন পরিচালনা ও হিসাব" : "Daily management and accounting")">
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("HR") == true)
                 {
                     @foreach (var hrPage in new[] {
@@ -1025,6 +998,32 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>@(currentCulture == "bn-BD" ? "ইন্টিগ্রেশন পরিচালনা" : "Integration Administration")</span>
                     </a>
+                }
+                @* The Account/InstitutionProfile and Account/CampusSetup routes belong to the
+                   onboarding wizard. The post-onboarding institution workspace is canonical here. *@
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    @* Onboarding Account/AcademicSetup and Account/ModuleSetup remain valid
+                       wizard URLs, but are not duplicate daily-management sidebar entries. *@
+                    @foreach (var academicLink in new[] {
+                        (Action: "Years", En: "Academic Years", Bn: "শিক্ষাবর্ষ"),
+                        (Action: "Terms", En: "Terms / Semesters", Bn: "টার্ম / সেমিস্টার"),
+                        (Action: "Departments", En: "Departments", Bn: "বিভাগ"),
+                        (Action: "Classes", En: "Programmes, Classes & Grades", Bn: "প্রোগ্রাম, শ্রেণি ও গ্রেড"),
+                        (Action: "Sections", En: "Sections / Cohorts", Bn: "শাখা / ব্যাচ"),
+                        (Action: "Rooms", En: "Rooms", Bn: "কক্ষ"),
+                        (Action: "Subjects", En: "Subjects", Bn: "বিষয়"),
+                        (Action: "Curricula", En: "Curriculum", Bn: "পাঠ্যক্রম"),
+                        (Action: "Prerequisites", En: "Subject Prerequisites", Bn: "বিষয়ের পূর্বশর্ত"),
+                        (Action: "Offerings", En: "Subject Offerings", Bn: "ব্যাচের বিষয় অফার")
+                    })
+                    {
+                        var academicPath = "/AcademicManagement/" + academicLink.Action;
+                        <a class="nav-link @ActiveFor(academicPath)" href="@academicPath">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#calendar" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? academicLink.Bn : academicLink.En)</span>
+                        </a>
+                    }
                 }
             </nav>
             }
