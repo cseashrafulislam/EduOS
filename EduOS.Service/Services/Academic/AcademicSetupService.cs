@@ -19,6 +19,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
     private readonly IGenericRepository<AcademicCurriculum> _curricula;
     private readonly IGenericRepository<CurriculumSubject> _curriculumSubjects;
     private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicSection>? _sections;
     private readonly IGenericRepository<Room> _rooms;
     private readonly IGenericRepository<ProgramCampus> _programCampuses;
     private readonly IGenericRepository<Campus> _campuses;
@@ -56,7 +57,8 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         IGenericRepository<StudentEnrollment> enrollments,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
-        ILogger<AcademicSetupService> logger)
+        ILogger<AcademicSetupService> logger,
+        IGenericRepository<AcademicSection>? sections = null)
     {
         _programs = programs;
         _levels = levels;
@@ -64,6 +66,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         _curricula = curricula;
         _curriculumSubjects = curriculumSubjects;
         _batches = batches;
+        _sections = sections;
         _rooms = rooms;
         _programCampuses = programCampuses;
         _campuses = campuses;
