@@ -1,0 +1,42 @@
+name: Post-payment workspace and language QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [Ashraful]
+    paths:
+      - '.github/workflows/onboarding-paid-workspace-qa.yml'
+      - 'EduOS.App/Views/Account/_OnboardingLayout.cshtml'
+      - 'EduOS.App/Views/Account/Payment.cshtml'
+      - 'EduOS.App/Views/Shared/_Layout.cshtml'
+      - 'EduOS.App/wwwroot/js/account/payment.js'
+      - 'EduOS.App/wwwroot/js/platform/language-selector.js'
+      - 'EduOS.App/Middleware/OnboardingGuardMiddleware.cs'
+      - 'EduOS.App/Controllers/Api/OnboardingController.cs'
+      - 'EduOS.Core/Common/OnboardingWorkspacePolicy.cs'
+      - 'EduOS.Service/Services/Tenants/OnboardingService.cs'
+      - 'EduOS.Tests/Services/OnboardingServiceTests.cs'
+      - 'EduOS.Tests/App/OnboardingGuardCanonicalStateTests.cs'
+      - 'EduOS.Tests/JavaScript/onboarding-post-payment-access.test.cjs'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-onboarding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore test dependencies
+        run: dotnet restore EduOS.Tests/EduOS.Tests.csproj
+      - name: Payment activation and tenant guard .NET regressions
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --no-restore --configuration Release --filter "FullyQualifiedName~OnboardingServiceTests|FullyQualifiedName~OnboardingGuardCanonicalStateTests"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Payment CTA, verification and localization browser contract
+        run: node --test EduOS.Tests/JavaScript/onboarding-post-payment-access.test.cjs
