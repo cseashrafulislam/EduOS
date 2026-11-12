@@ -137,3 +137,27 @@ test('pending confirmation rejects changed transcript and does not trigger busin
     assert.match(source, /query\.value\.trim\(\) !== requestedSnapshot/);
     assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(|fetch\s*\(/);
 });
+
+test('preflight validation is independent of checkValidity and rejects empty new drafts', () => {
+    const target = field({ minLength: 3, getAttribute: name => name === 'pattern' ? '[A-Z]+' : null });
+    assert.equal(fieldDraft.apply(target, '', eventHost), false);
+    assert.equal(fieldDraft.apply(target, 'ab', eventHost), false);
+    assert.equal(fieldDraft.apply(target, 'ABC1', eventHost), false);
+    assert.equal(target.value, '');
+    assert.deepEqual(target.events, []);
+    assert.equal(fieldDraft.apply(target, 'ABC', eventHost), true);
+    assert.equal(target.value, 'ABC');
+});
+test('required blank values never enter a form; undo remains explicit and optional', () => {
+    const required = field({ required: true, value: 'OLD', minLength: 0 });
+    assert.equal(fieldDraft.apply(required, '', eventHost, { restoreEmpty: true }), false);
+    assert.equal(required.value, 'OLD');
+    const optional = field({ value: 'OLD', minLength: 5 });
+    assert.equal(fieldDraft.apply(optional, '', eventHost, { restoreEmpty: true }), true);
+    assert.equal(optional.value, '');
+});
+test('a form handler unmounting the field cannot produce a successful draft confirmation', () => {
+    const target = field();
+    target.dispatchEvent = event => { target.events.push(event); target.isConnected = false; };
+    assert.equal(fieldDraft.apply(target, 'Public note', eventHost), false);
+});
