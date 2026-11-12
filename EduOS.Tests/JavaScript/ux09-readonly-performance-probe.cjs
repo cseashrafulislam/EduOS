@@ -16,7 +16,7 @@ function validate(c) {
   if (!Number.isInteger(c.timeoutMs)||c.timeoutMs<100||c.timeoutMs>30000) throw Error('timeoutMs must be 100..30000');
   const ids=new Set();
   for (const r of c.routes) {
-    if (!r || typeof r.id!=='string' || !/^[\w-]{1,80}$/.test(r.id) || ids.has(r.id)) throw Error('Unique safe route ID required');
+    if (!r || typeof r.id!=='string' || !/^[A-Za-z0-9_-]{1,80}$/.test(r.id) || ids.has(r.id)) throw Error('Unique safe route ID required');
     ids.add(r.id);
     if (typeof r.path!=='string'||!/^\/[A-Za-z0-9/_\-.]*$/.test(r.path)||r.path.startsWith('//')||r.path.split('/').some(s=>s==='.'||s==='..')) throw Error('Only canonical absolute GET paths without encoded/query/traversal characters allowed');
     if (new URL(r.path,base).origin!==base.origin) throw Error('Cross-origin route denied');
@@ -50,7 +50,8 @@ async function probe(config,opts={}) {
     metric:'sequential-client-GET-ms',sampleCountPerRoute:config.samples},routes};
 }
 function compare(before,after) {
-  if(before.schema!==1||after.schema!==1) throw Error('Unsupported schema');
+  if(!before || !after || before.schema!==1 || after.schema!==1) throw Error('Unsupported schema');
+  if(!before.context || !after.context) throw Error('Missing benchmark context');
   for(const k of ['role','tenantAlias','campusAlias','locale','device','metric','sampleCountPerRoute'])
     if(before.context[k]!==after.context[k]) throw Error('Mismatched benchmark context: '+k);
   for(const report of [before,after]) {
@@ -63,7 +64,7 @@ function compare(before,after) {
          ['UNSPECIFIED','UNVERIFIED'].includes(report.context[key]))
         throw Error('Explicit benchmark context required: '+key);
     for(const r of report.routes) {
-      if(!r || typeof r.id!=='string' || !/^[\\w-]{1,80}$/.test(r.id) ||
+      if(!r || typeof r.id!=='string' || !/^[A-Za-z0-9_-]{1,80}$/.test(r.id) ||
          r.samples!==report.context.sampleCountPerRoute ||
          r.success!==r.samples || r.failures!==0 ||
          !r.statuses || r.statuses['200']!==r.samples ||
