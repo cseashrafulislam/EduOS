@@ -49,3 +49,17 @@ test('baseline comparison rejects cross-tenant/device comparisons, failures and 
   assert.throws(()=>compare(a,{...b,routes:[{...b.routes[0],failures:1}]}),/failed/);
   assert.throws(()=>compare(a,{...b,routes:[]}),/Route set/);
 });
+
+test('reject encoded traversal, encoded authority, backslashes, whitespace and base subpaths',()=>{
+  for(const path of ['/api/%2e%2e/admin','/api/%2F%2Fevil','/api/\\\\admin','/api/%0d%0a','/api/hello world','/api/./students','/api//../admin'])
+    assert.throws(()=>validate({...base,routes:[{id:'x',path}]}),/canonical/);
+  assert.throws(()=>validate({...base,baseUrl:'https://example.test/tenant-one/'}),/base URL/);
+});
+test('comparison refuses duplicate candidate IDs and invalid percentile values',()=>{
+  const context={role:'Teacher',tenantAlias:'A',campusAlias:'C',locale:'bn-BD',device:'390px',metric:'sequential-client-GET-ms',sampleCountPerRoute:5};
+  const routes=[{id:'a',failures:0,p75Ms:12,p95Ms:15},{id:'b',failures:0,p75Ms:20,p95Ms:25}];
+  const before={schema:1,context,routes};
+  assert.throws(()=>compare(before,{schema:1,context,routes:[routes[0],routes[0]]}),/Route set mismatch/);
+  assert.throws(()=>compare(before,{schema:1,context,routes:[{...routes[0],p75Ms:null},routes[1]]}),/invalid route/);
+  assert.throws(()=>compare(before,{schema:1,context,routes:[{...routes[0],p95Ms:Infinity},routes[1]]}),/invalid route/);
+});
