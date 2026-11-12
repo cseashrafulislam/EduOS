@@ -12,7 +12,6 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Service.Helpers.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Data;
 using System.Security.Cryptography;
 using System.Transactions;
 
@@ -408,7 +407,7 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
                 var result = await action();
                 if (!result.Success) throw new RejectedAdmissionWrite<T>(result);
                 return result;
-            }, IsolationLevel.Serializable);
+            }, System.Data.IsolationLevel.Serializable);
         }
         catch (RejectedAdmissionWrite<T> rejected)
         {
