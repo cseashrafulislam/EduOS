@@ -212,7 +212,11 @@
                     reason: reason.trim(), rowVersion: row.rowVersion
                 })
             });
-            await load(); info('Pending leave cancelled.');
+            const refreshed = await load();
+            info(refreshed
+                ? t('Pending leave cancelled.', 'অপেক্ষমাণ ছুটি বাতিল হয়েছে।')
+                : t('Leave cancellation saved; the list could not refresh. Reload before taking another action.',
+                    'ছুটি বাতিল সংরক্ষিত হয়েছে; তালিকা হালনাগাদ হয়নি। পরবর্তী পদক্ষেপের আগে রিলোড করুন।'));
         } catch (e) { info(e.message, true); }
         finally { pendingDecisions.delete(row.id); button.disabled = false; }
     }
@@ -228,7 +232,11 @@
                     state: decision, rowVersion: row.rowVersion, reviewNote: note || null
                 })
             });
-            await load(); info('Leave reviewed.');
+            const refreshed = await load();
+            info(refreshed
+                ? t('Leave reviewed.', 'ছুটির সিদ্ধান্ত সংরক্ষিত হয়েছে।')
+                : t('Leave decision saved; the list could not refresh. Reload before taking another action.',
+                    'ছুটির সিদ্ধান্ত সংরক্ষিত হয়েছে; তালিকা হালনাগাদ হয়নি। পরবর্তী পদক্ষেপের আগে রিলোড করুন।'));
         } catch (e) { info(e.message, true); }
         finally { pendingDecisions.delete(row.id); button.disabled = false; }
     }
