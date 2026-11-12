@@ -242,6 +242,10 @@ public class AcademicCalendarServiceTests
         year.EndDate = new DateOnly(2027, 12, 31);
         await db.SaveChangesAsync();
         var service = CreateService(db, new TestCurrentUser(101, 7, "TenantAdmin"));
+        (await service.SavePolicyAsync(new SaveAcademicCalendarPolicyRequestDto
+        {
+            CampusId = seed.CampusId, WeekendDay1 = DayOfWeek.Friday
+        })).Success.Should().BeTrue();
         var from = new DateOnly(2027, 1, 1);
         var to = new DateOnly(2027, 12, 31);
         var preview = await service.PreviewGovernmentHolidaysAsync(seed.YearId, null, from, to);
