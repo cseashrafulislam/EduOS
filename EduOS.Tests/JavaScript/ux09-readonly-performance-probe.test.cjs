@@ -46,7 +46,7 @@ test('baseline comparison rejects cross-tenant/device comparisons, failures and 
   const b={...a,context:{...context,gitSha:'b'},routes:[{id:'fees',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:80,p95Ms:150}]};
   assert.equal(compare(a,b)[0].deltaP95Pct,-25);
   assert.throws(()=>compare(a,{...b,context:{...b.context,tenantAlias:'T2'}}),/context/);
-  assert.throws(()=>compare(a,{...b,routes:[{...b.routes[0],failures:1}]}),/failed/);
+  assert.throws(()=>compare(a,{...b,routes:[{...b.routes[0],failures:1}]}),/Incomplete or invalid benchmark route/);
   assert.throws(()=>compare(a,{...b,routes:[]}),/routes/);
 });
 
@@ -70,4 +70,15 @@ test('comparison accepts ordinary ASCII route IDs but rejects malformed identifi
   assert.equal(compare(valid,valid)[0].id,'student-list_01');
   for(const id of ['a.b','a/b','', 'a b']) assert.throws(()=>compare({...valid,routes:[{...valid.routes[0],id}]},valid),/invalid benchmark route/);
   assert.throws(()=>compare({...valid,context:null},valid),/Missing benchmark context/);
+});
+
+test('comparison rejects incomplete counters, duplicate baselines and invalid latency ordering',()=>{
+  const context={role:'Accountant',tenantAlias:'Tenant-A',campusAlias:'Main',locale:'en-BD',device:'desktop',metric:'sequential-client-GET-ms',sampleCountPerRoute:5};
+  const row={id:'fees',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:12,p95Ms:20};
+  const report={schema:1,context,routes:[row]};
+  assert.throws(()=>compare({...report,routes:[row,row]},report),/Route set mismatch/);
+  for(const candidate of [
+    {...row,success:4}, {...row,statuses:{200:4}}, {...row,statuses:{200:5,403:1}},
+    {...row,failures:1}, {...row,p75Ms:NaN}, {...row,p95Ms:-1}
+  ]) assert.throws(()=>compare(report,{...report,routes:[candidate]}),/invalid|failed/i);
 });
