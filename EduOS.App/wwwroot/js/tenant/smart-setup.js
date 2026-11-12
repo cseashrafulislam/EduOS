@@ -252,24 +252,32 @@
                 body.append(node('p', 'small fw-semibold mb-1',
                     tr('Institution-specific setup still needed:', 'প্রতিষ্ঠানের নিজস্ব তথ্য এখনো প্রয়োজন:')));
                 const list = node('ul', 'list-unstyled small mb-2');
+                const destinations = new Map();
                 for (const task of todo) {
-                    const li = node('li', 'd-flex flex-wrap align-items-center gap-2 py-1');
-                    li.append(node('span', 'flex-grow-1', bn ? task.labelBangla : task.label));
-                    const inlineButton = node('button', 'btn btn-sm btn-outline-primary',
-                        tr('Add here', 'এখানেই যোগ করুন'));
-                    inlineButton.type = 'button';
-                    inlineButton.setAttribute('data-smart-setup-inline', m.code + ':' + task.code);
-                    inlineButton.addEventListener('click', () =>
-                        openEmbeddedSetup(m.code, task.actionUrl, bn ? task.labelBangla : task.label));
-                    li.append(inlineButton);
-                    const link = node('a', 'small', tr('Full Settings', 'মূল সেটিংস'));
-                    link.href = safePath(task.actionUrl);
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    li.append(link);
+                    const li = node('li', 'small py-1', bn ? task.labelBangla : task.label);
                     list.append(li);
+                    const url = safePath(task.actionUrl);
+                    if (!destinations.has(url)) destinations.set(url, []);
+                    destinations.get(url).push(task);
                 }
                 body.append(list);
+                for (const [url, tasks] of destinations) {
+                    const actions = node('div', 'd-flex flex-wrap align-items-center gap-2 mb-2');
+                    const inlineButton = node('button', 'btn btn-sm btn-outline-primary',
+                        tr('Add here (' + tasks.length + ' setup item(s))',
+                            'এখানেই যোগ করুন (' + tasks.length + 'টি সেটিং)'));
+                    inlineButton.type = 'button';
+                    inlineButton.setAttribute('data-smart-setup-inline', m.code + ':' + tasks[0].code);
+                    inlineButton.addEventListener('click', () =>
+                        openEmbeddedSetup(m.code, url, bn ? m.nameBangla : m.name));
+                    actions.append(inlineButton);
+                    const link = node('a', 'small', tr('Full Settings', 'মূল সেটিংস'));
+                    link.href = url;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    actions.append(link);
+                    body.append(actions);
+                }
             }
             if (m.code === 'FINANCE' && todo.length) {
                 const opening = node('div', 'border-top pt-2 mt-2 small');
