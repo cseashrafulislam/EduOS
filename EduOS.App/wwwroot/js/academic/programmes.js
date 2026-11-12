@@ -63,11 +63,18 @@
     async function loadDepartments(selectedId = null) {
         const ticket = ++departmentSequence;
         const search = el('programmeDepartmentSearch').value.trim();
+        const editorId = el('programmeEditId').value;
+        const selectionAtRequest = el('programmeEditDepartment').value;
         const result = await api('/api/academic-setup/departments?page=1&pageSize=100&search=' +
             encodeURIComponent(search));
-        if (ticket !== departmentSequence || !sameSession()) return;
+        // Never replace an edited department or another programme's options with a stale lookup.
+        if (ticket !== departmentSequence || !sameSession() ||
+            search !== el('programmeDepartmentSearch').value.trim() ||
+            editorId !== el('programmeEditId').value) return;
         const clean = !editGuard?.isDirty();
-        renderDepartments(result, selectedId);
+        const currentSelection = el('programmeEditDepartment').value;
+        if (currentSelection !== selectionAtRequest) return;
+        renderDepartments(result, Number(currentSelection) || null);
         if (clean) editGuard?.markClean();
     }
     async function editProgramme(id) {
@@ -77,7 +84,7 @@
         try {
         const row = await api('/api/academic-setup/programmes/' + encodeURIComponent(id));
         const result = await api('/api/academic-setup/departments?page=1&pageSize=100');
-        if (ticket !== editSequence || !sameSession()) return;
+        if (ticket !== editSequence || !sameSession() || editGuard?.isDirty()) return;
         ++departmentSequence;
         form.reset();
         el('programmeDepartmentSearch').value = '';

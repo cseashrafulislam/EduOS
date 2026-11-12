@@ -5,7 +5,7 @@
     const { state, el, api, notice, reload, sameSession, guard, mayReplace } = vm;
     const size = 20;
     let page = 1, total = 0, rows = [], loaded = false, generation = 0;
-    let createSaving = false, editSaving = false, editSequence = 0;
+    let createSaving = false, editSaving = false, editSequence = 0, programmeLookupSequence = 0;
     const createGuard = guard('trackCreateForm'), editGuard = guard('trackEditForm');
     const value = id => el(id).value.trim();
     const cell = text => { const td = document.createElement('td'); td.textContent = String(text ?? ''); return td; };
@@ -101,14 +101,21 @@
     });
     el('trackProgrammeLookupButton').addEventListener('click', async () => {
         const button = el('trackProgrammeLookupButton');
+        if (button.disabled || createSaving || !sameSession()) return;
+        const ticket = ++programmeLookupSequence;
+        const search = value('trackProgrammeLookup');
+        const selected = el('trackCreateProgram').value;
         button.disabled = true;
         try {
             const params = new URLSearchParams({ page: '1', pageSize: '100' });
-            if (value('trackProgrammeLookup')) params.set('search', value('trackProgrammeLookup'));
+            if (search) params.set('search', search);
             const data = await api('/api/academic-setup/programmes?' + params);
+            if (ticket !== programmeLookupSequence || !sameSession() ||
+                search !== value('trackProgrammeLookup') ||
+                selected !== el('trackCreateProgram').value || createSaving) return;
             populatePrograms(data.items || []);
-        } catch (error) { notice(error.message, true); }
-        finally { button.disabled = false; }
+        } catch (error) { if (ticket === programmeLookupSequence && sameSession()) notice(error.message, true); }
+        finally { if (ticket === programmeLookupSequence) button.disabled = false; }
     });
     el('trackCreateForm').addEventListener('submit', async e => {
         e.preventDefault();
