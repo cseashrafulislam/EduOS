@@ -272,7 +272,54 @@
     if (exportButton) exportButton.addEventListener('click', exportCurrentPage);
     const printButton = byId('cwcPrint');
     if (printButton) printButton.addEventListener('click', () => {
-        if (resultReady && !loading && currentItems.length && sameSession()) window.print();
+        if (!resultReady || loading || !currentItems.length || !sameSession()) return;
+        // A separate document contains only the fetched, authorized page. Never print
+        // the application shell, unrelated PII, hidden tables or unrequested pages.
+        const popup = window.open('', '_blank');
+        if (!popup) {
+            alertMessage(bn ? 'প্রিন্ট উইন্ডো খোলা যায়নি। পপ-আপ অনুমতি দিন।' :
+                'Print window blocked. Allow pop-ups to print.');
+            return;
+        }
+        popup.opener = null;
+        const doc = popup.document;
+        const heading = doc.createElement('h1');
+        heading.textContent = bn ? 'আমার কাজ ও অনুমোদন' : 'My Work & Approvals';
+        const scope = doc.createElement('p');
+        scope.textContent = currentScope + ' · ' +
+            (bn ? 'পৃষ্ঠা ' : 'Page ') + page + ' / ' + lastPage;
+        const table = doc.createElement('table');
+        table.style.borderCollapse = 'collapse';
+        const header = doc.createElement('tr');
+        const columns = bn
+            ? ['ধরন', 'রেফারেন্স', 'ক্যাম্পাস', 'অবস্থা', 'জমার সময়']
+            : ['Work type', 'Reference', 'Campus', 'State', 'Submitted'];
+        columns.forEach(value => {
+            const th = doc.createElement('th');
+            th.textContent = value;
+            th.style.border = '1px solid #777; padding: 6px';
+            header.appendChild(th);
+        });
+        table.appendChild(header);
+        currentItems.forEach(item => {
+            const row = doc.createElement('tr');
+            const instant = new Date(item.submittedAtUtc);
+            [
+                names[item.source] || item.source,
+                item.reference,
+                item.campusId == null ? (bn ? 'প্রতিষ্ঠানব্যাপী' : 'Institution-wide') : item.campusId,
+                item.state,
+                Number.isFinite(instant.getTime()) ? instant.toLocaleString(bn ? 'bn-BD' : 'en-BD') : ''
+            ].forEach(value => {
+                const td = doc.createElement('td');
+                td.textContent = value == null ? '' : String(value);
+                td.style.border = '1px solid #777; padding: 6px';
+                row.appendChild(td);
+            });
+            table.appendChild(row);
+        });
+        doc.body.append(heading, scope, table);
+        popup.print();
     });
     const retryButton = byId('cwcRetry');
     if (retryButton) retryButton.addEventListener('click', () => { if (!loading && sameSession()) load(); });
