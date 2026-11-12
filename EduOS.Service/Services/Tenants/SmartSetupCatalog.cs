@@ -5,9 +5,31 @@ namespace EduOS.Service.Services.Tenants;
 /// <summary>Versioned, reviewed defaults only. No prices, balances, dates, permissions or financial postings.</summary>
 internal static class SmartSetupCatalog
 {
-    internal const string Version = "2026.11.2";
+    internal const string Version = "2026.11.3";
     internal sealed record Seed(string Module, string Kind, string Code, string Name,
-        FeeFrequencyType? Frequency = null);
+        FeeFrequencyType? Frequency = null, AccountType? AccountType = null,
+        bool IsGroup = false, string? ParentCode = null, SalaryComponentType? SalaryType = null,
+        bool IsTaxable = false);
+    internal sealed record GradeBand(decimal Min, decimal Max, string Letter, decimal Point);
+    internal static readonly IReadOnlyDictionary<string, GradeBand[]> GradePresets =
+        new Dictionary<string, GradeBand[]>(StringComparer.Ordinal)
+        {
+            ["BD-GPA-5"] =
+            [
+                new(0m, 32.99m, "F", 0m), new(33m, 39.99m, "D", 1m),
+                new(40m, 49.99m, "C", 2m), new(50m, 59.99m, "B", 3m),
+                new(60m, 69.99m, "A-", 3.50m), new(70m, 79.99m, "A", 4m),
+                new(80m, 100m, "A+", 5m)
+            ],
+            ["BD-CGPA-4"] =
+            [
+                new(0m, 39.99m, "F", 0m), new(40m, 44.99m, "D", 2m),
+                new(45m, 49.99m, "C", 2.25m), new(50m, 54.99m, "C+", 2.50m),
+                new(55m, 59.99m, "B-", 2.75m), new(60m, 64.99m, "B", 3m),
+                new(65m, 69.99m, "B+", 3.25m), new(70m, 74.99m, "A-", 3.50m),
+                new(75m, 79.99m, "A", 3.75m), new(80m, 100m, "A+", 4m)
+            ]
+        };
     internal sealed record Section(string Code, string Name, string Bangla, string Url, bool Apply, string Guidance);
 
     internal static readonly Section[] Sections =
@@ -20,16 +42,16 @@ internal static class SmartSetupCatalog
             "A published admission form, dates, program and fee policy require an administrator."),
         new("ATTENDANCE", "Attendance", "উপস্থিতি", "/AcademicRoutines/Index", false,
             "Attendance status codes are controlled by the application; configure schedules and calendar."),
-        new("ASSESSMENT", "Exams and grading", "পরীক্ষা ও গ্রেড", "/AssessmentAdministration/GradeSchemes", false,
-            "Grade thresholds and assessment plans are not assumed for a new institute."),
+        new("ASSESSMENT", "Exams and grading", "পরীক্ষা ও গ্রেড", "/AssessmentAdministration/GradeSchemes", true,
+            "Bangladesh Board GPA 5.00 and UGC-style CGPA 4.00 templates are available for review. Neither is made default or assigned to a programme."),
         new("FEES", "Fee heads", "ফি-এর ধরন", "/FeeOperations/Index", true,
             "Only fee-head names are prepared. Amounts, fee structures, receivables and ledger mapping remain unset."),
-        new("FINANCE", "Accounting", "হিসাবরক্ষণ", "/AccountingSetup/Index", false,
-            "Chart of accounts, bank accounts, tax, opening balances and postings require verified finance setup."),
+        new("FINANCE", "Accounting", "হিসাবরক্ষণ", "/AccountingSetup/Index", true,
+            "Creates only reviewed BDT ledger groups and basic posting-account labels. No cash designation, banking, opening balances, postings or tax rules."),
         new("HR", "HR master data", "মানবসম্পদ", "/HrSetup/Index", true,
             "Designations and organization units only; no employees, salaries, contracts or leave balances."),
-        new("PAYROLL", "Payroll setup", "বেতন ব্যবস্থাপনা", "/PayrollSalaryComponents/Index", false,
-            "Salary component tax treatment, salary structures, pay rules and employee rates require administrator verification."),
+        new("PAYROLL", "Payroll setup", "বেতন ব্যবস্থাপনা", "/PayrollSalaryComponents/Index", true,
+            "Creates only reviewed salary component names and types. Tax treatment must be checked before payroll; no amounts, employees or salary structures."),
         new("INVENTORY", "Inventory and asset categories", "ইনভেন্টরি ও সম্পদ", "/AssetLifecycle/Index", true,
             "Asset categories only; no stock, locations, inventory movement, items or opening valuation."),
         new("LIBRARY", "Library", "লাইব্রেরি", "/Library/Index", true,
@@ -55,6 +77,7 @@ internal static class SmartSetupCatalog
     {
         "FEES" => "FINANCE",
         "ASSESSMENT" => "EXAM",
+        "PAYROLL" => "HR",
         "REPORTS" => "REPORTING",
         _ => sectionCode
     };
@@ -83,6 +106,102 @@ internal static class SmartSetupCatalog
         if (bangladesh && (school || college))
             list.Add(new("ACADEMIC", "Medium", "BANGLA", "Bangla"));
         list.Add(new("ACADEMIC", "Medium", "ENGLISH", "English"));
+
+
+        // Subject master only: no curricula, subject offerings, class allocations or
+        // credit/full/pass marks are inferred. Broad BD NCTB/board labels are reviewed.
+        if (bangladesh && !university && !training)
+        {
+            Add(list, "ACADEMIC", "Subject",
+                ("BANGLA", "Bangla"), ("BANGLA-1", "Bangla First Paper"),
+                ("BANGLA-2", "Bangla Second Paper"), ("ENGLISH", "English"),
+                ("ENGLISH-1", "English First Paper"), ("ENGLISH-2", "English Second Paper"),
+                ("MATH", "Mathematics"), ("HIGHER-MATH", "Higher Mathematics"),
+                ("GENERAL-SCIENCE", "General Science"), ("BGS", "Bangladesh and Global Studies"),
+                ("ICT", "Information and Communication Technology"),
+                ("PHYSICS", "Physics"), ("CHEMISTRY", "Chemistry"), ("BIOLOGY", "Biology"),
+                ("AGRICULTURE", "Agricultural Studies"), ("PHYSICAL-EDUCATION", "Physical Education and Health"),
+                ("CAREER-EDUCATION", "Career Education"), ("ARTS-CRAFTS", "Arts and Crafts"),
+                ("ISLAM-STUDIES", "Islam and Moral Education"), ("HINDU-STUDIES", "Hindu Religion and Moral Education"),
+                ("BUDDHIST-STUDIES", "Buddhist Religion and Moral Education"),
+                ("CHRISTIAN-STUDIES", "Christian Religion and Moral Education"),
+                ("ACCOUNTING", "Accounting"), ("FINANCE-BANKING", "Finance, Banking and Insurance"),
+                ("BUSINESS-ORGANIZATION", "Business Organization and Management"),
+                ("ECONOMICS", "Economics"), ("STATISTICS", "Statistics"),
+                ("GEOGRAPHY", "Geography"), ("CIVICS", "Civics and Good Governance"),
+                ("HISTORY", "History"), ("ISLAMIC-HISTORY", "Islamic History and Culture"),
+                ("SOCIOLOGY", "Sociology"), ("PSYCHOLOGY", "Psychology"),
+                ("LOGIC", "Logic"), ("HOME-SCIENCE", "Home Science"));
+            if (type.Contains("MADRAS"))
+                Add(list, "ACADEMIC", "Subject",
+                    ("ARABIC", "Arabic"), ("QURAN", "Quran Majid and Tajwid"),
+                    ("HADITH", "Hadith Sharif"), ("FIQH", "Fiqh and Aqidah"));
+        }
+        else if (bangladesh && university)
+            Add(list, "ACADEMIC", "Subject",
+                ("BANGLA", "Bangla"), ("ENGLISH", "English"),
+                ("ICT", "Information and Communication Technology"),
+                ("STATISTICS", "Statistics"), ("ECONOMICS", "Economics"),
+                ("BUSINESS-ORGANIZATION", "Business Organization and Management"),
+                ("ACCOUNTING", "Accounting"), ("MATHEMATICS", "Mathematics"),
+                ("COMPUTER-SCIENCE", "Computer Science"), ("PHYSICS", "Physics"),
+                ("CHEMISTRY", "Chemistry"), ("BIOLOGY", "Biology"));
+        else if (bangladesh && training)
+            Add(list, "ACADEMIC", "Subject",
+                ("BANGLA", "Bangla"), ("ENGLISH", "English"),
+                ("MATHEMATICS", "Mathematics"), ("ICT", "Information and Communication Technology"),
+                ("PHYSICS", "Physics"), ("CHEMISTRY", "Chemistry"),
+                ("ENGINEERING-DRAWING", "Engineering Drawing"));
+        if (bangladesh)
+        {
+            list.Add(new("ASSESSMENT", "GradeScheme", "BD-GPA-5", "Bangladesh Board GPA 5.00"));
+            list.Add(new("ASSESSMENT", "GradeScheme", "BD-CGPA-4", "Bangladesh UGC-style CGPA 4.00"));
+        }
+
+        // Canonical account groups and general posting ledgers, but no real bank,
+        // cash designation, receivable/debtor mapping, balances or journal entries.
+        foreach (var (code, name, type) in new (string, string, AccountType)[]
+        {
+            ("1000", "Assets", AccountType.Asset),
+            ("2000", "Liabilities", AccountType.Liability),
+            ("3000", "Equity", AccountType.Equity),
+            ("4000", "Income", AccountType.Income),
+            ("5000", "Expenses", AccountType.Expense)
+        })
+            list.Add(new("FINANCE", "Account", code, name, AccountType: type, IsGroup: true));
+        foreach (var (code, name, type, parent) in new (string, string, AccountType, string)[]
+        {
+            ("1100", "Accounts Receivable", AccountType.Asset, "1000"),
+            ("1200", "Furniture and Equipment", AccountType.Asset, "1000"),
+            ("2100", "Accounts Payable", AccountType.Liability, "2000"),
+            ("2200", "Salaries Payable", AccountType.Liability, "2000"),
+            ("3100", "Capital and Contributions", AccountType.Equity, "3000"),
+            ("4100", "Tuition Fee Income", AccountType.Income, "4000"),
+            ("4200", "Admission Fee Income", AccountType.Income, "4000"),
+            ("5100", "Salary Expense", AccountType.Expense, "5000"),
+            ("5200", "Utilities Expense", AccountType.Expense, "5000"),
+            ("5300", "Office Expense", AccountType.Expense, "5000")
+        })
+            list.Add(new("FINANCE", "Account", code, name, AccountType: type, ParentCode: parent));
+
+        // Taxability is a reviewed, editable master policy: the conservative
+        // earnings default is taxable; deductions and employer costs are not.
+        // This creates no compensation, withholding, statutory rate or posting.
+        foreach (var (code, name, kind) in new (string, string, SalaryComponentType)[]
+        {
+            ("BASIC", "Basic Salary", SalaryComponentType.Earning),
+            ("HOUSE-RENT", "House Rent Allowance", SalaryComponentType.Earning),
+            ("MEDICAL-ALLOWANCE", "Medical Allowance", SalaryComponentType.Earning),
+            ("TRANSPORT-ALLOWANCE", "Transport Allowance", SalaryComponentType.Earning),
+            ("OVERTIME", "Overtime", SalaryComponentType.Earning),
+            ("FESTIVAL-BONUS", "Festival Bonus", SalaryComponentType.Earning),
+            ("ABSENCE-DEDUCTION", "Absence Deduction", SalaryComponentType.Deduction),
+            ("LOAN-RECOVERY", "Loan Recovery", SalaryComponentType.Deduction),
+            ("EMPLOYEE-PF", "Employee Provident Fund Deduction", SalaryComponentType.Deduction),
+            ("EMPLOYER-PF", "Employer Provident Fund Contribution", SalaryComponentType.EmployerContribution)
+        })
+            list.Add(new("PAYROLL", "SalaryComponent", code, name,
+                SalaryType: kind, IsTaxable: kind == SalaryComponentType.Earning));
 
         Add(list, "HR", "OrganizationUnit",
             ("ADMIN", "Administration"),
