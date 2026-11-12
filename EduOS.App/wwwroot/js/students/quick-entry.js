@@ -161,6 +161,8 @@
         event.preventDefault();
         if (state.saving || !sameSession()) return;
         clearMessage();
+        if (!token) return alertMessage(say('Security token is missing. Reload before saving.',
+            'নিরাপত্তা টোকেন পাওয়া যায়নি। সংরক্ষণের আগে পেজ রিলোড করুন।'), true);
         if (chooseInvalidTab()) return;
         // Do not submit while the selected batch's curriculum is still loading
         // or when an old selection survived a dependent-field refresh.
@@ -208,6 +210,14 @@
         }
     }
     function reset() {
+        if (state.saving || !sameSession()) return;
+        ++state.batchSeq;
+        ++state.curriculumSeq;
+        state.batches = [];
+        state.curricula = [];
+        selectMenu('runningBatch', [], say('Select class / section', 'শ্রেণি / শাখা নির্বাচন করুন'));
+        selectMenu('runningCurriculum', [], say('Choose a section first', 'আগে শাখা নির্বাচন করুন'));
+        el('runningCurriculum').disabled = true;
         form.reset();
         form.classList.remove('d-none');
         el('runningStudentSuccess').classList.add('d-none');
@@ -217,7 +227,7 @@
         toggleGuardian();
         bootstrap.Tab.getOrCreateInstance(el('runningStudentTab')).show();
         el('runningStudentName').focus();
-        curricula();
+        batches();
     }
     el('runningBatchSearchButton').addEventListener('click', batches);
     el('runningBatchSearch').addEventListener('keydown', event => {
