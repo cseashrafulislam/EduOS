@@ -189,6 +189,32 @@ select,
 .sidebar-feature-search:hover { color: #fff; background: rgba(255, 255, 255, .13); }
 .sidebar-feature-search:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
 .sidebar-feature-search:disabled { cursor: not-allowed; opacity: .5; }
+/* Favorites reuse the authenticated feature-search catalogue and session state.
+   These are shortcuts, not a second navigation or permission source. */
+.sidebar-favorites[hidden] { display: none !important; }
+.sidebar-favorites {
+    display: flex; flex-direction: column; gap: .12rem;
+    margin: .45rem .3rem .25rem; padding: .35rem .25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, .1);
+}
+.sidebar-favorites-title {
+    padding: .2rem .45rem .35rem; font-size: .64rem; font-weight: 800;
+    color: rgba(255, 255, 255, .57); letter-spacing: .09em;
+}
+.sidebar-favorite-link {
+    display: flex; gap: .55rem; align-items: center; min-height: 2.25rem;
+    padding: .45rem .55rem; border-radius: .6rem;
+    color: rgba(255, 255, 255, .84); font-size: .81rem;
+    text-decoration: none; overflow: hidden;
+}
+.sidebar-favorite-link:hover { background: rgba(255, 255, 255, .09); color: #fff; }
+.sidebar-favorite-link:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.sidebar-favorite-star { flex: 0 0 auto; color: #fbbf24; font-size: .82rem; }
+.sidebar-favorite-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-width: 992px) {
+    :root[data-workspace-navigation="top"] .sidebar-favorites { display: none !important; }
+}
+
 
 .menu-title {
     margin: 1.1rem .65rem .55rem;
