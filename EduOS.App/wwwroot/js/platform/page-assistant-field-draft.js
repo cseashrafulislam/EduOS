@@ -28,12 +28,16 @@
         if (title) labels.push(title);
         // aria-labelledby is a security boundary as well as an accessibility
         // label: a generic HTML name must not disguise a protected control.
-        const ids = String(field.getAttribute?.('aria-labelledby') || '').trim().split(/\s+/u).slice(0, 8);
-        const doc = field.ownerDocument;
-        for (const id of ids) {
-            if (!id || !doc?.getElementById) continue;
-            const node = doc.getElementById(id);
-            if (node?.textContent) labels.push(node.textContent);
+        const labelledBy = String(field.getAttribute?.('aria-labelledby') || '').trim();
+        if (labelledBy) {
+            const ids = labelledBy.split(/\s+/u);
+            const doc = field.ownerDocument;
+            if (ids.length > 32 || new Set(ids).size !== ids.length || !doc?.getElementById) return null;
+            for (const id of ids) {
+                const node = doc.getElementById(id);
+                if (!node || !String(node.textContent || '').trim()) return null;
+                labels.push(node.textContent);
+            }
         }
         return labels.join(' ');
     }
@@ -47,7 +51,7 @@
         if (field.form?.dataset?.assistantDraft !== 'true') return false;
         const metadata = [field.name, field.id, field.autocomplete, labelText(field),
             field.dataset?.assistantLabel, field.getAttribute?.('placeholder')].join(' ');
-        if (unsafe.test(metadata) || unsafeBn.test(metadata)) return false;
+        if (labelText(field) === null || unsafe.test(metadata) || unsafeBn.test(metadata)) return false;
         if (field.closest?.('[data-assistant-sensitive="true"]')) return false;
         // Do not draft into rich editors, linked widgets or custom components.
         // These have their own canonical validation/dependency workflows.
