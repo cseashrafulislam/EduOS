@@ -135,6 +135,7 @@
         let pending = null;
         let recognizer = null;
         let speechRequest = 0;
+        let speechInputSnapshot = '';
         function voiceMessage(value) { if (voiceStatus) voiceStatus.textContent = value; }
         function stopSpeech() {
             speechRequest++;
@@ -305,6 +306,7 @@
             if (recognizer) { stopSpeech(); voiceMessage(t('Listening stopped.', 'শোনা বন্ধ হয়েছে।')); return; }
             if (!currentContext() || !dialog.open) return;
             const request = ++speechRequest;
+            speechInputSnapshot = query.value;
             voice.disabled = true;
             voiceMessage(t('Checking installed on-device speech support…', 'ডিভাইসে থাকা ভয়েস সুবিধা যাচাই হচ্ছে…'));
             const language = bn ? 'bn-BD' : 'en-BD';
@@ -323,13 +325,20 @@
             recognizer = next;
             voice.setAttribute('aria-pressed', 'true');
             next.onresult = event => {
-                if (recognizer !== next || !currentContext() || !dialog.open) { stopSpeech(); return; }
+                if (recognizer !== next || !currentContext() || !dialog.open ||
+                    query.value !== speechInputSnapshot) {
+                    stopSpeech();
+                    voiceMessage(t('Transcript changed. Your typed text was kept.',
+                        'লেখা পরিবর্তিত হয়েছে। আপনার টাইপ করা লেখা রাখা হয়েছে।'));
+                    return;
+                }
                 const transcript = String(event?.results?.[event.resultIndex || 0]?.[0]?.transcript || '').trim();
                 if (transcript.length < 2 || transcript.length > 512) {
                     voiceMessage(t('Speech was not recognized clearly. Try typing.', 'কথা স্পষ্ট বোঝা যায়নি। লিখে চেষ্টা করুন।'));
                     return;
                 }
                 query.value = transcript;
+                speechInputSnapshot = transcript;
                 reset();
                 voiceMessage(t('Review the transcript, then choose Find. No action was performed.',
                     'লেখাটি যাচাই করে খুঁজুন চাপুন। কোনো কাজ স্বয়ংক্রিয়ভাবে হয়নি।'));
@@ -362,7 +371,16 @@
         dialog.addEventListener('close', () => { stopSpeech(); reset(); open.focus(); });
         find.addEventListener('click', lookup);
         query.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); lookup(); } });
-        query.addEventListener('input', reset);
+        query.addEventListener('input', () => {
+            reset();
+            // Manual edits win over any pending microphone result, including
+            // results delivered after a recognition session was cancelled.
+            if (recognizer) {
+                stopSpeech();
+                voiceMessage(t('Listening stopped. Your typed text was kept.',
+                    'শোনা বন্ধ হয়েছে। আপনার টাইপ করা লেখা রাখা হয়েছে।'));
+            }
+        });
         hostWindow.addEventListener('pageshow', () => {
             if (!currentContext() && dialog.open) { stopSpeech(); dialog.close(); }
         });
