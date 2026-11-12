@@ -189,7 +189,8 @@
         try {
             const query = encodeURIComponent(el('fcVendorSearch').value.trim());
             const data = await api(vendor + '/verified-work?page=1&pageSize=20&search=' + query + campusQuery());
-            if (generation !== vendorChoicesGeneration || !sessionCurrent()) return;
+            if (generation !== vendorChoicesGeneration || !sessionCurrent() ||
+                encodeURIComponent(el('fcVendorSearch').value.trim()) !== query) return;
             vendorSource.clear();
             for (const item of data.items || []) vendorSource.set(String(item.workOrderId), item);
             fillSelect('fcVendorSource', data.items || [], 'workOrderId',
@@ -202,7 +203,8 @@
         try {
             const query = encodeURIComponent(el('fcLabourSearch').value.trim());
             const data = await api(labour + '/eligible-sources?page=1&pageSize=20&search=' + query + campusQuery());
-            if (generation !== labourChoicesGeneration || !sessionCurrent()) return;
+            if (generation !== labourChoicesGeneration || !sessionCurrent() ||
+                encodeURIComponent(el('fcLabourSearch').value.trim()) !== query) return;
             payrollSource.clear();
             for (const item of data.items || [])
                 payrollSource.set(item.workOrderId + ':' + item.payrollEmployeeId, item);
@@ -223,9 +225,18 @@
         const pending = opId(action, requestBody);
         try {
             const result = await api(path, 'POST', { ...requestBody, clientRequestId: pending.id });
+            // The server write has committed. A failed follow-up read must never
+            // present the transaction as failed or invite a duplicate posting.
             attempts.delete(pending.signature);
-            await callback?.(result);
-            notice(t('Saved successfully.', 'সফলভাবে সংরক্ষিত হয়েছে।'), true);
+            try {
+                await callback?.(result);
+                if (!locked) notice(t('Saved successfully.', 'সফলভাবে সংরক্ষিত হয়েছে।'), true);
+            } catch (refreshError) {
+                if (!locked) notice(t(
+                    'Saved successfully, but the latest details could not be refreshed. Reload the list; do not submit the transaction again.',
+                    'সফলভাবে সংরক্ষিত হয়েছে, তবে সর্বশেষ তথ্য রিফ্রেশ হয়নি। তালিকা আবার লোড করুন; একই লেনদেন পুনরায় জমা দেবেন না।'
+                ), true);
+            }
         } catch (err) { if (!locked) notice(err.message); }
         finally { busy = false; }
     }
