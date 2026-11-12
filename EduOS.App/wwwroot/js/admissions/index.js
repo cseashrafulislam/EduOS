@@ -801,11 +801,18 @@
         if (status === 429)
             return [{ message: intakeText('Too many requests. Leave this draft open and try again after a short interval.',
                 'অনেকবার অনুরোধ হয়েছে। তথ্য অপরিবর্তিত রেখে কিছুক্ষণ পর আবার চেষ্টা করুন।') }];
-        if (status >= 500)
+        if (status >= 500) {
+            // Never echo an unexpected stack trace or database exception from an
+            // upstream error body. Only the whitelisted support-reference token
+            // is safe to share with the institution administrator.
+            const reference = /Support reference:\s*([a-f0-9]{12})\b/i.exec(message)?.[1];
             return [{ message: intakeText('Server error (HTTP ' + status + '). Save was not confirmed; check the list for this form code before retrying. ',
                 'সার্ভার সমস্যা (HTTP ' + status + ')। সংরক্ষণ নিশ্চিত হয়নি; আবার চেষ্টা করার আগে ফরম তালিকায় কোডটি দেখুন। ') +
-                (message || intakeText('Ask an administrator to review the server logs.',
-                    'সার্ভার লগ পরীক্ষা করতে প্রশাসককে জানান।')) }];
+                (reference
+                    ? intakeText('Support reference: ', 'সাপোর্ট রেফারেন্স: ') + reference
+                    : intakeText('Ask an administrator to review the server logs.',
+                        'সার্ভার লগ পরীক্ষা করতে প্রশাসককে জানান।')) }];
+        }
         return [{ message: message || intakeText('The form could not be saved. Review your entries and try again.',
             'ফরম সংরক্ষণ করা যায়নি। তথ্য যাচাই করে আবার চেষ্টা করুন।') }];
     }
