@@ -2,7 +2,9 @@
 
 ## Scope and ownership
 
-The setup hub at `/SmartSetup/Index` is a tenant-admin-only preview / confirmation workspace.
+The setup hub at `/SmartSetup/Index` is a tenant-admin-only preview, confirmation
+and **central initial-data workspace**. Individual Settings screens remain available
+for subsequent Add/Edit and permitted Delete/Archive operations.
 Existing institution-type/module entitlements and the domain-specific Academic, Finance,
 HR, Payroll, Library, Facilities, Hostel, Transport, LMS and Student workflows remain the
 source of truth. No shadow/editable master or parallel accounting/stock table is introduced.
@@ -34,12 +36,61 @@ checked again **inside** the transaction; modules excluded by the pilot stay den
    A reused ID with a different module set/type/version fails with HTTP 409.
 7. All writes and audit receipt commit together or roll back.
 
+### Two explicit save modes
+
+1. **Reviewed basic defaults** (one atomic operation): `Select all missing defaults`
+   or tick individual, pre-filled read-only Code/Name/Detail rows, confirm, and
+   `Save Checked Records`. The server accepts at most 7 approved modules and
+   200 unique catalog keys per request. Exact row keys are re-resolved against
+   `SmartSetupCatalog.Version = 2026.11.2`; browser-supplied names, amounts
+   and financial classifications are never persisted. The result displays
+   a per-kind saved count. Existing code/name conflicts are shown for manual
+   review, never overwritten.
+2. **Institution-specific forms** (each form saves under its *own* domain rules):
+   Under an incomplete readiness prerequisite, `Add here` opens the EXISTING
+   authorized Settings route in a same-origin frame inside Smart Setup.
+   The original route, antiforgery token, validation, permission and save
+   API are unchanged. The separate `Full Settings` link still works.
+   The frame hides only the duplicated navigation chrome. Refresh setup
+   status after saving; no generic cross-module POST, fake rows or parallel
+   master/finance API is allowed.
+
+Examples of original verified forms launched inside Smart Setup:
+- Academic Year and actual dates: `/AcademicManagement/Years`.
+- Hostel facility, room capacity and physical beds: `/HostelOperations/Setup`.
+- Finance chart of accounts, accounting periods and bank accounts:
+  `/AccountingSetup/Index`. Bank accounts must reference an authorized asset GL.
+- Fee structure and monetary amounts: `/FeeOperations/Index`.
+- Verified accounting opening entries: `/AccountingJournals/Index`.
+  Creating a balanced draft does not post a balance. Normal approval and
+  posting must happen before financial reports recognize the entry.
+- Other modules reuse the `SmartSetupReadinessService` `ActionUrl` for their
+  canonical setup forms. Tenant/module access is checked by those original
+  controllers, not granted by the iframe or URL parameter.
+
+**Atomicity boundary:** One checked-default apply is atomic. Independent
+institution-specific saves across domains are *not* falsely represented as
+one all-or-nothing financial/academic transaction. Each action is validated
+and committed by its existing owner. No real dates, prices, people, bank
+details, balances, facilities or inventory are auto-invented.
+
 ### Safe seed groups
 
 ACADEMIC: optional language Medium labels; HR: organization units and
 designation labels; FEES: fee-head labels (no values, revenue accounts or invoices);
 INVENTORY: asset category labels; LIBRARY: book category labels;
 COMMUNICATION: notice categories; DOCUMENTS: basic document type labels.
+
+The reviewed v2026.11.2 catalog supplies **12 initial choices per safe kind**:
+HR OrganizationUnit (12) and Designation (12); FeeHead (12);
+AssetCategory (12); BookCategory (12); NoticeCategory (12);
+DocumentType (12). Academic medium intentionally has only 1–2 correct
+choices based on institution and country, not 12 fabricated options.
+Total maximum currently reviewed basic defaults per eligible tenant:
+86 records (2 mediums in BD school/college; 85 for other types), fewer
+when modules are disabled or records already exist. The user chooses
+which optional heads/categories apply. FeeHead frequency comes from
+the server-reviewed catalog; amounts remain unset.
 
 No real students, parents, employees, actual course content, class dates,
 curriculum allocations, grading thresholds, tax calculations, salary structures,
@@ -59,7 +110,7 @@ Readiness failures must not block normal application forms.
 
 ### QA / rollout
 
-- Run `node --test EduOS.Tests/JavaScript/smart-setup-guardrails.test.cjs` and .NET tests.
+- Run `node --test EduOS.Tests/JavaScript/smart-setup-guardrails.test.cjs EduOS.Tests/JavaScript/smart-setup-grid.test.cjs` and .NET `SmartSetupServiceTests` including 86-entry apply.
 - Validate module mapping, tenant isolation, disabled and pilot-excluded modules,
   stale preview, replay ID, conflicting codes and rollback behavior.
 - Run SQL Server Migration Smoke on the existing `Ashraful` branch.
