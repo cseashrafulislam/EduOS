@@ -60,3 +60,42 @@ test('page assistant requires review, session proof and explicit undo with opt-i
     for (const page of ['EduOS.App/Views/Students/Index.cshtml', 'EduOS.App/Views/Admissions/Index.cshtml'])
         assert.match(read(page), /data-assistant-filter="true"/);
 });
+
+test('bilingual sensitive accessible names and dependent widgets cannot be voice-filtered', () => {
+    const cases = [
+        { name: 'BankAccount' },
+        { labels: [{ textContent: 'বেতন হিসাব' }] },
+        { getAttribute: key => key === 'aria-label' ? 'Payment reference' : null },
+        { getAttribute: key => key === 'placeholder' ? 'মোবাইল' : null },
+        { getAttribute: key => key === 'role' ? 'combobox' : null },
+        { getAttribute: key => key === 'aria-controls' ? 'dependent-list' : null },
+        { closest: selector => selector.includes('data-assistant-dependent') ? {} : null },
+        { ownerDocument: { getElementById: () => ({ textContent: 'ব্যাংক' }) },
+          getAttribute: key => key === 'aria-labelledby' ? 'protected-label' : null }
+    ];
+    for (const change of cases) {
+        const target = input(change);
+        assert.equal(draft.isSafeTarget(target), false);
+        assert.equal(draft.applyDraft(target, 'Proposed', host), false);
+        assert.equal(target.value, '');
+    }
+});
+test('search draft rejects detached or reclassified targets after input listeners', () => {
+    const removed = input({ dispatchEvent() { this.isConnected = false; } });
+    assert.equal(draft.applyDraft(removed, 'New', host), false);
+    const revoked = input({ dispatchEvent() { this.dataset.assistantFilter = 'false'; } });
+    assert.equal(draft.applyDraft(revoked, 'New', host), false);
+});
+test('search draft supports controlled native setters and does not submit', () => {
+    let nativeCalls = 0;
+    const target = input();
+    const controlledHost = {
+        ...host,
+        HTMLInputElement: { prototype: Object.defineProperty({}, 'value', {
+            set(value) { nativeCalls++; this.value = value; }
+        }) }
+    };
+    assert.equal(draft.applyDraft(target, 'Rahim', controlledHost), true);
+    assert.equal(nativeCalls, 1);
+    assert.deepEqual(target.events.map(x => x.type), ['input']);
+});
