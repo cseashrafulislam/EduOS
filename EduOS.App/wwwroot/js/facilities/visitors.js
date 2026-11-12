@@ -129,7 +129,7 @@
             commandIds.delete(key);
             $('fvReason').value = ''; $('fvBadge').value = '';
             try {
-                await load();
+                await load(true);
             } catch (refreshError) {
                 status(label('Action saved, but the visit list could not refresh. Refresh the list; do not repeat the action.',
                     'কাজটি সংরক্ষিত হয়েছে, কিন্তু তালিকা রিফ্রেশ হয়নি। তালিকা রিফ্রেশ করুন; একই কাজ আবার করবেন না।'));
@@ -162,7 +162,7 @@
             if (epoch === requestEpoch && card.isConnected) panel.textContent = e.message;
         }
     };
-    const load = async () => {
+    const load = async (propagateError = false) => {
         const epoch = ++requestEpoch;
         try {
             const data = await api('/api/facilities/visitors?page=1&pageSize=50');
@@ -242,7 +242,7 @@
                 card.append(actions); holder.append(card);
             }
             status(label('Authorized visits loaded.', 'অনুমোদিত ভিজিট লোড হয়েছে।'));
-        } catch (e) { if (epoch === requestEpoch) status(e.message); }
+        } catch (e) { if (epoch === requestEpoch) status(e.message); if (propagateError) throw e; }
     };
     let hostEpoch = 0, lastHostCampus = null;
     const hosts = async () => {
@@ -296,7 +296,7 @@
             $('fvName').value = ''; $('fvPurpose').value = '';
             createGuard?.markClean();
             try {
-                await load();
+                await load(true);
             } catch (refreshError) {
                 status(label('Visit saved, but the list could not refresh. Refresh the list; do not create it again.',
                     'ভিজিট সংরক্ষিত হয়েছে, কিন্তু তালিকা রিফ্রেশ হয়নি। তালিকা রিফ্রেশ করুন; আবার তৈরি করবেন না।'));
@@ -329,7 +329,7 @@
 
     let policyEpoch = 0, pendingPolicyId = crypto.randomUUID();
     const policyReviewIds = new Map();
-    const loadPolicies = async () => {
+    const loadPolicies = async (propagateError = false) => {
         const campusId = Number($('fvPolicyCampus')?.value || 0);
         if (!Number.isSafeInteger(campusId) || campusId <= 0) {
             status(label('Choose a campus to review policies.', 'নীতিমালা দেখতে ক্যাম্পাস নির্বাচন করুন।'));
@@ -388,7 +388,7 @@
             }
             if (!holder.childElementCount)
                 holder.textContent = label('No requests for this campus.', 'এই ক্যাম্পাসে কোনো অনুরোধ নেই।');
-        } catch (error) { if (epoch === policyEpoch) status(error.message); }
+        } catch (error) { if (epoch === policyEpoch) status(error.message); if (propagateError) throw error; }
     };
     $('fvPolicyLoad')?.addEventListener('click', loadPolicies);
     $('fvPolicyRequest')?.addEventListener('submit', async event => {
@@ -412,7 +412,7 @@
             $('fvPolicyReason').value = '';
             policyGuard?.markClean();
             try {
-                await loadPolicies();
+                await loadPolicies(true);
             } catch (refreshError) {
                 status(label('Policy request saved, but the list could not refresh. Refresh the list; do not submit again.',
                     'নীতির অনুরোধ সংরক্ষিত হয়েছে, কিন্তু তালিকা রিফ্রেশ হয়নি। তালিকা রিফ্রেশ করুন; আবার জমা দেবেন না।'));
