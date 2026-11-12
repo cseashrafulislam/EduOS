@@ -81,7 +81,7 @@ test('Existing 409 validation is shown and a committed subscription reaches paym
     let postCount = 0;
     const posts = [];
     const fetch = async (url, options = {}) => {
-        if (url === '/api/subscription/current')
+        if (url === '/api/subscription/current' || url === '/api/subscription/upcoming')
             return reply(200, { success: true, data: null });
         if (url === '/api/subscription-plans')
             return reply(200, { success: true, data: [plan(10, 'Basic')] });
@@ -111,7 +111,7 @@ test('Existing 409 validation is shown and a committed subscription reaches paym
 test('Changing plan or billing cycle invalidates the old retry key', async () => {
     const posts = [];
     const fetch = async (url, options = {}) => {
-        if (url === '/api/subscription/current')
+        if (url === '/api/subscription/current' || url === '/api/subscription/upcoming')
             return reply(200, { success: true, data: null });
         if (url === '/api/subscription-plans')
             return reply(200, { success: true, data: [plan(10, 'Basic'), plan(11, 'Pro')] });
