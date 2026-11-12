@@ -54,8 +54,8 @@
         return moduleIcons[section]?.[key] || 'reports';
     }
 
-    // Optional third level: Module > Settings/Operations/Reports > feature.
-    // Only categorize links that Razor has already authorized and emitted.
+    // Legacy category metadata stays available to existing route-mapping contracts.
+    // The sidebar is strictly two levels: Module > Page. No category accordions.
     const categories = {
         'setup:academic-setup': [
             ['settings', 'Settings', 'সেটিংস', ['/AcademicManagement']],
@@ -366,7 +366,7 @@
     const matchesScope = () => Boolean(scope) &&
         document.body?.dataset.authTenantId === initialTenant &&
         document.body?.dataset.authSessionReference === initialReference;
-    const emptyState = () => ({ scroll: 0, group: '', category: '', section: '' });
+    const emptyState = () => ({ scroll: 0, group: '', section: '' });
     function readState() {
         if (!matchesScope()) return emptyState();
         try {
@@ -375,7 +375,6 @@
             return {
                 scroll: Number.isFinite(state.scroll) && state.scroll >= 0 ? state.scroll : 0,
                 group: typeof state.group === 'string' ? state.group : '',
-                category: typeof state.category === 'string' ? state.category : '',
                 section: ['academics', 'management'].includes(state.section) ? state.section : ''
             };
         } catch { return emptyState(); }
@@ -389,7 +388,6 @@
 
     const allLinks = [];
     const allDetails = [];
-    const allCategories = [];
     function createModuleIcon(section, key) {
         const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         icon.setAttribute('class', 'edu-icon sidebar-group-icon');
@@ -452,43 +450,13 @@
             summary.append(moduleIcon, label);
             const submenu = document.createElement('div');
             submenu.className = 'sidebar-submenu';
-            const definitionsForGroup = categories[`${section}:${key}`];
-            if (definitionsForGroup) {
-                const byCategory = new Map();
-                for (const child of children) {
-                    const category = categoryFor(section, key, child.getAttribute('href') || '');
-                    if (!byCategory.has(category)) byCategory.set(category, []);
-                    byCategory.get(category).push(child);
-                }
-                // One category adds an unnecessary click. Unmapped destinations
-                // remain visible without creating repeated generic Other menus.
-                const namedCategories = definitionsForGroup.filter(([categoryKey]) => byCategory.has(categoryKey));
-                if (namedCategories.length <= 1) {
-                    for (const child of children) submenu.append(child);
-                }
-                for (const [categoryKey, en, bn] of namedCategories.length > 1 ? namedCategories : []) {
-                    const sublinks = byCategory.get(categoryKey);
-                    const subDetails = document.createElement('details');
-                    subDetails.className = 'sidebar-category';
-                    subDetails.dataset.sidebarCategory = `${section}:${key}:${categoryKey}`;
-                    const subToggle = document.createElement('summary');
-                    subToggle.className = 'sidebar-category-toggle';
-                    const subLabel = document.createElement('span');
-                    subLabel.textContent = bangla ? bn : en;
-                    subToggle.append(subLabel);
-                    const categoryLinks = document.createElement('div');
-                    categoryLinks.className = 'sidebar-category-links';
-                    for (const link of sublinks) categoryLinks.append(link);
-                    subDetails.append(subToggle, categoryLinks);
-                    submenu.append(subDetails);
-                    allCategories.push(subDetails);
-                }
-                if (namedCategories.length > 1) {
-                    for (const child of byCategory.get('other') || []) submenu.append(child);
-                }
-            } else {
-                for (const child of children) submenu.append(child);
-            }
+            // Flat module menu: put frequent work first without visible Operations,
+            // Reports or Settings submenus. Preserve every server-authorized link.
+            const order = { operations: 0, reports: 1, settings: 2, other: 3 };
+            for (const child of children.slice().sort((a, b) =>
+                (order[categoryFor(section, key, a.getAttribute('href') || '')] ?? 3) -
+                (order[categoryFor(section, key, b.getAttribute('href') || '')] ?? 3)))
+                submenu.append(child);
             details.append(summary, submenu);
             container.append(details);
             allDetails.push(details);
@@ -531,9 +499,6 @@
             else link.removeAttribute('aria-current');
         }
         for (const details of allDetails) {
-            details.classList.toggle('has-current', details.contains(selectedLink));
-        }
-        for (const details of allCategories) {
             details.classList.toggle('has-current', details.contains(selectedLink));
         }
         return selectedLink;
@@ -617,12 +582,6 @@
         const toOpen = isTop() ? null : (activeGroup ||
             (isDashboard ? null : allDetails.find(details => details.dataset.sidebarGroup === state.group)));
         for (const details of allDetails) details.open = details === toOpen;
-        if (!isTop()) {
-            const selectedCategory = selected?.closest('.sidebar-category');
-            const toOpenCategory = selectedCategory ||
-                allCategories.find(details => details.dataset.sidebarCategory === state.category && toOpen?.contains(details));
-            for (const details of allCategories) details.open = details === toOpenCategory;
-        }
     }
     restoreOpenGroup();
     restoreSections();
@@ -637,17 +596,6 @@
             saveState();
         });
     }
-    for (const details of allCategories) {
-        details.addEventListener('toggle', () => {
-            if (!details.open) return;
-            for (const other of allCategories) {
-                if (other !== details && other.parentElement === details.parentElement) other.open = false;
-            }
-            state.category = details.dataset.sidebarCategory;
-            saveState();
-        });
-    }
-
     let scheduled = false;
     sidebar.addEventListener('scroll', () => {
         if (scheduled || isTop()) return;
@@ -661,7 +609,6 @@
     for (const link of allLinks) link.addEventListener('click', () => {
         state.scroll = sidebar.scrollTop;
         state.group = link.closest('.sidebar-group')?.dataset.sidebarGroup || state.group;
-        state.category = link.closest('.sidebar-category')?.dataset.sidebarCategory || state.category;
         const section = link.closest('nav[data-sidebar-section]')?.dataset.sidebarSection;
         state.section = ['academics', 'management'].includes(section) ? section : '';
         saveState();
@@ -699,7 +646,6 @@
         restoreSections();
         if (isTop()) {
             allDetails.forEach(details => { details.open = false; });
-            allCategories.forEach(details => { details.open = false; });
         } else {
             restoreOpenGroup();
             window.requestAnimationFrame(showActiveAndRestoreScroll);
@@ -714,8 +660,7 @@
         if (!topNavigation) window.requestAnimationFrame(showActiveAndRestoreScroll);
     });
 
-    // Native <summary> handles Enter/Space. Arrow/Home/End provide predictable
-    // three-level keyboard traversal without focusing collapsed or unauthorized links.
+    // Native <summary> handles Enter/Space. Arrow/Home/End skip closed modules.
     sidebar.addEventListener('keydown', event => {
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) ||
             event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -733,7 +678,7 @@
                     style.visibility === 'collapse') return false;
             }
             // CSS can give descendants of a closed <details> nonzero rects.
-            // Its own <summary> is navigable; nested links/categories are not.
+            // Its own <summary> is navigable; closed module links are not.
             for (let parent = element.parentElement; parent && parent !== nav; parent = parent.parentElement) {
                 if (parent.tagName === 'DETAILS' && !parent.open &&
                     !parent.querySelector(':scope > summary')?.contains(element)) return false;
@@ -753,7 +698,6 @@
     document.addEventListener('pointerdown', event => {
         if (!isTop() || sidebar.contains(event.target)) return;
         for (const details of allDetails) details.open = false;
-        for (const details of allCategories) details.open = false;
     });
     document.addEventListener('keydown', event => {
         if (event.key !== 'Escape' || !isTop()) return;
