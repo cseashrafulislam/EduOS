@@ -120,3 +120,25 @@ test('all whitespace-separated aria-labelledby IDs are checked for protected bil
     assert.equal(draft.isSafeTarget(safe), true);
     assert.equal(draft.applyDraft(safe, 'Rahim', host), true);
 });
+
+
+test('aria-labelledby cannot hide protected labels beyond the eighth ID', () => {
+    const ids = Array.from({ length: 12 }, (_, i) => 'label' + i);
+    const target = input({
+        ownerDocument: { getElementById: id => ({ textContent: id === 'label11' ? 'ব্যাংক হিসাব' : 'Search' }) },
+        getAttribute: key => key === 'aria-labelledby' ? ids.join(' ') : null
+    });
+    assert.equal(draft.isSafeTarget(target), false);
+    assert.equal(draft.applyDraft(target, 'Rahim', host), false);
+});
+
+test('unresolved, duplicate and excessive accessible labels fail closed', () => {
+    for (const ids of ['missing', 'first first', Array.from({ length: 33 }, (_, i) => 'label' + i).join(' ')]) {
+        const target = input({
+            ownerDocument: { getElementById: id => id === 'missing' ? null : { textContent: 'Search' } },
+            getAttribute: key => key === 'aria-labelledby' ? ids : null
+        });
+        assert.equal(draft.isSafeTarget(target), false);
+        assert.equal(draft.applyDraft(target, 'Rahim', host), false);
+    }
+});
