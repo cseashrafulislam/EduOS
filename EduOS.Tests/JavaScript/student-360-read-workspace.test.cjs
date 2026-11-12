@@ -89,3 +89,16 @@ test('F10 subject registration history reuses tenant-authorized bounded canonica
     assert.match(js, /currentTab === tab/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
 });
+
+test('F10 CSV export neutralizes spreadsheet formulas after invisible or whitespace prefixes', () => {
+    const js = read('EduOS.App/wwwroot/js/students/student-360.js');
+    const match = js.match(/    function csvCell\(value\) \{([\s\S]*?)\n    \}/);
+    assert.ok(match, 'CSV serializer must exist');
+    const csvCell = new Function('value', match[1]);
+    for (const payload of ['=1+1', '  =1+1', '\\t=1+1', '\\n=1+1',
+        '\\uFEFF=1+1', '\\u200B=1+1', '\\u2060@SUM(1,2)', '-1+2']) {
+        assert.ok(csvCell(payload).startsWith('"\\''), JSON.stringify(payload));
+    }
+    assert.equal(csvCell('Normal student'), '"Normal student"');
+    assert.equal(csvCell('Student "A"'), '"Student ""A"""');
+});
