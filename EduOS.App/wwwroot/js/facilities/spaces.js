@@ -166,7 +166,7 @@
         setLoading(false);
     }
     async function load() {
-        if (blocked) return;
+        if (blocked) return false;
         const seq = ++requestNumber;
         listController?.abort();
         listController = new AbortController();
@@ -177,32 +177,33 @@
         if (campus && (!/^[1-9]\d*$/.test(campus) || !Number.isSafeInteger(Number(campus)))) {
             rows = []; pages = 1; render();
             notice(tr('Enter a valid campus ID.', 'সঠিক ক্যাম্পাস আইডি দিন।'));
-            return;
+            return false;
         }
         if (query.get('search').length > 100) {
             rows = []; pages = 1; render();
             notice(tr('Search must be 100 characters or fewer.', 'খোঁজার শব্দ ১০০ অক্ষরের মধ্যে রাখুন।'));
-            return;
+            return false;
         }
         if (campus) query.set('campusId', campus);
         setLoading(true);
         try {
             const result = await api('?' + query.toString(), 'GET', undefined, listController.signal);
-            if (seq !== requestNumber || blocked) return;
+            if (seq !== requestNumber || blocked) return false;
             rows = Array.isArray(result?.items) ? result.items : [];
             pages = Math.max(1, Number(result?.totalPages) || 1);
             if (page > pages) {
                 page = pages;
-                await load();
-                return;
+                return await load();
             }
             clearNotice();
             render();
+            return true;
         } catch (error) {
-            if (seq !== requestNumber || blocked || error.name === 'AbortError' || error.message === 'session-changed') return;
+            if (seq !== requestNumber || blocked || error.name === 'AbortError' || error.message === 'session-changed') return false;
             rows = [];
             render();
             notice(error.message);
+            return false;
         }
     }
     searchForm.addEventListener('submit', event => {
@@ -246,8 +247,11 @@
                 editor.reset();
                 el('facilityId').value = el('facilityVersion').value = '';
                 page = 1;
-                await load();
-                if (!blocked) notice(tr('Space saved.', 'স্থান সংরক্ষিত হয়েছে।'), true);
+                const refreshed = await load();
+                if (!blocked) notice(refreshed
+                    ? tr('Space saved.', 'স্থান সংরক্ষিত হয়েছে।')
+                    : tr('Space saved, but the list could not be refreshed. Search again; do not resubmit.',
+                        'স্থান সংরক্ষিত হয়েছে, কিন্তু তালিকা লোড হয়নি। আবার খুঁজুন; পুনরায় জমা দেবেন না।'), true);
             } catch (error) {
                 if (!blocked && error.message !== 'session-changed') notice(error.message + ' ' + tr(
                     'Check the list before retrying an uncertain save.',

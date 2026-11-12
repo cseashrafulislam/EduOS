@@ -649,7 +649,7 @@
         }
     }
     async function load() {
-        if (blocked) return;
+        if (blocked) return false;
         const generation = ++listGeneration;
         // Clear previous-campus data before a new authorized response arrives.
         const tbody = el('wfRows'); tbody.replaceChildren();
@@ -664,7 +664,7 @@
             if (el('wfStateFilter').value) q.set('state', el('wfStateFilter').value);
             if (el('wfOverdueOnly').checked) q.set('overdueOnly', 'true');
             const data = await api('?' + q);
-            if (generation !== listGeneration || blocked) return;
+            if (generation !== listGeneration || blocked) return false;
             tbody.replaceChildren();
             pages = Math.max(1, data.totalPages || 1);
             // Refresh may exclude a previously selected work order after approval,
@@ -690,8 +690,9 @@
             el('wfPage').textContent = page + ' / ' + pages;
             el('wfPrev').disabled = page <= 1; el('wfNext').disabled = page >= pages;
             await dashboard(generation, q.get('campusId'));
+            return generation === listGeneration && !blocked;
         } catch (error) {
-            if (generation !== listGeneration || blocked || error.message === 'session-changed') return;
+            if (generation !== listGeneration || blocked || error.message === 'session-changed') return false;
             // A failed refresh cannot validate old actions or rowversion.
             clearSelection();
             tbody.replaceChildren();
@@ -699,6 +700,7 @@
             const td = cell(t('Unable to load requests. Search again.', 'অনুরোধ লোড হয়নি। আবার খুঁজুন।'));
             td.colSpan = 6; tr.append(td); tbody.append(tr);
             notice(error.message);
+            return false;
         }
     }
     async function history() {
@@ -963,7 +965,12 @@
             await api('', 'POST', body);
             pending.delete(key);
             el('wfCreate').reset(); clearLocation(); notice(t('Request submitted.', 'অনুরোধ জমা হয়েছে।'), true);
-            page = 1; await load();
+            page = 1;
+            const refreshed = await load();
+            if (!blocked) notice(refreshed
+                ? t('Request submitted.', 'অনুরোধ জমা হয়েছে।')
+                : t('Request submitted, but the list did not refresh. Search again; do not resubmit.',
+                    'অনুরোধ জমা হয়েছে, কিন্তু তালিকা লোড হয়নি। আবার খুঁজুন; পুনরায় জমা দেবেন না।'), true);
         } catch (error) {
             // A confirmed validation rejection did not commit; corrected details
             // may use a new ID. Network/5xx/409 outcomes require safe replay.
@@ -1026,7 +1033,11 @@
             notice(t('Transition recorded.', 'পরিবর্তন সংরক্ষিত হয়েছে।'), true);
             // Do not restore a work order the user deselected during this POST.
             if (!blocked && selected?.id === result.id) select(result);
-            await load();
+            const refreshed = await load();
+            if (!blocked) notice(refreshed
+                ? t('Transition recorded.', 'পরিবর্তন সংরক্ষিত হয়েছে।')
+                : t('Transition recorded, but the list did not refresh. Search again; do not resubmit.',
+                    'পরিবর্তন সংরক্ষিত হয়েছে, কিন্তু তালিকা লোড হয়নি। আবার খুঁজুন; পুনরায় জমা দেবেন না।'), true);
         } catch (error) {
             if (error.status === 400 || error.status === 422) pending.delete(key);
             if (!blocked) notice(action === 'start' && error.status === 409
