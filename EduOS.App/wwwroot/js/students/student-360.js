@@ -195,8 +195,10 @@
         return {headers, body};
     }
     function csvCell(value) {
-        // Quoting all cells prevents spreadsheet formula execution for untrusted historical text.
-        const safe = /^[=+@\-\t\r]/.test(value) ? "'" + value : value;
+        // Quoting alone does not neutralize spreadsheet formulas after ignored prefixes.
+        const text = String(value);
+        const safe = /^[\\s\\uFEFF\\u200B-\\u200D\\u2060]*[=+@-]/u.test(text) || /^[\\t\\r\\n]/.test(text)
+            ? "'" + text : text;
         return '"' + safe.replace(/"/g, '""') + '"';
     }
     $('s360Export').addEventListener('click', () => {
