@@ -217,7 +217,7 @@
         if (!resultReady || loading || !currentItems.length || !sameSession()) return;
         const safe = value => {
             let s = value == null ? '' : String(value);
-            if (/^[\\s\\uFEFF]*[=+@\\-]/.test(s)) s = "'" + s;
+            if (/^[\s\uFEFF\u200B-\u200D\u2060]*[=+@-]/u.test(s)) s = "'" + s;
             return '"' + s.replace(/"/g, '""') + '"';
         };
         const header = ['Module', 'Reference', 'Campus', 'State', 'Submitted UTC', 'Source'];
