@@ -758,6 +758,41 @@ public class AdvanceLessonPlanRequestDto
     [Required] public string RowVersion { get; set; } = string.Empty;
 }
 
+// Reviewed official-date import: the browser submits catalog codes, never dates/titles.
+public sealed class GovernmentHolidayPreviewDto
+{
+    public string SourceVersion { get; set; } = string.Empty;
+    public string SourceName { get; set; } = "Bangladesh Ministry of Public Administration";
+    public List<GovernmentHolidayOptionDto> Holidays { get; set; } = new();
+}
+public sealed class GovernmentHolidayOptionDto
+{
+    public string Code { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+    public bool MoonDependent { get; set; }
+    public string SourceUrl { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty; // Missing, Existing or Conflict
+}
+public sealed class ImportGovernmentHolidaysRequestDto
+{
+    public Guid ClientRequestId { get; set; }
+    public long AcademicYearId { get; set; }
+    public long? CampusId { get; set; }
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    [Required] public string SourceVersion { get; set; } = string.Empty;
+    [Required] public List<string> SelectedCodes { get; set; } = new();
+    public bool Confirmed { get; set; }
+}
+public sealed class ImportGovernmentHolidaysResultDto
+{
+    public int CreatedCount { get; set; }
+    public int ExistingCount { get; set; }
+    public List<string> CreatedCodes { get; set; } = new();
+}
+
 public class AcademicCalendarPolicyDto
 {
     public long Id { get; set; }
