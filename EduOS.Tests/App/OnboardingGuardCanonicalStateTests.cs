@@ -41,6 +41,86 @@ public sealed class OnboardingGuardCanonicalStateTests
     }
 
     [Fact]
+    public async Task Verified_active_subscription_unlocks_dashboard_but_setup_stays_incomplete()
+    {
+        using var db = CreateContext();
+        var tenant = new Tenant
+        {
+            Name = "Paid School", Code = "PAID", Email = "paid@example.test",
+            InstitutionTypeDefinitionId = 1, EmailVerifiedAt = DateTime.UtcNow.AddDays(-1),
+            State = TenantState.Active, OnboardingStage = OnboardingStage.CampusSetup
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        db.TenantSubscriptions.Add(new TenantSubscription
+        {
+            TenantId = tenant.Id, SubscriptionPlanId = 1, State = SubscriptionState.Active,
+            StartsAt = DateTime.UtcNow.AddDays(-1), EndsAt = DateTime.UtcNow.AddDays(28)
+        });
+        await db.SaveChangesAsync();
+        var http = CreateRequest(tenant.Id, "/Dashboard/Index");
+        var next = false;
+        var guard = new OnboardingGuardMiddleware(_ => { next = true; return Task.CompletedTask; },
+            NullLogger<OnboardingGuardMiddleware>.Instance);
+        await guard.InvokeAsync(http, db);
+        Assert.True(next);
+        Assert.Null(tenant.OnboardingCompletedAt);
+        Assert.Equal(OnboardingStage.CampusSetup, tenant.OnboardingStage);
+    }
+
+    [Fact]
+    public async Task Expired_subscription_and_missing_email_verification_never_unlock_dashboard()
+    {
+        using var db = CreateContext();
+        var tenant = new Tenant
+        {
+            Name = "School", Code = "EXPIRED", Email = "expired@example.test",
+            InstitutionTypeDefinitionId = 1, EmailVerifiedAt = DateTime.UtcNow.AddDays(-2),
+            State = TenantState.Active, OnboardingStage = OnboardingStage.CampusSetup
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        db.TenantSubscriptions.Add(new TenantSubscription
+        {
+            TenantId = tenant.Id, SubscriptionPlanId = 1, State = SubscriptionState.Active,
+            StartsAt = DateTime.UtcNow.AddDays(-30), EndsAt = DateTime.UtcNow.AddDays(-1)
+        });
+        await db.SaveChangesAsync();
+        var guard = new OnboardingGuardMiddleware(_ => Task.CompletedTask,
+            NullLogger<OnboardingGuardMiddleware>.Instance);
+        var expired = CreateRequest(tenant.Id, "/Dashboard/Index");
+        await guard.InvokeAsync(expired, db);
+        Assert.Equal(StatusCodes.Status302Found, expired.Response.StatusCode);
+        var subscription = await db.TenantSubscriptions.SingleAsync();
+        subscription.EndsAt = DateTime.UtcNow.AddDays(1);
+        tenant.EmailVerifiedAt = null;
+        await db.SaveChangesAsync();
+        var unverified = CreateRequest(tenant.Id, "/Dashboard/Index");
+        await guard.InvokeAsync(unverified, db);
+        Assert.Equal(StatusCodes.Status302Found, unverified.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Changing_language_is_allowed_while_other_onboarding_pages_remain_guarded()
+    {
+        using var db = CreateContext();
+        var tenant = new Tenant
+        {
+            Name = "Onboarding", Code = "LANG", Email = "lang@example.test",
+            State = TenantState.PendingVerification, OnboardingStage = OnboardingStage.Payment
+        };
+        db.Tenants.Add(tenant);
+        await db.SaveChangesAsync();
+        var request = CreateRequest(tenant.Id, "/localization/set-language");
+        request.Request.Method = HttpMethods.Post;
+        var reached = false;
+        var guard = new OnboardingGuardMiddleware(_ => { reached = true; return Task.CompletedTask; },
+            NullLogger<OnboardingGuardMiddleware>.Instance);
+        await guard.InvokeAsync(request, db);
+        Assert.True(reached);
+    }
+
+    [Fact]
     public async Task Dashboard_is_not_an_onboarding_bypass()
     {
         using var db = CreateContext();

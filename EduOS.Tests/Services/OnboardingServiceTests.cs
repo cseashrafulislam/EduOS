@@ -22,6 +22,56 @@ namespace EduOS.Tests.Services;
 public sealed class OnboardingServiceTests
 {
     [Fact]
+    public async Task Verified_payment_enables_workspace_without_falsifying_remaining_setup()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStage.Payment);
+        setup.Tenant.State = TenantState.PendingVerification;
+        await setup.Context.SaveChangesAsync();
+        var before = await setup.Service.GetStatusAsync();
+        Assert.True(before.Data!.CanEnterWorkspace);
+        Assert.False(before.Data.HasWorkspaceAccess);
+        Assert.False(before.Data.IsComplete);
+        var enabled = await setup.Service.EnterWorkspaceAfterPaymentAsync();
+        Assert.True(enabled.Success, enabled.Message);
+        Assert.Equal(OnboardingStage.CampusSetup, setup.Tenant.OnboardingStage);
+        Assert.Equal(TenantState.Active, setup.Tenant.State);
+        Assert.Null(setup.Tenant.OnboardingCompletedAt);
+        var after = await setup.Service.GetStatusAsync();
+        Assert.True(after.Data!.HasWorkspaceAccess);
+        Assert.False(after.Data.IsComplete);
+        Assert.Equal(4, after.Data.CompletedStages);
+        Assert.True((await setup.Service.EnterWorkspaceAfterPaymentAsync()).Success);
+    }
+
+    [Fact]
+    public async Task Pending_payment_never_grants_workspace_access_or_skips_setup()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStage.Payment,
+            subscriptionState: SubscriptionState.PendingPayment);
+        setup.Tenant.State = TenantState.PendingVerification;
+        await setup.Context.SaveChangesAsync();
+        Assert.False((await setup.Service.GetStatusAsync()).Data!.CanEnterWorkspace);
+        var result = await setup.Service.EnterWorkspaceAfterPaymentAsync();
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(OnboardingStage.Payment, setup.Tenant.OnboardingStage);
+        Assert.Null(setup.Tenant.OnboardingCompletedAt);
+    }
+
+    [Fact]
+    public async Task Suspended_and_unverified_institutions_cannot_enter_paid_workspace()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStage.Payment);
+        setup.Tenant.State = TenantState.Suspended;
+        await setup.Context.SaveChangesAsync();
+        Assert.Equal(403, (await setup.Service.EnterWorkspaceAfterPaymentAsync()).StatusCode);
+        setup.Tenant.State = TenantState.PendingVerification;
+        setup.Tenant.EmailVerifiedAt = null;
+        await setup.Context.SaveChangesAsync();
+        Assert.Equal(409, (await setup.Service.EnterWorkspaceAfterPaymentAsync()).StatusCode);
+        Assert.Null(setup.Tenant.OnboardingCompletedAt);
+    }
+
+    [Fact]
     public async Task Cannot_skip_required_stage()
     {
         await using var setup = await CreateSetupAsync(OnboardingStage.BrandingSetup);
@@ -142,7 +192,8 @@ public sealed class OnboardingServiceTests
     }
 
     private static async Task<TestSetup> CreateSetupAsync(OnboardingStage stage,
-        bool hasYear = false, bool hasCampus = false, ApiResponse<bool>? moduleValidation = null)
+        bool hasYear = false, bool hasCampus = false, ApiResponse<bool>? moduleValidation = null,
+        SubscriptionState subscriptionState = SubscriptionState.Trial)
     {
         const long tenantId = 410;
         var http = new DefaultHttpContext();
@@ -186,7 +237,7 @@ public sealed class OnboardingServiceTests
         subscriptions.Setup(x => x.GetActiveByTenantAsync(tenantId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TenantSubscription
             {
-                TenantId = tenantId, SubscriptionPlanId = 1, State = SubscriptionState.Trial,
+                TenantId = tenantId, SubscriptionPlanId = 1, State = subscriptionState,
                 IsTrial = true, StartsAt = DateTime.UtcNow.AddDays(-1), EndsAt = DateTime.UtcNow.AddDays(30)
             });
 
