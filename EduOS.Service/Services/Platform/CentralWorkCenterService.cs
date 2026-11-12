@@ -21,12 +21,14 @@ public sealed class CentralWorkCenterService(
     {
         public int Kind { get; set; }
         public long SourceId { get; set; }
+        public string Reference { get; set; } = string.Empty;
         public long? CampusId { get; set; }
         public DateTime SubmittedAtUtc { get; set; }
     }
 
     public async Task<ApiResponse<CentralWorkCenterPageDto>> GetPendingAsync(
-        int page = 1, int pageSize = 25, long? campusId = null, CancellationToken ct = default, string? source = null)
+        int page = 1, int pageSize = 25, long? campusId = null, CancellationToken ct = default,
+        string? source = null, string? reference = null, string? order = null)
     {
         if (!user.IsAuthenticated || user.UserId <= 0 || user.TenantId <= 0 ||
             db.CurrentTenantId != user.TenantId)
@@ -34,6 +36,11 @@ public sealed class CentralWorkCenterService(
         if (page < 1 || pageSize is < 1 or > 100 || campusId is <= 0 ||
             (long)(page - 1) * pageSize > int.MaxValue)
             return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work list page or campus.", 400);
+
+        reference = reference?.Trim();
+        if (reference is { Length: > 80 } || (reference != null && reference.Any(char.IsControl)) ||
+            (order != null && order is not ("oldest" or "newest")))
+            return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work search or ordering.", 400);
 
         if (!string.IsNullOrEmpty(source) && source is not ("ProcurementRequisition" or "ProcurementPurchaseOrder" or "FacilityVisitorPolicy" or "AccountingJournal"))
             return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work source.", 400);
@@ -87,14 +94,14 @@ public sealed class CentralWorkCenterService(
                 r.TenantId == tenant && !r.IsDeleted && r.StateCode == "Submitted" &&
                 r.CreatedBy.HasValue && r.CreatedBy != user.UserId && visibleCampuses.Contains(r.CampusId) &&
                 (!campusId.HasValue || r.CampusId == campusId.Value))
-                .Select(r => new WorkIdentity { Kind = 1, SourceId = r.Id,
+                .Select(r => new WorkIdentity { Kind = 1, SourceId = r.Id, Reference = r.RequestNumber,
                     CampusId = r.CampusId, SubmittedAtUtc = r.SubmittedAt ?? r.CreatedAt });
             var orders = db.ProcurementPurchaseOrders.AsNoTracking().Where(o =>
                 o.TenantId == tenant && !o.IsDeleted &&
                 (o.StateCode == "Submitted" || o.StateCode == "CancelRequested") &&
                 o.CreatedBy.HasValue && o.CreatedBy != user.UserId && visibleCampuses.Contains(o.CampusId) &&
                 (!campusId.HasValue || o.CampusId == campusId.Value))
-                .Select(o => new WorkIdentity { Kind = 2, SourceId = o.Id,
+                .Select(o => new WorkIdentity { Kind = 2, SourceId = o.Id, Reference = o.OrderNumber,
                     CampusId = o.CampusId, SubmittedAtUtc = o.SubmittedAt ?? o.CreatedAt });
             pending = requisitions.Concat(orders);
         }
@@ -104,7 +111,7 @@ public sealed class CentralWorkCenterService(
                 p.TenantId == tenant && !p.IsDeleted && p.StateCode == "Submitted" &&
                 p.RequestedByUserId != user.UserId && visibleCampuses.Contains(p.CampusId) &&
                 (!campusId.HasValue || p.CampusId == campusId.Value))
-                .Select(p => new WorkIdentity { Kind = 3, SourceId = p.Id,
+                .Select(p => new WorkIdentity { Kind = 3, SourceId = p.Id, Reference = p.PolicyCode,
                     CampusId = p.CampusId, SubmittedAtUtc = p.CreatedAt });
             pending = pending == null ? policyChanges : pending.Concat(policyChanges);
         }
@@ -116,7 +123,7 @@ public sealed class CentralWorkCenterService(
                 j.CreatedBy != user.UserId &&
                 ((j.SourceType == "Manual" && j.SourceId == null && j.ReversalOfJournalId == null) ||
                  (j.SourceType == "ManualReversal" && j.SourceId != null && j.ReversalOfJournalId != null)))
-                .Select(j => new WorkIdentity { Kind = 4, SourceId = j.Id,
+                .Select(j => new WorkIdentity { Kind = 4, SourceId = j.Id, Reference = j.JournalNumber,
                     CampusId = j.CampusId, SubmittedAtUtc = j.UpdatedAt ?? j.CreatedAt });
             pending = pending == null ? journals : pending.Concat(journals);
         }
@@ -129,6 +136,11 @@ public sealed class CentralWorkCenterService(
         };
         if (pending == null)
             return ApiResponse<CentralWorkCenterPageDto>.SuccessResponse(result);
+
+        // Reference search is applied to the canonical union before counts and paging.
+        // The source reference is not a student/person identifier and is never expanded to PII.
+        if (!string.IsNullOrEmpty(reference))
+            pending = pending.Where(x => x.Reference.Contains(reference));
 
         // One authoritative union query produces the same scoped counts as the drill-down.
         // Do not compute dashboard totals from a page or from a separate snapshot.
@@ -158,8 +170,10 @@ public sealed class CentralWorkCenterService(
             pending = pending.Where(x => x.Kind == kind);
         }
         result.Pending.TotalCount = await pending.CountAsync(ct);
-        var identities = await pending.OrderBy(x => x.SubmittedAtUtc).ThenBy(x => x.Kind)
-            .ThenBy(x => x.SourceId).Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
+        var ordered = order == "newest"
+            ? pending.OrderByDescending(x => x.SubmittedAtUtc).ThenBy(x => x.Kind).ThenBy(x => x.SourceId)
+            : pending.OrderBy(x => x.SubmittedAtUtc).ThenBy(x => x.Kind).ThenBy(x => x.SourceId);
+        var identities = await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
         var requisitionIds = identities.Where(x => x.Kind == 1).Select(x => x.SourceId).ToArray();
         var orderIds = identities.Where(x => x.Kind == 2).Select(x => x.SourceId).ToArray();
         var policyIds = identities.Where(x => x.Kind == 3).Select(x => x.SourceId).ToArray();
