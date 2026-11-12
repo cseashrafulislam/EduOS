@@ -61,6 +61,29 @@
         url.searchParams.set('smartSetup', module);
         return url.pathname + url.search;
     };
+    // Embedded Settings are the original, tenant-authorized pages. No duplicate
+    // create/edit/delete API or shadow master table exists in Smart Setup.
+    const openEmbeddedSetup = (module, path, caption) => {
+        if (!sameSession() || !state.preview?.modules.some(m => m.code === module && m.isAvailable)) return;
+        const destination = safePath(path);
+        if (destination === '/TenantSettings/Index' && path !== destination) return;
+        if (/^\\/SmartSetup\\//i.test(destination)) return;
+        const panel = el('smartSetupInline');
+        const frame = el('smartSetupFrame');
+        if (!panel || !frame) return;
+        const address = new URL(destination, window.location.origin);
+        address.searchParams.set('smartSetupEmbedded', '1');
+        el('smartSetupInlineTitle').textContent = caption;
+        panel.hidden = false;
+        frame.src = address.pathname + address.search;
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const closeEmbeddedSetup = () => {
+        const panel = el('smartSetupInline'), frame = el('smartSetupFrame');
+        if (!panel || !frame) return;
+        panel.hidden = true;
+        frame.removeAttribute('src');
+    };
     const entryKey = (module, entry) => module + '|' + entry.kind + '|' + entry.code;
     const selectedRows = () => (state.preview?.modules || []).flatMap(m =>
         !m.isAvailable || !m.supportsSafeApply ? [] : (m.entries || [])
@@ -232,14 +255,29 @@
                 for (const task of todo) {
                     const li = node('li', 'd-flex flex-wrap align-items-center gap-2 py-1');
                     li.append(node('span', 'flex-grow-1', bn ? task.labelBangla : task.label));
-                    const link = node('a', 'small', tr('Configure', 'সেট করুন'));
-                    link.href = setupLink(task.actionUrl, m.code);
+                    const inlineButton = node('button', 'btn btn-sm btn-outline-primary',
+                        tr('Add here', 'এখানেই যোগ করুন'));
+                    inlineButton.type = 'button';
+                    inlineButton.setAttribute('data-smart-setup-inline', m.code + ':' + task.code);
+                    inlineButton.addEventListener('click', () =>
+                        openEmbeddedSetup(m.code, task.actionUrl, bn ? task.labelBangla : task.label));
+                    li.append(inlineButton);
+                    const link = node('a', 'small', tr('Full Settings', 'মূল সেটিংস'));
+                    link.href = safePath(task.actionUrl);
                     link.target = '_blank';
                     link.rel = 'noopener noreferrer';
                     li.append(link);
                     list.append(li);
                 }
                 body.append(list);
+            }
+            if (m.nextStepUrl) {
+                const manage = node('a', 'small', tr('Manage ' + m.name + ' in original settings',
+                    m.nameBangla + ' এর মূল সেটিংস'));
+                manage.href = safePath(m.nextStepUrl);
+                manage.target = '_blank';
+                manage.rel = 'noopener noreferrer';
+                body.append(manage);
             }
             card.append(body);
             wrapper.append(card);
@@ -342,7 +380,36 @@
         }
     }
     el('smartSetupReload').addEventListener('click', load);
+    el('smartSetupSelectAll')?.addEventListener('click', () => {
+        if (!sameSession() || state.busy || !state.preview) return;
+        state.selected.clear();
+        for (const m of state.preview.modules) {
+            if (!m.isAvailable || !m.supportsSafeApply) continue;
+            for (const entry of m.entries || []) {
+                if (entry.status === 'Missing') state.selected.add(entryKey(m.code, entry));
+            }
+        }
+        state.requestId = null;
+        state.fingerprint = null;
+        render();
+    });
+    el('smartSetupClearSelected')?.addEventListener('click', () => {
+        if (!sameSession() || state.busy) return;
+        state.selected.clear();
+        state.requestId = null;
+        state.fingerprint = null;
+        el('smartSetupConfirm').checked = false;
+        render();
+    });
+    el('smartSetupInlineClose')?.addEventListener('click', () => {
+        closeEmbeddedSetup();
+        load();
+    });
+    el('smartSetupInlineRefresh')?.addEventListener('click', load);
     el('smartSetupConfirm').addEventListener('change', updateSubmit);
     el('smartSetupForm').addEventListener('submit', apply);
+    document.addEventListener('visibilitychange', () => {
+        if (!sameSession()) closeEmbeddedSetup();
+    });
     load();
 })();
