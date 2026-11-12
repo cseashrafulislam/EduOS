@@ -110,6 +110,7 @@
         const host = el('smartSetupModules');
         host.replaceChildren();
         const requested = new URLSearchParams(window.location.search).get('module')?.toUpperCase();
+        const query = (el('smartSetupSearch')?.value || '').trim().toLowerCase();
         const ordered = p.modules.slice().sort((a, b) =>
             (b.code === requested ? 1 : 0) - (a.code === requested ? 1 : 0));
         const allChecks = [...state.readiness.values()].filter(x => x.isAvailable && x.hasChecklist);
@@ -126,6 +127,13 @@
         };
         for (const m of ordered) {
             if (!m.isAvailable) continue;
+            const lookup = [
+                m.code, m.name, m.nameBangla,
+                ...(m.entries || []).flatMap(e => [e.kind, e.code, e.name]),
+                ...(state.readiness.get(m.code)?.requirements || [])
+                    .flatMap(r => [r.code, r.label, r.labelBangla])
+            ];
+            if (query && !lookup.some(text => String(text || '').toLowerCase().includes(query))) continue;
             const entries = (m.entries || []).filter(e => e.status === 'Missing');
             const conflicts = (m.entries || []).filter(e => e.status === 'Conflict');
             const readiness = state.readiness.get(m.code);
@@ -315,8 +323,10 @@
             const wrapper = node('div', 'col-12');
             const complete = node('div', 'card card-body border-0 shadow-sm');
             complete.append(node('p', 'mb-0 text-success',
-                tr('All reviewed safe defaults and checked setup prerequisites are present. No new records are needed.',
-                    'যাচাইকৃত Safe Defaults ও প্রাথমিক তথ্য সম্পন্ন। নতুন কিছু যোগ করার প্রয়োজন নেই।')));
+                query
+                    ? tr('No incomplete setup tasks match your search.', 'এই নামে কোনো অসম্পূর্ণ সেটিংস পাওয়া যায়নি।')
+                    : tr('All reviewed safe defaults and checked setup prerequisites are present. No new records are needed.',
+                        'যাচাইকৃত Safe Defaults ও প্রাথমিক তথ্য সম্পন্ন। নতুন কিছু যোগ করার প্রয়োজন নেই।')));
             wrapper.append(complete);
             host.append(wrapper);
         }
@@ -409,6 +419,7 @@
         }
     }
     el('smartSetupReload').addEventListener('click', load);
+    el('smartSetupSearch')?.addEventListener('input', render);
     el('smartSetupSelectAll')?.addEventListener('click', () => {
         if (!sameSession() || state.busy || !state.preview) return;
         state.selected.clear();
