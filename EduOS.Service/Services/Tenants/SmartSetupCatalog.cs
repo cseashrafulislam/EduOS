@@ -162,7 +162,7 @@ internal static class SmartSetupCatalog
         {
             // Canonical account groups and general posting ledgers, but no real bank,
             // cash designation, receivable/debtor mapping, balances or journal entries.
-            foreach (var (code, name, type) in new (string, string, AccountType)[]
+            foreach (var (code, name, accountType) in new (string, string, AccountType)[]
             {
                 ("1000", "Assets", AccountType.Asset),
                 ("2000", "Liabilities", AccountType.Liability),
@@ -170,8 +170,8 @@ internal static class SmartSetupCatalog
                 ("4000", "Income", AccountType.Income),
                 ("5000", "Expenses", AccountType.Expense)
             })
-                list.Add(new("FINANCE", "Account", code, name, AccountType: type, IsGroup: true));
-            foreach (var (code, name, type, parent) in new (string, string, AccountType, string)[]
+                list.Add(new("FINANCE", "Account", code, name, AccountType: accountType, IsGroup: true));
+            foreach (var (code, name, accountType, parent) in new (string, string, AccountType, string)[]
             {
                 ("1100", "Accounts Receivable", AccountType.Asset, "1000"),
                 ("1200", "Furniture and Equipment", AccountType.Asset, "1000"),
@@ -184,7 +184,7 @@ internal static class SmartSetupCatalog
                 ("5200", "Utilities Expense", AccountType.Expense, "5000"),
                 ("5300", "Office Expense", AccountType.Expense, "5000")
             })
-                list.Add(new("FINANCE", "Account", code, name, AccountType: type, ParentCode: parent));
+                list.Add(new("FINANCE", "Account", code, name, AccountType: accountType, ParentCode: parent));
 
             // Taxability is a reviewed, editable master policy: the conservative
             // earnings default is taxable; deductions and employer costs are not.
