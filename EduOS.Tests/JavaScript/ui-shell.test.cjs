@@ -152,6 +152,24 @@ test('contextual Smart Setup shortcut reuses only an authorized sidebar link, ne
     assert.match(css, /data-workspace-theme="dark"\] \.shell-context-shortcut/);
 });
 
+test('Smart Setup shortcut remains available from a collapsed authorized sidebar without exposing hidden links', () => {
+    const link = (href, attrs = {}, rects = []) => ({
+        getAttribute: key => key === 'href' ? href : Object.hasOwn(attrs, key) ? attrs[key] : null,
+        closest: () => null,
+        getClientRects: () => rects
+    });
+    const current = link('/Students/Index');
+    const setup = link('/SmartSetup/Index');
+    assert.equal(shellLinkVisible(setup), false);
+    assert.equal(contextualSetupLink([current, setup], current), setup);
+    assert.equal(contextualSetupLink([setup], setup), null);
+    for (const attrs of [{ hidden: '' }, { inert: '' }, { disabled: '' },
+        { 'aria-hidden': 'true' }, { 'aria-disabled': 'true' }]) {
+        assert.equal(contextualSetupLink([current, link('/SmartSetup/Index', attrs)], current), null);
+    }
+    assert.equal(contextualSetupLink([current, link('//evil.example/SmartSetup')], current), null);
+});
+
 test('hidden, inert and disabled sidebar links cannot become active breadcrumb or setup action', () => {
     const link = (href, current, active, blocked) => ({
         getAttribute: name => name === 'href' ? href :
