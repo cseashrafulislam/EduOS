@@ -82,3 +82,36 @@ test('comparison rejects incomplete counters, duplicate baselines and invalid la
     {...row,failures:1}, {...row,p75Ms:NaN}, {...row,p95Ms:-1}
   ]) assert.throws(()=>compare(report,{...report,routes:[candidate]}),/invalid|failed/i);
 });
+
+test('response body cleanup failure does not double-count a successful GET',async()=>{
+  let now=0;
+  const result=await probe(base,{token:'qa',clock:()=>now+=5,fetchImpl:async()=>({
+    status:200,body:{cancel:async()=>{throw Error('stream already closed');}}
+  })});
+  assert.equal(result.routes[0].success,5);
+  assert.equal(result.routes[0].failures,0);
+  assert.deepEqual(result.routes[0].statuses,{200:5});
+  assert.equal(result.routes[0].p95Ms,5);
+});
+
+test('invalid and backwards clock readings fail closed without fake latency',async()=>{
+  let i=0;
+  const ticks=[10,9,10,NaN,10,Infinity,10,-Infinity,10,9];
+  const result=await probe(base,{token:'qa',clock:()=>ticks[i++],fetchImpl:async()=>({
+    status:200,body:{cancel:async()=>{}}
+  })});
+  assert.equal(result.routes[0].success,0);
+  assert.equal(result.routes[0].failures,5);
+  assert.equal(result.routes[0].statuses.invalidClock,5);
+  assert.equal(result.routes[0].p75Ms,null);
+  assert.equal(result.routes[0].p95Ms,null);
+});
+
+test('comparison rejects impossible percentile ordering on either side',()=>{
+  const context={role:'Teacher',tenantAlias:'TenantA',campusAlias:'Main',locale:'bn-BD',device:'390px',metric:'sequential-client-GET-ms',sampleCountPerRoute:5};
+  const row={id:'student-list',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:30,p95Ms:20};
+  const good={schema:1,context,routes:[{...row,p75Ms:10,p95Ms:20}]};
+  const bad={schema:1,context,routes:[row]};
+  assert.throws(()=>compare(bad,good),/invalid route/);
+  assert.throws(()=>compare(good,bad),/invalid route/);
+});
