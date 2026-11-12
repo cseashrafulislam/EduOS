@@ -3604,6 +3604,18 @@ select,
     padding: 1rem; background: var(--bs-body-bg, #fff); color: var(--edu-text);
 }
 .auth-session-shield[hidden] { display: none !important; }
+/* Ordinary tab restores are privacy-covered during verification without a
+   repeated blocking dialog. The full recovery card appears only on failure. */
+.auth-session-shield--quiet .auth-session-shield-card { display: none; }
+.auth-session-shield--quiet::after {
+    content: ""; width: 1.75rem; height: 1.75rem;
+    border: 3px solid #cbd5e1; border-top-color: #2563eb;
+    border-radius: 50%; animation: eduos-session-check-spin .75s linear infinite;
+}
+@keyframes eduos-session-check-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .auth-session-shield--quiet::after { animation: none; border-top-color: #475569; }
+}
 .auth-session-shield-card {
     width: min(100%, 26rem); padding: 1.5rem;
     border: 1px solid var(--edu-border); border-radius: 1rem;
