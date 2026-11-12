@@ -385,8 +385,14 @@
                 sessionRowVersion: roster.sessionRowVersion, students
             });
             dirty = false;
-            await loadRoster();
-            status('success', result.message || 'Attendance saved.');
+            // The mark POST succeeded. Do not invite another write if the readback fails.
+            invalidate();
+            if (await loadRoster()) {
+                status('success', result.message || 'Attendance saved.');
+            } else {
+                invalidate();
+                status('warning', 'Attendance saved, but the roster could not refresh. Reload before editing or saving again. / উপস্থিতি সংরক্ষিত হয়েছে, কিন্তু তালিকা রিফ্রেশ হয়নি। আবার সেভ না করে পেজ রিলোড করুন।');
+            }
         } catch (error) { status('danger', error.message); }
         finally {
             saving = false;
@@ -440,8 +446,13 @@
                 Number(roster?.attendanceSessionId) !== target.sessionId) return;
             bootstrap.Modal.getOrCreateInstance(correctionModal).hide();
             dirty = false;
-            if (await loadRoster())
+            invalidate();
+            if (await loadRoster()) {
                 status('success', 'Attendance corrected with an audit record.');
+            } else {
+                invalidate();
+                status('warning', 'Correction saved with audit, but roster refresh failed. Reload before another correction. / সংশোধন সংরক্ষিত হয়েছে; আবার সংশোধনের আগে পেজ রিলোড করুন।');
+            }
         } catch (error) {
             correctionError.textContent = error.message || 'Correction failed. Reload and retry.';
         } finally {
@@ -466,9 +477,14 @@
                 roster.attendanceSessionId + '/finalize?rowVersion=' +
                 encodeURIComponent(roster.sessionRowVersion), 'POST');
             dirty = false;
-            await loadRoster();
-            saveButton.disabled = true; markAllButton.disabled = true;
-            status('success', result.message || 'Attendance finalized.');
+            invalidate();
+            if (await loadRoster()) {
+                saveButton.disabled = true; markAllButton.disabled = true;
+                status('success', result.message || 'Attendance finalized.');
+            } else {
+                invalidate();
+                status('warning', 'Attendance finalized, but the roster could not refresh. Reload before further actions. / উপস্থিতি চূড়ান্ত হয়েছে; পরবর্তী কাজের আগে পেজ রিলোড করুন।');
+            }
         } catch (error) {
             status('danger', error.message);
         } finally {
