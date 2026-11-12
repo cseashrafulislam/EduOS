@@ -23,9 +23,10 @@ function harness(fetchResponse) {
     };
   }
   for (const id of ['centralWorkCenter','cwcAlert','cwcFilters','cwcCampus','cwcRows',
-    'cwcPrevious','cwcNext','cwcPage','cwcSource','cwcPageSize','cwcScope','cwcSummary','cwcExport','cwcPrint'])
+    'cwcPrevious','cwcNext','cwcPage','cwcSource','cwcPageSize','cwcReference','cwcOrder','cwcScope','cwcSummary','cwcExport','cwcPrint'])
     nodes[id] = element();
   nodes.cwcPageSize.value = '25';
+  nodes.cwcOrder.value = 'newest';
   const document = { documentElement: { lang: 'en-BD' }, body: element('body'),
     getElementById: id => nodes[id], createElement: tag => {
       const el = element(tag);
@@ -184,4 +185,24 @@ test('Work Center paging, export and print are session-bound and fail closed on 
     assert.match(js, /request !== serial \|\| !sameSession\(\)/);
     assert.match(js, /\+\+request; if \(pending\) pending\.abort\(\)/);
     assert.match(js, /currentItems = \[\]; currentCounts = \[\]; updateActions\(\)/);
+});
+
+
+test('reference and ordering controls send scoped server query without expanding export', async () => {
+  const h = harness(() => success());
+  await tick();
+  h.nodes.cwcReference.value = 'REQ-12';
+  h.nodes.cwcOrder.value = 'oldest';
+  h.nodes.cwcCampus.value = '3';
+  h.nodes.cwcFilters.handlers.submit({preventDefault() {}});
+  await tick();
+  const url = new URL(h.requests.at(-1).url, 'https://eduos.test');
+  assert.equal(url.searchParams.get('reference'), 'REQ-12');
+  assert.equal(url.searchParams.get('order'), 'oldest');
+  assert.equal(url.searchParams.get('campusId'), '3');
+  assert.equal(url.searchParams.get('page'), '1');
+  assert.equal(h.nodes.cwcExport.disabled, false);
+  const count = h.requests.length;
+  h.nodes.cwcExport.click();
+  assert.equal(h.requests.length, count);
 });
