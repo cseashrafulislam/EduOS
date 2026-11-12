@@ -33,7 +33,13 @@ public sealed partial class AcademicSetupService
                         !offering.IsDeleted && !mapping.IsDeleted && !subject.IsDeleted
                     select new { offering, mapping, subject };
         if (academicSectionId.HasValue)
-            query = query.Where(x => x.offering.AcademicSectionId == academicSectionId.Value);
+        {
+            var legacy = _sections != null && await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == academicSectionId.Value &&
+                x.AcademicBatchId == academicBatchId && x.IsLegacyDefault && !x.IsDeleted, ct);
+            query = query.Where(x => x.offering.AcademicSectionId == academicSectionId.Value ||
+                legacy && x.offering.AcademicSectionId == null);
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
