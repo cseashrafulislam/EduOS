@@ -36,7 +36,12 @@ function harness(fetchResponse) {
   document.body.dataset = { authTenantId: 'tenant-qa', authSessionReference: 'session-qa' };
   const events = {};
   const window = { addEventListener(type, callback) { events[type] = callback; },
-    print() { prints.push(true); }, EduOSSessionTransitionPending: () => false };
+    open() {
+      const printDocument = { body: element('body'), createElement: element };
+      return { document: printDocument, opener: null,
+        print() { prints.push(printDocument.body.children); } };
+    },
+    EduOSSessionTransitionPending: () => false };
   const URL = { createObjectURL: () => 'blob:work', revokeObjectURL() {} };
   vm.runInNewContext(source, { document, window, URL, URLSearchParams, AbortController,
     Blob, Date, Number, String, Object,
@@ -67,6 +72,22 @@ test('current-page CSV/print only enable after authorized successful response',a
   assert.match(view,/id="cwcExport"/);
   assert.match(view,/id="cwcPrint"/);
   assert.match(view,/Only authorized rows on this page/);
+});
+
+test('isolated print document contains only current authorized rows and excludes app shell', async () => {
+  const h = harness(() => success());
+  await tick();
+  const count = h.requests.length;
+  h.nodes.cwcPrint.click();
+  assert.equal(h.requests.length, count);
+  assert.equal(h.prints.length, 1);
+  const [heading, scope, table] = h.prints[0];
+  assert.match(heading.textContent, /My Work/);
+  assert.match(scope.textContent, /Page 1/);
+  assert.equal(table.children.length, 2);
+  assert.equal(table.children[1].children[1].textContent, 'REQ-12');
+  assert.equal(table.children[1].children.length, 5);
+  assert.equal(h.document.body.children.length, 0);
 });
 
 test('failed requests keep navigation and export disabled even after previous successful page',async()=>{
