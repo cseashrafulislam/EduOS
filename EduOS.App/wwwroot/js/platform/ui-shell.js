@@ -49,11 +49,20 @@
     // Breadcrumbs are derived from authorized sidebar links, never from URL
     // segments (which can contain private IDs or misleading untrusted labels).
     function breadcrumbSelection(links) {
-        // A hidden/disabled destination cannot represent the visible page.
-        // Only Razor-authorized, currently visible links may become breadcrumbs.
-        const candidates = Array.from(links || []).filter(shellLinkVisible);
-        return candidates.find(link => link.getAttribute?.('aria-current') === 'page') ||
-            candidates.find(link => link.classList?.contains('active')) || null;
+        // The active server-rendered destination remains the current page even
+        // when a mobile drawer or a closed <details> section hides its pixels.
+        // Explicitly hidden/inert/disabled links are never eligible. Shortcut
+        // links still require full rendered visibility via shellLinkVisible.
+        const candidates = Array.from(links || []);
+        const eligible = link => link && typeof link.getAttribute === 'function' &&
+            link.getAttribute('hidden') === null &&
+            link.getAttribute('inert') === null &&
+            link.getAttribute('disabled') === null &&
+            link.getAttribute('aria-hidden') !== 'true' &&
+            link.getAttribute('aria-disabled') !== 'true' &&
+            !link.closest?.('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]');
+        return candidates.find(link => eligible(link) && link.getAttribute('aria-current') === 'page') ||
+            candidates.find(link => eligible(link) && link.classList?.contains('active')) || null;
     }
 
     // Only offer a next-step shortcut if the current server-authorized menu
