@@ -324,20 +324,75 @@ public sealed class SmartSetupService(
                         .Select(x => new Existing("Subject", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
                     break;
                 case "GradeScheme":
-                    all.AddRange(await db.GradeSchemes.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
-                        (codes.Contains(x.Code) || names.Contains(x.Name)))
-                        .Select(x => new Existing("GradeScheme", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
+                {
+                    var schemes = await db.GradeSchemes.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && (codes.Contains(x.Code) || names.Contains(x.Name)))
+                        .ToListAsync(ct);
+                    var ids = schemes.Select(x => x.Id).ToArray();
+                    var grades = await db.GradeRules.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && ids.Contains(x.GradeSchemeId) && !x.IsDeleted)
+                        .ToListAsync(ct);
+                    foreach (var scheme in schemes)
+                    {
+                        var seed = entries.FirstOrDefault(x => x.Code == scheme.Code || x.Name == scheme.Name);
+                        var valid = seed != null &&
+                            SmartSetupCatalog.GradePresets.TryGetValue(seed.Code, out var expected);
+                        if (valid)
+                        {
+                            var actual = grades.Where(x => x.GradeSchemeId == scheme.Id)
+                                .OrderBy(x => x.MinMarks).ToArray();
+                            valid = scheme.IsActive && !scheme.IsDeleted &&
+                                scheme.AcademicProgramId == null &&
+                                scheme.UseCreditWeightedGpa == (seed!.Code == "BD-CGPA-4") &&
+                                scheme.RepeatCourseGradePolicy == RepeatCourseGradePolicy.Reject &&
+                                actual.Length == expected!.Length &&
+                                actual.Select((x, i) => x.MinMarks == expected[i].Min &&
+                                    x.MaxMarks == expected[i].Max &&
+                                    x.GradeLetter == expected[i].Letter &&
+                                    x.GradePoint == expected[i].Point &&
+                                    x.IsFailGrade == (expected[i].Point == 0m)).All(x => x);
+                        }
+                        all.Add(new Existing("GradeScheme", scheme.Code, scheme.Name, valid));
+                    }
                     break;
+                }
                 case "Account":
-                    all.AddRange(await db.Accounts.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
-                        (codes.Contains(x.Code) || names.Contains(x.Name)))
-                        .Select(x => new Existing("Account", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
+                {
+                    var accounts = await db.Accounts.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && (codes.Contains(x.Code) || names.Contains(x.Name)))
+                        .ToListAsync(ct);
+                    var parentIds = accounts.Where(x => x.ParentAccountId.HasValue)
+                        .Select(x => x.ParentAccountId!.Value).Distinct().ToArray();
+                    var parents = await db.Accounts.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && parentIds.Contains(x.Id))
+                        .Select(x => new { x.Id, x.Code }).ToDictionaryAsync(x => x.Id, x => x.Code, ct);
+                    foreach (var account in accounts)
+                    {
+                        var seed = entries.FirstOrDefault(x => x.Code == account.Code || x.Name == account.Name);
+                        string? parentCode = account.ParentAccountId.HasValue &&
+                            parents.TryGetValue(account.ParentAccountId.Value, out var value) ? value : null;
+                        all.Add(new Existing("Account", account.Code, account.Name,
+                            seed != null && account.IsActive && !account.IsDeleted &&
+                            seed.AccountType == account.AccountType && seed.IsGroup == account.IsGroup &&
+                            account.AllowsPosting == !seed.IsGroup && account.CurrencyCode == "BDT" &&
+                            !account.IsCashInHand && parentCode == seed.ParentCode));
+                    }
                     break;
+                }
                 case "SalaryComponent":
-                    all.AddRange(await db.SalaryComponents.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
-                        (codes.Contains(x.Code) || names.Contains(x.Name)))
-                        .Select(x => new Existing("SalaryComponent", x.Code, x.Name, x.IsActive && !x.IsDeleted)).ToListAsync(ct));
+                {
+                    var components = await db.SalaryComponents.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && (codes.Contains(x.Code) || names.Contains(x.Name)))
+                        .ToListAsync(ct);
+                    foreach (var component in components)
+                    {
+                        var seed = entries.FirstOrDefault(x => x.Code == component.Code || x.Name == component.Name);
+                        all.Add(new Existing("SalaryComponent", component.Code, component.Name,
+                            component.IsActive && !component.IsDeleted && seed != null &&
+                            seed.SalaryType == component.Type && seed.IsTaxable == component.IsTaxable));
+                    }
                     break;
+                }
                 case "OrganizationUnit":
                     all.AddRange(await db.OrganizationUnits.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
