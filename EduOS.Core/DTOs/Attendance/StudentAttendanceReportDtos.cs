@@ -77,6 +77,7 @@ public sealed class StudentAttendanceDailySummaryDto
 public sealed class StudentAttendanceSessionRegisterDto
 {
     public long SessionId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public DateOnly AttendanceDate { get; set; }
     public long? SubjectOfferingId { get; set; }
     public string SubjectOfferingCode { get; set; } = string.Empty;
