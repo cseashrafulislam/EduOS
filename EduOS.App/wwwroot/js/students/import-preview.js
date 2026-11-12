@@ -243,10 +243,16 @@
         if (status.requiresReview) commit.classList.add('d-none');
     }
     async function refreshResume() {
+        const generation = inputGeneration;
         resume.classList.add('d-none');
         const saved = await matchingCheckpoint();
-        if (saved && Number.isSafeInteger(saved.totalRows) && saved.totalRows > 0)
-            showJobStatus(saved, await getJobStatus(saved, saved.totalRows));
+        if (staleInput(generation)) return;
+        if (saved && Number.isSafeInteger(saved.totalRows) && saved.totalRows > 0) {
+            const status = await getJobStatus(saved, saved.totalRows);
+            // Never restore a resume action for a previous file or column mapping.
+            if (staleInput(generation)) return;
+            showJobStatus(saved, status);
+        }
     }
     form.addEventListener('submit', async event => {
         event.preventDefault();
