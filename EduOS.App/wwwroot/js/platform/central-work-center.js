@@ -28,6 +28,31 @@
     const source = byId('cwcSource'), pageSize = byId('cwcPageSize');
     const reference = byId('cwcReference'), order = byId('cwcOrder');
     let loading = false;
+    // URL state is untrusted presentation input, never an authorization grant.
+    const query = new URLSearchParams(window.location?.search || '');
+    const initialSource = query.get('source') || '';
+    const initialOrder = query.get('order') || '';
+    const initialReference = query.get('reference') || '';
+    const initialCampus = query.get('campusId') || '';
+    const initialSize = query.get('pageSize') || '';
+    const initialPage = Number(query.get('page'));
+    if (Object.hasOwn(sourceRoutes, initialSource)) source.value = initialSource;
+    if (['newest', 'oldest'].includes(initialOrder)) order.value = initialOrder;
+    if (initialReference.length <= 80) reference.value = initialReference;
+    if (/^[1-9][0-9]{0,8}$/.test(initialCampus)) byId('cwcCampus').value = initialCampus;
+    if (['10', '25', '50'].includes(initialSize)) pageSize.value = initialSize;
+    if (Number.isSafeInteger(initialPage) && initialPage > 0 && initialPage <= 10000) page = initialPage;
+    function saveLocation() {
+        if (!sameSession() || !window.history?.replaceState || !window.location) return;
+        const q = new URLSearchParams();
+        if (source.value) q.set('source', source.value);
+        if (reference.value.trim()) q.set('reference', reference.value.trim());
+        if (order.value !== 'newest') q.set('order', order.value);
+        if (byId('cwcCampus').value.trim()) q.set('campusId', byId('cwcCampus').value.trim());
+        if (pageSize.value !== '25') q.set('pageSize', pageSize.value);
+        if (page > 1) q.set('page', String(page));
+        window.history.replaceState(null, '', (window.location.pathname || '/CentralWorkCenter') + (q.size ? '?' + q : ''));
+    }
     function alertMessage(message, error = true) {
         const box = byId('cwcAlert');
         box.className = error ? 'alert alert-danger' : 'alert alert-info';
@@ -102,6 +127,7 @@
         byId('cwcPage').textContent = `${result.page} / ${lastPage} (${result.totalCount})`;
         currentScope = byId('cwcScope').textContent;
         updateActions();
+        saveLocation();
         if (!result.items.length) {
             const empty = document.createElement('tr');
             const td = cell(empty, bn ? 'কোনো অপেক্ষমাণ কাজ নেই' : 'No pending work in this scope.');
@@ -162,6 +188,7 @@
         byId('cwcSummary')?.replaceChildren();
         updateActions();
         byId('cwcPage').textContent = bn ? 'লোড হচ্ছে…' : 'Loading…';
+        if (byId('cwcRetry')) byId('cwcRetry').hidden = true;
         byId('cwcRows').replaceChildren();
         if (campus) params.set('campusId', campus);
         try {
@@ -199,6 +226,7 @@
         } catch (error) {
             if (error.name !== 'AbortError' && request === serial && sameSession()) {
                 alertMessage(error.message || 'Unable to load.');
+                if (byId('cwcRetry')) byId('cwcRetry').hidden = false;
                 byId('cwcPage').textContent = bn ? 'তালিকা পাওয়া যায়নি' : 'List unavailable';
                 byId('cwcScope').textContent = '';
                 resultReady = false;
@@ -246,6 +274,8 @@
     if (printButton) printButton.addEventListener('click', () => {
         if (resultReady && !loading && currentItems.length && sameSession()) window.print();
     });
+    const retryButton = byId('cwcRetry');
+    if (retryButton) retryButton.addEventListener('click', () => { if (!loading && sameSession()) load(); });
     byId('cwcFilters').addEventListener('submit', event => {
         event.preventDefault(); page = 1; load();
     });
