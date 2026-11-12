@@ -151,9 +151,8 @@
         const section = nav?.previousElementSibling?.classList.contains('menu-title')
             ? nav.previousElementSibling.textContent : '';
         const group = active?.closest('.sidebar-group')?.querySelector('.sidebar-group-label')?.textContent;
-        const category = active?.closest('.sidebar-category')?.querySelector('.sidebar-category-toggle span')?.textContent;
         const leaf = active?.querySelector('span')?.textContent || active?.getAttribute('aria-label') || active?.textContent;
-        const path = breadcrumbParts([section, group, category, leaf]);
+        const path = breadcrumbParts([section, group, leaf]);
         if (path.length < 2) {
             crumbs.replaceChildren();
             crumbs.hidden = true;
