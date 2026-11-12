@@ -38,6 +38,13 @@ function resetLedgerView(){
 }
 const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
 const dt=x=>x?String(x).slice(0,10):'',amount=x=>Number(x).toFixed(2);
+function paisa(value){
+ const raw=String(value??'').trim();
+ if(!/^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,2})?$/.test(raw))return null;
+ const [whole,fraction='']=raw.split('.');
+ const result=Number(whole)*100+Number(fraction.padEnd(2,'0'));
+ return Number.isSafeInteger(result)?result:null;
+}
 const option=(v,t)=>{const o=document.createElement('option');o.value=String(v);o.textContent=t;return o;};
 const cell=x=>{const t=document.createElement('td');t.textContent=x==null?'':String(x);return t;};
 function alert(type,msg){const a=e('feeAlert');a.className='alert alert-'+type;a.textContent=msg;a.focus();}
@@ -380,8 +387,13 @@ async function collect(ev){
  ev.preventDefault();if(state.paymentBusy||!state.invoice||!ev.currentTarget.reportValidity())return;
  const raw=e('feePaymentAmount').value,paymentDate=e('feePaymentDate').value,invoice=state.invoice,student=state.student;
  if(!student||e('feeStudent').value!==student)return alert('warning',t('Reload the selected student ledger.','নির্বাচিত শিক্ষার্থীর লেজার আবার লোড করুন।'));
- if(!/^\d+(\.\d{1,2})?$/.test(raw)||Number(raw)<=0||Number(raw)>Number(invoice.dueAmount)||paymentDate>today())return alert('danger',t('Invalid cash amount or payment date.','নগদের পরিমাণ বা পরিশোধের তারিখ সঠিক নয়।'));
- const body={paymentDate,paymentMethod:1,amount:Number(raw),bankAccountId:null,externalReference:null,allocations:[{invoiceReference:invoice.reference,amount:Number(raw)}]};
+ const paymentPaisa=paisa(raw),duePaisa=paisa(invoice.dueAmount);
+ if(paymentPaisa===null||duePaisa===null||paymentPaisa<=0||paymentPaisa>duePaisa||
+    !/^\\d{4}-\\d{2}-\\d{2}$/.test(paymentDate)||paymentDate>today()||
+    Number.isNaN(Date.parse(paymentDate+'T00:00:00')))
+    return alert('danger',t('Invalid cash amount or payment date.','নগদের পরিমাণ বা পরিশোধের তারিখ সঠিক নয়।'));
+ const exactAmount=paymentPaisa/100;
+ const body={paymentDate,paymentMethod:1,amount:exactAmount,bankAccountId:null,externalReference:null,allocations:[{invoiceReference:invoice.reference,amount:exactAmount}]};
  body.clientRequestId=stable('payment',JSON.stringify(body));
  state.paymentBusy=true;e('feeCollect').disabled=true;
  e('feePaymentForm').inert=true;
@@ -393,10 +405,10 @@ async function collect(ev){
  try{preview=await api('/payments/preflight','POST',body);}
  catch(err){return alert('danger',err.message+t(' Reload invoice balances before retrying.',' আবার চেষ্টা করার আগে ইনভয়েসের বকেয়া রিলোড করুন।'));}
  if(state.student!==student||e('feeStudent').value!==student||state.invoice!==invoice)return;
- if(preview.amount!==body.amount||preview.currencyCode!=='BDT'||
+ if(paisa(preview.amount)!==paymentPaisa||preview.currencyCode!=='BDT'||
     preview.invoices?.length!==1||
     preview.invoices[0].invoiceReference!==invoice.reference||
-    preview.invoices[0].allocating!==body.amount)
+    paisa(preview.invoices[0].allocating)!==paymentPaisa)
     return alert('danger',t('Receipt preview changed. Reload and retry.','রসিদের পূর্বদর্শন পরিবর্তিত হয়েছে। রিলোড করে আবার চেষ্টা করুন।'));
  if(!confirm((preview.alreadyRecorded?t('Retrieve existing receipt for ','বিদ্যমান রসিদ দেখুন: '):t('Record ','রসিদ নথিভুক্ত করুন: '))+
      amount(preview.amount)+t(' BDT for ',' টাকা, ইনভয়েস ')+preview.invoices[0].invoiceNumber+

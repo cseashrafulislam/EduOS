@@ -27,6 +27,7 @@ function money(value) {
 let options, page = 1, total = 0, rows = [], selected, searchController, searchTimer;
 let draftKey, transitionKey, invoiceKey, replacementKey, filterTimer;
 let registerSequence = 0, previewSequence = 0, previewFor = null;
+let studentSearchSequence = 0, draftBusy = false;
 const cell = value => { const td = document.createElement('td'); td.textContent = String(value ?? ''); return td; };
 const option = (value, label) => { const o = document.createElement('option'); o.value = String(value); o.textContent = label; return o; };
 function notice(message, error = false) {
@@ -62,6 +63,7 @@ function refreshStructures() {
     }
 }
 async function searchStudents() {
+    const sequence = ++studentSearchSequence;
     const term = el('feePlanStudentSearch').value.trim();
     if (searchController) searchController.abort();
     const select = el('feePlanStudent');
@@ -73,11 +75,13 @@ async function searchStudents() {
             { credentials: 'same-origin', cache: 'no-store', signal: searchController.signal,
                 headers: { Accept: 'application/json' } });
         const result = await response.json();
+        if (sequence !== studentSearchSequence || searchController.signal.aborted ||
+            el('feePlanStudentSearch').value.trim() !== term) return;
         if (!response.ok || !result.success) throw Error(result.message || 'Student search failed.');
         select.replaceChildren(option('', 'Select matched student'));
         for (const x of result.data || []) select.append(option(x.reference, x.studentCode + ' — ' + x.name));
     } catch (error) {
-        if (error.name !== 'AbortError') notice(error.message, true);
+        if (sequence === studentSearchSequence && error.name !== 'AbortError') notice(error.message, true);
     }
 }
 async function register() {
@@ -206,13 +210,18 @@ function exportPage() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 el('feePlanStudentSearch').addEventListener('input', () => {
-    draftKey = null; clearTimeout(searchTimer); searchTimer = setTimeout(searchStudents, 350);
+    if (draftBusy) return;
+    draftKey = null; ++studentSearchSequence;
+    if (searchController) searchController.abort();
+    el('feePlanStudent').replaceChildren(option('', 'Searching…'));
+    clearTimeout(searchTimer); searchTimer = setTimeout(searchStudents, 350);
 });
 for (const id of ['feePlanStudent','feePlanBatch','feePlanStructure','feePlanMonth','feePlanMonths','feePlanWeights'])
     el(id).addEventListener('change', () => { draftKey = null; });
 el('feePlanBatch').addEventListener('change', refreshStructures);
 el('feePlanCreate').addEventListener('submit', async event => {
     event.preventDefault();
+    if (draftBusy || !event.currentTarget.reportValidity()) return;
     let monthWeightsBasisPoints;
     try { monthWeightsBasisPoints = parseMonthWeights('feePlanWeights', Number(el('feePlanMonths').value)); }
     catch (error) { notice(error.message, true); return; }
@@ -224,13 +233,22 @@ el('feePlanCreate').addEventListener('submit', async event => {
         startMonth: el('feePlanMonth').value + '-01', months: Number(el('feePlanMonths').value),
         monthWeightsBasisPoints
     };
+    draftBusy = true;
     el('feePlanSave').disabled = true;
+    el('feePlanCreate').inert = true;
     try {
-        const plan = await api('/plans', 'POST', payload);
-        draftKey = null; await register(); await detail(plan.reference);
+        const saved = await api('/plans', 'POST', payload);
+        draftKey = null;
         notice('Gross agreement draft saved; no invoice or payment was created.');
-    } catch (error) { notice(error.message, true); }
-    finally { el('feePlanSave').disabled = false; }
+        try { await register(); await detail(saved.reference); }
+        catch (refreshError) { notice('Draft saved. Refresh the register: ' + refreshError.message, true); }
+    } catch (error) {
+        notice(error.message + ' Keep values unchanged for a safe retry.', true);
+    } finally {
+        draftBusy = false;
+        el('feePlanSave').disabled = false;
+        el('feePlanCreate').inert = false;
+    }
 });
 el('feePlanCampus').addEventListener('change', () => { page = 1; register(); });
 el('feePlanState').addEventListener('change', () => { page = 1; register(); });
