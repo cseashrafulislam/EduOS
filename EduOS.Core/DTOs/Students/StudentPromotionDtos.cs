@@ -19,6 +19,8 @@ public sealed class PromoteStudentWorkflowRequestDto
     [Range(1, long.MaxValue)]
     public long TargetAcademicBatchId { get; set; }
 
+    [Range(1, long.MaxValue)] public long? TargetAcademicSectionId { get; set; }
+
     public long? TargetAcademicTrackId { get; set; }
 
     [Required, StringLength(50)]
@@ -42,6 +44,7 @@ public sealed class StudentPromotionResultDto
     public long AcademicYearId { get; set; }
     public long AcademicLevelId { get; set; }
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public long? AcademicTrackId { get; set; }
     public string Roll { get; set; } = string.Empty;
     public DateTime ProcessedAt { get; set; }
