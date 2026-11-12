@@ -8,6 +8,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.SaaS;
+using EduOS.Service.Services.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -60,7 +61,7 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
     private static StudentReadmissionResultDto Map(Student student,StudentEnrollment enrollment,bool replay)=>new()
     {
         StudentReference=student.PublicId,EnrollmentReference=enrollment.PublicId,
-        AcademicBatchId=enrollment.AcademicBatchId,Roll=enrollment.RollNo,AlreadyProcessed=replay
+        AcademicBatchId=enrollment.AcademicBatchId,AcademicSectionId=enrollment.AcademicSectionId,Roll=enrollment.RollNo,AlreadyProcessed=replay
     };
     private Task<bool> TransferBlocked(long tenant,long student,CancellationToken ct)=>
         _transfers.GetQueryable().AsNoTracking().AnyAsync(x=>x.SourceTenantId==tenant &&
@@ -142,6 +143,7 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
         if(!Allowed)return Fail<StudentReadmissionResultDto>("Tenant administrator permission required.",403);
         if(reference==Guid.Empty || request==null || request.ClientRequestId==Guid.Empty ||
             request.PreviousEnrollmentId<=0 || request.TargetAcademicBatchId<=0 ||
+            request.TargetAcademicSectionId is <= 0 ||
             string.IsNullOrWhiteSpace(request.TargetRoll) || request.TargetRoll.Trim().Length>50 ||
             string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length>450 ||
             !Decode(request.StudentRowVersion,out var studentVersion) ||
@@ -162,6 +164,7 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                 if(replay!=null)
                 {
                     if(replay.StudentId!=student.Id || replay.AcademicBatchId!=request.TargetAcademicBatchId ||
+                        replay.AcademicSectionId!=request.TargetAcademicSectionId && request.TargetAcademicSectionId.HasValue ||
                         replay.RollNo!=roll || replay.Remarks!=note || replay.IsDeleted)
                         return Fail<StudentReadmissionResultDto>("Request ID belongs to different enrollment details.",409);
                     return ApiResponse<StudentReadmissionResultDto>.SuccessResponse(Map(student,replay,true),"Readmission already processed.");
@@ -192,6 +195,10 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                     (batch.StartDate.HasValue && batch.StartDate.Value>today) ||
                     (batch.EndDate.HasValue && batch.EndDate.Value<today))
                     return Fail<StudentReadmissionResultDto>("Target batch is not eligible for this campus/program.",409);
+                var sectionPlacement=await AcademicSectionPlacementPolicy.ResolveAsync(
+                    _db.AcademicSections,tenant,batch.Id,request.TargetAcademicSectionId,token);
+                if(sectionPlacement.Error!=null)
+                    return Fail<StudentReadmissionResultDto>(sectionPlacement.Error,409);
                 var year=await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x=>
                     x.TenantId==tenant && x.Id==batch.AcademicYearId && x.IsActive && !x.IsDeleted &&
                     (x.CampusId==null || x.CampusId==batch.CampusId) &&
@@ -227,6 +234,11 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                     x.TenantId==tenant && x.AcademicBatchId==batch.Id && x.IsCurrent &&
                     x.State==EnrollmentState.Active && !x.IsDeleted,token)>=batch.Capacity)
                     throw new BatchAllocationException("Batch capacity reached.");
+                if(sectionPlacement.SectionId.HasValue &&
+                    !await AcademicSectionPlacementPolicy.CapacityAvailableAsync(
+                        _enrollments.GetQueryable(),tenant,sectionPlacement.SectionId.Value,
+                        sectionPlacement.Capacity,token))
+                    throw new BatchAllocationException("Academic section capacity reached.");
                 if(!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(_db,tenant,1,token))
                     throw new BatchAllocationException("Subscription active student capacity reached.");
                 var now=_clock.GetUtcNow().UtcDateTime;
@@ -236,7 +248,7 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                     StudentId=student.Id,CampusId=batch.CampusId,AcademicYearId=batch.AcademicYearId,
                     AcademicTermId=batch.AcademicTermId,AcademicProgramId=batch.AcademicProgramId,
                     AcademicLevelId=batch.AcademicLevelId,AcademicBatchId=batch.Id,
-                    AcademicCurriculumId=curricula[0],AcademicTrackId=batch.AcademicTrackId,
+                    AcademicSectionId=sectionPlacement.SectionId,AcademicCurriculumId=curricula[0],AcademicTrackId=batch.AcademicTrackId,
                     MediumId=batch.MediumId,ShiftId=batch.ShiftId,RollNo=roll,
                     EnrollmentDate=today,IsCurrent=true,State=EnrollmentState.Active,
                     Remarks=note,CreatedAt=now,CreatedBy=_user.UserId
