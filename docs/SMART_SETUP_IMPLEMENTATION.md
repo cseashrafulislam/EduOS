@@ -40,9 +40,9 @@ checked again **inside** the transaction; modules excluded by the pilot stay den
 
 1. **Reviewed basic defaults** (one atomic operation): `Select all missing defaults`
    or tick individual, pre-filled read-only Code/Name/Detail rows, confirm, and
-   `Save Checked Records`. The server accepts at most 7 approved modules and
+   `Save Checked Records`. The server accepts at most 10 approved modules and
    200 unique catalog keys per request. Exact row keys are re-resolved against
-   `SmartSetupCatalog.Version = 2026.11.2`; browser-supplied names, amounts
+   `SmartSetupCatalog.Version = 2026.11.3`; browser-supplied names, amounts
    and financial classifications are never persisted. The result displays
    a per-kind saved count. Existing code/name conflicts are shown for manual
    review, never overwritten.
@@ -74,29 +74,59 @@ one all-or-nothing financial/academic transaction. Each action is validated
 and committed by its existing owner. No real dates, prices, people, bank
 details, balances, facilities or inventory are auto-invented.
 
-### Safe seed groups
+### Safe seed groups (catalog 2026.11.3)
 
-ACADEMIC: optional language Medium labels; HR: organization units and
-designation labels; FEES: fee-head labels (no values, revenue accounts or invoices);
-INVENTORY: asset category labels; LIBRARY: book category labels;
-COMMUNICATION: notice categories; DOCUMENTS: basic document type labels.
+The existing seven groups remain: ACADEMIC mediums; HR organization units and
+designations; FEES fee-head names (no fee amounts); INVENTORY asset categories;
+LIBRARY book categories; COMMUNICATION notice categories; DOCUMENTS document types.
+Ten reviewed groups are now available with these additions:
 
-The reviewed v2026.11.2 catalog supplies **12 initial choices per safe kind**:
-HR OrganizationUnit (12) and Designation (12); FeeHead (12);
-AssetCategory (12); BookCategory (12); NoticeCategory (12);
-DocumentType (12). Academic medium intentionally has only 1–2 correct
-choices based on institution and country, not 12 fabricated options.
-Total maximum currently reviewed basic defaults per eligible tenant:
-86 records (2 mediums in BD school/college; 85 for other types), fewer
-when modules are disabled or records already exist. The user chooses
-which optional heads/categories apply. FeeHead frequency comes from
-the server-reviewed catalog; amounts remain unset.
+- **ACADEMIC — BD Subjects**: curated NCTB/board-style master subject names,
+  filtered for school/college/madrasa vs university vs vocational institution type.
+  They remain unassigned to academic programme, curriculum, class, optional subject,
+  exam, credit hours or section. For curriculum-specific and updated official subjects,
+  the tenant administrator can add/edit in canonical Academic Management > Subjects.
+  This is not a complete edition-by-edition NCTB/BTEB subject-code authority.
+- **ASSESSMENT — verified grade thresholds**: Bangladesh Board 5.00 grade scheme
+  (0–32.99 F, 33–39.99 D, 40–49.99 C, 50–59.99 B,
+  60–69.99 A-, 70–79.99 A, 80–100 A+) and UGC-style 4.00 scheme
+  (0–39.99 F, 40–44.99 D, 45–49.99 C, 50–54.99 C+,
+  55–59.99 B-, 60–64.99 B, 65–69.99 B+, 70–74.99 A-,
+  75–79.99 A, 80–100 A+). Rules persist to authoritative GradeScheme and
+  GradeRule records **in the same apply transaction**. Both schemes are active,
+  but neither automatically becomes the default nor attached to a programme.
+  4.00 is credit-weighted, 5.00 is ordinary percentage grade mapping.
+  Institution controls repeated-course policy, programme eligibility and result
+  publication through Assessment, not the setup hub. Official references:
+  Bangladesh education board's grading notices and Bangladesh UGC's recommended
+  4.00 uniform grading guidance. Each institution must verify applicability.
+- **FINANCE — minimal COA**: five BDT groups (Assets, Liabilities, Equity,
+  Income, Expenses) plus ten common posting-account labels with typed parent
+  group and account category. Root groups do not allow posting; children are
+  verified against active same-tenant parent groups. No bank account, cash-in-hand
+  designation, student/supplier subsidiary mapping, opening entry, account
+  balance, tax setup, journal or posting is seeded. Finance Admin edits the
+  chart in the original Accounting Setup workspace.
+- **PAYROLL — salary components**: six earning labels, three deduction labels,
+  and one employer contribution, mapped to canonical SalaryComponent.Type.
+  Earnings start with a conservative taxable flag; salary income-taxability
+  and exemptions **must be reviewed by an authorized payroll administrator
+  before assigning to employees**. No numeric salary, rates, employee structure,
+  statutory contribution or payroll run is invented. PAYROLL references reuse
+  the existing HR module entitlement, not a second pay engine.
 
-No real students, parents, employees, actual course content, class dates,
-curriculum allocations, grading thresholds, tax calculations, salary structures,
-bank accounts, ledger postings, fee rates, physical stock, dormitory inventory,
-routes or vehicles are invented. Such operational facts are linked to the
-existing authoritative setup pages.
+Per-tenant preview checks existing and soft-deleted codes/names and validates the
+complete rules/classifications of grading, COA and payroll references before
+claiming existing records match. A conflict requires review on the canonical
+owner page; it never resets or overwrites existing data. Posting accounts are
+inserted only after matching parent groups exist, inside the same serializable
+transaction. Selection can be done per row and requests remain audited,
+idempotent, tenant-scoped and atomic.
+
+No students, parents, employees, curriculum offering, actual dates, school
+capacity, physical room/bed, institution-specific grading policy, salary
+amount, bank details, fee amount, financial opening balance, GL posting or
+inventory movement are created from these reference templates.
 
 ### Module readiness / contextual navigation
 
