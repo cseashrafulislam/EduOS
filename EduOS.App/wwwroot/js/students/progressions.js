@@ -11,7 +11,7 @@
     const state = {
         options: null, requestId: null, requestFingerprint: null, saving: false, reference: null,
         lookupPending: 0, selectionPending: 0, historyPending: 0, previewFingerprint: null,
-        historyPage: 1, historyPages: 0
+        historyPage: 1, historyPages: 0, sectionRequest: 0, sections: []
     };
 
     let promotionGuard = null;
@@ -30,10 +30,13 @@
             if (state.historyPage < state.historyPages) loadHistory(state.historyPage + 1);
         });
         el('promotionForm')?.addEventListener('submit', submitProgression);
-        for (const id of ['promotionTarget', 'promotionRoll', 'promotionNote']) {
+        for (const id of ['promotionTarget', 'promotionSection', 'promotionRoll', 'promotionNote']) {
             el(id)?.addEventListener('input', invalidatePreview);
             el(id)?.addEventListener('change', invalidatePreview);
         }
+        el('promotionTarget')?.addEventListener('change', () => {
+            loadSections().catch(error => notice(error.message || 'Cannot load sections.'));
+        });
         const reference = new URLSearchParams(location.search).get('studentReference');
         if (reference && guid.test(reference)) selectStudent(reference);
     }, { once: true });
@@ -58,6 +61,7 @@
             ['Current enrollment / বর্তমান ভর্তি', state.options.sourceEnrollmentId],
             ['Target academic year / শিক্ষাবর্ষ', target.academicYearId],
             ['Target batch / ব্যাচ', target.name || target.academicBatchId],
+            ['Target section / শাখা', state.sections.find(x => String(x.id) === val('promotionSection'))?.name || 'Legacy'],
             ['Decision / সিদ্ধান্ত', target.decision === 1 ? 'Promotion / পদোন্নতি' : 'Repeat / পুনরাবৃত্তি'],
             ['New roll / নতুন রোল', roll],
             ['Note / মন্তব্য', val('promotionNote') || '—']
@@ -133,6 +137,23 @@
         }
     }
 
+    async function loadSections() {
+        const batchId = Number(val('promotionTarget')), seq = ++state.sectionRequest;
+        state.sections = [];
+        const select = el('promotionSection');
+        select.replaceChildren(new Option('Select academic section', ''));
+        if (!batchId) return;
+        const data = await api('/api/academic-sections?academicBatchId=' +
+            encodeURIComponent(String(batchId)) + '&page=1&pageSize=100');
+        if (seq !== state.sectionRequest || !sameSession() ||
+            Number(val('promotionTarget')) !== batchId) return;
+        state.sections = (data.items || []).filter(x => x.isActive && x.capacity > 0);
+        state.sections.forEach(x => select.add(new Option(x.name, String(x.id))));
+        if (state.sections.length === 1)
+            select.value = String(state.sections[0].id);
+        invalidatePreview();
+    }
+
     async function selectStudent(reference, internal = false) {
         if (!sameSession() || !guid.test(reference) || (state.saving && !internal)) return;
         if (promotionGuard?.isDirty() && !internal && !promotionGuard.confirmDiscard()) return;
@@ -184,6 +205,7 @@
                 }
                 el('promotionRoll').value = '';
                 el('promotionNote').value = '';
+                await loadSections();
                 promotionGuard?.markClean();
                 el('promotionEditor').classList.remove('d-none');
             } catch (error) {
@@ -261,6 +283,9 @@
         const selected = state.options.targets.find(x =>
             String(x.academicBatchId) === val('promotionTarget'));
         const roll = val('promotionRoll');
+        const sectionId = Number(val('promotionSection')) || null;
+        if (state.sections.length && !state.sections.some(x => x.id === sectionId))
+            return notice('Select an active target section.');
         if (!selected || !roll || roll.length > 50 || ![1, 2].includes(selected.decision)) {
             notice('Select a batch and enter a valid roll.');
             return;
@@ -270,7 +295,7 @@
             sourceEnrollmentId: state.options.sourceEnrollmentId,
             targetAcademicYearId: selected.academicYearId,
             targetAcademicLevelId: selected.academicLevelId,
-            targetAcademicBatchId: selected.academicBatchId,
+            targetAcademicBatchId: selected.academicBatchId, targetAcademicSectionId: sectionId,
             targetAcademicTrackId: selected.academicTrackId,
             targetRoll: roll, decision: selected.decision,
             studentRowVersion: state.options.studentRowVersion,
