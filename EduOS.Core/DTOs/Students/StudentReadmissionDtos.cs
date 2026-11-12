@@ -20,6 +20,7 @@ public sealed class ProcessStudentReadmissionDto
     public Guid ClientRequestId { get; set; }
     [Range(1,long.MaxValue)] public long PreviousEnrollmentId { get; set; }
     [Range(1,long.MaxValue)] public long TargetAcademicBatchId { get; set; }
+    [Range(1,long.MaxValue)] public long? TargetAcademicSectionId { get; set; }
     [Required,StringLength(50)] public string TargetRoll { get; set; } = "";
     [Required,StringLength(450)] public string Reason { get; set; } = "";
     [Required] public string StudentRowVersion { get; set; } = "";
@@ -30,6 +31,7 @@ public sealed class StudentReadmissionResultDto
     public Guid StudentReference { get; set; }
     public Guid EnrollmentReference { get; set; }
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public string Roll { get; set; } = "";
     public string Status { get; set; } = "Active";
     public bool AlreadyProcessed { get; set; }
