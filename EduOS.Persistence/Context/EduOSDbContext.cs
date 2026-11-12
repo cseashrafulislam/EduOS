@@ -241,6 +241,7 @@ public class EduOSDbContext :
 
     // Academic
     public DbSet<AcademicBatch> AcademicBatches => Set<AcademicBatch>();
+    public DbSet<AcademicSection> AcademicSections => Set<AcademicSection>();
     public DbSet<AcademicCalendarEvent> AcademicCalendarEvents => Set<AcademicCalendarEvent>();
     public DbSet<AcademicCalendarPolicy> AcademicCalendarPolicies => Set<AcademicCalendarPolicy>();
     public DbSet<AcademicCurriculum> AcademicCurriculums => Set<AcademicCurriculum>();
@@ -837,6 +838,12 @@ public class EduOSDbContext :
         TenantReference<AcademicLevel, AcademicProgram>(modelBuilder, nameof(AcademicLevel.AcademicProgramId));
         TenantReference<AcademicTrack, AcademicProgram>(modelBuilder, nameof(AcademicTrack.AcademicProgramId));
         TenantReference<AcademicBatch, Campus>(modelBuilder, nameof(AcademicBatch.CampusId));
+        TenantReference<AcademicSection, AcademicBatch>(modelBuilder, nameof(AcademicSection.AcademicBatchId));
+        TenantReference<StudentEnrollment, AcademicSection>(modelBuilder, nameof(StudentEnrollment.AcademicSectionId));
+        TenantReference<SubjectOffering, AcademicSection>(modelBuilder, nameof(SubjectOffering.AcademicSectionId));
+        TenantReference<AttendanceSession, AcademicSection>(modelBuilder, nameof(AttendanceSession.AcademicSectionId));
+        TenantReference<ResultPublication, AcademicSection>(modelBuilder, nameof(ResultPublication.AcademicSectionId));
+        TenantReference<FeeStructure, AcademicSection>(modelBuilder, nameof(FeeStructure.AcademicSectionId));
         TenantReference<AcademicBatch, AcademicYear>(modelBuilder, nameof(AcademicBatch.AcademicYearId));
         TenantReference<AcademicBatch, AcademicTerm>(modelBuilder, nameof(AcademicBatch.AcademicTermId));
         TenantReference<AcademicBatch, AcademicProgram>(modelBuilder, nameof(AcademicBatch.AcademicProgramId));
@@ -2480,6 +2487,17 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_AcademicTerm_DateRange", "[EndDate] >= [StartDate]"));
         modelBuilder.Entity<AcademicCalendarEvent>().ToTable(t =>
             t.HasCheckConstraint("CK_AcademicCalendarEvent_DateRange", "[EndDate] >= [StartDate]"));
+        modelBuilder.Entity<AcademicSection>(b =>
+        {
+            b.HasIndex(x => new { x.TenantId, x.AcademicBatchId, x.Code })
+                .IsUnique().HasFilter("[IsDeleted] = 0");
+            b.HasIndex(x => new { x.TenantId, x.ClientRequestId })
+                .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
+            b.HasIndex(x => new { x.TenantId, x.AcademicBatchId })
+                .IsUnique().HasFilter("[IsLegacyDefault] = 1 AND [IsDeleted] = 0")
+                .HasDatabaseName("UX_AcademicSections_LegacyDefault");
+            b.ToTable(t => t.HasCheckConstraint("CK_AcademicSections_Capacity", "[Capacity] BETWEEN 0 AND 100000"));
+        });
         modelBuilder.Entity<AcademicBatch>().ToTable(t =>
             t.HasCheckConstraint("CK_AcademicBatch_DateRange", "[EndDate] IS NULL OR [StartDate] IS NULL OR [EndDate] >= [StartDate]"));
         modelBuilder.Entity<StudentEnrollment>().ToTable(t =>
