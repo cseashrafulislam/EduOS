@@ -3,7 +3,7 @@
     const root = document.getElementById('enrollmentManagement');
     if (!root) return;
     const el = id => document.getElementById(id);
-    const state = { student: null, hasCurrent: false, batches: [], curricula: [],
+    const state = { student: null, hasCurrent: false, batches: [], sections: [], curricula: [],
         requestId: null, requestFingerprint: null, saving: false,
         searchVersion: 0, studentVersion: 0, batchVersion: 0 };
     const form = el('enrollmentForm');
@@ -16,6 +16,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const text = id => el(id).value.trim();
     const selectedBatch = () => state.batches.find(x => x.id === Number(text('enrollmentBatch')));
+    const selectedSection = () => state.sections.find(x => x.id === Number(text('enrollmentSection')));
     const selectedCurriculum = () => state.curricula.find(x => x.id === Number(text('enrollmentCurriculum')));
 
     function message(value, error = false) {
@@ -51,7 +52,8 @@
     }
     function canSubmit() {
         return Boolean(sameSession() && !state.saving && state.student && !state.hasCurrent && selectedBatch() &&
-            selectedCurriculum() && text('enrollmentRoll') &&
+            selectedCurriculum() && (!state.sections.length || selectedSection()) &&
+            text('enrollmentRoll') &&
             text('enrollmentDate'));
     }
     function refreshSubmit() {
@@ -135,9 +137,30 @@
             const catalog = await api('/api/academic-setup/catalog?take=100' + search);
             if (request !== state.batchVersion || !sameSession()) return;
             state.batches = (catalog.batches || []).filter(x => x.isActive);
-            menu('enrollmentBatch', state.batches, 'Select section');
+            menu('enrollmentBatch', state.batches, 'Select academic batch');
+            await refreshSections();
             await refreshCurricula();
         } catch (e) { if (request === state.batchVersion && sameSession()) message(e.message, true); }
+    }
+    let sectionLookupVersion = 0;
+    async function refreshSections() {
+        const request = ++sectionLookupVersion;
+        const batch = selectedBatch();
+        state.sections = [];
+        menu('enrollmentSection', [], 'Select academic section');
+        if (!batch) { refreshSubmit(); return; }
+        try {
+            const result = await api('/api/academic-sections?academicBatchId=' +
+                encodeURIComponent(String(batch.id)) + '&pageSize=100&page=1');
+            if (request !== sectionLookupVersion || !sameSession() || selectedBatch()?.id !== batch.id) return;
+            state.sections = (result.items || []).filter(x => x.isActive);
+            menu('enrollmentSection', state.sections, 'Select academic section');
+            if (state.sections.length === 1)
+                el('enrollmentSection').value = String(state.sections[0].id);
+        } catch (e) {
+            if (request === sectionLookupVersion && sameSession()) message(e.message, true);
+        }
+        refreshSubmit();
     }
     let curriculumLookupVersion = 0;
     async function refreshCurricula() {
@@ -178,7 +201,8 @@
         if (batch.startDate && date < batch.startDate || batch.endDate && date > batch.endDate)
             return message('Enrollment date is outside the section dates.', true);
         const payload = { studentReference: state.student.reference,
-            academicBatchId: batch.id, academicCurriculumId: curriculum.id,
+            academicBatchId: batch.id, academicSectionId: selectedSection()?.id || null,
+            academicCurriculumId: curriculum.id,
             enrollmentDate: date, rollNo: text('enrollmentRoll'),
             remarks: text('enrollmentRemarks') || null };
         const fingerprint = JSON.stringify(payload);
@@ -194,7 +218,7 @@
             state.hasCurrent = true; state.requestId = null; state.requestFingerprint = null;
             guard?.markClean();
             el('enrollmentCurrent').textContent = 'Enrolled: ' + (created?.rollNo || payload.rollNo) +
-                ' — ' + batch.name;
+                ' — ' + batch.name + (selectedSection() ? ' / ' + selectedSection().name : '');
             message('Student enrollment saved successfully.');
         } catch (e) {
             if (sameSession()) message(e.message + ' If uncertain, retry unchanged details using the same request ID.', true);
@@ -204,7 +228,10 @@
     el('enrollmentStudentSearchForm').addEventListener('submit', searchStudents);
     el('enrollmentStudentSearch').addEventListener('input', () => { ++state.searchVersion; });
     el('enrollmentBatchSearchButton').addEventListener('click', searchBatches);
-    el('enrollmentBatch').addEventListener('change', refreshCurricula);
+    el('enrollmentBatch').addEventListener('change', () => {
+        refreshSections().then(refreshCurricula).catch(e => message(e.message, true));
+    });
+    el('enrollmentSection').addEventListener('change', refreshSubmit);
     el('enrollmentCurriculum').addEventListener('change', refreshSubmit);
     for (const id of ['enrollmentDate', 'enrollmentRoll', 'enrollmentRemarks']) {
         el(id).addEventListener('input', () => {
