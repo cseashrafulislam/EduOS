@@ -88,10 +88,17 @@ function setup({ hostel = false } = {}) {
                 moduleCode: m.code, isAvailable: true,
                 hasChecklist: hostel && m.code === 'HOSTEL',
                 requirements: hostel && m.code === 'HOSTEL'
-                    ? [{ code: 'HOSTEL_ROOM', label: 'Rooms and capacity',
-                        labelBangla: 'কক্ষ ও ধারণক্ষমতা', configured: false,
-                        actionUrl: '/HostelOperations/Setup' }]
-                    : []
+                    ? [
+                        { code: 'HOSTEL_BUILDING', label: 'Hostel / residence',
+                            labelBangla: 'হোস্টেল', configured: false,
+                            actionUrl: '/HostelOperations/Setup' },
+                        { code: 'HOSTEL_ROOM', label: 'Rooms and capacity',
+                            labelBangla: 'কক্ষ ও ধারণক্ষমতা', configured: false,
+                            actionUrl: '/HostelOperations/Setup' },
+                        { code: 'HOSTEL_BED', label: 'Bed inventory',
+                            labelBangla: 'শয্যা', configured: false,
+                            actionUrl: '/HostelOperations/Setup' }
+                    ] : []
             }));
         return { ok: true, json: async () => ({ success: true, data: value }) };
     }
@@ -189,8 +196,14 @@ test('Hostel prerequisite opens original authorized setup form inside Smart Setu
     const h = setup({ hostel: true });
     await h.ready();
     const button = find(h.elems.get('smartSetupModules'),
-        x => x.attributes?.['data-smart-setup-inline'] === 'HOSTEL:HOSTEL_ROOM');
+        x => x.attributes?.['data-smart-setup-inline'] === 'HOSTEL:HOSTEL_BUILDING');
     assert.ok(button);
+    function countActions(node) {
+        return (node.attributes?.['data-smart-setup-inline'] ? 1 : 0) +
+            (node.children || []).reduce((sum, child) => sum + countActions(child), 0);
+    }
+    assert.equal(countActions(h.elems.get('smartSetupModules')), 1,
+        'Three Hostel prerequisites sharing one URL must have one Add here action');
     button.listeners.click();
     assert.equal(h.elems.get('smartSetupInline').hidden, false);
     assert.equal(h.elems.get('smartSetupFrame').src,
@@ -209,7 +222,7 @@ test('changed institution session cannot reopen an embedded Setup form', async (
     await h.ready();
     h.body.dataset.authTenantId = '26';
     const button = find(h.elems.get('smartSetupModules'),
-        x => x.attributes?.['data-smart-setup-inline'] === 'HOSTEL:HOSTEL_ROOM');
+        x => x.attributes?.['data-smart-setup-inline'] === 'HOSTEL:HOSTEL_BUILDING');
     button.listeners.click();
     assert.notEqual(h.elems.get('smartSetupInline').hidden, false);
     assert.equal(h.elems.get('smartSetupFrame').src, undefined);
