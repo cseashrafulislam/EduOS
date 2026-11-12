@@ -108,6 +108,7 @@
                         sessionId: item.sessionId,
                         isFinalized: item.isFinalized === true,
                         academicBatchId: params.get('academicBatchId'),
+                        academicSectionId: item.academicSectionId,
                         attendanceDate: item.attendanceDate,
                         subjectOfferingId: item.subjectOfferingId,
                         subjectOfferingCode: item.subjectOfferingCode,
