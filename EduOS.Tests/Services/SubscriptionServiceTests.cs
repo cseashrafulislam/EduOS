@@ -373,6 +373,8 @@ public sealed class SubscriptionServiceTests
         (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
         var pending = await setup.Db.TenantSubscriptions.SingleAsync();
         pending.State.Should().Be(SubscriptionState.PendingPayment);
+        pending.RowVersion = new byte[] { 9, 1, 5 };
+        await setup.Db.SaveChangesAsync();
         var result = await setup.Service.RenewAsync(pending.PublicId, new RenewSubscriptionRequestDto
         {
             ClientRequestId = Guid.NewGuid(),
