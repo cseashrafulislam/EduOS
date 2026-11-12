@@ -54,6 +54,7 @@
                     </div>
                     <a id="onboardingContinue" class="btn btn-primary btn-sm w-100 mt-3 d-none" href="#">@(onboardingBangla ? "বর্তমান ধাপে যান" : "Continue current step")</a>
                     <a id="onboardingWorkspace" class="btn btn-outline-primary btn-sm w-100 mt-2 d-none" href="/Dashboard/Index">@(onboardingBangla ? "EduOS খুলুন — বাকি সেটআপ পরে" : "Open EduOS — finish setup later")</a>
+                    <p id="onboardingWorkspaceError" class="small text-danger mt-2 d-none" role="alert"></p>
                 </div>
 
                 <nav id="stepsList" aria-label="@T["SetupWizard"]">
@@ -78,6 +79,7 @@
         'use strict';
 
         const i18n = @Html.Raw(onboardingJson);
+        i18n.isBangla = document.documentElement.lang?.toLowerCase().startsWith('bn');
 
         function localizeStep(step) {
             return i18n.steps[step.code] || {
@@ -204,7 +206,8 @@
         function renderSidebar(status) {
             updateProgress(status);
             const workspace = document.getElementById('onboardingWorkspace');
-            workspace?.classList.toggle('d-none', !status.hasWorkspaceAccess);
+            workspace?.classList.toggle('d-none', !status.hasWorkspaceAccess && !status.canEnterWorkspace);
+            if (workspace) workspace.dataset.needsActivation = String(!status.hasWorkspaceAccess && !!status.canEnterWorkspace);
             const list = document.getElementById('stepsList');
             const steps = Array.isArray(status.stages) ? status.stages : [];
             if (!steps.length) { showLoadError(); return; }
@@ -268,6 +271,39 @@
             }
         }
 
+        const workspaceLink = document.getElementById('onboardingWorkspace');
+        let activatingWorkspace = false;
+        workspaceLink?.addEventListener('click', async event => {
+            if (workspaceLink.dataset.needsActivation !== 'true') return;
+            event.preventDefault();
+            if (activatingWorkspace) return;
+            activatingWorkspace = true;
+            const errorPanel = document.getElementById('onboardingWorkspaceError');
+            if (errorPanel) { errorPanel.classList.add('d-none'); errorPanel.textContent = ''; }
+            workspaceLink.setAttribute('aria-disabled', 'true');
+            try {
+                const token = document.querySelector('meta[name="request-verification-token"]')?.content;
+                if (!token) throw new Error(i18n.isBangla
+                    ? 'সেশন যাচাই করা যায়নি। পেজটি রিফ্রেশ করুন।' : 'Session verification failed. Refresh the page.');
+                const response = await fetch('/api/onboarding/enter-workspace', {
+                    method: 'POST', credentials: 'same-origin', cache: 'no-store',
+                    headers: { Accept: 'application/json', RequestVerificationToken: token }
+                });
+                const payload = await response.json().catch(() => null);
+                if (!response.ok || !payload?.success)
+                    throw new Error(payload?.message || (i18n.isBangla
+                        ? 'EduOS খুলতে সমস্যা হয়েছে। আবার চেষ্টা করুন।' : 'Unable to open EduOS. Please retry.'));
+                window.location.assign('/Dashboard/Index');
+            } catch (error) {
+                if (errorPanel) {
+                    errorPanel.textContent = error.message || '';
+                    errorPanel.classList.remove('d-none');
+                }
+            } finally {
+                activatingWorkspace = false;
+                workspaceLink.removeAttribute('aria-disabled');
+            }
+        });
         document.addEventListener('DOMContentLoaded', loadOnboardingStatus, { once: true });
     })();
 </script>
