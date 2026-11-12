@@ -313,3 +313,43 @@ test('page field discovery does not truncate or accept unresolved accessible lab
     assert.match(source, /new Set\(ids\)\.size !== ids\.length/);
     assert.match(source, /filter\(entry => entry && entry\.labels\.length > 0\)/);
 });
+
+test('pending local speech availability can be cancelled and never overwrites a typed transcript', async () => {
+    for (const [lang, typed] of [['en-BD', 'Typed while checking'], ['bn-BD', 'যাচাই চলাকালে লেখা']]) {
+        const ids = Object.fromEntries(['pageAssistantDialog', 'pageAssistantOpen', 'pageAssistantClose',
+            'pageAssistantQuery', 'pageAssistantFind', 'pageAssistantResult', 'pageAssistantVoice',
+            'pageAssistantVoiceStatus', 'main-content', 'sidebarMenu'].map(id => [id, createNode()]));
+        ids['main-content'].querySelectorAll = () => [];
+        ids.sidebarMenu.querySelectorAll = () => [];
+        let release;
+        let starts = 0;
+        class SlowSpeech {
+            constructor() { this.processLocally = false; }
+            static available() { return new Promise(resolve => { release = resolve; }); }
+            start() { starts++; }
+            abort() {}
+        }
+        const doc = {
+            documentElement: { lang }, body: { dataset: { authTenantId: '22', authSessionReference: 'a' } },
+            getElementById: id => ids[id], createElement: () => createNode()
+        };
+        assistant.mount(doc, { SpeechRecognition: SlowSpeech, addEventListener() {} });
+        ids.pageAssistantOpen.click();
+        const first = ids.pageAssistantVoice.click();
+        assert.equal(ids.pageAssistantVoice.disabled, false, 'Stop remains available during async availability');
+        ids.pageAssistantQuery.value = typed;
+        ids.pageAssistantQuery.input();
+        release('available');
+        await first;
+        assert.equal(starts, 0);
+        assert.equal(ids.pageAssistantQuery.value, typed);
+        assert.equal(ids.pageAssistantVoice.attributes['aria-pressed'], 'false');
+
+        const second = ids.pageAssistantVoice.click();
+        ids.pageAssistantVoice.click(); // explicit Stop while availability is still pending
+        release('available');
+        await second;
+        assert.equal(starts, 0);
+        assert.equal(ids.pageAssistantQuery.value, typed);
+    }
+});
