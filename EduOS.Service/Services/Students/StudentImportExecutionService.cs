@@ -16,6 +16,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.SaaS;
+using EduOS.Service.Services.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualBasic.FileIO;
@@ -243,6 +244,27 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                     _batches.Update(batch);
                 }
                 await _uow.SaveChangesAsync(token);
+                var importSections = new Dictionary<long, long?>();
+                foreach (var batch in batches)
+                {
+                    var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
+                        _db.AcademicSections, tenant, batch.Id, null, token);
+                    if (placement.Error != null)
+                        return ApiResponse<StudentImportExecutionDto>.ErrorResponse(
+                            "Academic batch " + batch.Code + ": " + placement.Error +
+                            " Use section-aware student enrollment for this cohort.", 409);
+                    if (placement.SectionId.HasValue)
+                    {
+                        var currentSeats = await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+                            x.TenantId == tenant && x.AcademicSectionId == placement.SectionId.Value &&
+                            x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, token);
+                        var incoming = rows.Count(x => x.BatchId == batch.Id);
+                        if (currentSeats + incoming > placement.Capacity)
+                            return ApiResponse<StudentImportExecutionDto>.ErrorResponse(
+                                "Academic section capacity exceeded for batch " + batch.Code + ".", 409);
+                    }
+                    importSections.Add(batch.Id, placement.SectionId);
+                }
                 // Validate only after the deterministic AcademicBatch rowversion write lock.
                 // Serializable preview reads before that lock can retain range locks and
                 // deadlock against concurrent allocations. One post-lock validation is
@@ -406,7 +428,8 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                         StudentId = student.Id, CampusId = batch.CampusId,
                         AcademicYearId = batch.AcademicYearId, AcademicTermId = batch.AcademicTermId,
                         AcademicProgramId = batch.AcademicProgramId, AcademicLevelId = batch.AcademicLevelId,
-                        AcademicBatchId = batch.Id, AcademicCurriculumId = curricula[batch.Id],
+                        AcademicBatchId = batch.Id, AcademicSectionId = importSections[batch.Id],
+                        AcademicCurriculumId = curricula[batch.Id],
                         AcademicTrackId = batch.AcademicTrackId, MediumId = batch.MediumId, ShiftId = batch.ShiftId,
                         RollNo = row.RollNo, EnrollmentDate = today,
                         State = EnrollmentState.Active, IsCurrent = true,
