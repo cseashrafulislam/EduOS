@@ -638,7 +638,11 @@
         const editor = event.currentTarget;
         if (!editor.checkValidity()) {
             const invalid = [...editor.querySelectorAll('input,select,textarea')].filter(x => x.willValidate && !x.checkValidity());
-            showIntakeValidation(invalid.map(x => ({ row: x, message: x.closest('label')?.textContent?.trim() || x.id || 'Invalid field' })));
+            showIntakeValidation(invalid.map(x => ({
+                row: x,
+                message: editor.querySelector('label[for="' + x.id + '"]')?.textContent?.trim()
+                    || x.closest('label')?.textContent?.trim() || x.id || intakeText('Invalid field', 'ভুল তথ্য')
+            })));
             return;
         }
         const id = positiveInteger(valueOf('intakeFormId'));
@@ -718,10 +722,17 @@
             const payload = await response.json().catch(() => null);
             if (!sameSession()) return;
             if (response.status === 409 || response.status === 412) {
-                showIntakeValidation([{ row: document.getElementById('intakeCode'), message: bangla ? 'ফরমটি অন্য কেউ পরিবর্তন করেছেন। তথ্য না হারিয়ে সর্বশেষ সংস্করণ যাচাই করুন।' : 'This intake changed elsewhere. Review the latest version before saving; your edits remain here.' }]);
+                // Duplicate code and stale edits are different conflicts; never
+                // discard a draft or mislabel a unique-code violation as a race.
+                editor.inert = false;
+                showIntakeValidation(intakeServerErrors(response, payload));
                 return;
             }
-            if (!response.ok || !payload?.success) throw new Error(payload?.message || 'Admission form could not be saved.');
+            if (!response.ok || !payload?.success) {
+                editor.inert = false;
+                showIntakeValidation(intakeServerErrors(response, payload));
+                return;
+            }
             state.intakeFingerprint = null;
             guards.intake?.markClean();
             state.savingIntake = false;
@@ -729,12 +740,74 @@
             showAlert('success', payload.message || 'Admission form saved.');
             await loadIntakeForms();
         } catch (error) {
-            if (sameSession()) showAlert('danger', error.message || 'Admission form could not be saved.');
+            if (sameSession()) {
+                editor.inert = false;
+                showIntakeValidation([{
+                    message: error?.message?.startsWith('Security token') || error?.message?.startsWith('Session changed')
+                        ? error.message
+                        : intakeText('The request could not be confirmed. Your entries are intact. Check the form list for this code before retrying.',
+                            'অনুরোধটি নিশ্চিত করা যায়নি। আপনার তথ্য অক্ষত আছে। আবার চেষ্টা করার আগে এই কোডটি ফরমের তালিকায় আছে কি না দেখুন।')
+                }]);
+            }
         } finally {
             state.savingIntake = false;
             editor.inert = false;
             setLoading(button, false);
         }
+    }
+
+    function intakeServerErrors(response, payload) {
+        const status = Number(response?.status || 0);
+        const message = typeof payload?.message === 'string' ? payload.message : '';
+        const fieldMap = {
+            Code: 'intakeCode', Title: 'intakeTitle', AcademicYearId: 'intakeYearId',
+            AcademicTermId: 'intakeTermId', CampusId: 'intakeCampusId',
+            AcademicLevelId: 'intakeUnitId', OpensAtUtc: 'intakeOpensAt',
+            ClosesAtUtc: 'intakeClosesAt', ApplicationFee: 'intakeFee',
+            Currency: 'intakeCurrency'
+        };
+        const errors = [];
+        // ASP.NET ApiController returns ValidationProblemDetails on model-binding
+        // failure; display each field error instead of a generic failed POST.
+        if (payload?.errors && typeof payload.errors === 'object') {
+            for (const [key, messages] of Object.entries(payload.errors).slice(0, 30)) {
+                const fieldName = key.split('.').pop();
+                const row = document.getElementById(fieldMap[fieldName]) || null;
+                for (const item of (Array.isArray(messages) ? messages : [messages]).slice(0, 3)) {
+                    if (typeof item === 'string' && item.trim())
+                        errors.push({ row, message: item.slice(0, 300) });
+                }
+            }
+        }
+        if (errors.length) return errors;
+        if (status === 409 || status === 412) {
+            if (/\bcode\b/i.test(message) && /exist|duplicate|unique/i.test(message))
+                return [{ row: document.getElementById('intakeCode'),
+                    message: intakeText('This form code already exists. Choose a different code.',
+                        'এই ফরম কোডটি আগে থেকেই আছে। অন্য কোড দিন।') }];
+            if (/year|campus|term|academic level|reference/i.test(message))
+                return [{ row: document.getElementById('intakeYearId'),
+                    message: intakeText('An academic selection is no longer valid. Review year, term, campus and class before saving.',
+                        'একাডেমিক কোনো নির্বাচন এখন আর বৈধ নয়। বছর, টার্ম, ক্যাম্পাস ও ক্লাস যাচাই করুন।') }];
+            if (/document type/i.test(message))
+                return [{ message: intakeText('A document type is not configured. Choose an active type in Document Administration.',
+                    'একটি নথির ধরন সেটআপ করা নেই। Document Administration-এ সক্রিয় ধরন নির্বাচন করুন।') }];
+            return [{ message: intakeText('The form has changed since you opened it. Copy any edits you need, reload the latest form, and review before saving.',
+                'ফরমটি অন্য জায়গায় পরিবর্তিত হয়েছে। প্রয়োজনীয় পরিবর্তন রেখে সর্বশেষ তথ্য রিলোড করে যাচাই করুন।') }];
+        }
+        if (status === 401 || status === 403)
+            return [{ message: intakeText('Your session or permission does not allow this save. Sign in again or contact your administrator.',
+                'সেশন বা অনুমতি দিয়ে এই ফরম সংরক্ষণ করা যাচ্ছে না। আবার লগইন করুন অথবা প্রশাসকের সঙ্গে যোগাযোগ করুন।') }];
+        if (status === 429)
+            return [{ message: intakeText('Too many requests. Leave this draft open and try again after a short interval.',
+                'অনেকবার অনুরোধ হয়েছে। তথ্য অপরিবর্তিত রেখে কিছুক্ষণ পর আবার চেষ্টা করুন।') }];
+        if (status >= 500)
+            return [{ message: intakeText('Server error (HTTP ' + status + '). Save was not confirmed; check the list for this form code before retrying. ',
+                'সার্ভার সমস্যা (HTTP ' + status + ')। সংরক্ষণ নিশ্চিত হয়নি; আবার চেষ্টা করার আগে ফরম তালিকায় কোডটি দেখুন। ') +
+                (message || intakeText('Ask an administrator to review the server logs.',
+                    'সার্ভার লগ পরীক্ষা করতে প্রশাসককে জানান।')) }];
+        return [{ message: message || intakeText('The form could not be saved. Review your entries and try again.',
+            'ফরম সংরক্ষণ করা যায়নি। তথ্য যাচাই করে আবার চেষ্টা করুন।') }];
     }
 
     function clearIntakeValidation() {
@@ -753,7 +826,7 @@
         summary.setAttribute('role', 'alert');
         summary.tabIndex = -1;
         const title = document.createElement('p');
-        title.className = 'fw-semibold';
+        title.className = 'fw-semibold mb-2';
         title.textContent = bangla ? 'ফরম সংরক্ষণের আগে সংশোধন করুন:' : 'Correct these items before saving:';
         const list = document.createElement('ul');
         list.className = 'mb-0';
@@ -761,17 +834,21 @@
             const field = row?.matches?.('input,select,textarea') ? row
                 : row?.querySelector?.('input,select,textarea');
             const item = document.createElement('li');
-            const link = document.createElement('button');
-            link.type = 'button';
-            link.className = 'btn btn-link p-0 text-start';
-            link.textContent = message;
-            link.addEventListener('click', () => field?.focus());
-            if (field) field.setAttribute('aria-invalid', 'true');
-            item.append(link);
+            if (field) {
+                const link = document.createElement('button');
+                link.type = 'button';
+                link.className = 'btn btn-link p-0 text-start';
+                link.textContent = message;
+                link.addEventListener('click', () => field?.focus());
+                field.setAttribute('aria-invalid', 'true');
+                item.append(link);
+            } else item.textContent = message;
             list.append(item);
         }
         summary.append(title, list);
-        editor.querySelector('.modal-body')?.prepend(summary);
+        const body = editor.querySelector('.modal-body');
+        body?.prepend(summary);
+        if (body) body.scrollTop = 0;
         summary.focus();
     }
 
