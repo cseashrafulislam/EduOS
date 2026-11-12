@@ -150,3 +150,16 @@ test('MVC Index aliases share one authorized search entry and saved shortcuts re
     assert.deepEqual(scopedState(saved, '23', 'A', entries).favorites, []);
     assert.deepEqual(scopedState(saved, '22', 'A', []).favorites, []);
 });
+
+test('sidebar favorites share the authorized session-scoped search catalogue, not a second route registry', () => {
+    new Function(script);
+    assert.match(layout, /id="sidebarFavoriteShortcuts"/);
+    assert.match(script, /const sidebarFavorites = document\.getElementById\('sidebarFavoriteShortcuts'\)/);
+    assert.match(script, /state\.favorites\.map\(href => byHref\.get\(href\)\)/);
+    assert.match(script, /if \(!await verifiedContext\(\) \|\| !byHref\.has\(entry\.href\)\) return;/);
+    assert.match(script, /sidebarFavorites\.replaceChildren\(\)/);
+    assert.match(script, /link\.href = entry\.href/);
+    assert.match(styles, /\.sidebar-favorites\[hidden\]/);
+    assert.match(styles, /\.sidebar-favorite-link:focus-visible/);
+    assert.doesNotMatch(script, /localStorage|innerHTML/);
+});
