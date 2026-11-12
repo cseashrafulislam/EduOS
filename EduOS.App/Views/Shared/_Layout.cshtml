@@ -950,8 +950,10 @@
 
             </nav>
 
-            @* Daily workflows appear before the infrequently used TenantAdmin setup.
-               All role guards and canonical destinations are preserved. *@
+            @* Daily workflows precede infrequently used tenant administration.
+               The authorized links and their original role gates remain unchanged. *@
+            @if (User?.IsInRole("TenantAdmin") == true)
+            {
             <hr class="sidebar-divider" />
             <div class="menu-title">@(currentCulture == "bn-BD" ? "প্রশাসন ও সেটআপ" : "Administration & Setup")</div>
             <nav class="nav flex-column" data-sidebar-section="setup" aria-label="@(currentCulture == "bn-BD" ? "প্রশাসন ও সেটআপ" : "Administration & Setup")">
@@ -1025,6 +1027,7 @@
                     </a>
                 }
             </nav>
+            }
             }
         </aside>
 
