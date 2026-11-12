@@ -122,6 +122,19 @@ public class AcademicBatch : BaseTenantEntity
     public int DisplayOrder { get; set; }
 }
 
+/// <summary>Section within a cohort/batch. Legacy rows represent previous batch-as-section records.</summary>
+public class AcademicSection : BaseTenantEntity
+{
+    public long AcademicBatchId { get; set; }
+    public Guid? ClientRequestId { get; set; }
+    [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
+    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    public int Capacity { get; set; }
+    public bool IsLegacyDefault { get; set; }
+    public bool IsActive { get; set; } = true;
+    public int DisplayOrder { get; set; }
+}
+
 public class Room : BaseTenantEntity
 {
     public long CampusId { get; set; }
@@ -181,6 +194,7 @@ public class SubjectOffering : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public long CurriculumSubjectId { get; set; }
     public long AcademicYearId { get; set; }
     public long? AcademicTermId { get; set; }
@@ -201,6 +215,7 @@ public class StudentEnrollment : BaseTenantEntity
     public long AcademicProgramId { get; set; }
     public long AcademicLevelId { get; set; }
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public long AcademicCurriculumId { get; set; }
     public long? AcademicTrackId { get; set; }
     public long? MediumId { get; set; }
@@ -313,6 +328,7 @@ public class AttendanceSession : BaseTenantEntity
 {
     public Guid ClientRequestId { get; set; }
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public long? SubjectOfferingId { get; set; }
     public long? RoutineEntryId { get; set; }
     public DateOnly AttendanceDate { get; set; }
