@@ -5,7 +5,7 @@ namespace EduOS.Service.Services.Tenants;
 /// <summary>Versioned, reviewed defaults only. No prices, balances, dates, permissions or financial postings.</summary>
 internal static class SmartSetupCatalog
 {
-    internal const string Version = "2026.11.1";
+    internal const string Version = "2026.11.2";
     internal sealed record Seed(string Module, string Kind, string Code, string Name,
         FeeFrequencyType? Frequency = null);
     internal sealed record Section(string Code, string Name, string Bangla, string Url, bool Apply, string Guidance);
@@ -59,6 +59,9 @@ internal static class SmartSetupCatalog
         _ => sectionCode
     };
 
+    // Non-operational, tenant-scoped reference catalog. These are choices, not actual
+    // employees, programmes, dates, rooms, bank accounts, fee amounts or transactions.
+    // Each setting persists in its EXISTING canonical master table.
     internal static IReadOnlyList<Seed> Build(string institutionTypeCode, string countryCode)
     {
         var type = (institutionTypeCode ?? "").Trim().ToUpperInvariant();
@@ -70,27 +73,120 @@ internal static class SmartSetupCatalog
             (type.Contains("SCHOOL") || type.Contains("MADRAS") || type.Contains("HYBRID"));
         var bangladesh = string.Equals(countryCode, "BD", StringComparison.OrdinalIgnoreCase);
         var list = new List<Seed>();
-        // No Bangla medium outside Bangladesh unless a future reviewed locale preset enables it.
+        static void Add(List<Seed> target, string module, string kind,
+            params (string Code, string Name)[] entries)
+        {
+            foreach (var (code, name) in entries)
+                target.Add(new(module, kind, code, name));
+        }
+        // Academic medium is deliberately 1–2 real options, not 12 fabricated languages.
         if (bangladesh && (school || college))
             list.Add(new("ACADEMIC", "Medium", "BANGLA", "Bangla"));
         list.Add(new("ACADEMIC", "Medium", "ENGLISH", "English"));
-        list.Add(new("HR", "OrganizationUnit", "ADMIN", "Administration"));
-        list.Add(new("HR", "OrganizationUnit", "ACADEMIC", "Academics"));
-        list.Add(new("HR", "Designation", "OFFICE-STAFF", "Office Staff"));
-        list.Add(new("HR", "Designation", university || college ? "LECTURER" :
-            training ? "INSTRUCTOR" : "TEACHER", university || college ? "Lecturer" :
-            training ? "Instructor" : "Teacher"));
-        // Fee head is a label, not an actual fee/ledger. Do not infer schedules or amounts.
-        list.Add(new("FEES", "FeeHead", "TUITION", "Tuition Fee", FeeFrequencyType.Monthly));
-        list.Add(new("FEES", "FeeHead", "ADMISSION", "Admission Fee", FeeFrequencyType.OneTime));
-        list.Add(new("INVENTORY", "AssetCategory", "FURNITURE", "Furniture"));
-        list.Add(new("INVENTORY", "AssetCategory", "EQUIPMENT", "Equipment"));
-        list.Add(new("LIBRARY", "BookCategory", "TEXTBOOK", "Textbook"));
-        list.Add(new("LIBRARY", "BookCategory", "REFERENCE", "Reference"));
-        list.Add(new("LIBRARY", "BookCategory", "FICTION", "Fiction"));
-        list.Add(new("COMMUNICATION", "NoticeCategory", "GENERAL", "General Notice"));
-        list.Add(new("COMMUNICATION", "NoticeCategory", "ACADEMIC", "Academic Notice"));
-        list.Add(new("DOCUMENTS", "DocumentType", "GENERAL", "General Document"));
+
+        Add(list, "HR", "OrganizationUnit",
+            ("ADMIN", "Administration"),
+            ("ACADEMIC", "Academics"),
+            ("ACCOUNTS", "Accounts and Finance"),
+            ("HR", "Human Resources"),
+            ("ADMISSION", "Admissions"),
+            ("EXAMINATION", "Examination"),
+            ("LIBRARY", "Library"),
+            ("IT", "IT Support"),
+            ("STUDENT-AFFAIRS", "Student Affairs"),
+            ("MAINTENANCE", "Maintenance"),
+            ("OPERATIONS", "Operations"),
+            ("PROCUREMENT", "Procurement"));
+        Add(list, "HR", "Designation",
+            ("OFFICE-STAFF", "Office Staff"),
+            (university || college ? "LECTURER" : training ? "INSTRUCTOR" : "TEACHER",
+                university || college ? "Lecturer" : training ? "Instructor" : "Teacher"),
+            ("ACCOUNTANT", "Accountant"),
+            ("LIBRARIAN", "Librarian"),
+            ("ADMIN-OFFICER", "Administrative Officer"),
+            ("IT-OFFICER", "IT Officer"),
+            ("ADMISSION-OFFICER", "Admission Officer"),
+            ("EXAM-OFFICER", "Examination Officer"),
+            ("RECEPTIONIST", "Receptionist"),
+            ("OFFICE-ASSISTANT", "Office Assistant"),
+            ("SECURITY-OFFICER", "Security Officer"),
+            ("MAINTENANCE-STAFF", "Maintenance Staff"));
+        // Fee heads are labels only. No amount, student bill, bank/GL reference,
+        // income recognition or cash transaction may be inferred by the catalog.
+        foreach (var (code, name, frequency) in new (string, string, FeeFrequencyType)[]
+        {
+            ("TUITION", "Tuition Fee", FeeFrequencyType.Monthly),
+            ("ADMISSION", "Admission Fee", FeeFrequencyType.OneTime),
+            ("REGISTRATION", "Registration Fee", FeeFrequencyType.OneTime),
+            ("EXAMINATION", "Examination Fee", FeeFrequencyType.PerTerm),
+            ("LIBRARY", "Library Fee", FeeFrequencyType.Yearly),
+            ("ID-CARD", "Identity Card Fee", FeeFrequencyType.OneTime),
+            ("LABORATORY", "Laboratory Fee", FeeFrequencyType.PerTerm),
+            ("SPORTS", "Sports Fee", FeeFrequencyType.Yearly),
+            ("TRANSPORT", "Transport Fee", FeeFrequencyType.Monthly),
+            ("HOSTEL", "Hostel Fee", FeeFrequencyType.Monthly),
+            ("CERTIFICATE", "Certificate Fee", FeeFrequencyType.OneTime),
+            ("TECHNOLOGY", "Technology Fee", FeeFrequencyType.Yearly)
+        })
+            list.Add(new("FEES", "FeeHead", code, name, frequency));
+
+        Add(list, "INVENTORY", "AssetCategory",
+            ("FURNITURE", "Furniture"),
+            ("EQUIPMENT", "Equipment"),
+            ("COMPUTERS", "Computers"),
+            ("NETWORKING", "Networking"),
+            ("ELECTRICAL", "Electrical Equipment"),
+            ("LABORATORY", "Laboratory Equipment"),
+            ("LIBRARY", "Library Fixtures"),
+            ("VEHICLES", "Vehicles"),
+            ("APPLIANCES", "Office Appliances"),
+            ("CLASSROOM", "Classroom Fixtures"),
+            ("SAFETY", "Safety Equipment"),
+            ("SPORTS", "Sports Equipment"));
+
+        Add(list, "LIBRARY", "BookCategory",
+            ("TEXTBOOK", "Textbook"),
+            ("REFERENCE", "Reference"),
+            ("FICTION", "Fiction"),
+            ("NONFICTION", "Non-fiction"),
+            ("PERIODICAL", "Periodical"),
+            ("RESEARCH", "Research"),
+            ("DIGITAL", "Digital"),
+            ("CHILDREN", "Children"),
+            ("LITERATURE", "Literature"),
+            ("LANGUAGE", "Language Learning"),
+            ("CAREER", "Career Guidance"),
+            ("EXAM-PREP", "Exam Preparation"));
+
+        Add(list, "COMMUNICATION", "NoticeCategory",
+            ("GENERAL", "General Notice"),
+            ("ACADEMIC", "Academic Notice"),
+            ("EXAMINATION", "Examination Notice"),
+            ("ADMISSION", "Admission Notice"),
+            ("FEES", "Fee Notice"),
+            ("ATTENDANCE", "Attendance Notice"),
+            ("HOLIDAY", "Holiday Notice"),
+            ("EVENT", "Event Notice"),
+            ("LIBRARY", "Library Notice"),
+            ("EMERGENCY", "Emergency Notice"),
+            ("GUARDIAN", "Guardian Notice"),
+            ("STAFF", "Staff Notice"));
+
+        // These are ordinary document categories, not sensitive document content
+        // or verification/retention policies; no private FileAsset is invented.
+        Add(list, "DOCUMENTS", "DocumentType",
+            ("GENERAL", "General Document"),
+            ("CIRCULAR", "Circular"),
+            ("NOTICE", "Notice"),
+            ("POLICY", "Policy"),
+            ("GUIDE", "User Guide"),
+            ("MINUTES", "Meeting Minutes"),
+            ("TEMPLATE", "Template"),
+            ("CHECKLIST", "Checklist"),
+            ("REPORT", "Report"),
+            ("PROPOSAL", "Proposal"),
+            ("SCHEDULE", "Schedule"),
+            ("PROCEDURE", "Procedure"));
         return list;
     }
 }
