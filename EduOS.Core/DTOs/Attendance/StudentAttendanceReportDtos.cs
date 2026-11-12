@@ -103,6 +103,7 @@ public sealed class StudentAttendanceSessionOverviewDto
 /// <summary>Historical subject-offering picker for an authorized batch.</summary>
 public sealed class StudentAttendanceReportSubjectDto
 {
+    public long? AcademicSectionId { get; set; }
     public long Id { get; set; }
     public string Code { get; set; } = string.Empty;
     public string SubjectCode { get; set; } = string.Empty;
