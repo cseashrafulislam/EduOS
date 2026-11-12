@@ -8,7 +8,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/ui-shell.js');
-const { breadcrumbParts, breadcrumbSelection, contextualSetupLink, contextualNextLink, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
+const { breadcrumbParts, breadcrumbSelection, contextualSetupLink, contextualNextLink, canonicalShellRoute, shellLinkVisible, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
 const site = read('EduOS.App/wwwroot/js/site.js');
 
 test('shared breadcrumb reduces duplicate levels and never creates navigation routes', () => {
@@ -184,7 +184,7 @@ test('opt-in next-page shortcut never invents routes or crosses authorized menu 
         return links;
     }
     const allowed = fixture(['/Students', '/Students/Index', '/Students/Details'], 0);
-    assert.equal(contextualNextLink(allowed[0]), allowed[1]);
+    assert.equal(contextualNextLink(allowed[0]), allowed[2]);
     assert.equal(contextualNextLink(allowed[2]), null);
     assert.equal(contextualNextLink(fixture(['/Students', '//evil.test/redirect', '/Admissions'], 0)[0]).getAttribute('href'), '/Admissions');
     assert.equal(contextualNextLink(fixture(['/Students', '/Students/../Admin', '/Admissions'], 0)[0]).getAttribute('href'), '/Admissions');
@@ -193,4 +193,37 @@ test('opt-in next-page shortcut never invents routes or crosses authorized menu 
     assert.match(js, /contextualNextLink\(current\)/);
     assert.match(js, /shortcut\.href = next\.getAttribute\('href'\)/);
     assert.match(css, /shell-context-shortcut--next/);
+});
+
+test('shared shell rejects URL normalization tricks and skips MVC Index alias next steps', () => {
+    assert.equal(canonicalShellRoute('/Students'), '/students');
+    assert.equal(canonicalShellRoute('/Students/Index?campus=2'), '/students');
+    assert.equal(canonicalShellRoute('/SmartSetup/Index'), '/smartsetup');
+    for (const value of ['//evil.test', 'https://evil.test/Students', '/Students/../Admin',
+        '/Students/%2e%2e/Admin', '/Students/%2fAdmin', '/Students\\\\Admin', '/Students/Index%0a']) {
+        assert.equal(canonicalShellRoute(value), null, value);
+    }
+    const nav = { querySelectorAll: () => links };
+    const links = ['/Students', '/Students/Index', '/Students/Details', '/Admissions'].map((href, i) => ({
+        getAttribute: key => key === 'href' ? href : key === 'aria-current' ? (i === 0 ? 'page' : null) : null,
+        closest: selector => selector.includes('nav[data-sidebar-section]') ? nav : null
+    }));
+    assert.equal(contextualNextLink(links[0]), links[2]);
+    assert.match(js, /eduos:workspace-appearance-changed/);
+});
+
+test('shared link visibility excludes hidden, inert, aria-hidden and disabled shell destinations', () => {
+    const link = (attributes = {}, ancestor = null, rects = [1]) => ({
+        getAttribute: key => Object.hasOwn(attributes, key) ? attributes[key] : null,
+        closest: () => ancestor,
+        getClientRects: () => rects
+    });
+    assert.equal(shellLinkVisible(link()), true);
+    assert.equal(shellLinkVisible(link({ 'aria-disabled': 'true' })), false);
+    assert.equal(shellLinkVisible(link({ hidden: '' })), false);
+    assert.equal(shellLinkVisible(link({ inert: '' })), false);
+    assert.equal(shellLinkVisible(link({}, {})), false);
+    assert.equal(shellLinkVisible(link({}, null, [])), false);
+    assert.equal(shellLinkVisible(null), false);
+    assert.match(js, /\[aria-hidden="true"\]/);
 });

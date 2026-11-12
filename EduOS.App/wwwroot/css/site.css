@@ -3942,3 +3942,13 @@ select,
 @media (prefers-color-scheme: dark) {
     :root[data-workspace-theme="system"] .shell-context-shortcut--next { background: transparent; }
 }
+
+/* UX-01/02: contextual shortcuts remain navigable at zoomed/mobile sizes,
+   without obscuring focus or changing canonical form/transaction styling. */
+.shell-context-actions { min-width: 0; align-items: center; }
+.shell-context-shortcut { flex: 0 1 auto; white-space: normal; line-height: 1.35; }
+.shell-context-shortcut:focus-visible { outline-width: 3px; outline-offset: 3px; }
+@media (max-width: 575.98px) {
+    .shell-context-actions { gap: .5rem; }
+    .shell-context-shortcut { min-height: 2.75rem; max-width: 100%; }
+}

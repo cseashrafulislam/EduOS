@@ -13,14 +13,35 @@
         return result.slice(0, 4);
     }
 
+    // These helpers classify existing Razor links only; they never grant route access.
+    // Keep the MVC Index alias equivalent to the controller root and reject
+    // browser-normalized paths (dot segments, encoded separators and external URLs).
+    function canonicalShellRoute(href) {
+        if (typeof href !== 'string' || !/^\\/(?!\\/)[a-z0-9/_-]+(?:[?#][^\\s]*)?$/i.test(href)) return null;
+        const pathname = href.split(/[?#]/, 1)[0];
+        const parts = pathname.split('/').filter(Boolean);
+        if (parts.some(part => part === '.' || part === '..')) return null;
+        if (parts[parts.length - 1]?.toLowerCase() === 'index') parts.pop();
+        return '/' + parts.join('/').toLowerCase();
+    }
+
+    function shellLinkVisible(link) {
+        if (!link || typeof link.getAttribute !== 'function' ||
+            link.getAttribute('aria-disabled') === 'true' ||
+            link.getAttribute('hidden') !== null ||
+            link.getAttribute('inert') !== null ||
+            link.closest?.('[hidden], [inert], [aria-hidden="true"]')) return false;
+        // Avoid a visually collapsed group masquerading as the current page.
+        if (link.getClientRects && link.getClientRects().length === 0) return false;
+        return true;
+    }
+
     // Breadcrumbs are derived from authorized sidebar links, never from URL
     // segments (which can contain private IDs or misleading untrusted labels).
     function breadcrumbSelection(links) {
         // A hidden/disabled destination cannot represent the visible page.
         // Only Razor-authorized, currently visible links may become breadcrumbs.
-        const candidates = Array.from(links || []).filter(link =>
-            link && !link.closest?.('[hidden], [inert]') &&
-            link.getAttribute?.('aria-disabled') !== 'true');
+        const candidates = Array.from(links || []).filter(shellLinkVisible);
         return candidates.find(link => link.getAttribute?.('aria-current') === 'page') ||
             candidates.find(link => link.classList?.contains('active')) || null;
     }
@@ -32,9 +53,8 @@
         const setup = candidates.find(link => {
             if (!link || typeof link.getAttribute !== 'function') return false;
             const href = link.getAttribute('href') || '';
-            return /^\\/SmartSetup(?:\\/Index)?\\/?(?:[?#].*)?$/i.test(href) &&
-                link !== current && !link.closest?.('[hidden], [inert]') &&
-                link.getAttribute('aria-disabled') !== 'true';
+            return canonicalShellRoute(href) === '/smartsetup' &&
+                link !== current && shellLinkVisible(link);
         });
         return setup || null;
     }
@@ -43,19 +63,17 @@
     // The candidate must be an already-authorized, visible same-origin sibling.
     // This is navigation only: it does not imply that a business task is complete.
     function contextualNextLink(current) {
-        if (!current || current.getAttribute?.('aria-current') !== 'page') return null;
+        if (!shellLinkVisible(current) || current.getAttribute?.('aria-current') !== 'page') return null;
         const nav = current.closest?.('nav[data-sidebar-section][data-shell-next-task="true"]');
-        if (!nav || current.closest?.('[hidden], [inert]') ||
-            current.getAttribute?.('aria-disabled') === 'true') return null;
+        if (!nav || nav.closest?.('[hidden], [inert], [aria-hidden="true"]')) return null;
         const siblings = Array.from(nav.querySelectorAll?.('a.nav-link') || []);
         const at = siblings.indexOf(current);
         if (at < 0) return null;
+        const currentRoute = canonicalShellRoute(current.getAttribute('href'));
         for (const candidate of siblings.slice(at + 1)) {
-            if (candidate.closest?.('[hidden], [inert]') ||
-                candidate.getAttribute?.('aria-disabled') === 'true') continue;
-            const href = candidate.getAttribute?.('href') || '';
-            if (!/^\\/(?!\\/)[a-z0-9/_-]+(?:[?#][^\\s]*)?$/i.test(href) ||
-                /(?:^|\\/)\\.{1,2}(?:\\/|$)/.test(href)) continue;
+            if (!shellLinkVisible(candidate)) continue;
+            const candidateRoute = canonicalShellRoute(candidate.getAttribute('href'));
+            if (!candidateRoute || candidateRoute === currentRoute) continue;
             return candidate;
         }
         return null;
@@ -75,7 +93,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports)
-        module.exports = { breadcrumbParts, breadcrumbSelection, contextualSetupLink, contextualNextLink, notificationData, notificationDismissalMs };
+        module.exports = { breadcrumbParts, breadcrumbSelection, contextualSetupLink, contextualNextLink, canonicalShellRoute, shellLinkVisible, notificationData, notificationDismissalMs };
     if (typeof document === 'undefined') return;
 
     const crumbs = document.getElementById('pageBreadcrumbs');
@@ -155,6 +173,12 @@
     }
     renderBreadcrumbs();
     renderContextActions();
+    // Appearance changes may switch the document's contrast/palette, but
+    // must not persist contextual links from a stale auth session.
+    window.addEventListener('eduos:workspace-appearance-changed', () => {
+        renderBreadcrumbs();
+        renderContextActions();
+    });
     window.addEventListener('hashchange', () => {
         renderBreadcrumbs();
         renderContextActions();
