@@ -3973,3 +3973,26 @@ select,
     .shell-context-actions { gap: .5rem; }
     .shell-context-shortcut { min-height: 2.75rem; max-width: 100%; }
 }
+
+
+/* Smart Institution Setup embeds existing, authorized Settings pages within
+   a same-origin form workspace; original routes/API/permissions remain intact. */
+body[data-smart-setup-embedded="true"] .sidebar,
+body[data-smart-setup-embedded="true"] .sidebar-backdrop,
+body[data-smart-setup-embedded="true"] .topbar,
+body[data-smart-setup-embedded="true"] .footer-bar,
+body[data-smart-setup-embedded="true"] .skip-link {
+    display: none !important;
+}
+body[data-smart-setup-embedded="true"] .app-shell {
+    display: block !important;
+    min-height: 0 !important;
+}
+body[data-smart-setup-embedded="true"] .main-area {
+    width: 100% !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+}
+body[data-smart-setup-embedded="true"] .page-body {
+    padding: .5rem !important;
+}
