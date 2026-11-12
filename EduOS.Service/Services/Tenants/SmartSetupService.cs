@@ -357,9 +357,11 @@ public sealed class SmartSetupService(
                 db.FeeHeads.Add(new FeeHead
                 {
                     TenantId = tenant, Code = row.Code, Name = row.Name,
-                    DefaultFrequency = row.Code == "ADMISSION"
-                        ? EduOS.Core.Enums.Domain.FeeFrequencyType.OneTime
-                        : EduOS.Core.Enums.Domain.FeeFrequencyType.Monthly,
+                    // The server-reviewed catalog is the sole source of the
+                    // recommended frequency. The browser submits keys only.
+                    DefaultFrequency = Enum.Parse<EduOS.Core.Enums.Domain.FeeFrequencyType>(
+                        row.Detail ?? throw new InvalidOperationException(
+                            "Reviewed fee frequency is missing.")),
                     IsRefundable = false, IsActive = true, CreatedAt = now, CreatedBy = user.UserId
                 });
                 break;
