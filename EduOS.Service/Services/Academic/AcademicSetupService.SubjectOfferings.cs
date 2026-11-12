@@ -159,8 +159,9 @@ public sealed partial class AcademicSetupService
             var code = NormalizeCode(request.Code);
             var existing = await _offerings.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && !x.IsDeleted &&
-                (x.Code == code || (x.AcademicSectionId == request.AcademicSectionId &&
-                    x.CurriculumSubjectId == mapping.Id))).ToListAsync(ct);
+                (x.Code == code || (x.CurriculumSubjectId == mapping.Id &&
+                    (x.AcademicSectionId == request.AcademicSectionId ||
+                     section != null && section.IsLegacyDefault && x.AcademicSectionId == null)))).ToListAsync(ct);
             if (existing.Count > 0)
             {
                 var same = existing.Count == 1 && existing[0].CurriculumSubjectId == mapping.Id &&
