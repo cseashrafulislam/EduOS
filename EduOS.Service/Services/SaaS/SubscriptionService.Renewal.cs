@@ -105,7 +105,8 @@ public sealed partial class SubscriptionService
                 var now = _clock.GetUtcNow().UtcDateTime;
                 if (previous.State is not (SubscriptionState.Active or SubscriptionState.Trial or SubscriptionState.Grace) ||
                     previous.StartsAt > now || previous.EndsAt <= now ||
-                    previous.EndsAt > now.AddDays(30) || previous.BillingCycleCode == "Lifetime" ||
+                    ((automatic || previous.BillingCycleCode != "Monthly") &&
+                     previous.EndsAt > now.AddDays(30)) || previous.BillingCycleCode == "Lifetime" ||
                     !SubscriptionCalculator.IsSupportedCycle(previous.BillingCycleCode))
                     return Error<TenantSubscriptionDto>(
                         "Renewal is available during the final 30 days of an active, non-lifetime period.", 409);
