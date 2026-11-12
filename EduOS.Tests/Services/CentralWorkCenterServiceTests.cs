@@ -215,6 +215,48 @@ public sealed class CentralWorkCenterServiceTests
     }
 
     [Fact]
+    public async Task Reference_search_and_order_are_bounded_server_side_and_keep_dashboard_counts_in_parity()
+    {
+        await using var db = Database();
+        SeedIdentity(db, "TenantAdmin");
+        SeedWork(db);
+        await db.SaveChangesAsync();
+        await RestoreSeedMakerAuditAsync(db);
+        var service = Service(db, "TenantAdmin");
+
+        var all = await service.GetPendingAsync();
+        all.StatusCode.Should().Be(200);
+        all.Data!.Pending.TotalCount.Should().Be(4);
+
+        var searched = await service.GetPendingAsync(reference: "PR-");
+        searched.StatusCode.Should().Be(200);
+        searched.Data!.Pending.TotalCount.Should().Be(1);
+        searched.Data.Pending.Items.Should().ContainSingle()
+            .Which.Reference.Should().Contain("PR-");
+        searched.Data.SourceCounts.Sum(x => x.Count).Should().Be(1);
+
+        var absent = await service.GetPendingAsync(reference: "NO-MATCH-999");
+        absent.StatusCode.Should().Be(200);
+        absent.Data!.Pending.TotalCount.Should().Be(0);
+        absent.Data.SourceCounts.Sum(x => x.Count).Should().Be(0);
+
+        var oldest = await service.GetPendingAsync(order: "oldest");
+        var newest = await service.GetPendingAsync(order: "newest");
+        oldest.StatusCode.Should().Be(200);
+        newest.StatusCode.Should().Be(200);
+        oldest.Data!.Pending.Items.Select(x => x.SubmittedAtUtc)
+            .Should().BeInAscendingOrder();
+        newest.Data!.Pending.Items.Select(x => x.SubmittedAtUtc)
+            .Should().BeInDescendingOrder();
+        newest.Data.SourceCounts.Sum(x => x.Count).Should().Be(4);
+
+        (await service.GetPendingAsync(order: "unknown")).StatusCode.Should().Be(400);
+        (await service.GetPendingAsync(reference: new string('x', 81))).StatusCode.Should().Be(400);
+        (await service.GetPendingAsync(reference: "abc\\n")).StatusCode.Should().Be(400);
+        db.ChangeTracker.HasChanges().Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Disabled_module_pilot_and_revoked_role_never_expose_pending_work()
     {
         await using var db = Database();
