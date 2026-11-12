@@ -227,6 +227,8 @@ test('Cash collection permits one preflight and one payment post while an identi
     call(h, '/students/student-A/payments?').resolve(response({ totalCount: 0, items: [] }));
     await flush();
     h.get('feeInvoices').children[0].children[6].children[0].onclick();
+    // Real payment forms require a valid date; without it validation must stop preflight.
+    h.get('feePaymentDate').value = '2026-11-01';
     const form = h.get('feePaymentForm');
     form.trigger('submit', { currentTarget: form, preventDefault() {} });
     form.trigger('submit', { currentTarget: form, preventDefault() {} });
@@ -239,6 +241,32 @@ test('Cash collection permits one preflight and one payment post while an identi
     form.trigger('submit', { currentTarget: form, preventDefault() {} });
     assert.equal(h.calls.filter(x => x.url.endsWith('/payments/preflight')).length, 1);
     assert.equal(h.calls.filter(x => x.url.endsWith('/payments')).length, 1);
+});
+
+test('Cash collection refuses an empty date without preflight or payment writes', async () => {
+    const h = financeHarness();
+    h.get('feeStudent').value = 'student-A';
+    h.get('feeLoadLedger').trigger('click');
+    call(h, '/students/student-A/ledger').resolve(response({
+        studentName: 'Student', studentCode: 'ST-01', totalBilled: 12,
+        totalCreditNotes: 0, netBilled: 12, netPaid: 0, totalDue: 12
+    }));
+    await flush();
+    call(h, '/students/student-A/invoices?').resolve(response({ totalCount: 1, items: [{
+        reference: 'invoice-A', invoiceNumber: 'INV-1', invoiceDate: '2026-11-01',
+        dueDate: '2026-11-30', state: 2, totalAmount: 12, paidAmount: 0, dueAmount: 12
+    }] }));
+    call(h, '/students/student-A/payments?').resolve(response({ totalCount: 0, items: [] }));
+    await flush();
+    h.get('feeInvoices').children[0].children[6].children[0].onclick();
+    h.get('feePaymentDate').value = '';
+    const form = h.get('feePaymentForm');
+    form.trigger('submit', { currentTarget: form, preventDefault() {} });
+    await flush();
+    assert.equal(h.calls.filter(x => x.url.endsWith('/payments/preflight')).length, 0);
+    assert.equal(h.calls.filter(x => x.url.endsWith('/payments')).length, 0);
+    assert.equal(h.get('feeCollect').disabled, false);
+    assert.equal(form.inert, undefined);
 });
 
 test('Attendance does not discard unsaved marks when a date filter change is declined', async () => {
