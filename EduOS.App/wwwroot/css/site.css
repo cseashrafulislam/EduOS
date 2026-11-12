@@ -3218,6 +3218,95 @@ select,
     color: #64748b;
 }
 
+/* New Admission Application — compact office-friendly form.
+   Scope to the admissions editor so other application forms retain their layout. */
+.admission-page .admission-page-header h2 {
+    font-size: clamp(1.35rem, 1.05rem + 1.15vw, 1.95rem);
+    line-height: 1.25;
+    letter-spacing: -.025em;
+    overflow-wrap: anywhere;
+}
+.admission-new-card { min-width: 0; }
+.admission-new-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding-bottom: .9rem;
+    border-bottom: 1px solid var(--edu-border, #e2e8f0);
+}
+.admission-new-heading h3 { margin: 0; font-size: 1.15rem; }
+.admission-required-note { font-size: .77rem; color: var(--edu-muted, #64748b); }
+.admission-application-form { display: grid; gap: 1rem; min-width: 0; }
+.admission-form-section {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--edu-border, #e2e8f0);
+    border-radius: .85rem;
+    background: var(--bs-body-bg, #fff);
+}
+.admission-form-section-heading { display: flex; align-items: center; gap: .65rem; margin-bottom: 1rem; }
+.admission-form-section-heading h4 { margin: 0; font-size: .93rem; font-weight: 700; color: var(--edu-text, #0f172a); }
+.admission-form-step {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    flex: 0 0 1.8rem;
+    border-radius: .55rem;
+    background: rgba(var(--bs-primary-rgb, 13,110,253), .095);
+    color: var(--bs-primary, #0d6efd);
+    font-size: .72rem;
+    font-weight: 750;
+}
+.admission-application-form :is(.form-label, label.form-label) {
+    margin-bottom: .35rem;
+    font-size: .84rem;
+    font-weight: 600;
+    color: var(--edu-text, #334155);
+}
+.admission-application-form :is(input, select, textarea).form-control,
+.admission-application-form select.form-select {
+    min-height: 2.6rem;
+    border-radius: .6rem;
+}
+.admission-application-form :is(input, select, textarea):focus-visible,
+.admission-application-form button:focus-visible { outline-offset: 2px; }
+.admission-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .65rem;
+    padding-top: .8rem;
+    border-top: 1px solid var(--edu-border, #e2e8f0);
+}
+.admission-form-actions .btn { min-height: 2.7rem; min-width: 11rem; font-weight: 600; }
+#admissionSubmitFeedback:not(.d-none) {
+    display: grid;
+    gap: .2rem;
+    padding: .8rem 1rem;
+    border: 1px solid #fecaca;
+    border-left: 3px solid #dc2626;
+    border-radius: .7rem;
+    background: #fffafa;
+    color: #991b1b;
+    font-size: .88rem;
+}
+#admissionSubmitFeedback .admission-submit-title { font-weight: 700; }
+#admissionSubmitFeedback .admission-submit-detail { margin: 0; color: #7f1d1d; }
+#admissionValidationSummary.admission-field-summary {
+    padding: .85rem 1rem;
+    border-radius: .7rem;
+    margin: 0;
+}
+#admissionValidationSummary.admission-field-summary ul { margin-bottom: 0; padding-left: 1.3rem; }
+@media (max-width: 575.98px) {
+    .admission-new-card { padding: 1rem; }
+    .admission-form-section { padding: .8rem; }
+    .admission-form-actions .btn { width: 100%; min-width: 0; }
+}
+
 .admission-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.15fr) minmax(20rem, .85fr);
