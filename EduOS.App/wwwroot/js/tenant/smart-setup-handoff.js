@@ -92,7 +92,7 @@
         const h = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
         return [h.slice(0, 8), h.slice(8, 12), h.slice(12, 16), h.slice(16, 20), h.slice(20)].join('-');
     };
-    const fill = entry => {
+    const fill = (entry, automatic = false) => {
         const fields = formFields(entry);
         if (!fields || entry.status !== 'Missing') return;
         const [form, id, code, name] = fields;
@@ -107,10 +107,12 @@
         name.value = entry.name;
         for (const input of [code, name])
             input.dispatchEvent(new Event('input', { bubbles: true }));
-        inform(t('Form filled. Review and click its normal Save button to create this record.',
-            'ফর্মে তথ্য বসানো হয়েছে। যাচাই করে মূল Save বাটনে সংরক্ষণ করুন।'));
-        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        code.focus({ preventScroll: true });
+        if (!automatic) {
+            inform(t('Form filled. Review and click its normal Save button to create this record.',
+                'ফর্মে তথ্য বসানো হয়েছে। যাচাই করে মূল Save বাটনে সংরক্ষণ করুন।'));
+            form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            code.focus({ preventScroll: true });
+        }
     };
     let pendingRequestId = null;
     async function show() {
@@ -154,6 +156,22 @@
                 }
                 output.append(list);
             }
+            // An explicit Smart Setup deep-link may prefill one missing item per
+            // empty create form. Further candidates remain selectable above.
+            // Never overwrite a current draft/edit, and never invoke Save.
+            const prefilled = new Set();
+            for (const entry of missing) {
+                const fields = formFields(entry);
+                if (!fields || prefilled.has(fields[0].id)) continue;
+                const [form, id, code, name] = fields;
+                if (id.value || code.value.trim() || name.value.trim()) continue;
+                fill(entry, true);
+                prefilled.add(form.id);
+            }
+            if (prefilled.size)
+                output.append(elem('p', 'small text-info',
+                    t('One missing suggestion was placed in each empty matching form. Review before saving.',
+                        'ফাঁকা সংশ্লিষ্ট ফর্মে একটি করে প্রস্তাব বসানো হয়েছে। সংরক্ষণের আগে যাচাই করুন।')));
             if (readiness.requirements?.length) {
                 const list = elem('ul', 'small mb-3');
                 for (const need of readiness.requirements.filter(x => !x.configured)) {
