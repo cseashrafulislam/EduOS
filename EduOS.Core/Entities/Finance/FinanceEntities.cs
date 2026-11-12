@@ -20,6 +20,7 @@ public class FeeStructure : BaseTenantEntity
     public long? AcademicProgramId { get; set; }
     public long? AcademicLevelId { get; set; }
     public long? AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [MaxLength(10)] public string CurrencyCode { get; set; } = "BDT";
     public DateOnly EffectiveFrom { get; set; }
