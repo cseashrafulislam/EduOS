@@ -82,7 +82,7 @@ public sealed class SmartSetupService(
         // Legacy callers still select whole modules. A new UI submits exact
         // template keys; empty/duplicate/mismatched selections fail closed.
         var requestedRows = request.Entries;
-        if (requestedRows != null && (requestedRows.Count is < 1 or > 50 ||
+        if (requestedRows != null && (requestedRows.Count is < 1 or > 200 ||
             requestedRows.Any(x => x == null || string.IsNullOrWhiteSpace(x.Module) ||
                 string.IsNullOrWhiteSpace(x.Kind) || string.IsNullOrWhiteSpace(x.Code) ||
                 x.Module.Length > 32 || x.Kind.Length > 64 || x.Code.Length > 64)))
