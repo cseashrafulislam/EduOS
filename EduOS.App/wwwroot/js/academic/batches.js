@@ -37,7 +37,7 @@
         form.inert = true;
         try {
         const row = await api('/api/academic-setup/batches/' + encodeURIComponent(id));
-        if (ticket !== editSequence || !sameSession()) return;
+        if (ticket !== editSequence || !sameSession() || editGuard?.isDirty()) return;
         el('batchEditId').value = row.id;
         el('batchEditVersion').value = row.rowVersion;
         el('batchEditName').value = row.name;
@@ -114,6 +114,7 @@
     });
     el('batchEditCancel').addEventListener('click', () => {
         if (editSaving || !mayReplace('batchEditForm')) return;
+        ++editSequence; // Invalidate a pending edit lookup before cancelling.
         el('batchEditForm').classList.add('d-none'); editGuard?.markClean();
     });
     el('batchEditForm').addEventListener('submit', async event => {
@@ -125,6 +126,7 @@
             capacity < Number(el('batchEditCapacity').min) || capacity > 100000 || displayOrder < 0) {
             notice('Capacity cannot decrease; enter valid non-negative values.', true); return;
         }
+        ++editSequence; // Do not allow a pending edit lookup to replace the saving form.
         editSaving = true; button.disabled = true; form.inert = true;
         let committed = false;
         try {
@@ -145,10 +147,10 @@
     });
     window.addEventListener('eduos:academic-reloaded', () => {
         refreshFilters();
-        if (loaded || document.querySelector('button[data-panel="sections"].active'))
+        if (loaded || document.querySelector('button[data-panel="sections"]')?.classList.contains('active'))
             load().catch(e => notice(e.message, true));
     });
-    document.querySelector('button[data-panel="sections"]').addEventListener('click', () => {
+    document.querySelector('button[data-panel="sections"]')?.addEventListener('click', () => {
         if (!loaded) load().catch(e => notice(e.message, true));
     });
 })();

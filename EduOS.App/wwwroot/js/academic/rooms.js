@@ -40,6 +40,8 @@
                 if (!sameSession() || editSaving || !mayReplace('roomEditForm')) return;
                 const selection = ++editSequence;
                 button.disabled = true;
+                const form = el('roomEditForm');
+                form.inert = true;
                 try {
                     const row = await api('/api/academic-setup/rooms/' + encodeURIComponent(room.id));
                     if (!sameSession() || selection !== editSequence || editGuard?.isDirty()) return;
@@ -53,7 +55,7 @@
                     el('roomEditForm').classList.remove('d-none');
                     editGuard?.markClean();
                 } catch (error) { if (sameSession()) notice(error.message, true); }
-                finally { button.disabled = false; }
+                finally { button.disabled = false; if (selection === editSequence) form.inert = false; }
             });
             action.append(button); tr.append(action); body.append(tr);
         });
@@ -100,6 +102,7 @@
     });
     el('roomCancel').addEventListener('click', () => {
         if (editSaving || !mayReplace('roomEditForm')) return;
+        ++editSequence; // Invalidate a pending edit lookup before cancelling.
         el('roomEditForm').classList.add('d-none'); editGuard?.markClean();
     });
     el('roomCreateForm').addEventListener('submit', async e => {
@@ -133,6 +136,7 @@
         const capacity = Number(value('roomEditCapacity'));
         if (!Number.isInteger(capacity) || capacity < Number(el('roomEditCapacity').min) ||
             capacity > 100000) { notice('Room capacity cannot decrease.', true); return; }
+        ++editSequence; // Do not allow a pending edit lookup to replace the saving form.
         editSaving = true; button.disabled = true; form.inert = true;
         let committed = false;
         try {
@@ -152,10 +156,10 @@
     });
     window.addEventListener('eduos:academic-reloaded', () => {
         campusOptions();
-        if (loaded || document.querySelector('button[data-panel="rooms"].active'))
+        if (loaded || document.querySelector('button[data-panel="rooms"]')?.classList.contains('active'))
             load().catch(x => notice(x.message, true));
     });
-    document.querySelector('button[data-panel="rooms"]').addEventListener('click', () => {
+    document.querySelector('button[data-panel="rooms"]')?.addEventListener('click', () => {
         if (!loaded) load().catch(x => notice(x.message, true));
     });
 })();

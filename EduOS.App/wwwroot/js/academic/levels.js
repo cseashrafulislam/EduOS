@@ -41,7 +41,7 @@
                 button.disabled = true; form.inert = true;
                 try {
                     const row = await api('/api/academic-setup/levels/' + encodeURIComponent(level.id));
-                    if (ticket !== editSequence || !sameSession()) return;
+                    if (ticket !== editSequence || !sameSession() || editGuard?.isDirty()) return;
                     el('levelEditId').value = row.id;
                     el('levelEditVersion').value = row.rowVersion;
                     el('levelEditContext').textContent = row.code + ' · ' +
@@ -103,6 +103,7 @@
     });
     el('levelEditCancel').addEventListener('click', () => {
         if (editSaving || !mayReplace('levelEditForm')) return;
+        ++editSequence; // Invalidate a pending edit lookup before cancelling.
         el('levelEditForm').classList.add('d-none'); editGuard?.markClean();
     });
     el('levelEditForm').addEventListener('submit', async e => {
@@ -116,6 +117,7 @@
             !Number.isInteger(order) || order < 0 || (isPromotable && isTerminalLevel)) {
             notice('Check level number, display order and progression flags.', true); return;
         }
+        ++editSequence; // Do not allow a pending edit lookup to replace the saving form.
         editSaving = true; button.disabled = true; form.inert = true;
         let committed = false;
         try {
