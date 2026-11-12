@@ -13,7 +13,8 @@ public interface IStudentAttendanceService
         CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>> GetSubjectChoicesAsync(
         long academicBatchId, DateOnly attendanceDate, string? search,
-        int page = 1, int pageSize = 25, CancellationToken cancellationToken = default);
+        int page = 1, int pageSize = 25, CancellationToken cancellationToken = default,
+        long? academicSectionId = null);
     Task<ApiResponse<StudentAttendanceRosterDto>> GetRosterAsync(StudentAttendanceRosterQueryDto query, CancellationToken cancellationToken = default);
     Task<ApiResponse<StudentAttendanceRosterDto>> GetRosterPageAsync(StudentAttendanceRosterQueryDto query,
         int page = 1, int pageSize = 50, CancellationToken cancellationToken = default);
