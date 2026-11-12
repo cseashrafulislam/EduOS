@@ -21,6 +21,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
     private readonly IGenericRepository<InstructorAssignment> _assignments;
     private readonly IGenericRepository<RoutineEntry> _entries;
     private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicSection>? _sections;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<SubjectOffering> _offerings;
@@ -54,12 +55,14 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUser,
         TimeProvider clock,
-        ILogger<AcademicRoutineService> logger)
+        ILogger<AcademicRoutineService> logger,
+        IGenericRepository<AcademicSection>? sections = null)
     {
         _timeSlots = timeSlots;
         _assignments = assignments;
         _entries = entries;
         _batches = batches;
+        _sections = sections;
         _years = years;
         _terms = terms;
         _offerings = offerings;
@@ -609,6 +612,18 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                         assignment.EffectiveTo.GetValueOrDefault(DateOnly.MaxValue))
                         return Error<RoutineEntryDto>("Routine dates must be covered by instructor assignment.", 409);
                 }
+                var classCapacity = batch.Capacity;
+                if (offering.AcademicSectionId.HasValue)
+                {
+                    if (_sections == null)
+                        return Error<RoutineEntryDto>("Academic section service unavailable.", 503);
+                    var section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == offering.AcademicSectionId.Value &&
+                        x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted, token);
+                    if (section == null)
+                        return Error<RoutineEntryDto>("Section for this subject offering is inactive or invalid.", 409);
+                    classCapacity = section.Capacity;
+                }
                 Room? room = null;
                 if (request.RoomId.HasValue)
                 {
@@ -616,7 +631,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                         x.TenantId == tenant && x.Id == request.RoomId && x.IsActive, token);
                     if (room == null) return Error<RoutineEntryDto>("Room not found.", 404);
                     if (room.CampusId != batch.CampusId || room.Capacity <= 0 ||
-                        (batch.Capacity > 0 && room.Capacity < batch.Capacity))
+                        (classCapacity > 0 && room.Capacity < classCapacity))
                         return Error<RoutineEntryDto>("Room capacity or campus is incompatible with this batch.", 409);
                 }
                 if (request.ClientRequestId != Guid.Empty)
@@ -660,9 +675,11 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 if (await (from other in overlappingEntries
                            join otherOffering in _offerings.GetQueryable().AsNoTracking()
                                on other.SubjectOfferingId equals otherOffering.Id
-                           where otherOffering.TenantId == tenant && otherOffering.AcademicBatchId == batch.Id
+                           where otherOffering.TenantId == tenant && otherOffering.AcademicBatchId == batch.Id &&
+                               (offering.AcademicSectionId == null || otherOffering.AcademicSectionId == null ||
+                                otherOffering.AcademicSectionId == offering.AcademicSectionId)
                            select other.Id).AnyAsync(token))
-                    return Error<RoutineEntryDto>("Batch already has class at this time.", 409);
+                    return Error<RoutineEntryDto>("This section already has class at this time.", 409);
 
                 if (assignment != null && await (
                     from other in overlappingEntries
