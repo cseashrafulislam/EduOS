@@ -21,13 +21,12 @@ test('draft is bounded, ignores duplicate unknown keys and never parses JSON com
     assert.deepEqual(parse('ঠিকানা: ' + 'a'.repeat(1200)), {});
     assert.deepEqual(parse('{"submit":true,"amount":100}'), {});
 });
-test('admission draft is mounted only on authorized new-application view and never submits itself', () => {
-    assert.match(view, /id="admissionDraftHost"/);
-    assert.match(view, /js\/admissions\/transcript-draft\.js/);
+test('optional transcript draft is retired from the Admission page without changing normal submit', () => {
+    assert.doesNotMatch(view, /id="admissionDraftHost"/);
+    assert.doesNotMatch(view, /js\/admissions\/transcript-draft\.js/);
     assert.match(view, /id="admissionForm"/);
+    assert.match(view, /id="submitApplicationButton"/);
     assert.doesNotMatch(source, /\.submit\s*\(|requestSubmit\s*\(|fetch\s*\(|localStorage|sessionStorage|SpeechRecognition|webkitSpeechRecognition/);
-    assert.match(source, /confirm\.addEventListener\('click'/);
-    assert.match(source, /target\.dispatchEvent/);
     assert.doesNotThrow(() => mount({getElementById: () => null}));
 });
 
@@ -139,14 +138,13 @@ test('reviewed transcript has reversible application without persistent applican
     assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|requestSubmit\s*\(|\.submit\s*\(/);
 });
 
-test('admission readiness offers accessible bilingual required-field review without bypassing submit', () => {
-    assert.match(source, /Application readiness/);
-    assert.match(source, /আবেদন প্রস্তুতি/);
-    assert.match(source, /form\.querySelectorAll\('\[required\]'\)/);
-    assert.match(source, /field\.checkValidity\(\)/);
-    assert.match(source, /field\.scrollIntoView/);
-    assert.match(source, /field\.focus\(\)/);
-    assert.match(source, /readinessList\.replaceChildren\(\)/);
-    assert.match(source, /'aria-live':'polite'/);
-    assert.doesNotMatch(source, /requestSubmit\s*\(|\.submit\s*\(/);
+test('removed readiness panel does not mount or replace native submit validation', () => {
+    const application = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/admissions/index.js'), 'utf8');
+    assert.doesNotMatch(view, /admissionReadinessDisclosure|admissionReadinessTitle|id="admissionDraftHost"/);
+    assert.doesNotMatch(view, /transcript-draft\.js/);
+    assert.match(application, /function admissionErrors\(form, extra = \[\]\)/);
+    assert.match(application, /form\.checkValidity\(\)/);
+    assert.match(application, /field\.closest\('label'\)/);
+    assert.match(application, /field\.setAttribute\('aria-invalid', 'true'\)/);
+    assert.match(application, /submitApplication/);
 });
