@@ -11,6 +11,12 @@ const js = read('EduOS.App/wwwroot/js/platform/ui-shell.js');
 const { breadcrumbParts, breadcrumbSelection, contextualSetupLink, contextualNextLink, canonicalShellRoute, shellLinkVisible, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
 const site = read('EduOS.App/wwwroot/js/site.js');
 
+test('shell refreshes breadcrumbs after sidebar hash selection is recomputed', () => {
+    const navigation = read('EduOS.App/wwwroot/js/sidebar-navigation.js');
+    assert.match(js, /window\.addEventListener\('eduos:sidebar-navigation-ready', \(\) => \{ renderBreadcrumbs\(\); renderContextActions\(\); \}\)/);
+    assert.match(navigation, /window\.addEventListener\('hashchange',[\s\S]*?selected = highlightCurrent\(\);[\s\S]*?window\.dispatchEvent\(new Event\('eduos:sidebar-navigation-ready'\)\)/);
+});
+
 test('shared breadcrumb reduces duplicate levels and never creates navigation routes', () => {
     assert.deepEqual(breadcrumbParts(['Management', 'Fees & Accounting', 'Fees & Accounting', 'Fee collection']),
         ['Management', 'Fees & Accounting', 'Fee collection']);

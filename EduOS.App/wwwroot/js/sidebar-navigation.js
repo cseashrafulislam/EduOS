@@ -581,7 +581,11 @@
             if (event.key !== 'ArrowDown' || isTop()) return;
             event.preventDefault();
             if (nav.hidden) button.click();
-            const first = nav.querySelector('summary, a.nav-link');
+            const first = Array.from(nav.querySelectorAll('summary, a.nav-link')).find(element =>
+                element.getClientRects().length &&
+                !element.closest('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]') &&
+                element.getAttribute('aria-disabled') !== 'true' &&
+                element.getAttribute('disabled') === null);
             first?.focus();
         });
         nav.addEventListener('keydown', event => {
@@ -673,6 +677,10 @@
         restoreOpenGroup();
         restoreSections();
         window.requestAnimationFrame(showActiveAndRestoreScroll);
+        // The shell registered its hash listener before this navigation module.
+        // Publish the updated authorized selection so breadcrumb and contextual
+        // actions never show the previous tab/section after a hash deep link.
+        window.dispatchEvent(new Event('eduos:sidebar-navigation-ready'));
     });
     window.addEventListener('eduos:workspace-preferences', () => {
         restoreSections();
@@ -702,7 +710,15 @@
         const nav = focused?.closest('nav[data-sidebar-section]');
         if (!nav || !sidebar.contains(nav)) return;
         const targets = [...nav.querySelectorAll('summary, a.nav-link')].filter(element => {
-            if (!element.getClientRects().length || element.closest('[hidden], [inert]')) return false;
+            if (!element.getClientRects().length ||
+                element.closest('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]') ||
+                element.getAttribute('aria-disabled') === 'true' ||
+                element.getAttribute('disabled') !== null) return false;
+            if (typeof getComputedStyle === 'function') {
+                const style = getComputedStyle(element);
+                if (style.display === 'none' || style.visibility === 'hidden' ||
+                    style.visibility === 'collapse') return false;
+            }
             // CSS can give descendants of a closed <details> nonzero rects.
             // Its own <summary> is navigable; nested links/categories are not.
             for (let parent = element.parentElement; parent && parent !== nav; parent = parent.parentElement) {

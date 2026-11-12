@@ -9,6 +9,14 @@ const styles = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/css/site.css')
 const script = fs.readFileSync(path.join(root, 'EduOS.App/wwwroot/js/sidebar-navigation.js'), 'utf8');
 const { groupFor, categoryFor, navigationLabelFor, scoreActive, normalizedPath, groupIconFor, sectionInitiallyOpen } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
 
+test('hash navigation publishes updated active selection and keyboard traversal skips inaccessible links', () => {
+    assert.match(script, /window\.addEventListener\('hashchange',[\s\S]*?selected = highlightCurrent\(\);[\s\S]*?window\.dispatchEvent\(new Event\('eduos:sidebar-navigation-ready'\)\)/);
+    assert.match(script, /element\.closest\('\[hidden\], \[inert\], \[aria-hidden="true"\], \[aria-disabled="true"\]'\)/);
+    assert.match(script, /element\.getAttribute\('aria-disabled'\) === 'true'/);
+    assert.match(script, /style\.visibility === 'hidden'/);
+    assert.match(script, /const first = Array\.from\(nav\.querySelectorAll\('summary, a\.nav-link'\)\)\.find/);
+});
+
 test('large navigation sections start closed on Dashboard and open on their own deep links', () => {
     assert.equal(sectionInitiallyOpen('academics', 'setup', '', false), false);
     assert.equal(sectionInitiallyOpen('management', 'setup', '', false), false);
