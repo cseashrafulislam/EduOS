@@ -12,6 +12,7 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Service.Helpers.Storage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
 using System.Security.Cryptography;
 using System.Transactions;
 
@@ -397,12 +398,21 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
     {
         try
         {
-            using var scope = new TransactionScope(TransactionScopeOption.Required,
-                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable },
-                TransactionScopeAsyncFlowOption.Enabled);
-            var result = await action();
-            if (result.Success) scope.Complete();
-            return result;
+            // SQL Server uses EnableRetryOnFailure. An ambient TransactionScope
+            // outside its execution strategy throws before any form is persisted.
+            // The canonical UoW coordinates provider retries and the transaction.
+            // A domain rejection must THROW to roll back: the UoW commits a
+            // normally returned value, regardless of ApiResponse.Success.
+            return await _uow.ExecuteInTransactionAsync(async _ =>
+            {
+                var result = await action();
+                if (!result.Success) throw new RejectedAdmissionWrite<T>(result);
+                return result;
+            }, IsolationLevel.Serializable);
+        }
+        catch (RejectedAdmissionWrite<T> rejected)
+        {
+            return rejected.Response;
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -421,10 +431,23 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed {Operation} for tenant {TenantId}", operation, _user.TenantId);
-            return Error<T>("Admission request could not be completed.", 500);
+            // Support can correlate this reference with the exception without
+            // exposing tenant identifiers, SQL text or sensitive admission data.
+            var reference = Guid.NewGuid().ToString("N")[..12];
+            _logger.LogError(ex,
+                "Failed {Operation} for tenant {TenantId}; support reference {Reference}",
+                operation, _user.TenantId, reference);
+            return Error<T>("Admission request could not be completed. Support reference: " + reference, 500);
         }
     }
+
+    private sealed class RejectedAdmissionWrite<T> : Exception
+    {
+        public ApiResponse<T> Response { get; }
+        public RejectedAdmissionWrite(ApiResponse<T> response) =>
+            Response = response;
+    }
+
     private bool CanManage() => _user.IsAuthenticated && _user.TenantId > 0 &&
         (_user.IsTenantAdmin || _user.IsInRole("AdmissionOfficer"));
     private static string? Trim(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
