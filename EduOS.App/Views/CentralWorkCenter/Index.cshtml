@@ -1,10 +1,10 @@
 @{
-    ViewData["Title"] = "Central Work Center";
+    ViewData["Title"] = "My Work & Approvals";
     var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
 }
-<section class="container-fluid py-3" id="centralWorkCenter" aria-label="@(bn ? "কেন্দ্রীয় কাজের তালিকা" : "Central Work Center")">
+<section class="container-fluid py-3" id="centralWorkCenter" aria-label="@(bn ? "আমার কাজ ও অনুমোদন" : "My Work & Approvals")">
     <header class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <h1 class="h4 mb-0">@(bn ? "কেন্দ্রীয় অনুমোদন তালিকা" : "Central Approval Work Center")</h1>
+        <h1 class="h4 mb-0">@(bn ? "আমার কাজ ও অনুমোদন" : "My Work & Approvals")</h1>
     </header>
     <div id="cwcAlert" class="d-none" role="status" aria-live="polite"></div>
     <form id="cwcFilters" class="row g-2 mb-3">
