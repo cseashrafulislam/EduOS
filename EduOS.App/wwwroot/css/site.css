@@ -3934,3 +3934,11 @@ select,
     .shell-context-actions { min-width: 0; }
     .page-breadcrumbs { overflow-wrap: anywhere; }
 }
+
+/* Explicitly opted-in server navigation can surface one next authorized page.
+   This is a link, never a task completion or permission assertion. */
+.shell-context-shortcut--next { background: transparent; border-style: dashed; }
+:root[data-workspace-theme="dark"] .shell-context-shortcut--next { background: transparent; }
+@media (prefers-color-scheme: dark) {
+    :root[data-workspace-theme="system"] .shell-context-shortcut--next { background: transparent; }
+}

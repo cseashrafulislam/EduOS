@@ -39,6 +39,28 @@
         return setup || null;
     }
 
+    // A next-task suggestion is opt-in per server-rendered navigation section.
+    // The candidate must be an already-authorized, visible same-origin sibling.
+    // This is navigation only: it does not imply that a business task is complete.
+    function contextualNextLink(current) {
+        if (!current || current.getAttribute?.('aria-current') !== 'page') return null;
+        const nav = current.closest?.('nav[data-sidebar-section][data-shell-next-task="true"]');
+        if (!nav || current.closest?.('[hidden], [inert]') ||
+            current.getAttribute?.('aria-disabled') === 'true') return null;
+        const siblings = Array.from(nav.querySelectorAll?.('a.nav-link') || []);
+        const at = siblings.indexOf(current);
+        if (at < 0) return null;
+        for (const candidate of siblings.slice(at + 1)) {
+            if (candidate.closest?.('[hidden], [inert]') ||
+                candidate.getAttribute?.('aria-disabled') === 'true') continue;
+            const href = candidate.getAttribute?.('href') || '';
+            if (!/^\\/(?!\\/)[a-z0-9/_-]+(?:[?#][^\\s]*)?$/i.test(href) ||
+                /(?:^|\\/)\\.{1,2}(?:\\/|$)/.test(href)) continue;
+            return candidate;
+        }
+        return null;
+    }
+
     function notificationData(message, kind) {
         if (typeof message !== 'string' || !message.trim()) return null;
         const types = new Set(['success', 'info', 'warning', 'error']);
@@ -53,7 +75,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports)
-        module.exports = { breadcrumbParts, breadcrumbSelection, contextualSetupLink, notificationData, notificationDismissalMs };
+        module.exports = { breadcrumbParts, breadcrumbSelection, contextualSetupLink, contextualNextLink, notificationData, notificationDismissalMs };
     if (typeof document === 'undefined') return;
 
     const crumbs = document.getElementById('pageBreadcrumbs');
@@ -106,15 +128,30 @@
         const links = sidebar.querySelectorAll('nav[data-sidebar-section] a.nav-link');
         const current = breadcrumbSelection(links);
         const setup = contextualSetupLink(links, current);
-        if (!setup) return;
-        const shortcut = document.createElement('a');
-        shortcut.className = 'shell-context-shortcut';
-        shortcut.href = setup.getAttribute('href');
-        shortcut.textContent = document.documentElement.lang?.toLowerCase().startsWith('bn')
-            ? 'স্মার্ট সেটআপ চালিয়ে যান' : 'Continue Smart Setup';
-        shortcut.setAttribute('aria-label', shortcut.textContent);
-        contextual.append(shortcut);
-        contextual.hidden = false;
+        const next = contextualNextLink(current);
+        if (!setup && !next) return;
+        if (setup) {
+            const shortcut = document.createElement('a');
+            shortcut.className = 'shell-context-shortcut';
+            shortcut.href = setup.getAttribute('href');
+            shortcut.textContent = document.documentElement.lang?.toLowerCase().startsWith('bn')
+                ? 'স্মার্ট সেটআপ চালিয়ে যান' : 'Continue Smart Setup';
+            shortcut.setAttribute('aria-label', shortcut.textContent);
+            contextual.append(shortcut);
+        }
+        if (next && next !== setup) {
+            const shortcut = document.createElement('a');
+            shortcut.className = 'shell-context-shortcut shell-context-shortcut--next';
+            shortcut.href = next.getAttribute('href');
+            const label = (next.querySelector?.('span')?.textContent ||
+                next.getAttribute('aria-label') || next.textContent || '').trim().slice(0, 90);
+            if (label) {
+                shortcut.textContent = (document.documentElement.lang?.toLowerCase().startsWith('bn')
+                    ? 'পরবর্তী পেজ: ' : 'Next page: ') + label;
+                contextual.append(shortcut);
+            }
+        }
+        contextual.hidden = contextual.childElementCount === 0;
     }
     renderBreadcrumbs();
     renderContextActions();

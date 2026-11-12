@@ -8,7 +8,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
 const css = read('EduOS.App/wwwroot/css/site.css');
 const js = read('EduOS.App/wwwroot/js/platform/ui-shell.js');
-const { breadcrumbParts, breadcrumbSelection, contextualSetupLink, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
+const { breadcrumbParts, breadcrumbSelection, contextualSetupLink, contextualNextLink, notificationData, notificationDismissalMs } = require('../../EduOS.App/wwwroot/js/platform/ui-shell.js');
 const site = read('EduOS.App/wwwroot/js/site.js');
 
 test('shared breadcrumb reduces duplicate levels and never creates navigation routes', () => {
@@ -169,4 +169,28 @@ test('shared notices preserve critical and keyboard-focused messages when toast 
     assert.match(js, /node.contains\\(document.activeElement\\)/);
     assert.match(js, /if \\(!removable\\) return null/);
     assert.match(js, /shellSessionValid\\(\\)/);
+});
+
+test('opt-in next-page shortcut never invents routes or crosses authorized menu sections', () => {
+    function fixture(hrefs, currentIndex, optIn = true) {
+        const nav = { querySelectorAll: () => links };
+        const links = hrefs.map((href, index) => ({
+            getAttribute: key => key === 'href' ? href :
+                key === 'aria-current' ? (index === currentIndex ? 'page' : null) : null,
+            closest: selector => selector.includes('nav[data-sidebar-section]')
+                ? (optIn ? nav : null) : null,
+            querySelector: () => null
+        }));
+        return links;
+    }
+    const allowed = fixture(['/Students', '/Students/Index', '/Students/Details'], 0);
+    assert.equal(contextualNextLink(allowed[0]), allowed[1]);
+    assert.equal(contextualNextLink(allowed[2]), null);
+    assert.equal(contextualNextLink(fixture(['/Students', '//evil.test/redirect', '/Admissions'], 0)[0]).getAttribute('href'), '/Admissions');
+    assert.equal(contextualNextLink(fixture(['/Students', '/Students/../Admin', '/Admissions'], 0)[0]).getAttribute('href'), '/Admissions');
+    assert.equal(contextualNextLink(fixture(['/Students', '/Admissions'], 0, false)[0]), null);
+    assert.equal(contextualNextLink(fixture(['/Students', '/Admissions'], 1)[0]), null);
+    assert.match(js, /contextualNextLink\(current\)/);
+    assert.match(js, /shortcut\.href = next\.getAttribute\('href'\)/);
+    assert.match(css, /shell-context-shortcut--next/);
 });
