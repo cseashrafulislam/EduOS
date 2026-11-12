@@ -46,6 +46,19 @@
         return true;
     }
 
+    // Server-rendered permission eligibility is distinct from pixel visibility:
+    // a closed mobile drawer has no rectangles but still contains authorized links.
+    // Explicit hidden/inert/disabled ancestors remain ineligible in both modes.
+    function shellLinkEligible(link) {
+        return !!link && typeof link.getAttribute === 'function' &&
+            link.getAttribute('hidden') === null &&
+            link.getAttribute('inert') === null &&
+            link.getAttribute('disabled') === null &&
+            link.getAttribute('aria-hidden') !== 'true' &&
+            link.getAttribute('aria-disabled') !== 'true' &&
+            !link.closest?.('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]');
+    }
+
     // Breadcrumbs are derived from authorized sidebar links, never from URL
     // segments (which can contain private IDs or misleading untrusted labels).
     function breadcrumbSelection(links) {
@@ -54,15 +67,8 @@
         // Explicitly hidden/inert/disabled links are never eligible. Shortcut
         // links still require full rendered visibility via shellLinkVisible.
         const candidates = Array.from(links || []);
-        const eligible = link => link && typeof link.getAttribute === 'function' &&
-            link.getAttribute('hidden') === null &&
-            link.getAttribute('inert') === null &&
-            link.getAttribute('disabled') === null &&
-            link.getAttribute('aria-hidden') !== 'true' &&
-            link.getAttribute('aria-disabled') !== 'true' &&
-            !link.closest?.('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]');
-        return candidates.find(link => eligible(link) && link.getAttribute('aria-current') === 'page') ||
-            candidates.find(link => eligible(link) && link.classList?.contains('active')) || null;
+        return candidates.find(link => shellLinkEligible(link) && link.getAttribute('aria-current') === 'page') ||
+            candidates.find(link => shellLinkEligible(link) && link.classList?.contains('active')) || null;
     }
 
     // Only offer a next-step shortcut if the current server-authorized menu
@@ -79,19 +85,23 @@
     }
 
     // A next-task suggestion is opt-in per server-rendered navigation section.
-    // The candidate must be an already-authorized, visible same-origin sibling.
+    // The candidate must be an already-authorized same-origin sibling, even when
+    // the sidebar drawer is collapsed. Explicit hidden/disabled links are excluded.
     // This is navigation only: it does not imply that a business task is complete.
     function contextualNextLink(current) {
         if (!current || breadcrumbSelection([current]) !== current ||
             current.getAttribute?.('aria-current') !== 'page' || !canonicalShellRoute(current.getAttribute('href'))) return null;
         const nav = current.closest?.('nav[data-sidebar-section][data-shell-next-task="true"]');
-        if (!nav || nav.closest?.('[hidden], [inert], [aria-hidden="true"]')) return null;
+        if (!nav || nav.closest?.('[hidden], [inert], [aria-hidden="true"], [aria-disabled="true"]')) return null;
         const siblings = Array.from(nav.querySelectorAll?.('a.nav-link') || []);
         const at = siblings.indexOf(current);
         if (at < 0) return null;
         const currentRoute = canonicalShellRoute(current.getAttribute('href'));
         for (const candidate of siblings.slice(at + 1)) {
-            if (!shellLinkVisible(candidate)) continue;
+            // A collapsed/mobile sidebar must not erase the next action.
+            // Never invent a route: the candidate must still be a permitted,
+            // server-rendered sibling with no explicit disabled/hidden state.
+            if (!shellLinkEligible(candidate)) continue;
             const candidateRoute = canonicalShellRoute(candidate.getAttribute('href'));
             if (!candidateRoute || candidateRoute === currentRoute) continue;
             // A duplicate MVC Index alias later in the same menu is not a
