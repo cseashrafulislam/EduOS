@@ -67,3 +67,37 @@ test('percentile comparisons are not cross-SHA success assertions',()=>{
  assert.equal(delta.baselineP95Ms,25);
  assert.equal(delta.candidateP95Ms,40);
 });
+
+test('comparison rejects partial-success or dishonest status counters',()=>{
+ const baseline=report();
+ for(const bad of [
+  {success:4,failures:0},{success:5,failures:1},{samples:6},
+  {statuses:{200:4}},{statuses:{200:5,403:1}},
+  {statuses:{200:5,network:1}}
+ ]) {
+  assert.throws(()=>compare(baseline,report([row('students',bad)])));
+  assert.throws(()=>compare(report([row('students',bad)]),baseline));
+ }
+});
+test('comparison refuses missing or placeholder authorization context',()=>{
+ const baseline=report();
+ for(const key of ['role','tenantAlias','campusAlias','locale','device','metric']){
+  for(const value of [undefined,'','UNSPECIFIED','UNVERIFIED']){
+   const invalid=report([row()],{...ctx,[key]:value});
+   assert.throws(()=>compare(invalid,invalid));
+  }
+ }
+ assert.throws(()=>compare({...baseline,context:null},baseline));
+ assert.throws(()=>compare({...baseline,routes:[]},baseline));
+ assert.throws(()=>compare(baseline,{...baseline,routes:null}));
+});
+test('comparison rejects invalid sample count and route identifiers',()=>{
+ for(const sampleCountPerRoute of [undefined,0,4,5.5]){
+  const invalid=report([row()],{...ctx,sampleCountPerRoute});
+  assert.throws(()=>compare(invalid,invalid));
+ }
+ for(const id of ['', '../other','other tenant']){
+  const invalid=report([row(id)]);
+  assert.throws(()=>compare(invalid,invalid));
+ }
+});
