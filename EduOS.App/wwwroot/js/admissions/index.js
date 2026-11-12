@@ -500,6 +500,10 @@
         editor.reset();
         state.intakeFingerprint = null;
         clearIntakeValidation();
+        const modalTitle = document.getElementById('intakeFormModalTitle');
+        if (modalTitle) modalTitle.textContent = item
+            ? intakeText('Edit admission form', 'ভর্তি ফরম সম্পাদনা')
+            : intakeText('New admission form', 'নতুন ভর্তি ফরম');
         setValue('intakeFormId', item?.id);
         setValue('intakeFormRowVersion', item?.rowVersion);
         setValue('intakeFormRequestId', item ? '' : createRequestId());
@@ -533,6 +537,11 @@
     function addIntakeFieldRow(field = null) {
         const container = document.getElementById('intakeFieldRows');
         if (!container) return;
+        if (container.querySelectorAll('.intake-field-row').length >= 50) {
+            showIntakeValidation([{ message: intakeText('A form can have at most 50 custom questions.',
+                'একটি ফরমে সর্বোচ্চ ৫০টি অতিরিক্ত প্রশ্ন রাখা যাবে।') }]);
+            return;
+        }
         const row = document.createElement('div');
         row.className = 'intake-builder-row intake-field-row';
         row.dataset.fieldId = String(field?.id || '');
@@ -568,6 +577,11 @@
     function addDocumentRequirementRow(requirement = null) {
         const container = document.getElementById('documentRequirementRows');
         if (!container) return;
+        if (container.querySelectorAll('.intake-document-row').length >= 20) {
+            showIntakeValidation([{ message: intakeText('A form can have at most 20 document requirements.',
+                'একটি ফরমে সর্বোচ্চ ২০ ধরনের প্রয়োজনীয় নথি রাখা যাবে।') }]);
+            return;
+        }
         const row = document.createElement('div');
         row.className = 'intake-builder-row intake-document-row';
         const type = builderInput('Document type', 'intake-document-type', 'text', requirement?.documentType || '');
