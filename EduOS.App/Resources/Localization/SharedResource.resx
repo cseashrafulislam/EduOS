@@ -516,7 +516,7 @@
   <data name="BrandingSetupTitle" xml:space="preserve"><value>Branding and portal address</value></data>
   <data name="BrandingSetupHelp" xml:space="preserve"><value>Choose a secure portal address and the visual identity your community will recognize.</value></data>
   <data name="PortalAddress" xml:space="preserve"><value>Portal address</value></data>
-  <data name="PortalAddressHelp" xml:space="preserve"><value>This unique address is required before the institution workspace can open.</value></data>
+  <data name="PortalAddressHelp" xml:space="preserve"><value>A custom portal address can be configured later. Verified subscriptions can use the EduOS workspace immediately.</value></data>
   <data name="PortalSubdomain" xml:space="preserve"><value>Subdomain</value></data>
   <data name="SubdomainPlaceholder" xml:space="preserve"><value>your-institution</value></data>
   <data name="SaveSubdomain" xml:space="preserve"><value>Save address</value></data>
@@ -548,7 +548,7 @@
   <data name="PrimaryColor" xml:space="preserve"><value>Primary color</value></data>
   <data name="SecondaryColor" xml:space="preserve"><value>Secondary color</value></data>
   <data name="AccentColor" xml:space="preserve"><value>Accent color</value></data>
-  <data name="BrandingRequiredNote" xml:space="preserve"><value>The portal address is required. Images and colors can be changed later by an administrator.</value></data>
+  <data name="BrandingRequiredNote" xml:space="preserve"><value>Branding is not required to enter EduOS after verified payment. To finish this branding step, save a unique portal address; administrators can change images and colors later.</value></data>
   <data name="BrandingSaveFailed" xml:space="preserve"><value>Branding could not be saved. Confirm the portal address and colors.</value></data>
   <data name="BrandingPartialSaveRecovery" xml:space="preserve"><value>Some brand colors may have saved before the interruption. The latest saved values have been reloaded when possible. Review all three colors before retrying; the next onboarding step is not confirmed; reload to check its status.</value></data>
   <data name="GeneralSettingsTitle" xml:space="preserve"><value>Regional preferences</value></data>
