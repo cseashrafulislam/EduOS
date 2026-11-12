@@ -3999,3 +3999,77 @@ body[data-smart-setup-embedded="true"] .page-body {
 
 /* Bootstrap cards are display:flex; preserve native hidden for the inline workspace. */
 #smartSetupInline[hidden] { display: none !important; }
+
+
+/* Admission setup: Bootstrap's scrollable-modal CSS assumes modal-body is a direct
+   modal-content child. This editor has a form wrapper, so that wrapper must flex. */
+#intakeFormModal .admission-intake-dialog {
+    width: calc(100% - 2rem);
+    max-width: 1180px;
+    height: calc(100vh - 2.5rem);
+    height: calc(100dvh - 2.5rem);
+    margin: 1.25rem auto;
+}
+#intakeFormModal .admission-intake-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+#intakeFormModal .modal-header { flex: 0 0 auto; padding: 1rem 1.25rem; }
+#intakeFormModal .admission-intake-editor {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+#intakeFormModal .admission-intake-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-top: 1rem;
+    padding: 1.25rem;
+}
+#intakeFormModal .admission-intake-footer {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .5rem;
+    padding: .85rem 1.25rem;
+    border-top: 1px solid #e2e8f0;
+    background: #f8fafc;
+}
+#intakeFormModal .intake-editor-section-title {
+    margin: 1.2rem 0 .85rem;
+    padding-bottom: .45rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: #0f172a;
+}
+#intakeFormModal .intake-editor-section-title:first-of-type { margin-top: .5rem; }
+#intakeFormModal .intake-builder-section { margin-top: 1rem; }
+#intakeFormModal .admission-intake-body .form-control,
+#intakeFormModal .admission-intake-body .form-select { min-width: 0; }
+#intakeFormModal [aria-invalid="true"] {
+    border-color: #dc3545;
+    box-shadow: 0 0 0 .15rem rgba(220, 53, 69, .1);
+}
+#intakeFormModal #intakeValidationSummary { scroll-margin-top: .75rem; }
+@media (max-width: 767.98px) {
+    #intakeFormModal .admission-intake-dialog {
+        width: calc(100% - 1rem);
+        max-width: none;
+        height: calc(100vh - 1rem);
+        height: calc(100dvh - 1rem);
+        margin: .5rem auto;
+    }
+    #intakeFormModal .modal-header { padding: .8rem 1rem; }
+    #intakeFormModal .admission-intake-body { padding: 1rem; }
+    #intakeFormModal .admission-intake-footer { padding: .75rem 1rem; }
+    #intakeFormModal .admission-intake-footer .me-auto { width: 100%; }
+}
