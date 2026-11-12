@@ -235,6 +235,22 @@ public sealed class SmartSetupServiceTests
         Assert.Equal(10, await f.Db.SalaryComponents.CountAsync());
     }
 
+
+    [Fact]
+    public async Task Bangladesh_specific_ledger_and_education_presets_are_not_assumed_for_foreign_tenants()
+    {
+        await using var f = await Open(modules: ["ACADEMIC", "EXAM", "FINANCE", "HR"]);
+        var tenant = await f.Db.Tenants.SingleAsync();
+        tenant.CountryCode = "US";
+        await f.Db.SaveChangesAsync();
+        var preview = await f.Service.PreviewAsync();
+        Assert.True(preview.Success, preview.Message);
+        Assert.DoesNotContain(preview.Data!.Modules.SelectMany(x => x.Entries),
+            x => x.Kind is "GradeScheme" or "Subject" or "Account" or "SalaryComponent");
+        Assert.Contains(preview.Data.Modules.Single(x => x.Code == "ACADEMIC").Entries,
+            x => x.Kind == "Medium" && x.Code == "ENGLISH");
+    }
+
     [Fact]
     public async Task Existing_custom_grades_and_mismatched_accounts_are_not_overwritten()
     {
