@@ -262,3 +262,11 @@ test('search filter preview cannot apply after transcript edit and undo cannot u
     assert.match(source, /Focus search field[\s\S]*?!target\.isConnected/);
     assert.doesNotMatch(source, /\bfetch\s*\(|\.requestSubmit\s*\(|\.submit\s*\(/);
 });
+
+
+test('page field discovery does not truncate or accept unresolved accessible label IDs', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../EduOS.App/wwwroot/js/platform/page-assistant.js'), 'utf8');
+    assert.match(source, /ids\.length > 32/);
+    assert.match(source, /new Set\(ids\)\.size !== ids\.length/);
+    assert.match(source, /filter\(entry => entry && entry\.labels\.length > 0\)/);
+});
