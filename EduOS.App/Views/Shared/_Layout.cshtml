@@ -1067,7 +1067,9 @@
                         <span>@T["InstallApp"]</span>
                     </button>
 
-                    <form asp-controller="Localization" asp-action="SetLanguage" method="post" class="language-form">
+                    <form asp-controller="Localization" asp-action="SetLanguage" method="post" asp-antiforgery="false" class="language-form">
+                        @* Token is rendered exactly once; the FormTagHelper's automatic
+                           token is disabled to avoid duplicate form values. *@
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="returnUrl" value="@returnUrl" />
                         <label class="visually-hidden" for="uiCulture">@T["Language"]</label>
