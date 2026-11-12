@@ -44,6 +44,60 @@ public sealed class OnboardingServiceTests
     }
 
     [Fact]
+    public async Task Completing_verified_payment_step_unlocks_workspace_without_branding_or_campus()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStage.Payment);
+        setup.Tenant.State = TenantState.PendingVerification;
+        setup.Tenant.Subdomain = null;
+        await setup.Context.SaveChangesAsync();
+        var result = await setup.Service.CompleteStageAsync(new CompleteOnboardingStageRequestDto
+        {
+            Stage = OnboardingStage.Payment, Skipped = false
+        });
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(TenantState.Active, setup.Tenant.State);
+        Assert.Equal(OnboardingStage.CampusSetup, setup.Tenant.OnboardingStage);
+        Assert.Null(setup.Tenant.OnboardingCompletedAt);
+        var status = await setup.Service.GetStatusAsync();
+        Assert.True(status.Data!.HasWorkspaceAccess);
+        Assert.False(status.Data.IsComplete);
+        Assert.Equal(4, status.Data.CompletedStages);
+    }
+
+    [Fact]
+    public async Task Pending_invoice_cannot_complete_payment_step_or_activate_tenant()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStage.Payment,
+            subscriptionState: SubscriptionState.PendingPayment);
+        setup.Tenant.State = TenantState.PendingVerification;
+        await setup.Context.SaveChangesAsync();
+        var result = await setup.Service.CompleteStageAsync(new CompleteOnboardingStageRequestDto
+        {
+            Stage = OnboardingStage.Payment, Skipped = false
+        });
+        Assert.Equal(409, result.StatusCode);
+        Assert.Equal(TenantState.PendingVerification, setup.Tenant.State);
+        Assert.Equal(OnboardingStage.Payment, setup.Tenant.OnboardingStage);
+        Assert.Null(setup.Tenant.OnboardingCompletedAt);
+    }
+
+    [Fact]
+    public async Task Previously_verified_later_stage_can_recover_workspace_without_restarting_wizard()
+    {
+        await using var setup = await CreateSetupAsync(OnboardingStage.BrandingSetup);
+        setup.Tenant.State = TenantState.PendingVerification;
+        setup.Tenant.Subdomain = null;
+        await setup.Context.SaveChangesAsync();
+        Assert.True((await setup.Service.GetStatusAsync()).Data!.CanEnterWorkspace);
+        var result = await setup.Service.EnterWorkspaceAfterPaymentAsync();
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(TenantState.Active, setup.Tenant.State);
+        Assert.Equal(OnboardingStage.BrandingSetup, setup.Tenant.OnboardingStage);
+        Assert.Null(setup.Tenant.OnboardingCompletedAt);
+        Assert.True((await setup.Service.GetStatusAsync()).Data!.HasWorkspaceAccess);
+    }
+
+    [Fact]
     public async Task Pending_payment_never_grants_workspace_access_or_skips_setup()
     {
         await using var setup = await CreateSetupAsync(OnboardingStage.Payment,
