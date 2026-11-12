@@ -24,7 +24,9 @@ test('shared breadcrumb reduces duplicate levels and never creates navigation ro
         ['Admissions & Students', 'New application']);
     assert.deepEqual(breadcrumbParts(['Dashboard', 'dashboard', '  Dashboard  ']), ['Dashboard']);
     assert.match(layout, /id="pageBreadcrumbs"[\s\S]*?hidden><\/nav>/);
-    assert.match(js, /nav\[data-sidebar-section\] a\.nav-link\[aria-current="page"\]/);
+    assert.match(js, /sidebar\.querySelectorAll\('nav\[data-sidebar-section\] a\.nav-link'\)/);
+    assert.match(js, /breadcrumbSelection\(sidebar\.querySelectorAll/);
+    assert.match(js, /link\.getAttribute\('aria-current'\) === 'page'/);
     assert.match(js, /item\.textContent = label/);
     assert.match(js, /crumbs\.hidden = true/);
     assert.doesNotMatch(js, /\.innerHTML|localStorage|fetch\(|window\.location\.assign/);
