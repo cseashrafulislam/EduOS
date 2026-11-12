@@ -73,23 +73,9 @@
         if (field.required && value.trim() === '') return false;
         const pattern = field.getAttribute?.('pattern');
         if (pattern && !restoringEmpty) {
-            try { if (!(new RegExp('^(?:' + pattern + ')
-        // A native setter notifies React-like controlled input trackers without
-        // directly invoking form submit/change or any domain write endpoint.
-        const proto = field.tagName?.toLowerCase() === 'textarea'
-            ? hostWindow?.HTMLTextAreaElement?.prototype : hostWindow?.HTMLInputElement?.prototype;
-        const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-        if (typeof setter === 'function') setter.call(field, value);
-        else field.value = value;
-        field.dispatchEvent(new hostWindow.Event('input', { bubbles: true }));
-        // Canonical form handlers may reject a draft or unmount its control.
-        // Do not offer Undo for a field that is no longer safe or connected.
-        return safeTarget(field) && field.value === value;
-    }
-    return { parseCommand, safeTarget, apply };
-});
-, 'u')).test(value)) return false; }
-            catch { return false; }
+            try {
+                if (!(new RegExp('^(?:' + pattern + ')$', 'u')).test(value)) return false;
+            } catch { return false; }
         }
         if (!restoringEmpty && field.minLength > 0 && value.length < field.minLength) return false;
         if (String(field.value ?? '') === value) return true;
@@ -101,7 +87,7 @@
         if (typeof setter === 'function') setter.call(field, value);
         else field.value = value;
         field.dispatchEvent(new hostWindow.Event('input', { bubbles: true }));
-        return field.value === value;
+        return safeTarget(field) && field.value === value;
     }
     return { parseCommand, safeTarget, apply };
 });
