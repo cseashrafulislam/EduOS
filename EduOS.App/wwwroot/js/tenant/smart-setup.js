@@ -271,6 +271,20 @@
                 }
                 body.append(list);
             }
+            if (m.code === 'FINANCE' && todo.length) {
+                const opening = node('div', 'border-top pt-2 mt-2 small');
+                opening.append(node('span', 'me-2',
+                    tr('Verified opening balances (balanced journal + approval):',
+                        'যাচাইকৃত Opening Balance (সমন্বিত জার্নাল ও অনুমোদন):')));
+                const button = node('button', 'btn btn-sm btn-outline-primary',
+                    tr('Enter opening journal here', 'এখানে Opening Journal দিন'));
+                button.type = 'button';
+                button.setAttribute('data-smart-setup-inline', 'FINANCE:OPENING_JOURNAL');
+                button.addEventListener('click', () => openEmbeddedSetup('FINANCE',
+                    '/AccountingJournals/Index', tr('Verified opening journal', 'যাচাইকৃত Opening Journal')));
+                opening.append(button);
+                body.append(opening);
+            }
             if (m.nextStepUrl) {
                 const manage = node('a', 'small', tr('Manage ' + m.name + ' in original settings',
                     m.nameBangla + ' এর মূল সেটিংস'));
