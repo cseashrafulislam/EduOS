@@ -30,7 +30,20 @@ test('explicitly disabled, hidden or inert current page never offers next action
     }
 });
 test('next destination must remain visible and server-provided', () => {
-    assert.equal(contextualNextLink(links({}, [], {}, [])[0]), null);
+    const collapsed = links({}, [], {}, []);
+    assert.equal(contextualNextLink(collapsed[0]), collapsed[1]);
     assert.equal(contextualNextLink(links({}, [], { 'aria-disabled': 'true' })[0]), null);
     assert.equal(contextualNextLink(links({}, [], { hidden: '' })[0]), null);
+});
+
+test('closed mobile drawer still offers a permitted next page', () => {
+    const items = links({}, [], {}, []);
+    assert.equal(contextualNextLink(items[0]), items[1]);
+});
+test('explicitly inaccessible next destinations remain excluded even when drawer is closed', () => {
+    for (const attrs of [{ hidden: '' }, { inert: '' }, { disabled: '' },
+        { 'aria-hidden': 'true' }, { 'aria-disabled': 'true' }]) {
+        const items = links({}, [], attrs, []);
+        assert.equal(contextualNextLink(items[0]), null);
+    }
 });
