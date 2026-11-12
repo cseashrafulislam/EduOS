@@ -106,14 +106,10 @@ public sealed partial class AssessmentAdministrationService
             join curriculum in _curriculumSubjects.GetQueryable().AsNoTracking()
                 on offering.CurriculumSubjectId equals curriculum.Id
             join subject in _subjectNames.GetQueryable().AsNoTracking() on curriculum.SubjectId equals subject.Id
-            join section in _db.AcademicSections.AsNoTracking().Where(x => x.TenantId == tenant)
-                on offering.AcademicSectionId equals (long?)section.Id into sections
-            from section in sections.DefaultIfEmpty()
             where offering.TenantId == tenant && curriculum.TenantId == tenant && subject.TenantId == tenant &&
                 offering.AcademicBatchId == batch.Id && offering.AcademicYearId == batch.AcademicYearId &&
                 offering.IsActive && !offering.IsDeleted && !curriculum.IsDeleted && !subject.IsDeleted
-            select new { offering, SubjectName = subject.Name, SubjectCode = subject.Code,
-                SectionName = section == null ? null : section.Name };
+            select new { offering, SubjectName = subject.Name, SubjectCode = subject.Code };
         var search = request.Search?.Trim();
         if (!string.IsNullOrEmpty(search))
             q = q.Where(x => x.offering.Code.StartsWith(search) || x.SubjectCode.StartsWith(search) ||
@@ -124,8 +120,19 @@ public sealed partial class AssessmentAdministrationService
             .Select(x => new AssessmentSetupOfferingDto
             {
                 Reference = x.offering.PublicId, Code = x.offering.Code, SubjectName = x.SubjectName,
-                AcademicSectionId = x.offering.AcademicSectionId, AcademicSectionName = x.SectionName
+                AcademicSectionId = x.offering.AcademicSectionId
             }).ToListAsync(ct);
+        if (_sections != null)
+        {
+            var sectionIds = rows.Where(x => x.AcademicSectionId.HasValue)
+                .Select(x => x.AcademicSectionId!.Value).Distinct().ToArray();
+            var names = await _sections.GetQueryable().AsNoTracking().Where(x =>
+                x.TenantId == tenant && sectionIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+            foreach (var row in rows)
+                if (row.AcademicSectionId.HasValue)
+                    row.AcademicSectionName = names.GetValueOrDefault(row.AcademicSectionId.Value);
+        }
         return ApiResponse<PagedResult<AssessmentSetupOfferingDto>>.SuccessResponse(new()
         { Page = request.Page, PageSize = request.PageSize, TotalCount = count, Items = rows });
     }
