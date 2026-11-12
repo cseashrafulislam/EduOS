@@ -431,6 +431,7 @@ public class SubjectOfferingDto
     public long Id { get; set; }
     public Guid Reference { get; set; }
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public string AcademicBatchName { get; set; } = string.Empty;
     public long CurriculumSubjectId { get; set; }
     public long SubjectId { get; set; }
@@ -456,6 +457,7 @@ public class SaveSubjectOfferingRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public long CurriculumSubjectId { get; set; }
     public long AcademicYearId { get; set; }
     public long? AcademicTermId { get; set; }
