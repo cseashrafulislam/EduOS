@@ -4085,3 +4085,27 @@ body[data-smart-setup-embedded="true"] .page-body {
     #intakeFormModal .admission-intake-footer { padding: .75rem 1rem; }
     #intakeFormModal .admission-intake-footer .me-auto { width: 100%; }
 }
+
+
+/* Admit-form builders: predictable columns instead of overflowing the 12-column
+   utility grid when optional controls are present. */
+#intakeFormModal .intake-builder-row > * { min-width: 0; grid-column: auto !important; }
+#intakeFormModal .intake-field-row {
+    grid-template-columns: minmax(120px, 1fr) minmax(160px, 1.15fr) minmax(105px, .8fr)
+        minmax(105px, .7fr) minmax(150px, 1.2fr) 84px 90px;
+}
+#intakeFormModal .intake-document-row {
+    grid-template-columns: minmax(145px, 1fr) minmax(180px, 1.15fr)
+        minmax(100px, .6fr) minmax(155px, 1.15fr) 84px 90px;
+}
+#intakeFormModal .intake-builder-control { margin: 0; }
+#intakeFormModal .intake-remove-row { align-self: end; }
+@media (max-width: 1099.98px) {
+    #intakeFormModal .intake-field-row,
+    #intakeFormModal .intake-document-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #intakeFormModal .intake-remove-row { justify-self: end; }
+}
+@media (max-width: 575.98px) {
+    #intakeFormModal .intake-field-row,
+    #intakeFormModal .intake-document-row { grid-template-columns: minmax(0, 1fr); }
+}
