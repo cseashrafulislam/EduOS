@@ -142,3 +142,14 @@ test('work center never exports a cross-page item before authorized page load su
   assert.equal(h.nodes.cwcExport.disabled,true);
   assert.equal(h.nodes.cwcRows.children.length,0);
 });
+
+test('Work Center paging, export and print are session-bound and fail closed on navigation', () => {
+    const js = read('EduOS.App/wwwroot/js/platform/central-work-center.js');
+    assert.match(js, /initialTenant === document\.body\?\.dataset\.authTenantId/);
+    assert.match(js, /initialSession === document\.body\?\.dataset\.authSessionReference/);
+    assert.match(js, /EduOSSessionTransitionPending\?\.\(\)/);
+    assert.match(js, /resultReady && !loading && sameSession\(\)/);
+    assert.match(js, /request !== serial \|\| !sameSession\(\)/);
+    assert.match(js, /\+\+request; if \(pending\) pending\.abort\(\)/);
+    assert.match(js, /currentItems = \[\]; currentCounts = \[\]; updateActions\(\)/);
+});

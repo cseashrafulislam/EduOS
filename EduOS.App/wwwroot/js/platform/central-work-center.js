@@ -19,6 +19,11 @@
     let page = 1, lastPage = 1, request = 0, pending = null;
     let currentItems = [], currentScope = '', resultReady = false;
     let currentCounts = [];
+    const initialTenant = document.body?.dataset.authTenantId;
+    const initialSession = document.body?.dataset.authSessionReference;
+    const sameSession = () => initialTenant === document.body?.dataset.authTenantId &&
+        initialSession === document.body?.dataset.authSessionReference &&
+        window.EduOSSessionTransitionPending?.() !== true;
     const previous = byId('cwcPrevious'), next = byId('cwcNext');
     const source = byId('cwcSource'), pageSize = byId('cwcPageSize');
     let loading = false;
@@ -34,7 +39,7 @@
         return td;
     }
     function updateActions() {
-        const available = resultReady && !loading;
+        const available = resultReady && !loading && sameSession();
         previous.disabled = !available || page <= 1;
         next.disabled = !available || page >= lastPage;
         const exportButton = byId('cwcExport');
@@ -69,7 +74,7 @@
             count.textContent = String(entry.count);
             button.append(label, count);
             button.addEventListener('click', () => {
-                if (loading) return;
+                if (loading || !sameSession()) return;
                 source.value = entry.source;
                 page = 1;
                 load();
@@ -162,7 +167,7 @@
             const json = await response.json();
             if (!response.ok || !json.success || !json.data)
                 throw new Error(json.message || (bn ? 'তালিকা লোড করা যায়নি' : 'Cannot load work list.'));
-            if (request !== serial) return;
+            if (request !== serial || !sameSession()) return;
             byId('cwcAlert').className = 'd-none';
             const result = json.data.pending;
             if (!result || !Array.isArray(result.items) ||
@@ -189,7 +194,7 @@
             loading = false;
             render(json.data);
         } catch (error) {
-            if (error.name !== 'AbortError' && request === serial) {
+            if (error.name !== 'AbortError' && request === serial && sameSession()) {
                 alertMessage(error.message || 'Unable to load.');
                 byId('cwcPage').textContent = bn ? 'তালিকা পাওয়া যায়নি' : 'List unavailable';
                 byId('cwcScope').textContent = '';
@@ -209,7 +214,7 @@
     // Export only the currently fetched, permission-scoped page; never infer or request unseen rows.
     // The file is a local snapshot, not a replacement for source-module financial reports.
     function exportCurrentPage() {
-        if (!resultReady || loading || !currentItems.length) return;
+        if (!resultReady || loading || !currentItems.length || !sameSession()) return;
         const safe = value => {
             let s = value == null ? '' : String(value);
             if (/^[\\s\\uFEFF]*[=+@\\-]/.test(s)) s = "'" + s;
@@ -236,7 +241,7 @@
     if (exportButton) exportButton.addEventListener('click', exportCurrentPage);
     const printButton = byId('cwcPrint');
     if (printButton) printButton.addEventListener('click', () => {
-        if (resultReady && !loading && currentItems.length) window.print();
+        if (resultReady && !loading && currentItems.length && sameSession()) window.print();
     });
     byId('cwcFilters').addEventListener('submit', event => {
         event.preventDefault(); page = 1; load();
@@ -250,6 +255,7 @@
     byId('cwcNext').addEventListener('click', () => {
         if (page < lastPage) { ++page; load(); }
     });
-    window.addEventListener('pagehide', () => { if (pending) pending.abort(); });
+    window.addEventListener('pagehide', () => { ++request; if (pending) pending.abort();
+        resultReady = false; currentItems = []; currentCounts = []; updateActions(); });
     load();
 })();

@@ -57,3 +57,16 @@ test('F10 current-page export and print are fail-closed and reuse displayed auth
     assert.doesNotMatch(js, /innerHTML\s*=/);
     assert.doesNotMatch(js, /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/);
 });
+
+test('Student 360 page controls fail closed on failed requests, session changes and malformed counts', () => {
+    const js = read('EduOS.App/wwwroot/js/students/student-360.js');
+    assert.match(js, /!historyReady \|\| !sameSession\(\) \|\| page <= 1/);
+    assert.match(js, /!historyReady \|\| !sameSession\(\) \|\| page >= totalPages/);
+    assert.match(js, /historyReady && sameSession\(\) && page > 1/);
+    assert.match(js, /historyReady && sameSession\(\) && page < totalPages/);
+    assert.match(js, /profileController\?\.abort\(\)/);
+    assert.match(js, /typeof data\.hasMore !== 'boolean'/);
+    assert.match(js, /items\.some\(item => !item/);
+    assert.match(js, /items\.length > data\.totalCount/);
+    assert.match(js, /\+\+token; busy = false; historyReady = false/);
+});

@@ -33,16 +33,17 @@
     };
     let tab = 'enrollment', page = 1, totalPages = 1, busy = false, token = 0, controller = null;
     let currentRows = [], currentTab = null, profileReady = false, historyReady = false;
+    let profileController = null, historyFailed = false;
     const node = (tag, value) => { const e = document.createElement(tag); e.textContent = value == null || value === '' ? '—' : String(value); return e; };
     const alert = value => { $('s360Alert').className = 'alert alert-danger'; $('s360Alert').textContent = value; };
     function controls() {
-        $('s360Previous').disabled = busy || page <= 1;
-        $('s360Next').disabled = busy || page >= totalPages;
+        $('s360Previous').disabled = busy || !historyReady || !sameSession() || page <= 1;
+        $('s360Next').disabled = busy || !historyReady || !sameSession() || page >= totalPages;
         $('s360Page').textContent = page + ' / ' + totalPages;
         const canExport = !busy && profileReady && historyReady && currentTab === tab && currentRows.length > 0 && sameSession();
         $('s360Export').disabled = !canExport;
         $('s360Print').disabled = !canExport;
-        $('s360Retry').disabled = busy || !profileReady;
+        $('s360Retry').disabled = busy || !profileReady || !sameSession();
     }
     function render(items) {
         const cfg = configs[tab];
@@ -75,7 +76,7 @@
         const local = new AbortController();
         controller = local;
         const ticket = ++token, selected = tab;
-        busy = true; historyReady = false; currentRows = []; currentTab = null; controls();
+        busy = true; historyReady = false; historyFailed = false; currentRows = []; currentTab = null; controls();
         $('s360Status').textContent = msg('Loading history…', 'ইতিহাস লোড হচ্ছে…');
         $('s360Rows').replaceChildren();
         try {
@@ -90,13 +91,18 @@
                 throw new Error(json?.message || msg('History unavailable.', 'ইতিহাস পাওয়া যায়নি।'));
             const data = json.data;
             const items = selected === 'lifecycle' ? data.events : data.items;
-            if (!Array.isArray(items) || items.length > 20) throw new Error('Invalid history page.');
+            if (!Array.isArray(items) || items.length > 20 || items.some(item => !item || typeof item !== 'object' || Array.isArray(item)))
+                throw new Error('Invalid history page.');
             if (selected === 'lifecycle') {
+                if (typeof data.hasMore !== 'boolean' || (data.hasMore && items.length === 0))
+                    throw new Error('Invalid lifecycle pagination.');
                 totalPages = data.hasMore ? page + 1 : page;
             } else {
                 if (!Number.isSafeInteger(data.totalCount) || data.totalCount < 0)
                     throw new Error('Invalid history count.');
                 totalPages = Math.max(1, Math.ceil(data.totalCount / 20));
+                if ((page < totalPages && items.length === 0) || items.length > data.totalCount)
+                    throw new Error('Invalid history count or page.');
                 if (page > totalPages) { page = totalPages; load(); return; }
             }
             currentRows = items.map(item => ({...item}));
@@ -112,6 +118,7 @@
             $('s360Rows').replaceChildren();
             totalPages = page;
             historyReady = false;
+            historyFailed = true;
             currentRows = [];
             alert(error.message || msg('Could not load history.', 'ইতিহাস লোড করা যায়নি।'));
             $('s360Status').textContent = msg('Unavailable (not zero).', 'অনুপলব্ধ (শূন্য নয়)।');
@@ -120,12 +127,15 @@
         }
     }
     async function profile() {
+        profileController?.abort();
+        const local = new AbortController();
+        profileController = local;
         try {
             const response = await fetch('/api/students/' + encodeURIComponent(reference),
-                {credentials: 'same-origin', cache: 'no-store', headers: {Accept: 'application/json'}});
+                {credentials: 'same-origin', cache: 'no-store', signal: local.signal, headers: {Accept: 'application/json'}});
             const json = await response.json().catch(() => null);
-            if (!sameSession()) return;
-            if (!response.ok || json?.success !== true || !json.data) throw Error('Profile unavailable.');
+            if (!sameSession() || local.signal.aborted) return;
+            if (!response.ok || json?.success !== true || !json.data || typeof json.data !== 'object') throw Error('Profile unavailable.');
             const d = json.data, host = $('s360Identity');
             const body = document.createElement('div'); body.className = 'card-body';
             const title = node('h2', d.fullNameBangla || d.fullName); title.className = 'h5';
@@ -135,7 +145,7 @@
             profileReady = true;
             load();
         } catch {
-            if (!sameSession()) return;
+            if (!sameSession() || local.signal.aborted) return;
             $('s360Identity').textContent = msg('Student unavailable or access denied.', 'শিক্ষার্থীর তথ্য অনুপলব্ধ অথবা অনুমতি নেই।');
             alert(msg('Cannot open Student 360.', 'Student 360 খোলা যায়নি।'));
         }
@@ -151,8 +161,8 @@
         });
         load();
     }));
-    $('s360Previous').addEventListener('click', () => { if (!busy && page > 1) { page--; load(); } });
-    $('s360Next').addEventListener('click', () => { if (!busy && page < totalPages) { page++; load(); } });
+    $('s360Previous').addEventListener('click', () => { if (!busy && historyReady && sameSession() && page > 1) { page--; load(); } });
+    $('s360Next').addEventListener('click', () => { if (!busy && historyReady && sameSession() && page < totalPages) { page++; load(); } });
     $('s360Retry').addEventListener('click', () => { if (!busy && profileReady && sameSession()) load(); });
     function authorizedPage() {
         return !busy && profileReady && historyReady && currentTab === tab &&
@@ -216,6 +226,7 @@
         doc.body.append(title, table);
         w.print();
     });
-    window.addEventListener('pagehide', () => { controller?.abort(); historyReady = false; currentRows = []; controls(); });
+    window.addEventListener('pagehide', () => { controller?.abort(); profileController?.abort();
+        ++token; busy = false; historyReady = false; currentRows = []; currentTab = null; controls(); });
     profile();
 })();
