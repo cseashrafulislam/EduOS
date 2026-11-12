@@ -99,3 +99,24 @@ test('search draft supports controlled native setters and does not submit', () =
     assert.equal(nativeCalls, 1);
     assert.deepEqual(target.events.map(x => x.type), ['input']);
 });
+
+
+test('all whitespace-separated aria-labelledby IDs are checked for protected bilingual labels', () => {
+    for (const ids of ['generic protected', 'generic\tprotected', 'generic\nprotected']) {
+        const target = input({
+            ownerDocument: {
+                getElementById: id => ({ textContent: id === 'protected' ? 'ব্যাংক হিসাব' : 'Search' })
+            },
+            getAttribute: key => key === 'aria-labelledby' ? ids : null
+        });
+        assert.equal(draft.isSafeTarget(target), false);
+        assert.equal(draft.applyDraft(target, 'Rahim', host), false);
+        assert.equal(target.value, '');
+    }
+    const safe = input({
+        ownerDocument: { getElementById: id => ({ textContent: id === 'first' ? 'Search' : 'Students' }) },
+        getAttribute: key => key === 'aria-labelledby' ? 'first second' : null
+    });
+    assert.equal(draft.isSafeTarget(safe), true);
+    assert.equal(draft.applyDraft(safe, 'Rahim', host), true);
+});
