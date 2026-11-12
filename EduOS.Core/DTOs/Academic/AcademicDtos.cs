@@ -486,7 +486,9 @@ public class StudentEnrollmentDto
     public long AcademicLevelId { get; set; }
     public string AcademicLevelName { get; set; } = string.Empty;
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public string AcademicBatchName { get; set; } = string.Empty;
+    public string? AcademicSectionName { get; set; }
     public long AcademicCurriculumId { get; set; }
     public string AcademicCurriculumName { get; set; } = string.Empty;
     public long? AcademicTrackId { get; set; }
@@ -509,6 +511,7 @@ public class CreateStudentEnrollmentRequestDto
     public Guid StudentReference { get; set; }
     /// <summary>Campus, academic year, program, level, track, medium and shift are resolved from the selected batch.</summary>
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     /// <summary>Selected curriculum must be validated against the selected batch and enrollment date.</summary>
     [Range(1, long.MaxValue)] public long AcademicCurriculumId { get; set; }
     [Required, MaxLength(50)] public string RollNo { get; set; } = string.Empty;
