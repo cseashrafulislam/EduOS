@@ -52,7 +52,7 @@ public sealed class StudentAttendanceReportService(
             var session = await db.AttendanceSessions.AsNoTracking()
                 .Where(x => x.TenantId == tenant && x.Id == sessionId &&
                     x.IsFinalized && !x.IsDeleted)
-                .Select(x => new { x.Id, x.AcademicBatchId, x.AttendanceDate, x.SubjectOfferingId })
+                .Select(x => new { x.Id, x.AcademicBatchId, x.AcademicSectionId, x.AttendanceDate, x.SubjectOfferingId })
                 .SingleOrDefaultAsync(cancellationToken);
             if (session == null)
                 return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
@@ -118,6 +118,7 @@ public sealed class StudentAttendanceReportService(
                 Page = page, PageSize = pageSize,
                 TotalPages = total == 0 ? 0 : (total - 1) / pageSize + 1,
                 AttendanceSessionId = session.Id, AcademicBatchId = session.AcademicBatchId,
+                AcademicSectionId = session.AcademicSectionId,
                 AttendanceDate = session.AttendanceDate, IsFinalized = true,
                 IsHistoricalReadOnly = true,
                 Students = rows.Select(x => new StudentAttendanceDto
@@ -447,7 +448,7 @@ public sealed class StudentAttendanceReportService(
                      session.SubjectOfferingId == query.SubjectOfferingId.Value)
                 select new StudentAttendanceSessionRegisterDto
                 {
-                    SessionId = session.Id,
+                    SessionId = session.Id, AcademicSectionId = session.AcademicSectionId,
                     AttendanceDate = session.AttendanceDate,
                     SubjectOfferingId = session.SubjectOfferingId,
                     SubjectOfferingCode = !session.SubjectOfferingId.HasValue
