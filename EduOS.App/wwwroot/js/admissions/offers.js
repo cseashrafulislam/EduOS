@@ -10,6 +10,28 @@ function updateStage(){
  if(target)target.textContent=ctx.applicant?label(nextStage(ctx.applicant.state,ctx.decision?.state,ctx.decision?.expiresAt),bn()):'';
 }
 let mutationInFlight = false;
+let enrollmentSections = [], sectionBatch = null, sectionVersion = 0;
+async function loadEnrollmentSections() {
+ const batch = num(val('offerBatch')), request = ++sectionVersion;
+ const select = el('offerAcademicSection'), previous = select?.value;
+ if (!select) return;
+ enrollmentSections = [];
+ sectionBatch = batch;
+ select.replaceChildren(new Option('Select academic section / শাখা', ''));
+ if (!batch) return;
+ try {
+  const data = await api('/api/academic-sections?academicBatchId=' + encodeURIComponent(String(batch)) +
+   '&page=1&pageSize=100');
+  if (request !== sectionVersion || batch !== num(val('offerBatch'))) return;
+  enrollmentSections = (data.items || []).filter(x => x.isActive && x.capacity > 0);
+  enrollmentSections.forEach(x => select.add(new Option(x.name + ' (' + x.code + ')', String(x.id))));
+  if (enrollmentSections.some(x => String(x.id) === previous)) select.value = previous;
+  else if (enrollmentSections.length === 1) select.value = String(enrollmentSections[0].id);
+ } catch(error) {
+  if (request === sectionVersion) notice(error.message || 'Sections could not be loaded.', true);
+ }
+}
+
 async function runMutation(work, success, fallback) {
  if (mutationInFlight || !ctx.reference) return;
  mutationInFlight = true;
@@ -19,7 +41,10 @@ async function runMutation(work, success, fallback) {
   const result = await work(reference);
   if (!currentReference(reference)) return;
   const updated = await refresh();
-  if (updated && currentReference(reference)) notice(success(result));
+  if (updated && currentReference(reference)) {
+   await loadEnrollmentSections();
+   notice(success(result));
+  }
  } catch(error) {
   if (currentReference(reference)) {
    notice(error.message || fallback, true);
@@ -60,10 +85,14 @@ async function accept() {
 }
 async function enroll() {
  const batch=num(val('offerBatch')),roll=val('offerRoll'),track=num(val('offerTrack'));
+ if (sectionBatch !== batch) await loadEnrollmentSections();
+ const sectionId = num(val('offerAcademicSection')) || null;
+ if (enrollmentSections.length && !enrollmentSections.some(x => x.id === sectionId))
+  return notice(say('Select an active academic section.','সক্রিয় শাখা নির্বাচন করুন।'), true);
  if(!validateRoll(batch,roll)) return notice(say('A valid batch and roll are required.','সঠিক ব্যাচ ও রোল প্রয়োজন।'),true);
  const rowVersion=ctx.applicant?.rowVersion;
  await runMutation(reference=>api('/api/admission-applications/'+encodeURIComponent(reference)+'/admit','POST',{
-  academicBatchId:batch,academicTrackId:track,roll,rowVersion
+  academicBatchId:batch,academicSectionId:sectionId,academicTrackId:track,roll,rowVersion
  }),result=>say('Student enrolled: ','শিক্ষার্থী ভর্তি হয়েছে: ')+(result?.studentCode||say('Created','তৈরি হয়েছে')),'Enrollment failed.');
 }
 document.addEventListener('DOMContentLoaded', () => {
@@ -71,6 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if(state)new MutationObserver(updateStage).observe(state,{childList:true,subtree:true,characterData:true});
     if (!el('offerLookupForm')) return;
     el('offerLookupForm').addEventListener('submit', load);
+    el('offerBatch').addEventListener('change', loadEnrollmentSections);
+    document.addEventListener('admission:offer-data-loaded', () => {
+        loadEnrollmentSections().catch(error => notice(error.message, true));
+    });
     initializeOfferSearch();
     [['offerIssueButton', issue], ['offerAcceptButton', accept], ['offerEnrollButton', enroll]].forEach(
         ([id, handler]) => el(id).addEventListener('click', handler));
