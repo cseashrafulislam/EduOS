@@ -632,7 +632,17 @@
             name: String(detail.batchLabel || 'Selected academic batch') }], 'Select authorized academic batch');
         el('sectionId').value = String(batchId);
         resetSubjects();
-        selectOptions('attendanceAcademicSection', [], 'Section resolved from session');
+        const sectionId = detail.academicSectionId == null ? null : Number(detail.academicSectionId);
+        if (sectionId && Number.isSafeInteger(sectionId) && sectionId > 0) {
+            selectOptions('attendanceAcademicSection', [
+                { id: sectionId, name: 'Section #' + sectionId }
+            ], 'Select academic section');
+            el('attendanceAcademicSection').value = String(sectionId);
+            acceptedSection = String(sectionId);
+        } else {
+            selectOptions('attendanceAcademicSection', [], 'Legacy session / no section');
+            acceptedSection = '';
+        }
         const subject = el('attendanceSubject');
         if (offeringId !== null) {
             const option = document.createElement('option');
