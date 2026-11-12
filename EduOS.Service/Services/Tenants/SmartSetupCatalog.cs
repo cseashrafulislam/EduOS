@@ -158,51 +158,54 @@ internal static class SmartSetupCatalog
             list.Add(new("ASSESSMENT", "GradeScheme", "BD-CGPA-4", "Bangladesh UGC-style CGPA 4.00"));
         }
 
-        // Canonical account groups and general posting ledgers, but no real bank,
-        // cash designation, receivable/debtor mapping, balances or journal entries.
-        foreach (var (code, name, type) in new (string, string, AccountType)[]
+        if (bangladesh)
         {
-            ("1000", "Assets", AccountType.Asset),
-            ("2000", "Liabilities", AccountType.Liability),
-            ("3000", "Equity", AccountType.Equity),
-            ("4000", "Income", AccountType.Income),
-            ("5000", "Expenses", AccountType.Expense)
-        })
-            list.Add(new("FINANCE", "Account", code, name, AccountType: type, IsGroup: true));
-        foreach (var (code, name, type, parent) in new (string, string, AccountType, string)[]
-        {
-            ("1100", "Accounts Receivable", AccountType.Asset, "1000"),
-            ("1200", "Furniture and Equipment", AccountType.Asset, "1000"),
-            ("2100", "Accounts Payable", AccountType.Liability, "2000"),
-            ("2200", "Salaries Payable", AccountType.Liability, "2000"),
-            ("3100", "Capital and Contributions", AccountType.Equity, "3000"),
-            ("4100", "Tuition Fee Income", AccountType.Income, "4000"),
-            ("4200", "Admission Fee Income", AccountType.Income, "4000"),
-            ("5100", "Salary Expense", AccountType.Expense, "5000"),
-            ("5200", "Utilities Expense", AccountType.Expense, "5000"),
-            ("5300", "Office Expense", AccountType.Expense, "5000")
-        })
-            list.Add(new("FINANCE", "Account", code, name, AccountType: type, ParentCode: parent));
+            // Canonical account groups and general posting ledgers, but no real bank,
+            // cash designation, receivable/debtor mapping, balances or journal entries.
+            foreach (var (code, name, type) in new (string, string, AccountType)[]
+            {
+                ("1000", "Assets", AccountType.Asset),
+                ("2000", "Liabilities", AccountType.Liability),
+                ("3000", "Equity", AccountType.Equity),
+                ("4000", "Income", AccountType.Income),
+                ("5000", "Expenses", AccountType.Expense)
+            })
+                list.Add(new("FINANCE", "Account", code, name, AccountType: type, IsGroup: true));
+            foreach (var (code, name, type, parent) in new (string, string, AccountType, string)[]
+            {
+                ("1100", "Accounts Receivable", AccountType.Asset, "1000"),
+                ("1200", "Furniture and Equipment", AccountType.Asset, "1000"),
+                ("2100", "Accounts Payable", AccountType.Liability, "2000"),
+                ("2200", "Salaries Payable", AccountType.Liability, "2000"),
+                ("3100", "Capital and Contributions", AccountType.Equity, "3000"),
+                ("4100", "Tuition Fee Income", AccountType.Income, "4000"),
+                ("4200", "Admission Fee Income", AccountType.Income, "4000"),
+                ("5100", "Salary Expense", AccountType.Expense, "5000"),
+                ("5200", "Utilities Expense", AccountType.Expense, "5000"),
+                ("5300", "Office Expense", AccountType.Expense, "5000")
+            })
+                list.Add(new("FINANCE", "Account", code, name, AccountType: type, ParentCode: parent));
 
-        // Taxability is a reviewed, editable master policy: the conservative
-        // earnings default is taxable; deductions and employer costs are not.
-        // This creates no compensation, withholding, statutory rate or posting.
-        foreach (var (code, name, kind) in new (string, string, SalaryComponentType)[]
-        {
-            ("BASIC", "Basic Salary", SalaryComponentType.Earning),
-            ("HOUSE-RENT", "House Rent Allowance", SalaryComponentType.Earning),
-            ("MEDICAL-ALLOWANCE", "Medical Allowance", SalaryComponentType.Earning),
-            ("TRANSPORT-ALLOWANCE", "Transport Allowance", SalaryComponentType.Earning),
-            ("OVERTIME", "Overtime", SalaryComponentType.Earning),
-            ("FESTIVAL-BONUS", "Festival Bonus", SalaryComponentType.Earning),
-            ("ABSENCE-DEDUCTION", "Absence Deduction", SalaryComponentType.Deduction),
-            ("LOAN-RECOVERY", "Loan Recovery", SalaryComponentType.Deduction),
-            ("EMPLOYEE-PF", "Employee Provident Fund Deduction", SalaryComponentType.Deduction),
-            ("EMPLOYER-PF", "Employer Provident Fund Contribution", SalaryComponentType.EmployerContribution)
-        })
-            list.Add(new("PAYROLL", "SalaryComponent", code, name,
-                SalaryType: kind, IsTaxable: kind == SalaryComponentType.Earning));
+            // Taxability is a reviewed, editable master policy: the conservative
+            // earnings default is taxable; deductions and employer costs are not.
+            // This creates no compensation, withholding, statutory rate or posting.
+            foreach (var (code, name, kind) in new (string, string, SalaryComponentType)[]
+            {
+                ("BASIC", "Basic Salary", SalaryComponentType.Earning),
+                ("HOUSE-RENT", "House Rent Allowance", SalaryComponentType.Earning),
+                ("MEDICAL-ALLOWANCE", "Medical Allowance", SalaryComponentType.Earning),
+                ("TRANSPORT-ALLOWANCE", "Transport Allowance", SalaryComponentType.Earning),
+                ("OVERTIME", "Overtime", SalaryComponentType.Earning),
+                ("FESTIVAL-BONUS", "Festival Bonus", SalaryComponentType.Earning),
+                ("ABSENCE-DEDUCTION", "Absence Deduction", SalaryComponentType.Deduction),
+                ("LOAN-RECOVERY", "Loan Recovery", SalaryComponentType.Deduction),
+                ("EMPLOYEE-PF", "Employee Provident Fund Deduction", SalaryComponentType.Deduction),
+                ("EMPLOYER-PF", "Employer Provident Fund Contribution", SalaryComponentType.EmployerContribution)
+            })
+                list.Add(new("PAYROLL", "SalaryComponent", code, name,
+                    SalaryType: kind, IsTaxable: kind == SalaryComponentType.Earning));
 
+        }
         Add(list, "HR", "OrganizationUnit",
             ("ADMIN", "Administration"),
             ("ACADEMIC", "Academics"),
