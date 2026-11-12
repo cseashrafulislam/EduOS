@@ -25,6 +25,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
     private readonly IGenericRepository<Student> _students;
     private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicSection>? _sections;
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<Employee> _employees;
     private readonly IGenericRepository<InstructorAssignment> _instructors;
@@ -44,7 +45,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         IGenericRepository<AcademicYear> years, IGenericRepository<Employee> employees,
         IGenericRepository<InstructorAssignment> instructors, IGenericRepository<SubjectOffering> offerings,
         EduOSDbContext db, IUnitOfWork uow, ICurrentUserService user, TimeProvider clock,
-        ILogger<StudentAttendanceService> logger)
+        ILogger<StudentAttendanceService> logger, IGenericRepository<AcademicSection>? sections = null)
     {
         _attendances = attendances;
         _adjustments = adjustments;
@@ -54,6 +55,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         _registrations = registrations;
         _students = students;
         _batches = batches;
+        _sections = sections;
         _years = years;
         _employees = employees;
         _instructors = instructors;
@@ -154,13 +156,59 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
 
 
     /// <summary>SQL-paged active offerings with live campus and instructor assignment scope.</summary>
+    public async Task<ApiResponse<PagedResult<StudentAttendanceSectionChoiceDto>>> GetSectionChoicesAsync(
+        long academicBatchId, DateOnly attendanceDate, int page = 1, int pageSize = 25,
+        CancellationToken ct = default)
+    {
+        if (!CanWrite()) return Error<PagedResult<StudentAttendanceSectionChoiceDto>>("Attendance permission required.", 403);
+        if (academicBatchId <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+            (long)(page - 1) * pageSize > int.MaxValue || _sections == null)
+            return Error<PagedResult<StudentAttendanceSectionChoiceDto>>("Invalid academic section request.");
+        var scopeError = await ValidateScopeAsync(academicBatchId, attendanceDate, null, ct);
+        if (scopeError != null)
+            return Error<PagedResult<StudentAttendanceSectionChoiceDto>>(scopeError, 403);
+        var tenant = _user.TenantId;
+        var query = _sections.GetQueryable().AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.AcademicBatchId == academicBatchId && x.IsActive && !x.IsDeleted);
+        if (_user.IsInRole("Teacher") && !_user.IsTenantAdmin &&
+            !_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal"))
+        {
+            var assignedSections = from assignment in _instructors.GetQueryable().AsNoTracking()
+                join employee in _employees.GetQueryable().AsNoTracking() on assignment.EmployeeId equals employee.Id
+                join offering in _offerings.GetQueryable().AsNoTracking() on assignment.SubjectOfferingId equals offering.Id
+                where assignment.TenantId == tenant && employee.TenantId == tenant && offering.TenantId == tenant &&
+                    employee.UserId == _user.UserId && employee.State == EmployeeState.Active &&
+                    !employee.IsDeleted && !assignment.IsDeleted && !offering.IsDeleted &&
+                    assignment.IsActive && offering.IsActive && offering.AcademicBatchId == academicBatchId &&
+                    assignment.EffectiveFrom <= attendanceDate &&
+                    (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >= attendanceDate)
+                select offering.AcademicSectionId;
+            query = query.Where(x => assignedSections.Contains(x.Id) ||
+                x.IsLegacyDefault && assignedSections.Contains(null));
+        }
+        var count = await query.CountAsync(ct);
+        var rows = await query.OrderBy(x => x.IsLegacyDefault).ThenBy(x => x.Name)
+            .ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(x => new StudentAttendanceSectionChoiceDto
+            {
+                Id = x.Id, AcademicBatchId = x.AcademicBatchId, Name = x.Name,
+                Code = x.Code, Capacity = x.Capacity, IsLegacyDefault = x.IsLegacyDefault
+            }).ToListAsync(ct);
+        return ApiResponse<PagedResult<StudentAttendanceSectionChoiceDto>>.SuccessResponse(
+            new PagedResult<StudentAttendanceSectionChoiceDto>
+            {
+                Items = rows, Page = page, PageSize = pageSize, TotalCount = count
+            });
+    }
+
     public async Task<ApiResponse<PagedResult<StudentAttendanceReportSubjectDto>>> GetSubjectChoicesAsync(
         long academicBatchId, DateOnly attendanceDate, string? search,
-        int page = 1, int pageSize = 25, CancellationToken ct = default)
+        int page = 1, int pageSize = 25, CancellationToken ct = default,
+        long? academicSectionId = null)
     {
         if (!CanWrite())
             return Error<PagedResult<StudentAttendanceReportSubjectDto>>("Attendance permission is required.", 403);
-        if (academicBatchId <= 0 || attendanceDate == default || page < 1 ||
+        if (academicBatchId <= 0 || attendanceDate == default || academicSectionId is <= 0 || page < 1 ||
             pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue ||
             search?.Length > 100)
             return Error<PagedResult<StudentAttendanceReportSubjectDto>>("Invalid attendance subject search.");
@@ -177,9 +225,13 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 !mapping.IsDeleted && subject.IsActive && !subject.IsDeleted
             select new StudentAttendanceReportSubjectDto
             {
-                Id = offering.Id, Code = offering.Code,
+                Id = offering.Id, AcademicSectionId = offering.AcademicSectionId, Code = offering.Code,
                 SubjectCode = subject.Code, SubjectName = subject.Name
             };
+        if (academicSectionId.HasValue)
+            query = query.Where(x => x.AcademicSectionId == academicSectionId.Value ||
+                x.AcademicSectionId == null && _sections != null && _sections.GetQueryable().Any(s =>
+                    s.TenantId == tenant && s.Id == academicSectionId.Value && s.IsLegacyDefault));
         if (!_user.IsTenantAdmin && !_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal"))
         {
             var assignedIds = from assignment in _instructors.GetQueryable().AsNoTracking()
