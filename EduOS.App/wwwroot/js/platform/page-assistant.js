@@ -136,9 +136,11 @@
         let recognizer = null;
         let speechRequest = 0;
         let speechInputSnapshot = '';
+        let speechChecking = false;
         function voiceMessage(value) { if (voiceStatus) voiceStatus.textContent = value; }
         function stopSpeech() {
             speechRequest++;
+            speechChecking = false;
             if (recognizer) {
                 const old = recognizer;
                 recognizer = null;
@@ -303,20 +305,26 @@
                 'একটি নির্দিষ্ট ঘর বা অনুমোদিত মেনু পাওয়া যায়নি। সম্পূর্ণ নাম লিখুন।'));
         }
         if (voice && voiceStatus) voice.addEventListener('click', async () => {
-            if (recognizer) { stopSpeech(); voiceMessage(t('Listening stopped.', 'শোনা বন্ধ হয়েছে।')); return; }
+            if (recognizer || speechChecking) { stopSpeech(); voiceMessage(t('Listening stopped.', 'শোনা বন্ধ হয়েছে।')); return; }
             if (!currentContext() || !dialog.open) return;
             const request = ++speechRequest;
             speechInputSnapshot = query.value;
-            voice.disabled = true;
+            speechChecking = true;
+            voice.disabled = false;
             voiceMessage(t('Checking installed on-device speech support…', 'ডিভাইসে থাকা ভয়েস সুবিধা যাচাই হচ্ছে…'));
             const language = bn ? 'bn-BD' : 'en-BD';
             const next = await createOnDeviceRecognizer(hostWindow, language);
-            if (request !== speechRequest || !currentContext() || !dialog.open) {
+            if (request !== speechRequest || !currentContext() || !dialog.open ||
+                query.value !== speechInputSnapshot) {
                 try { next?.abort(); } catch { /* Nothing was started. */ }
-                voice.disabled = false;
+                if (request === speechRequest) {
+                    stopSpeech();
+                    voiceMessage(t('Transcript or session changed. Type instead.',
+                        'লেখা বা সেশন বদলেছে। লিখে ব্যবহার করুন।'));
+                }
                 return;
             }
-            voice.disabled = false;
+            speechChecking = false;
             if (!next) {
                 voiceMessage(t('Local speech is unavailable or its language pack is not installed. Type instead.',
                     'ডিভাইসে এই ভাষার ভয়েস সুবিধা নেই। লিখে ব্যবহার করুন।'));
@@ -375,7 +383,7 @@
             reset();
             // Manual edits win over any pending microphone result, including
             // results delivered after a recognition session was cancelled.
-            if (recognizer) {
+            if (recognizer || speechChecking) {
                 stopSpeech();
                 voiceMessage(t('Listening stopped. Your typed text was kept.',
                     'শোনা বন্ধ হয়েছে। আপনার টাইপ করা লেখা রাখা হয়েছে।'));
