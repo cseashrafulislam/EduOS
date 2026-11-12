@@ -22,7 +22,7 @@
         const hashAt = safe.indexOf('#');
         const pathname = hashAt < 0 ? safe : safe.slice(0, hashAt);
         const fragment = hashAt < 0 ? '' : safe.slice(hashAt);
-        const normalized = pathname.replace(/\\/Index\\/?$/i, '').replace(/\\/$/, '') || '/';
+        const normalized = pathname.replace(/\/Index\/?$/i, '').replace(/\/$/, '') || '/';
         return (normalized + fragment).toLocaleLowerCase();
     }
 
@@ -97,6 +97,7 @@
     const input = document.getElementById('featureSearchInput');
     const results = document.getElementById('featureSearchResults');
     const close = document.getElementById('featureSearchClose');
+    const sidebarFavorites = document.getElementById('sidebarFavoriteShortcuts');
     if (!sidebar || !triggers.length || !dialog || !input || !results) return;
 
     const bangla = document.documentElement.lang?.toLowerCase().startsWith('bn');
@@ -153,6 +154,10 @@
         if (current === 'ready') return true;
         input.value = '';
         results.replaceChildren();
+        if (sidebarFavorites) {
+            sidebarFavorites.replaceChildren();
+            sidebarFavorites.hidden = true;
+        }
         if (dialog.open) {
             if (typeof dialog.close === 'function') dialog.close();
             else dialog.removeAttribute('open');
@@ -177,9 +182,47 @@
         }
         return currentContext();
     }
+    function renderSidebarFavorites() {
+        if (!sidebarFavorites) return;
+        sidebarFavorites.replaceChildren();
+        const favorites = state.favorites.map(href => byHref.get(href)).filter(Boolean).slice(0, 5);
+        if (!favorites.length || status() !== 'ready') {
+            sidebarFavorites.hidden = true;
+            return;
+        }
+        const heading = document.createElement('span');
+        heading.className = 'sidebar-favorites-title';
+        heading.textContent = bangla ? 'পছন্দের পেজ' : 'FAVORITES';
+        sidebarFavorites.append(heading);
+        for (const entry of favorites) {
+            const link = document.createElement('a');
+            link.className = 'sidebar-favorite-link';
+            link.href = entry.href;
+            const icon = document.createElement('span');
+            icon.className = 'sidebar-favorite-star';
+            icon.textContent = '★';
+            icon.setAttribute('aria-hidden', 'true');
+            const label = document.createElement('span');
+            label.className = 'sidebar-favorite-label';
+            label.textContent = entry.label;
+            link.append(icon, label);
+            link.addEventListener('click', async event => {
+                if (event.defaultPrevented || event.button !== 0 || event.metaKey ||
+                    event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                if (!await verifiedContext() || !byHref.has(entry.href)) return;
+                state.recent = remember(state.recent, entry.href);
+                persist();
+                window.location.assign(entry.href);
+            });
+            sidebarFavorites.append(link);
+        }
+        sidebarFavorites.hidden = false;
+    }
     function persist() {
         if (!tenant || !session) return;
         try { sessionStorage.setItem(key, JSON.stringify(state)); } catch { /* Optional storage. */ }
+        renderSidebarFavorites();
     }
     // Only the server-rendered active destination can enter recent history.
     const active = rawLinks.find(link => link.getAttribute('aria-current') === 'page');
@@ -273,8 +316,10 @@
         section(labels.favorites, favorites);
         section(labels.recent, recent);
         if (!favorites.length && !recent.length) section(labels.available, catalog.slice(0, 12));
+        renderSidebarFavorites();
     }
 
+    renderSidebarFavorites();
     let lastOpener = trigger || sidebarTrigger;
     async function open(opener) {
         if (!await verifiedContext()) return;
@@ -296,8 +341,14 @@
         if (status() === 'ready') lastOpener?.focus();
     });
     input.addEventListener('input', render);
-    window.addEventListener('pageshow', () => { if (dialog.open) currentContext(); });
-    window.addEventListener('focus', () => { if (dialog.open) currentContext(); });
+    window.addEventListener('pageshow', () => {
+        if (dialog.open) currentContext();
+        renderSidebarFavorites();
+    });
+    window.addEventListener('focus', () => {
+        if (dialog.open) currentContext();
+        renderSidebarFavorites();
+    });
     document.addEventListener('visibilitychange', () => {
         if (dialog.open && document.visibilityState === 'visible') currentContext();
     });
