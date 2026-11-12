@@ -82,7 +82,8 @@
     // The candidate must be an already-authorized, visible same-origin sibling.
     // This is navigation only: it does not imply that a business task is complete.
     function contextualNextLink(current) {
-        if (!shellLinkVisible(current) || current.getAttribute?.('aria-current') !== 'page') return null;
+        if (!current || breadcrumbSelection([current]) !== current ||
+            current.getAttribute?.('aria-current') !== 'page' || !canonicalShellRoute(current.getAttribute('href'))) return null;
         const nav = current.closest?.('nav[data-sidebar-section][data-shell-next-task="true"]');
         if (!nav || nav.closest?.('[hidden], [inert], [aria-hidden="true"]')) return null;
         const siblings = Array.from(nav.querySelectorAll?.('a.nav-link') || []);
