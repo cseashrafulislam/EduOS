@@ -48,6 +48,9 @@ public sealed class OnboardingService : IOnboardingService
         var current = tenant.OnboardingStage;
         if (!Enum.IsDefined(current)) return ApiResponse<OnboardingStatusDto>.ErrorResponse("Invalid onboarding stage.", 409);
         var finished = IsCompleted(tenant);
+        var subscription = await _subscriptions.GetActiveByTenantAsync(tenant.Id, cancellationToken);
+        var eligible = OnboardingWorkspacePolicy.CanActivate(tenant, subscription, _clock.GetUtcNow().UtcDateTime);
+        var workspaceAccess = OnboardingWorkspacePolicy.CanUse(tenant, subscription, _clock.GetUtcNow().UtcDateTime);
         var stages = Enum.GetValues<OnboardingStage>().Where(x => x != OnboardingStage.Completed)
             .Select(stage => new OnboardingStageStatusDto
             {
@@ -68,6 +71,8 @@ public sealed class OnboardingService : IOnboardingService
             TenantId = tenant.Id,
             CurrentStage = current,
             IsComplete = finished,
+            CanEnterWorkspace = eligible,
+            HasWorkspaceAccess = workspaceAccess,
             CompletedAt = tenant.OnboardingCompletedAt,
             Stages = stages,
             TotalStages = stages.Length,
@@ -76,6 +81,53 @@ public sealed class OnboardingService : IOnboardingService
             NextStageCode = next?.ToString(),
             NextStageName = next.HasValue ? StageName(next.Value) : null
         });
+    }
+
+    // A paid and verified institution may use its ERP while academic/branding
+    // setup stays genuinely incomplete. This never creates fictional campus,
+    // academic year, module selections or marks the wizard Completed.
+    public async Task<ApiResponse<bool>> EnterWorkspaceAfterPaymentAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanManage()) return Denied();
+        try
+        {
+            return await _uow.ExecuteInTransactionAsync(async token =>
+            {
+                var tenant = await _tenants.GetQueryable()
+                    .FirstOrDefaultAsync(x => x.Id == _user.TenantId && !x.IsDeleted, token);
+                if (tenant == null) return Failure("Institution not found.", 404);
+                if (tenant.State is TenantState.Suspended or TenantState.Closed)
+                    return Failure("Institution access is suspended or closed.", 403);
+                if (IsCompleted(tenant) && tenant.State == TenantState.Active)
+                    return ApiResponse<bool>.SuccessResponse(true, "Workspace already available.");
+                var subscription = await _subscriptions.GetActiveByTenantAsync(tenant.Id, token);
+                if (!OnboardingWorkspacePolicy.CanActivate(tenant, subscription, _clock.GetUtcNow().UtcDateTime))
+                    return Failure("Verified email, institution profile and active paid subscription or trial are required.", 409);
+                if (OnboardingWorkspacePolicy.CanUse(tenant, subscription, _clock.GetUtcNow().UtcDateTime))
+                    return ApiResponse<bool>.SuccessResponse(true, "Workspace already available.");
+                if (tenant.OnboardingStage == OnboardingStage.Payment)
+                    tenant.OnboardingStage = OnboardingStage.CampusSetup;
+                if (tenant.State == TenantState.PendingVerification)
+                    tenant.State = TenantState.Active;
+                tenant.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                tenant.UpdatedBy = _user.UserId;
+                _tenants.Update(tenant);
+                await _uow.SaveChangesAsync(token);
+                _logger.LogInformation("Verified subscription enabled tenant {TenantId} workspace; optional setup remains incomplete at {Step}.",
+                    tenant.Id, tenant.OnboardingStage);
+                return ApiResponse<bool>.SuccessResponse(true, "Workspace enabled. You can finish setup later.");
+            }, System.Data.IsolationLevel.Serializable, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex, "Concurrent workspace activation for tenant {TenantId}.", _user.TenantId);
+            return Failure("Workspace state changed; refresh and retry.", 409);
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Workspace activation integrity error for tenant {TenantId}.", _user.TenantId);
+            return Failure("Workspace activation could not be saved.", 409);
+        }
     }
 
     public async Task<ApiResponse<bool>> AdvanceToStageAsync(OnboardingStage stage, CancellationToken cancellationToken = default)

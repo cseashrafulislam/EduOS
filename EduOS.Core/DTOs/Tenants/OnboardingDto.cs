@@ -7,6 +7,9 @@ public sealed class OnboardingStatusDto
     public long TenantId { get; set; }
     public OnboardingStage CurrentStage { get; set; }
     public bool IsComplete { get; set; }
+    // Payment-verified ERP access is distinct from completion of every setup step.
+    public bool CanEnterWorkspace { get; set; }
+    public bool HasWorkspaceAccess { get; set; }
     public DateTime? CompletedAt { get; set; }
     public IReadOnlyList<OnboardingStageStatusDto> Stages { get; set; } = Array.Empty<OnboardingStageStatusDto>();
     public int TotalStages { get; set; }

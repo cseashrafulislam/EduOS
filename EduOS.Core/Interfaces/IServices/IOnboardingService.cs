@@ -10,4 +10,5 @@ public interface IOnboardingService
     Task<ApiResponse<bool>> AdvanceToStageAsync(OnboardingStage stage, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> CompleteStageAsync(CompleteOnboardingStageRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<bool>> CompleteOnboardingAsync(CancellationToken cancellationToken = default);
+    Task<ApiResponse<bool>> EnterWorkspaceAfterPaymentAsync(CancellationToken cancellationToken = default);
 }

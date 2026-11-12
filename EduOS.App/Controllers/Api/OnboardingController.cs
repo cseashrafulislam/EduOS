@@ -43,6 +43,13 @@ namespace EduOS.App.Controllers.Api
         /// <summary>
         /// Finalize entire onboarding (validates all required steps)
         /// </summary>
+        [HttpPost("enter-workspace")]
+        public async Task<IActionResult> EnterWorkspace(CancellationToken cancellationToken)
+        {
+            var result = await _onboardingService.EnterWorkspaceAfterPaymentAsync(cancellationToken);
+            return StatusCode(result.StatusCode, result);
+        }
+
         [HttpPost("complete")]
         public async Task<IActionResult> CompleteOnboarding()
         {

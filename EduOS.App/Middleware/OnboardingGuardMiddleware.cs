@@ -1,4 +1,5 @@
 using EduOS.Core.Enums.Domain;
+using EduOS.Core.Common;
 using EduOS.Persistence.Context;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -77,43 +78,59 @@ namespace EduOS.App.Middleware
                     return;
                 }
 
-                var state = await dbContext.Tenants.AsNoTracking()
-                    .Where(t => t.Id == tenantId && !t.IsDeleted)
-                    .Select(t => new OnboardingState { State = t.State, IsComplete = t.OnboardingCompletedAt.HasValue && t.OnboardingStage == OnboardingStage.Completed, Step = t.OnboardingStage })
-                    .FirstOrDefaultAsync();
-
-                if (state == null)
+                var tenant = await dbContext.Tenants.AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.Id == tenantId && !t.IsDeleted);
+                if (tenant == null)
                 {
                     _logger.LogWarning("Onboarding guard could not resolve active tenant {TenantId} for path {Path}.", tenantId, path);
                     await RejectAsync(context, StatusCodes.Status403Forbidden, "Your institution account is not available.");
                     return;
                 }
 
-                if (state.State is TenantState.Suspended or TenantState.Closed ||
-                    (state.Step == OnboardingStage.Completed && (state.State != TenantState.Active || !state.IsComplete)))
+                var complete = tenant.OnboardingCompletedAt.HasValue && tenant.OnboardingStage == OnboardingStage.Completed;
+                if (tenant.State is TenantState.Suspended or TenantState.Closed ||
+                    (tenant.OnboardingStage == OnboardingStage.Completed && (tenant.State != TenantState.Active || !complete)))
                 {
                     await RejectAsync(context, StatusCodes.Status403Forbidden, "Your institution account is not active.");
                     return;
                 }
 
-                if (state.State == TenantState.Active && state.IsComplete)
+                if (tenant.State == TenantState.Active && complete)
                 {
                     await _next(context);
                     return;
                 }
 
-                var redirectUrl = GetRedirectUrlForStep(state.Step);
+                // Post-payment workspace access is independent from completing optional
+                // institution setup, but requires every request to pass verified,
+                // current tenant identity and active paid/trial subscription checks.
+                if (tenant.State == TenantState.Active &&
+                    tenant.OnboardingStage >= OnboardingStage.CampusSetup)
+                {
+                    var subscription = await dbContext.TenantSubscriptions.IgnoreQueryFilters().AsNoTracking()
+                        .Where(s => s.TenantId == tenantId && !s.IsDeleted &&
+                            s.StartsAt <= DateTime.UtcNow && s.EndsAt > DateTime.UtcNow &&
+                            (s.State == SubscriptionState.Active || s.State == SubscriptionState.Trial))
+                        .OrderByDescending(s => s.StartsAt).FirstOrDefaultAsync();
+                    if (OnboardingWorkspacePolicy.CanUse(tenant, subscription, DateTime.UtcNow))
+                    {
+                        await _next(context);
+                        return;
+                    }
+                }
+
+                var redirectUrl = GetRedirectUrlForStep(tenant.OnboardingStage);
 
                 if (path.StartsWithSegments("/api"))
                 {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     context.Response.Headers["X-Onboarding-Required"] = "true";
-                    context.Response.Headers["X-Onboarding-Step"] = ((int)state.Step).ToString();
+                    context.Response.Headers["X-Onboarding-Step"] = ((int)tenant.OnboardingStage).ToString();
                     await context.Response.WriteAsJsonAsync(new { success = false, message = "Please complete onboarding first", redirectUrl });
                     return;
                 }
 
-                _logger.LogDebug("Redirecting tenant {TenantId} to onboarding step {Step}", tenantId, state.Step);
+                _logger.LogDebug("Redirecting tenant {TenantId} to onboarding step {Step}", tenantId, tenant.OnboardingStage);
                 context.Response.Redirect(redirectUrl);
             }
             catch (Exception ex)
