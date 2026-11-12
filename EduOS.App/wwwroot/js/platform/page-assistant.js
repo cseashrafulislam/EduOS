@@ -61,13 +61,18 @@
                 if (aria) labels.push(aria);
                 // Reuse the actual accessible name; bilingual aria-labelledby is
                 // frequently the only label on responsive/custom form layouts.
-                const labelIds = String(field.getAttribute('aria-labelledby') || '').trim().split(/\s+/u).slice(0, 8);
-                for (const id of labelIds) {
-                    const node = id && doc.getElementById(id);
-                    if (node?.textContent) labels.push(node.textContent);
+                const labelledBy = String(field.getAttribute('aria-labelledby') || '').trim();
+                if (labelledBy) {
+                    const ids = labelledBy.split(/\s+/u);
+                    if (ids.length > 32 || new Set(ids).size !== ids.length) return null;
+                    for (const id of ids) {
+                        const node = doc.getElementById(id);
+                        if (!node || !String(node.textContent || '').trim()) return null;
+                        labels.push(node.textContent);
+                    }
                 }
                 return { node: field, labels: [...new Set(labels.map(x => x.trim()).filter(Boolean))] };
-            }).filter(entry => entry.labels.length > 0);
+            }).filter(entry => entry && entry.labels.length > 0);
     }
 
     // A section folded by sidebar-navigation.js is presentation state, not a
