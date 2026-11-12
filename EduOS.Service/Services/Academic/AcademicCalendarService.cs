@@ -204,16 +204,16 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         var existing = await _events.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId &&
                 (x.CampusId == campusId || (campusId.HasValue && x.CampusId == null)) &&
-                x.StartDate <= toDate && x.EndDate >= fromDate &&
-                x.EventType == CalendarEventKind.Holiday)
-            .Select(x => new { x.Title, x.StartDate, x.EndDate, x.IsHoliday })
+                x.StartDate <= toDate && x.EndDate >= fromDate)
+            .Select(x => new { x.Title, x.StartDate, x.EndDate, x.EventType, x.IsHoliday })
             .ToListAsync(ct);
         var preview = new GovernmentHolidayPreviewDto { SourceVersion = BangladeshGovernmentHolidayCatalog.Version };
         foreach (var item in catalog)
         {
             var matching = existing.Where(x => string.Equals(x.Title, item.Name, StringComparison.OrdinalIgnoreCase) &&
                 x.StartDate <= item.End && x.EndDate >= item.Start).ToArray();
-            var exact = matching.Any(x => x.StartDate == item.Start && x.EndDate == item.End && x.IsHoliday);
+            var exact = matching.Any(x => x.StartDate == item.Start && x.EndDate == item.End &&
+                x.IsHoliday && x.EventType == CalendarEventKind.Holiday);
             preview.Holidays.Add(new GovernmentHolidayOptionDto
             {
                 Code = item.Code, Title = item.Name, StartDate = item.Start,
