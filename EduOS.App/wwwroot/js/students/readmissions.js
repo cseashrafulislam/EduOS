@@ -4,7 +4,7 @@
     if(!root)return;
     const el=id=>document.getElementById(id);
     const val=id=>el(id).value.trim();
-    const state={options:null,requestId:null,requestFingerprint:null,saving:false,searchRequest:0,optionsRequest:0};
+    const state={options:null,requestId:null,requestFingerprint:null,saving:false,searchRequest:0,optionsRequest:0,sectionRequest:0,sections:[]};
     const form=el('readmissionForm');
     const guard=window.EduOSFormGuard?.create(form);
     const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value||'';
@@ -29,10 +29,25 @@
         return result.data;
     }
     function reset() {
+        state.sections=[];++state.sectionRequest;
         state.options=null;state.requestId=null;state.requestFingerprint=null;
         form.reset();guard?.markClean();
         el('readmissionEditor').classList.add('d-none');
         el('readmissionStudent').textContent='';
+    }
+    async function loadSections() {
+        const batchId=Number(val('readmissionBatch')),ticket=++state.sectionRequest;
+        const select=el('readmissionSection');
+        state.sections=[];
+        select.replaceChildren(new Option('Select academic section',''));
+        if(!batchId)return;
+        const data=await api('/api/academic-sections?academicBatchId='+encodeURIComponent(String(batchId))+
+            '&page=1&pageSize=100');
+        if(ticket!==state.sectionRequest||!sameSession()||Number(val('readmissionBatch'))!==batchId)return;
+        state.sections=(data.items||[]).filter(x=>x.isActive&&x.capacity>0);
+        state.sections.forEach(x=>select.add(new Option(x.name,String(x.id))));
+        if(state.sections.length===1)select.value=String(state.sections[0].id);
+        guard?.markClean();
     }
     async function search(event) {
         event.preventDefault();
@@ -74,6 +89,7 @@
             }
             if(!options.targets.length)return notice('No eligible open batches for this student.');
             el('readmissionRoll').value='';el('readmissionReason').value='';
+            await loadSections();
             guard?.markClean();
             el('readmissionEditor').classList.remove('d-none');
         } catch(error){if(request===state.optionsRequest&&sameSession())notice(error.message);}
@@ -81,12 +97,15 @@
     async function submit(event) {
         event.preventDefault();
         if(!sameSession()||state.saving||!state.options)return;
-        const batch=Number(val('readmissionBatch')),roll=val('readmissionRoll'),reason=val('readmissionReason');
+        const batch=Number(val('readmissionBatch')),sectionId=Number(val('readmissionSection'))||null,
+            roll=val('readmissionRoll'),reason=val('readmissionReason');
+        if(state.sections.length&&!state.sections.some(x=>x.id===sectionId))
+            return notice('Select an active section for readmission.');
         if(!state.options.targets.some(x=>x.academicBatchId===batch)||!roll||roll.length>50||
             !reason||reason.length>450)return notice('Select an eligible batch and enter roll and reason.');
         if(!confirm('Readmit '+state.options.studentCode+'? A new enrollment and status history will be created.'))return;
         const request={previousEnrollmentId:state.options.previousEnrollmentId,
-            targetAcademicBatchId:batch,targetRoll:roll,reason,
+            targetAcademicBatchId:batch,targetAcademicSectionId:sectionId,targetRoll:roll,reason,
             studentRowVersion:state.options.studentRowVersion,
             previousEnrollmentRowVersion:state.options.previousEnrollmentRowVersion};
         const fingerprint=JSON.stringify(request);
@@ -106,6 +125,9 @@
     }
     el('readmissionSearch').addEventListener('submit',search);
     el('readmissionForm').addEventListener('submit',submit);
+    el('readmissionBatch').addEventListener('change',()=>{
+        loadSections().catch(e=>notice(e.message));
+    });
     el('readmissionQuery').addEventListener('input',()=>{++state.searchRequest;});
     const preselected=new URLSearchParams(location.search).get('studentReference');
     if(preselected&&guid.test(preselected))load(preselected);
