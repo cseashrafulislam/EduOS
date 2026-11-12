@@ -335,6 +335,9 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             request.SubjectOfferingId, ct);
         if (selectedSection.Error != null) return Error<StudentAttendanceRosterDto>(selectedSection.Error, 409);
         var tenant = _user.TenantId;
+        var legacyDefault = selectedSection.Id.HasValue && _sections != null &&
+            await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == selectedSection.Id.Value && x.IsLegacyDefault, ct);
         // The existing unique (TenantId, ClientRequestId) index prevents two writers from
         // creating different sessions for the same scope without a shared schema migration.
         var scopeKey = FormattableString.Invariant(
@@ -348,7 +351,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var existing = await _sessions.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.AcademicBatchId == request.AcademicBatchId &&
                     x.AttendanceDate == request.AttendanceDate && x.SubjectOfferingId == request.SubjectOfferingId &&
-                    x.AcademicSectionId == selectedSection.Id && !x.IsDeleted).OrderBy(x => x.Id).Take(2).ToListAsync(token);
+                    (x.AcademicSectionId == selectedSection.Id ||
+                     legacyDefault && x.AcademicSectionId == null) && !x.IsDeleted).OrderBy(x => x.Id).Take(2).ToListAsync(token);
                 if (existing.Count > 1)
                     return Error<StudentAttendanceRosterDto>("Multiple attendance sessions exist for this scope. Resolve before writing.", 409);
                 if (existing.Count == 0)
@@ -404,11 +408,17 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
 
                 var requested = request.Students.Select(x => x.StudentEnrollmentReference).ToArray();
+                var legacy = session.AcademicSectionId.HasValue && _sections != null &&
+                    await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
+                        x.TenantId == _user.TenantId && x.Id == session.AcademicSectionId.Value &&
+                        x.IsLegacyDefault, token);
                 var enrollments = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                     join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
                     where enrollment.TenantId == _user.TenantId && student.TenantId == _user.TenantId &&
                         enrollment.AcademicBatchId == session.AcademicBatchId &&
+                        (session.AcademicSectionId == null || enrollment.AcademicSectionId == session.AcademicSectionId ||
+                         legacy && enrollment.AcademicSectionId == null) &&
                         enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
                         student.StatusCode == "Active" && batch.TenantId == _user.TenantId &&
                         enrollment.CampusId == batch.CampusId && requested.Contains(enrollment.PublicId)
