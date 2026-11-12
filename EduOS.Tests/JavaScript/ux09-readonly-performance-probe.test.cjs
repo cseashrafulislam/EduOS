@@ -42,12 +42,12 @@ test('403, redirects and network errors never count as successful latency sample
 });
 test('baseline comparison rejects cross-tenant/device comparisons, failures and route drift',()=>{
   const context={gitSha:'a',role:'Accountant',tenantAlias:'T1',campusAlias:'C1',locale:'bn-BD',device:'390px',metric:'sequential-client-GET-ms',sampleCountPerRoute:5};
-  const a={schema:1,context,routes:[{id:'fees',p75Ms:100,p95Ms:200,failures:0}]};
-  const b={...a,context:{...context,gitSha:'b'},routes:[{id:'fees',p75Ms:80,p95Ms:150,failures:0}]};
+  const a={schema:1,context,routes:[{id:'fees',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:100,p95Ms:200}]};
+  const b={...a,context:{...context,gitSha:'b'},routes:[{id:'fees',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:80,p95Ms:150}]};
   assert.equal(compare(a,b)[0].deltaP95Pct,-25);
   assert.throws(()=>compare(a,{...b,context:{...b.context,tenantAlias:'T2'}}),/context/);
   assert.throws(()=>compare(a,{...b,routes:[{...b.routes[0],failures:1}]}),/failed/);
-  assert.throws(()=>compare(a,{...b,routes:[]}),/Route set/);
+  assert.throws(()=>compare(a,{...b,routes:[]}),/routes/);
 });
 
 test('reject encoded traversal, encoded authority, backslashes, whitespace and base subpaths',()=>{
@@ -57,9 +57,17 @@ test('reject encoded traversal, encoded authority, backslashes, whitespace and b
 });
 test('comparison refuses duplicate candidate IDs and invalid percentile values',()=>{
   const context={role:'Teacher',tenantAlias:'A',campusAlias:'C',locale:'bn-BD',device:'390px',metric:'sequential-client-GET-ms',sampleCountPerRoute:5};
-  const routes=[{id:'a',failures:0,p75Ms:12,p95Ms:15},{id:'b',failures:0,p75Ms:20,p95Ms:25}];
+  const routes=[{id:'a',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:12,p95Ms:15},{id:'b',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:20,p95Ms:25}];
   const before={schema:1,context,routes};
   assert.throws(()=>compare(before,{schema:1,context,routes:[routes[0],routes[0]]}),/Route set mismatch/);
   assert.throws(()=>compare(before,{schema:1,context,routes:[{...routes[0],p75Ms:null},routes[1]]}),/invalid route/);
   assert.throws(()=>compare(before,{schema:1,context,routes:[{...routes[0],p95Ms:Infinity},routes[1]]}),/invalid route/);
+});
+
+test('comparison accepts ordinary ASCII route IDs but rejects malformed identifiers',()=>{
+  const context={role:'Teacher',tenantAlias:'T1',campusAlias:'C1',locale:'en-BD',device:'desktop',metric:'sequential-client-GET-ms',sampleCountPerRoute:5};
+  const valid={schema:1,context,routes:[{id:'student-list_01',samples:5,success:5,failures:0,statuses:{200:5},p75Ms:10,p95Ms:12}]};
+  assert.equal(compare(valid,valid)[0].id,'student-list_01');
+  for(const id of ['a.b','a/b','', 'a b']) assert.throws(()=>compare({...valid,routes:[{...valid.routes[0],id}]},valid),/invalid benchmark route/);
+  assert.throws(()=>compare({...valid,context:null},valid),/Missing benchmark context/);
 });
