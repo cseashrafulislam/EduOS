@@ -195,7 +195,8 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var requiredIds = requiredSubjects.Select(x => x.Id).ToArray();
             var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted &&
-                x.AcademicSectionId == request.AcademicSectionId &&
+                (x.AcademicSectionId == request.AcademicSectionId ||
+                    section != null && section.IsLegacyDefault && x.AcademicSectionId == null) &&
                 requiredIds.Contains(x.CurriculumSubjectId)).ToListAsync(ct);
             if (offerings.GroupBy(x => x.CurriculumSubjectId).Any(x => x.Count() != 1) ||
                 requiredSubjects.Any(x => offerings.All(y => y.CurriculumSubjectId != x.Id)))
