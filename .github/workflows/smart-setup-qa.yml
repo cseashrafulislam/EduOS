@@ -1,0 +1,36 @@
+name: Smart Institution Setup scoped QA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [Ashraful]
+    paths:
+      - '.github/workflows/smart-setup-qa.yml'
+      - 'EduOS.Service/Services/Tenants/SmartSetup*.cs'
+      - 'EduOS.Core/DTOs/SaaS/SmartSetupDtos.cs'
+      - 'EduOS.App/Views/SmartSetup/**'
+      - 'EduOS.App/wwwroot/js/tenant/smart-setup*.js'
+      - 'EduOS.Tests/Services/SmartSetupServiceTests.cs'
+      - 'EduOS.Tests/JavaScript/smart-setup*.test.cjs'
+
+permissions:
+  contents: read
+
+jobs:
+  smart-setup-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore test dependencies
+        run: dotnet restore EduOS.slnx
+      - name: Verify Smart Setup tenant isolation, idempotency and all presets
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore --filter "FullyQualifiedName~SmartSetupServiceTests" --logger "console;verbosity=normal"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify reviewed grid and inline canonical setup
+        run: node --test EduOS.Tests/JavaScript/smart-setup-guardrails.test.cjs EduOS.Tests/JavaScript/smart-setup-grid.test.cjs EduOS.Tests/JavaScript/smart-setup-handoff.test.cjs
