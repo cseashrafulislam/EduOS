@@ -101,7 +101,7 @@ public sealed class SmartSetupServiceTests
     private static ApplySmartSetupRequestDto Request(Fixture f, params string[] modules) => new()
     {
         ClientRequestId = Guid.NewGuid(), InstitutionTypeId = f.InstitutionType,
-        TemplateVersion = "2026.11.1", Confirmed = true, Modules = modules.ToList()
+        TemplateVersion = "2026.11.2", Confirmed = true, Modules = modules.ToList()
     };
 
     [Fact]
@@ -116,17 +116,21 @@ public sealed class SmartSetupServiceTests
         var request = Request(f, "ACADEMIC", "HR", "FEES", "INVENTORY");
         var first = await f.Service.ApplyAsync(request);
         Assert.True(first.Success, first.Message);
-        Assert.Equal(10, first.Data!.CreatedCount);
+        Assert.Equal(50, first.Data!.CreatedCount);
         Assert.Equal(2, await f.Db.Mediums.CountAsync(x => x.TenantId == f.Tenant));
-        Assert.Equal(2, await f.Db.OrganizationUnits.CountAsync(x => x.TenantId == f.Tenant));
-        Assert.Equal(2, await f.Db.Designations.CountAsync(x => x.TenantId == f.Tenant));
-        Assert.Equal(2, await f.Db.FeeHeads.CountAsync(x => x.TenantId == f.Tenant));
-        Assert.Equal(2, await f.Db.AssetCategories.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(12, await f.Db.OrganizationUnits.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(12, await f.Db.Designations.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(12, await f.Db.FeeHeads.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(12, await f.Db.AssetCategories.CountAsync(x => x.TenantId == f.Tenant));
+        Assert.Equal(EduOS.Core.Enums.Domain.FeeFrequencyType.PerTerm,
+            (await f.Db.FeeHeads.SingleAsync(x => x.Code == "EXAMINATION")).DefaultFrequency);
+        Assert.Equal(EduOS.Core.Enums.Domain.FeeFrequencyType.OneTime,
+            (await f.Db.FeeHeads.SingleAsync(x => x.Code == "ADMISSION")).DefaultFrequency);
         Assert.Equal(0, await f.Db.FeeStructures.CountAsync());
         Assert.Equal(0, await f.Db.StudentEnrollments.CountAsync());
         var replay = await f.Service.ApplyAsync(request);
         Assert.True(replay.Success, replay.Message);
-        Assert.Equal(10, replay.Data!.CreatedCount);
+        Assert.Equal(50, replay.Data!.CreatedCount);
         Assert.Equal(0, replay.Data.ExistingCount);
         Assert.Equal(1, await f.Db.AuditLogs.CountAsync(x => x.Action == "SmartSetup.Apply" && x.TenantId == f.Tenant));
     }
@@ -179,10 +183,10 @@ public sealed class SmartSetupServiceTests
         await using var f = await Open(modules: ["LIBRARY", "COMMUNICATION", "DOCUMENTS"]);
         var created = await f.Service.ApplyAsync(Request(f, "LIBRARY", "COMMUNICATION", "DOCUMENTS"));
         Assert.True(created.Success, created.Message);
-        Assert.Equal(6, created.Data!.CreatedCount);
-        Assert.Equal(3, await f.Db.BookCategories.CountAsync());
-        Assert.Equal(2, await f.Db.NoticeCategories.CountAsync());
-        Assert.Single(await f.Db.DocumentTypeDefinitions.ToListAsync());
+        Assert.Equal(36, created.Data!.CreatedCount);
+        Assert.Equal(12, await f.Db.BookCategories.CountAsync());
+        Assert.Equal(12, await f.Db.NoticeCategories.CountAsync());
+        Assert.Equal(12, await f.Db.DocumentTypeDefinitions.CountAsync());
         Assert.Empty(await f.Db.Notices.ToListAsync());
         Assert.Empty(await f.Db.Documents.ToListAsync());
         var second = await f.Service.ApplyAsync(Request(f, "LIBRARY", "COMMUNICATION", "DOCUMENTS"));
