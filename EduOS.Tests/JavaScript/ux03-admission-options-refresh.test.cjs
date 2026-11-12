@@ -159,6 +159,9 @@ test('staff admission retries identical command once, rotates key on edit and on
     posts[0].resolve({ ok: false, status: 503, json: async () => ({ success: false }) });
     await first;
     assert.equal(form.resets || 0, 0, 'failed write must not discard entered form');
+    assert.equal(ctx.node('admissionSubmitFeedback').className, 'admission-submit-feedback',
+        'server failure is presented beside the application form');
+    assert.match(ctx.node('admissionSubmitFeedback').children[1].textContent, /Check the application list before retrying/);
     const retry = submit();
     assert.equal(posts[1].body.clientRequestId, posts[0].body.clientRequestId);
     posts[1].resolve({ ok: false, status: 503, json: async () => ({ success: false }) });
@@ -170,7 +173,9 @@ test('staff admission retries identical command once, rotates key on edit and on
     await changed;
     assert.equal(form.resets, 1);
     assert.equal(ctx.node('admissionSubmissionReceipt').hidden, false);
-    assert.equal(ctx.node('admissionAlert').className, 'alert alert-success');
+    assert.equal(ctx.node('admissionSubmitFeedback').className, 'd-none',
+        'successful receipt is shown without a duplicate global success alert');
+    assert.equal(ctx.node('admissionAlert').textContent, '');
 });
 
 test('a completed old-tenant admission response cannot display applicant receipt or clear draft', async () => {
