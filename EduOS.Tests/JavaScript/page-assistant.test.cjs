@@ -389,3 +389,44 @@ test('pending local speech availability can be cancelled and never overwrites a 
         assert.equal(ids.pageAssistantQuery.value, typed);
     }
 });
+
+test('cancelled microphone callbacks cannot terminate a newer local speech session (bn/en)', async () => {
+    for (const [lang, transcript] of [['en-BD', 'Guardian name'], ['bn-BD', 'অভিভাবকের নাম']]) {
+        const ids = Object.fromEntries(['pageAssistantDialog', 'pageAssistantOpen', 'pageAssistantClose',
+            'pageAssistantQuery', 'pageAssistantFind', 'pageAssistantResult', 'pageAssistantVoice',
+            'pageAssistantVoiceStatus', 'main-content', 'sidebarMenu'].map(id => [id, createNode()]));
+        ids['main-content'].querySelectorAll = () => [];
+        ids.sidebarMenu.querySelectorAll = () => [];
+        class LocalSpeech {
+            constructor() { this.processLocally = false; LocalSpeech.current = this; }
+            static async available() { return 'available'; }
+            start() { this.started = true; }
+            abort() { this.aborted = true; }
+        }
+        const doc = {
+            documentElement: { lang }, body: { dataset: { authTenantId: '22', authSessionReference: 'a' } },
+            getElementById: id => ids[id], createElement: () => createNode()
+        };
+        assistant.mount(doc, { SpeechRecognition: LocalSpeech, addEventListener() {} });
+        ids.pageAssistantOpen.click();
+        await ids.pageAssistantVoice.click();
+        const oldMic = LocalSpeech.current;
+        const oldResult = oldMic.onresult;
+        const oldError = oldMic.onerror;
+        ids.pageAssistantVoice.click(); // explicitly stop first session
+        assert.equal(oldMic.aborted, true);
+        await ids.pageAssistantVoice.click(); // user explicitly starts a fresh session
+        const newMic = LocalSpeech.current;
+        assert.notEqual(newMic, oldMic);
+        assert.equal(newMic.started, true);
+        oldResult({ resultIndex: 0, results: [[{ transcript: 'stale result' }]] });
+        oldError({ error: 'aborted' });
+        assert.equal(newMic.aborted, undefined, 'old callbacks cannot stop a newer microphone');
+        assert.equal(ids.pageAssistantVoice.attributes['aria-pressed'], 'true');
+        assert.equal(ids.pageAssistantQuery.value, '', 'stale callbacks cannot write transcript');
+        newMic.onresult({ resultIndex: 0, results: [[{ transcript }]] });
+        assert.equal(ids.pageAssistantQuery.value, transcript);
+        assert.equal(newMic.aborted, true);
+        assert.equal(ids.pageAssistantResult.children.length, 0, 'no automatic business action');
+    }
+});
