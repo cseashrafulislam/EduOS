@@ -72,14 +72,17 @@
     };
 }
 
-<section class="admission-page" aria-labelledby="admissionTitle" data-admission-feature="@admissionFeature">
+<section class="admission-page" aria-labelledby="@(admissionFeature == "new" ? "newApplicationTitle" : "admissionTitle")" data-admission-feature="@admissionFeature">
     @Html.AntiForgeryToken()
-    <header class="content-header-card admission-page-header">
-        <div>
-            <p class="dashboard-eyebrow">@T["Admission"]</p>
-            <h2 id="admissionTitle">@focusedTitle</h2>
-        </div>
-    </header>
+    @if (admissionFeature != "new")
+    {
+        <header class="content-header-card admission-page-header">
+            <div>
+                <p class="dashboard-eyebrow">@T["Admission"]</p>
+                <h2 id="admissionTitle">@focusedTitle</h2>
+            </div>
+        </header>
+    }
 
     <div id="admissionAlert" class="d-none" role="alert" tabindex="-1"></div>
 
@@ -137,7 +140,7 @@
     <div class="@(admissionFeature == "all" ? "admission-grid" : "")">
         <section class="content-card admission-new-card @(showNew ? "" : "d-none")" aria-labelledby="newApplicationTitle">
             <div class="content-card-heading admission-new-heading">
-                <h3 id="newApplicationTitle">@(bn ? "নতুন ভর্তি আবেদন" : "New application")</h3>
+                <h2 id="newApplicationTitle">@(bn ? "নতুন ভর্তি আবেদন" : "New Admission Application")</h2>
                 <span class="admission-required-note">@(bn ? "* চিহ্নিত তথ্য আবশ্যক" : "* Required fields")</span>
             </div>
             <div id="admissionSubmissionReceipt" class="alert alert-success admission-receipt mb-3" role="status" aria-live="polite" tabindex="-1" hidden></div>
