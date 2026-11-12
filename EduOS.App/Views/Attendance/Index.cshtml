@@ -37,6 +37,18 @@
                 </div></div>
 
             <div class="col-md-4">
+                <label class="form-label" for="attendanceAcademicSection">@(bn ? "শাখা" : "Academic Section")</label>
+                <select id="attendanceAcademicSection" class="form-select" disabled>
+                    <option value="">@(bn ? "প্রথমে ব্যাচ নির্বাচন করুন" : "Select a batch first")</option>
+                </select>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <button id="attendanceSectionPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>
+                    <span id="attendanceSectionPage" class="small text-muted" aria-live="polite"></span>
+                    <button id="attendanceSectionNext" class="btn btn-sm btn-outline-secondary" type="button" disabled>Next</button>
+                </div>
+            </div>
+
+            <div class="col-md-4">
                 <label class="form-label" for="attendanceSubjectSearch">@(bn ? "বিষয় অফার" : "Subject offering")</label>
                 <div class="input-group">
                     <input id="attendanceSubjectSearch" class="form-control" maxlength="100" placeholder="Subject name or code" />
