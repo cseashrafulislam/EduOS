@@ -22,9 +22,17 @@
         if (!field || field.dataset?.assistantFilter !== 'true') return false;
         const labels = Array.from(field.labels || []).map(x => x.textContent || '');
         const doc = field.ownerDocument;
-        for (const id of String(field.getAttribute?.('aria-labelledby') || '').trim().split(/\s+/u).slice(0, 8)) {
-            const node = id && doc?.getElementById?.(id);
-            if (node?.textContent) labels.push(node.textContent);
+        const labelledBy = String(field.getAttribute?.('aria-labelledby') || '').trim();
+        if (labelledBy) {
+            const ids = labelledBy.split(/\s+/u);
+            // A missing/ambiguous accessible name is not a safe opt-in target.
+            // Bound DOM lookups; fail closed rather than silently ignoring later IDs.
+            if (ids.length > 32 || new Set(ids).size !== ids.length || !doc?.getElementById) return false;
+            for (const id of ids) {
+                const node = doc.getElementById(id);
+                if (!node || !String(node.textContent || '').trim()) return false;
+                labels.push(node.textContent);
+            }
         }
         const metadata = [field.name, field.id, field.autocomplete, field.dataset?.assistantLabel,
             field.getAttribute?.('aria-label'), field.getAttribute?.('placeholder'),
