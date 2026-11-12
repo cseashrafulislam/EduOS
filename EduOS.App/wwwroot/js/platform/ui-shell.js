@@ -17,7 +17,7 @@
     // Keep the MVC Index alias equivalent to the controller root and reject
     // browser-normalized paths (dot segments, encoded separators and external URLs).
     function canonicalShellRoute(href) {
-        if (typeof href !== 'string' || !/^\\/(?!\\/)[a-z0-9/_-]+(?:[?#][^\\s]*)?$/i.test(href)) return null;
+        if (typeof href !== 'string' || !/^\/(?!\/)[a-z0-9/_-]+(?:[?#][^\s]*)?$/i.test(href)) return null;
         const pathname = href.split(/[?#]/, 1)[0];
         const parts = pathname.split('/').filter(Boolean);
         if (parts.some(part => part === '.' || part === '..')) return null;

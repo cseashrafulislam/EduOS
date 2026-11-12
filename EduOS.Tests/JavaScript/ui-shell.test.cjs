@@ -205,6 +205,13 @@ test('shared shell rejects URL normalization tricks and skips MVC Index alias ne
     assert.equal(canonicalShellRoute('/Students'), '/students');
     assert.equal(canonicalShellRoute('/Students/Index?campus=2'), '/students');
     assert.equal(canonicalShellRoute('/SmartSetup/Index'), '/smartsetup');
+    assert.equal(canonicalShellRoute('/Students/Index#details'), '/students');
+    assert.equal(canonicalShellRoute('/Students/Details?tab=guardian'), '/students/details');
+    assert.equal(canonicalShellRoute('/Students/Index?tab=guardian#overview'), '/students');
+    assert.equal(canonicalShellRoute('/Students/Index?bad=white space'), null);
+    // The shared shell script must remain parseable by Node and browsers.
+    // A double-escaped slash in a regex literal breaks the entire global shell.
+    assert.doesNotMatch(js, /\^\\\\\/\(\?!\\\\\//);
     for (const value of ['//evil.test', 'https://evil.test/Students', '/Students/../Admin',
         '/Students/%2e%2e/Admin', '/Students/%2fAdmin', '/Students\\\\Admin', '/Students/Index%0a']) {
         assert.equal(canonicalShellRoute(value), null, value);
