@@ -118,7 +118,7 @@ test('server-only activation retains unfinished setup; suspended/expired subscri
     assert.match(view, /openWorkspace/);
 });
 test('language switch uses an independent CSRF-protected route during onboarding', () => {
-    assert.match(layout, /form action="\/localization\/set-language" method="post"/);
+    assert.match(layout, /form asp-controller="Localization" asp-action="SetLanguage" method="post"/);
     assert.match(layout, /@Html.AntiForgeryToken\(\)/);
     assert.match(layout, /js\/platform\/language-selector\.js/);
     assert.match(guard, /"\/localization\/set-language"/);
