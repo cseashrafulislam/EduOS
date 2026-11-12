@@ -188,6 +188,16 @@ public sealed class OnboardingService : IOnboardingService
                 tenant.OnboardingCompletedAt = _clock.GetUtcNow().UtcDateTime;
                 if (tenant.State == TenantState.PendingVerification) tenant.State = TenantState.Active;
             }
+            // Completing the verified Payment step also opens the workspace. Campus,
+            // academic and branding setup remain incomplete and are never fabricated.
+            if (current == OnboardingStage.Payment && target == OnboardingStage.CampusSetup)
+            {
+                var activeSubscription = await _subscriptions.GetActiveByTenantAsync(tenant.Id, ct);
+                if (!OnboardingWorkspacePolicy.CanActivate(tenant, activeSubscription, _clock.GetUtcNow().UtcDateTime))
+                    return Failure("Verified institution identity and an active subscription are required.", 409);
+                if (tenant.State == TenantState.PendingVerification)
+                    tenant.State = TenantState.Active;
+            }
             tenant.OnboardingStage = target;
             tenant.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
             tenant.UpdatedBy = _user.UserId;
