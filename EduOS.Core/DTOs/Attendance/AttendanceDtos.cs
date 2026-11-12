@@ -30,6 +30,7 @@ public class SaveStudentAttendanceRequestDto
 public sealed class EnsureStudentAttendanceSessionDto
 {
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long? AcademicSectionId { get; set; }
     public DateOnly AttendanceDate { get; set; }
     [Range(1, long.MaxValue)] public long? SubjectOfferingId { get; set; }
 }
@@ -150,6 +151,7 @@ public sealed class StudentAttendanceBatchChoiceDto
 public sealed class StudentAttendanceRosterQueryDto
 {
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long? AcademicSectionId { get; set; }
     public DateOnly AttendanceDate { get; set; }
     public long? SubjectOfferingId { get; set; }
 }
@@ -166,8 +168,19 @@ public sealed class StudentAttendanceSummaryDto
     public int Unmarked { get; set; }
 }
 
+public sealed class StudentAttendanceSectionChoiceDto
+{
+    public long Id { get; set; }
+    public long AcademicBatchId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public int Capacity { get; set; }
+    public bool IsLegacyDefault { get; set; }
+}
+
 public sealed class StudentAttendanceRosterDto
 {
+    public long? AcademicSectionId { get; set; }
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 2000;
     public int TotalPages { get; set; }
