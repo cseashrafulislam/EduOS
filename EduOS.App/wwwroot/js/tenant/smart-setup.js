@@ -208,6 +208,10 @@
                     row.append(checkCell);
                     const labels = {
                         Medium: tr('Medium', 'মাধ্যম'),
+                        Subject: tr('Subject', 'বিষয়'),
+                        GradeScheme: tr('Grade scheme', 'গ্রেডিং পদ্ধতি'),
+                        Account: tr('Chart of accounts', 'হিসাবের খাত'),
+                        SalaryComponent: tr('Salary component', 'বেতনের উপাদান'),
                         OrganizationUnit: tr('Department', 'বিভাগ'),
                         Designation: tr('Designation', 'পদবি'),
                         FeeHead: tr('Fee head', 'ফি-এর ধরন'),
@@ -390,7 +394,9 @@
             state.selected.clear();
             el('smartSetupConfirm').checked = false;
             const tables = {
-                Medium: 'Mediums', OrganizationUnit: 'OrganizationUnits',
+                Medium: 'Mediums', Subject: 'Subjects', GradeScheme: 'GradeSchemes + GradeRules',
+                Account: 'Accounts', SalaryComponent: 'SalaryComponents',
+                OrganizationUnit: 'OrganizationUnits',
                 Designation: 'Designations', FeeHead: 'FeeHeads',
                 AssetCategory: 'AssetCategories', BookCategory: 'BookCategories',
                 NoticeCategory: 'NoticeCategories', DocumentType: 'DocumentTypeDefinitions'
