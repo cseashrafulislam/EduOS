@@ -32,14 +32,25 @@ public sealed class StudentAttendanceController : ControllerBase
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("sections")]
+    public async Task<IActionResult> GetSectionChoices([FromQuery] long academicBatchId,
+        [FromQuery] DateOnly attendanceDate, [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25, CancellationToken cancellationToken = default)
+    {
+        var result = await _service.GetSectionChoicesAsync(
+            academicBatchId, attendanceDate, page, pageSize, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("subjects")]
     public async Task<IActionResult> GetSubjectChoices([FromQuery] long academicBatchId,
         [FromQuery] DateOnly attendanceDate, [FromQuery] string? search,
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
+        [FromQuery] long? academicSectionId = null,
         CancellationToken cancellationToken = default)
     {
         var result = await _service.GetSubjectChoicesAsync(
-            academicBatchId, attendanceDate, search, page, pageSize, cancellationToken);
+            academicBatchId, attendanceDate, search, page, pageSize, cancellationToken, academicSectionId);
         return StatusCode(result.StatusCode, result);
     }
 
