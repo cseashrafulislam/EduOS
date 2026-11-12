@@ -229,9 +229,13 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 SubjectCode = subject.Code, SubjectName = subject.Name
             };
         if (academicSectionId.HasValue)
+        {
+            var legacy = _sections != null && await _sections.GetQueryable().AsNoTracking()
+                .AnyAsync(x => x.TenantId == tenant && x.Id == academicSectionId.Value &&
+                    x.AcademicBatchId == academicBatchId && x.IsLegacyDefault, ct);
             query = query.Where(x => x.AcademicSectionId == academicSectionId.Value ||
-                x.AcademicSectionId == null && _sections != null && _sections.GetQueryable().Any(s =>
-                    s.TenantId == tenant && s.Id == academicSectionId.Value && s.IsLegacyDefault));
+                legacy && x.AcademicSectionId == null);
+        }
         if (!_user.IsTenantAdmin && !_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal"))
         {
             var assignedIds = from assignment in _instructors.GetQueryable().AsNoTracking()
@@ -282,13 +286,18 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         CancellationToken ct = default)
     {
         if (!CanWrite()) return Error<StudentAttendanceRosterDto>("Attendance permission is required.", 403);
-        if (query == null || query.AcademicBatchId <= 0 ||
+        if (query == null || query.AcademicBatchId <= 0 || query.AcademicSectionId is <= 0 ||
             query.AttendanceDate == default || query.SubjectOfferingId is <= 0)
             return Error<StudentAttendanceRosterDto>("Valid batch, date and optional subject offering are required.");
         var check = await ValidateScopeAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId, ct);
         if (check != null) return Error<StudentAttendanceRosterDto>(check, 409);
+        var selectedSection = await ResolveSectionAsync(query.AcademicBatchId, query.AcademicSectionId,
+            query.SubjectOfferingId, ct);
+        if (selectedSection.Error != null)
+            return Error<StudentAttendanceRosterDto>(selectedSection.Error, 409);
         return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
-            await ReadRosterAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId, ct));
+            await ReadRosterAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId,
+                ct, sectionId: selectedSection.Id));
     }
 
 
@@ -297,30 +306,39 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         CancellationToken ct = default)
     {
         if (!CanWrite()) return Error<StudentAttendanceRosterDto>("Attendance permission is required.", 403);
-        if (query == null || query.AcademicBatchId <= 0 || query.AttendanceDate == default ||
+        if (query == null || query.AcademicBatchId <= 0 || query.AcademicSectionId is <= 0 ||
+            query.AttendanceDate == default ||
             query.SubjectOfferingId is <= 0 || page < 1 || pageSize is < 1 or > 100 ||
             (long)(page - 1) * pageSize > int.MaxValue)
             return Error<StudentAttendanceRosterDto>("Invalid attendance roster page.");
         var error = await ValidateScopeAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId, ct);
         if (error != null) return Error<StudentAttendanceRosterDto>(error, 409);
+        var selectedSection = await ResolveSectionAsync(query.AcademicBatchId, query.AcademicSectionId,
+            query.SubjectOfferingId, ct);
+        if (selectedSection.Error != null)
+            return Error<StudentAttendanceRosterDto>(selectedSection.Error, 409);
         return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
-            await ReadRosterAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId, ct, page, pageSize));
+            await ReadRosterAsync(query.AcademicBatchId, query.AttendanceDate, query.SubjectOfferingId,
+                ct, page, pageSize, selectedSection.Id));
     }
 
     public async Task<ApiResponse<StudentAttendanceRosterDto>> EnsureSessionAsync(
         EnsureStudentAttendanceSessionDto request, CancellationToken ct = default)
     {
         if (!CanWrite()) return Error<StudentAttendanceRosterDto>("Attendance permission is required.", 403);
-        if (request == null || request.AcademicBatchId <= 0 || request.AttendanceDate == default ||
-            request.SubjectOfferingId is <= 0)
+        if (request == null || request.AcademicBatchId <= 0 || request.AcademicSectionId is <= 0 ||
+            request.AttendanceDate == default || request.SubjectOfferingId is <= 0)
             return Error<StudentAttendanceRosterDto>("Valid batch, date and optional subject are required.");
         var scopeError = await ValidateScopeAsync(request.AcademicBatchId, request.AttendanceDate, request.SubjectOfferingId, ct);
         if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
+        var selectedSection = await ResolveSectionAsync(request.AcademicBatchId, request.AcademicSectionId,
+            request.SubjectOfferingId, ct);
+        if (selectedSection.Error != null) return Error<StudentAttendanceRosterDto>(selectedSection.Error, 409);
         var tenant = _user.TenantId;
         // The existing unique (TenantId, ClientRequestId) index prevents two writers from
         // creating different sessions for the same scope without a shared schema migration.
         var scopeKey = FormattableString.Invariant(
-            $"student-attendance:v1:{tenant}:{request.AcademicBatchId}:{request.AttendanceDate:yyyy-MM-dd}:{request.SubjectOfferingId?.ToString() ?? "all"}");
+            $"student-attendance:v1:{tenant}:{request.AcademicBatchId}:{request.AttendanceDate:yyyy-MM-dd}:{request.SubjectOfferingId?.ToString() ?? "all"}{(selectedSection.Id.HasValue ? ":s:" + selectedSection.Id.Value : "")}");
         var digest = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(scopeKey));
         var scopeRequestId = new Guid(digest.AsSpan(0, 16));
         try
@@ -330,7 +348,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var existing = await _sessions.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.AcademicBatchId == request.AcademicBatchId &&
                     x.AttendanceDate == request.AttendanceDate && x.SubjectOfferingId == request.SubjectOfferingId &&
-                    !x.IsDeleted).OrderBy(x => x.Id).Take(2).ToListAsync(token);
+                    x.AcademicSectionId == selectedSection.Id && !x.IsDeleted).OrderBy(x => x.Id).Take(2).ToListAsync(token);
                 if (existing.Count > 1)
                     return Error<StudentAttendanceRosterDto>("Multiple attendance sessions exist for this scope. Resolve before writing.", 409);
                 if (existing.Count == 0)
@@ -339,13 +357,14 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                     await _sessions.AddAsync(new AttendanceSession
                     {
                         TenantId = tenant, ClientRequestId = scopeRequestId,
-                        AcademicBatchId = request.AcademicBatchId, AttendanceDate = request.AttendanceDate,
+                        AcademicBatchId = request.AcademicBatchId, AcademicSectionId = selectedSection.Id,
+                        AttendanceDate = request.AttendanceDate,
                         SubjectOfferingId = request.SubjectOfferingId, CreatedAt = now, CreatedBy = _user.UserId
                     });
                     await _uow.SaveChangesAsync(token);
                 }
                 var roster = await ReadRosterAsync(request.AcademicBatchId, request.AttendanceDate,
-                    request.SubjectOfferingId, token);
+                    request.SubjectOfferingId, token, sectionId: selectedSection.Id);
                 return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(roster,
                     existing.Count == 0 ? "Attendance session opened." : "Attendance session already exists.");
             }, ct);
