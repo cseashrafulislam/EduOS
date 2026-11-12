@@ -19,6 +19,45 @@
             <div class="col-md-2"><button type="submit" id="calendarLoad" class="btn btn-primary w-100">Load</button></div>
         </div>
     </form>
+    @if (canManage)
+    {
+        <section id="calendarGovernmentPanel" class="card mb-3" aria-labelledby="calendarGovernmentTitle">
+            <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                <h3 id="calendarGovernmentTitle" class="h6 mb-0">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "বাংলাদেশের সরকারি ছুটি" : "Bangladesh Government Holidays")</h3>
+                <button id="calendarGovernmentPreview" type="button" class="btn btn-sm btn-outline-primary" disabled>
+                    @(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "সরকারি ছুটির তালিকা দেখুন" : "Preview official holidays")
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    @(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ?
+                        "২০২৬–২০২৭ সালের জনপ্রশাসন মন্ত্রণালয়ের প্রজ্ঞাপন থেকে বাছাই করে ছুটি যোগ করুন। চাঁদ দেখা ও পরবর্তী সরকারি সংশোধন যাচাই করুন। ধর্মীয় ঐচ্ছিক ও অঞ্চলভিত্তিক ছুটি স্বয়ংক্রিয়ভাবে যোগ হয় না।" :
+                        "Review 2026–2027 Ministry of Public Administration gazettes, then select and save. Moon-dependent dates and later amendments require verification. Optional religious and region-specific leaves are not added automatically.")
+                    <a href="https://mopa.gov.bd/pages/public-holiday" target="_blank" rel="noopener noreferrer">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "সরকারি উৎস" : "Official source")</a>
+                </p>
+                <p id="calendarGovernmentStatus" role="status" aria-live="polite" class="small text-muted mb-2">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "প্রথমে Academic Year এবং Date Range বাছাই করুন।" : "Choose an academic year and date range, then preview.")</p>
+                <div id="calendarGovernmentSelection" hidden>
+                    <div class="d-flex gap-2 mb-2">
+                        <button id="calendarGovernmentSelectAll" type="button" class="btn btn-sm btn-outline-secondary">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "সব Missing নির্বাচন" : "Select missing")</button>
+                        <button id="calendarGovernmentClear" type="button" class="btn btn-sm btn-outline-secondary">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "নির্বাচন বাতিল" : "Clear selection")</button>
+                    </div>
+                    <div class="table-responsive" style="max-height:340px;overflow:auto">
+                        <table class="table table-sm table-bordered align-middle">
+                            <thead><tr><th scope="col">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "নির্বাচন" : "Select")</th><th scope="col">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "ছুটি" : "Holiday")</th><th scope="col">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "তারিখ" : "Date(s)")</th><th scope="col">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "অবস্থা" : "Status")</th></tr></thead>
+                            <tbody id="calendarGovernmentRows"></tbody>
+                        </table>
+                    </div>
+                    <label class="form-check mt-2">
+                        <input id="calendarGovernmentConfirm" type="checkbox" class="form-check-input" />
+                        <span class="form-check-label">@(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "প্রতিষ্ঠানের জন্য নির্বাচিত সরকারি ছুটি যাচাই করেছি।" : "I reviewed the selected official holidays for this institution.")</span>
+                    </label>
+                    <button id="calendarGovernmentImport" type="button" class="btn btn-primary mt-2" disabled>
+                        @(CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "নির্বাচিত ছুটি সংরক্ষণ" : "Save selected holidays")
+                    </button>
+                </div>
+            </div>
+        </section>
+    }
     <div class="row g-3">
         <div class="col-xl-8">
             <section class="card mb-3">
