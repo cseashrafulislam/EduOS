@@ -21,7 +21,7 @@
         if (sections.some(x => String(x.id) === previous)) select.value = previous;
         else if (sections.length === 1) select.value = String(sections[0].id);
         select.disabled = !!el('offeringReference').value;
-        formGuard?.markClean();
+        if (!formGuard?.isDirty()) formGuard?.markClean();
     }
     const selectedBatch = () => state.catalog?.batches.find(x => x.id === Number(el('offeringBatch').value));
     const status = message => { el('offeringMessage').textContent = message; };
@@ -123,7 +123,10 @@
         loadSections().then(safeRefresh).catch(e => notice(e.message, true));
     });
     el('offeringSection').addEventListener('change', () => {
-        if (!sameSession() || !reset()) return;
+        if (!sameSession()) return;
+        const sectionId = el('offeringSection').value;
+        if (!reset()) return;
+        el('offeringSection').value = sectionId;
         page = 1; safeRefresh();
     });
     el('offeringSearchButton').addEventListener('click', () => { page = 1; safeRefresh(); });
@@ -182,8 +185,9 @@
             const safe = /^[\s]*[=+@-]/.test(text) ? "'" + text : text;
             return '"' + safe.replace(/"/g, '""') + '"';
         };
-        const rows = [['Code','Subject','Capacity','Pending','Allocated','Reserved','Available','Over Capacity','Mode','Active'], ...visible.map(x =>
-            [x.code,x.subjectName,x.capacity,x.pendingSeats,x.allocatedSeats,x.reservedSeats,
+        const rows = [['Code','Section','Subject','Capacity','Pending','Allocated','Reserved','Available','Over Capacity','Mode','Active'], ...visible.map(x =>
+            [x.code,sections.find(s => s.id === x.academicSectionId)?.name || 'Legacy',
+                x.subjectName,x.capacity,x.pendingSeats,x.allocatedSeats,x.reservedSeats,
                 x.seatsRemaining,x.isOverCapacity,x.deliveryMode,x.isActive])];
         const csv = '\uFEFF' + rows.map(x => x.map(escape).join(',')).join('\r\n');
         const link = document.createElement('a'), url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
