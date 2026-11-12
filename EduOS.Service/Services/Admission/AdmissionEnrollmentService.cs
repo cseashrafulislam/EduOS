@@ -11,6 +11,7 @@ using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.SaaS;
+using EduOS.Service.Services.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -305,7 +306,8 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
     {
         if (!CanManage()) return Denied<AdmittedStudentDto>();
         if (applicationReference == Guid.Empty || request == null || request.AcademicBatchId <= 0 ||
-            request.AcademicTrackId is <= 0 || string.IsNullOrWhiteSpace(request.Roll) || request.Roll.Trim().Length > 50 ||
+            request.AcademicTrackId is <= 0 || request.AcademicSectionId is <= 0 ||
+            string.IsNullOrWhiteSpace(request.Roll) || request.Roll.Trim().Length > 50 ||
             !TryVersion(request.RowVersion, out var expected))
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Valid applicant, batch, roll and row version are required.");
         var tenant = _user.TenantId;
@@ -327,6 +329,8 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                             existingStudent.AdmissionApplicantId != application.Id ||
                             existingEnrollment.StudentId != existingStudent.Id ||
                             existingEnrollment.AcademicBatchId != request.AcademicBatchId ||
+                            request.AcademicSectionId.HasValue &&
+                                existingEnrollment.AcademicSectionId != request.AcademicSectionId ||
                             existingEnrollment.RollNo != roll)
                             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant conversion has inconsistent references.", 409);
                         return ApiResponse<AdmittedStudentDto>.SuccessResponse(Map(existingStudent, existingEnrollment),
@@ -358,6 +362,10 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId),
                         cancellationToken);
                     if (batch == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
+                    var sectionPlacement = await AcademicSectionPlacementPolicy.ResolveAsync(
+                        _db.AcademicSections, tenant, batch.Id, request.AcademicSectionId, cancellationToken);
+                    if (sectionPlacement.Error != null)
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse(sectionPlacement.Error, 409);
                     if (request.AcademicTrackId.HasValue && request.AcademicTrackId != batch.AcademicTrackId)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse("Selected academic track does not match the batch.", 409);
                     var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
@@ -389,6 +397,11 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
                         x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, cancellationToken) >= batch.Capacity)
                         throw new BatchAllocationException("The batch is at capacity.");
+                    if (sectionPlacement.SectionId.HasValue &&
+                        !await AcademicSectionPlacementPolicy.CapacityAvailableAsync(
+                            _enrollments.GetQueryable(), tenant, sectionPlacement.SectionId.Value,
+                            sectionPlacement.Capacity, cancellationToken))
+                        throw new BatchAllocationException("The selected section is at capacity.");
                     if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                         x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && !x.IsDeleted, cancellationToken))
                         throw new BatchAllocationException("Roll is already assigned in this batch.");
@@ -466,7 +479,8 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         StudentId = student.Id, CampusId = batch.CampusId,
                         AcademicYearId = batch.AcademicYearId, AcademicTermId = batch.AcademicTermId,
                         AcademicProgramId = batch.AcademicProgramId, AcademicLevelId = batch.AcademicLevelId,
-                        AcademicBatchId = batch.Id, AcademicCurriculumId = curricula[0],
+                        AcademicBatchId = batch.Id, AcademicSectionId = sectionPlacement.SectionId,
+                        AcademicCurriculumId = curricula[0],
                         AcademicTrackId = batch.AcademicTrackId, MediumId = batch.MediumId, ShiftId = batch.ShiftId,
                         RollNo = roll, EnrollmentDate = today, State = EnrollmentState.Active,
                         IsCurrent = true, CreatedAt = now, CreatedBy = _user.UserId
