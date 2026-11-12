@@ -163,6 +163,8 @@ public class AdmitAdmissionApplicationDto
     [Range(1, long.MaxValue)]
     public long AcademicBatchId { get; set; }
 
+    [Range(1, long.MaxValue)] public long? AcademicSectionId { get; set; }
+
     [Range(1, long.MaxValue)]
     public long? AcademicTrackId { get; set; }
 
