@@ -400,7 +400,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (!Matches(session.RowVersion, sessionVersion))
                     return Error<StudentAttendanceRosterDto>("Attendance session was changed. Reload and retry.", 409);
                 var scopeError = await ValidateScopeAsync(session.AcademicBatchId, session.AttendanceDate,
-                    session.SubjectOfferingId, token);
+                    session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
 
                 var requested = request.Students.Select(x => x.StudentEnrollmentReference).ToArray();
@@ -481,7 +481,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 _sessions.Update(session);
                 await _uow.SaveChangesAsync(token);
                 var roster = await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
-                    session.SubjectOfferingId, token);
+                    session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(roster, "Attendance saved.");
             }, ct);
         }
@@ -515,14 +515,14 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (session.IsFinalized)
                     return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
                         await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
-                            session.SubjectOfferingId, token), "Attendance already finalized.");
+                            session.SubjectOfferingId, token, sectionId: session.AcademicSectionId), "Attendance already finalized.");
                 if (!Matches(session.RowVersion, expected))
                     return Error<StudentAttendanceRosterDto>("Attendance session changed. Reload and retry.", 409);
                 var scopeError = await ValidateScopeAsync(session.AcademicBatchId, session.AttendanceDate,
-                    session.SubjectOfferingId, token);
+                    session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
                 var roster = await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
-                    session.SubjectOfferingId, token);
+                    session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 if (roster.Summary.TotalStudents == 0 || roster.Summary.Unmarked != 0 ||
                     roster.Summary.Marked != roster.Summary.TotalStudents)
                     return Error<StudentAttendanceRosterDto>(
@@ -535,7 +535,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
                     await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
-                        session.SubjectOfferingId, token), "Attendance finalized.");
+                        session.SubjectOfferingId, token, sectionId: session.AcademicSectionId), "Attendance finalized.");
             }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)
@@ -800,12 +800,17 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
 
     private async Task<StudentAttendanceRosterDto> ReadRosterAsync(
         long batchId, DateOnly date, long? offeringId, CancellationToken ct,
-        int page = 1, int pageSize = 2000)
+        int page = 1, int pageSize = 2000, long? sectionId = null)
     {
         var tenant = _user.TenantId;
+        var legacy = sectionId.HasValue && _sections != null &&
+            await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.Id == sectionId.Value && x.AcademicBatchId == batchId &&
+                x.IsLegacyDefault, ct);
         var session = await _sessions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.AcademicBatchId == batchId && x.AttendanceDate == date &&
-            x.SubjectOfferingId == offeringId && !x.IsDeleted, ct);
+            x.SubjectOfferingId == offeringId && (x.AcademicSectionId == sectionId ||
+                legacy && x.AcademicSectionId == null) && !x.IsDeleted, ct);
         var eligible = from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
             join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
@@ -815,7 +820,11 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 student.StatusCode == "Active" && !enrollment.IsDeleted &&
                 !student.IsDeleted && !batch.IsDeleted && enrollment.CampusId == batch.CampusId
             select new { enrollment.Id, enrollment.PublicId, enrollment.RollNo,
-                StudentReference = student.PublicId, student.StudentCode, student.FullName };
+                enrollment.AcademicSectionId, StudentReference = student.PublicId,
+                student.StudentCode, student.FullName };
+        if (sectionId.HasValue)
+            eligible = eligible.Where(x => x.AcademicSectionId == sectionId.Value ||
+                legacy && x.AcademicSectionId == null);
         if (offeringId.HasValue)
         {
             var subjectId = offeringId.Value;
@@ -868,7 +877,8 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             TotalPages = total == 0 ? 0 : (total - 1) / pageSize + 1,
             AttendanceSessionId = sessionId, IsFinalized = session?.IsFinalized ?? false,
             SessionRowVersion = session == null ? string.Empty : Convert.ToBase64String(session.RowVersion),
-            AcademicBatchId = batchId, AttendanceDate = date,
+            AcademicBatchId = batchId, AcademicSectionId = session?.AcademicSectionId ?? sectionId,
+            AttendanceDate = date,
             Students = dtos, Summary = new StudentAttendanceSummaryDto
             {
                 TotalStudents = total, Marked = marked,
@@ -903,7 +913,47 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         };
     }
 
-    private async Task<string?> ValidateScopeAsync(long batchId, DateOnly date, long? offeringId, CancellationToken ct)
+    private async Task<(long? Id, string? Error)> ResolveSectionAsync(
+        long batchId, long? requestedSectionId, long? subjectOfferingId, CancellationToken ct)
+    {
+        if (_sections == null) return (requestedSectionId, null);
+        if (requestedSectionId is <= 0) return (null, "Academic section ID is invalid.");
+        var tenant = _user.TenantId;
+        long? offeringSectionId = null;
+        if (subjectOfferingId.HasValue)
+        {
+            var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == subjectOfferingId.Value &&
+                x.AcademicBatchId == batchId && !x.IsDeleted, ct);
+            if (offering == null) return (null, "Subject offering is not available.");
+            offeringSectionId = offering.AcademicSectionId;
+            if (offeringSectionId.HasValue)
+            {
+                if (requestedSectionId.HasValue && requestedSectionId != offeringSectionId)
+                    return (null, "Subject offering belongs to a different section.");
+                requestedSectionId = offeringSectionId;
+            }
+        }
+        if (!requestedSectionId.HasValue)
+        {
+            var hasExplicitSections = await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicBatchId == batchId &&
+                !x.IsLegacyDefault && x.IsActive && !x.IsDeleted, ct);
+            if (hasExplicitSections && !subjectOfferingId.HasValue)
+                return (null, "Select an academic section for class attendance.");
+            return (null, null);
+        }
+        var section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == requestedSectionId.Value &&
+            x.AcademicBatchId == batchId && x.IsActive && !x.IsDeleted, ct);
+        if (section == null) return (null, "Academic section not found for this batch.");
+        if (subjectOfferingId.HasValue && !offeringSectionId.HasValue && !section.IsLegacyDefault)
+            return (null, "Legacy subject offering is not valid for this section.");
+        return (section.Id, null);
+    }
+
+    private async Task<string?> ValidateScopeAsync(long batchId, DateOnly date, long? offeringId, CancellationToken ct,
+        long? sectionId = null)
     {
         if (batchId <= 0 || date < new DateOnly(2000, 1, 1) ||
             date > DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime.AddDays(1)))
@@ -919,6 +969,11 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             (batch.StartDate.HasValue && date < batch.StartDate) ||
             (batch.EndDate.HasValue && date > batch.EndDate))
             return "Attendance date falls outside the academic session.";
+        if (sectionId.HasValue)
+        {
+            var sectionError = await ResolveSectionAsync(batchId, sectionId, offeringId, ct);
+            if (sectionError.Error != null) return sectionError.Error;
+        }
         if (offeringId.HasValue && !await _offerings.GetQueryable().AsNoTracking().AnyAsync(x =>
             x.TenantId == tenant && x.Id == offeringId && x.AcademicBatchId == batchId && x.IsActive && !x.IsDeleted, ct))
             return "Subject offering does not belong to this academic batch.";
