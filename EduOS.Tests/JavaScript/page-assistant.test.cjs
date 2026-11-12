@@ -254,6 +254,42 @@ test('local voice preserves typed edits and rejects stale speech callbacks in bo
     }
 });
 
+test('first local speech result finalizes transcript and rejects later callbacks in both languages', async () => {
+    for (const [lang, firstText, laterText] of [
+        ['en-BD', 'Guardian name', 'Replace guardian'],
+        ['bn-BD', 'অভিভাবকের নাম', 'নতুন লেখা']
+    ]) {
+        const ids = Object.fromEntries(['pageAssistantDialog', 'pageAssistantOpen', 'pageAssistantClose',
+            'pageAssistantQuery', 'pageAssistantFind', 'pageAssistantResult', 'pageAssistantVoice',
+            'pageAssistantVoiceStatus', 'main-content', 'sidebarMenu'].map(id => [id, createNode()]));
+        ids['main-content'].querySelectorAll = () => [];
+        ids.sidebarMenu.querySelectorAll = () => [];
+        class LocalSpeech {
+            constructor() { this.processLocally = false; LocalSpeech.current = this; }
+            static async available() { return 'available'; }
+            start() { this.started = true; }
+            abort() { this.aborted = true; }
+        }
+        const doc = {
+            documentElement: { lang }, body: { dataset: { authTenantId: '22', authSessionReference: 'a' } },
+            getElementById: id => ids[id], createElement: () => createNode()
+        };
+        assistant.mount(doc, { SpeechRecognition: LocalSpeech, addEventListener() {} });
+        ids.pageAssistantOpen.click();
+        await ids.pageAssistantVoice.click();
+        const mic = LocalSpeech.current;
+        const firstCallback = mic.onresult;
+        firstCallback({ resultIndex: 0, results: [[{ transcript: firstText }]] });
+        assert.equal(ids.pageAssistantQuery.value, firstText, lang);
+        assert.equal(mic.aborted, true, lang);
+        assert.equal(ids.pageAssistantVoice.attributes['aria-pressed'], 'false', lang);
+        firstCallback({ resultIndex: 0, results: [[{ transcript: laterText }]] });
+        assert.equal(ids.pageAssistantQuery.value, firstText, lang);
+        assert.equal(ids.pageAssistantResult.children.length, 0, 'no automatic lookup or mutation');
+        assert.match(ids.pageAssistantVoiceStatus.textContent, lang === 'bn-BD' ? /যাচাই/ : /Review/);
+    }
+});
+
 test('large page treatments retain canonical form and preference controls', () => {
     const prefs = fs.readFileSync(path.resolve(__dirname, '../../EduOS.App/Views/WorkspacePreferences/Index.cshtml'), 'utf8');
     const dashboard = fs.readFileSync(path.resolve(__dirname, '../../EduOS.App/Views/Dashboard/Index.cshtml'), 'utf8');
