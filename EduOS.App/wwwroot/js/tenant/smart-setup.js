@@ -67,7 +67,7 @@
         if (!sameSession() || !state.preview?.modules.some(m => m.code === module && m.isAvailable)) return;
         const destination = safePath(path);
         if (destination === '/TenantSettings/Index' && path !== destination) return;
-        if (/^\\/SmartSetup\\//i.test(destination)) return;
+        if (destination.toLowerCase().startsWith('/smartsetup/')) return;
         const panel = el('smartSetupInline');
         const frame = el('smartSetupFrame');
         if (!panel || !frame) return;
