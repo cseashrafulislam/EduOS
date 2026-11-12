@@ -101,7 +101,7 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
                     HolidayImportReceipt? saved;
                     try { saved = JsonSerializer.Deserialize<HolidayImportReceipt>(receipt); }
                     catch (JsonException) { return Error<ImportGovernmentHolidaysResultDto>("This request ID has already been used.", 409); }
-                    if (saved == null || saved.Fingerprint != fingerprint)
+                    if (saved?.Result == null || saved.Fingerprint != fingerprint)
                         return Error<ImportGovernmentHolidaysResultDto>("This request ID belongs to a different holiday selection.", 409);
                     return ApiResponse<ImportGovernmentHolidaysResultDto>.SuccessResponse(saved.Result,
                         "Previously saved holiday import returned.");
@@ -203,7 +203,8 @@ public sealed class AcademicCalendarService : IAcademicCalendarService
         var catalog = BangladeshGovernmentHolidayCatalog.InRange(fromDate, toDate);
         var existing = await _events.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == _currentUser.TenantId && x.AcademicYearId == academicYearId &&
-                (x.CampusId == campusId || (campusId.HasValue && x.CampusId == null)) &&
+                (x.CampusId == campusId || (campusId.HasValue && x.CampusId == null &&
+                    (_currentUser.IsTenantAdmin || x.IsPublicVisible))) &&
                 x.StartDate <= toDate && x.EndDate >= fromDate)
             .Select(x => new { x.Title, x.StartDate, x.EndDate, x.EventType, x.IsHoliday })
             .ToListAsync(ct);
