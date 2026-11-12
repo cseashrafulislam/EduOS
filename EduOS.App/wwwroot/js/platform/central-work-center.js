@@ -26,6 +26,7 @@
         window.EduOSSessionTransitionPending?.() !== true;
     const previous = byId('cwcPrevious'), next = byId('cwcNext');
     const source = byId('cwcSource'), pageSize = byId('cwcPageSize');
+    const reference = byId('cwcReference'), order = byId('cwcOrder');
     let loading = false;
     function alertMessage(message, error = true) {
         const box = byId('cwcAlert');
@@ -152,6 +153,8 @@
         const campus = byId('cwcCampus').value.trim();
         const params = new URLSearchParams({ page: String(page), pageSize: pageSize.value });
         if (source.value) params.set('source', source.value);
+        if (reference.value.trim()) params.set('reference', reference.value.trim());
+        params.set('order', order.value);
         loading = true;
         resultReady = false;
         currentItems = [];
@@ -248,6 +251,7 @@
     });
     source.addEventListener('change', () => { page = 1; load(); });
     pageSize.addEventListener('change', () => { page = 1; load(); });
+    order.addEventListener('change', () => { page = 1; load(); });
     byId('cwcCampus').addEventListener('change', () => { page = 1; load(); });
     byId('cwcPrevious').addEventListener('click', () => {
         if (page > 1) { --page; load(); }
