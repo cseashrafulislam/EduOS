@@ -146,9 +146,11 @@ async function exercise(browser, mobile) {
         assert.equal(await page.locator('.sidebar-group-count,.sidebar-category-count').count(), 0,
             'static menu quantities must not appear as notification badges');
         assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="setup:access"] details.sidebar-category').count(), 0,
-            'single-category groups should expose authorized links directly');
-        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:career"] details.sidebar-category').count(), 2,
-            'career employers and placements remain in distinct, meaningful settings/operations categories');
+            'no module may create a third category level');
+        assert.equal(await page.locator('details.sidebar-category').count(), 0,
+            'all module pages appear directly without Operations, Reports or Settings accordions');
+        assert.equal(await page.locator('details.sidebar-group[data-sidebar-group="academics:career"] > .sidebar-submenu > a.nav-link').count(), 3,
+            'career module exposes its three authorized pages at one level');
         for (const [route, label] of [
             ['/LearnerIdentities/AccessHistory', mobile ? 'পরিচয় তথ্য দেখার ইতিহাস' : 'Identity Access History'],
             ['/EmployeeAttendance/Index', mobile ? 'কর্মীর উপস্থিতি' : 'Employee Attendance'],
