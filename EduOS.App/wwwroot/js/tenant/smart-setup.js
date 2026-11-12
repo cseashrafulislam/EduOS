@@ -389,10 +389,16 @@
             state.fingerprint = null;
             state.selected.clear();
             el('smartSetupConfirm').checked = false;
+            const tables = {
+                Medium: 'Mediums', OrganizationUnit: 'OrganizationUnits',
+                Designation: 'Designations', FeeHead: 'FeeHeads',
+                AssetCategory: 'AssetCategories', BookCategory: 'BookCategories',
+                NoticeCategory: 'NoticeCategories', DocumentType: 'DocumentTypeDefinitions'
+            };
             const groups = new Map();
             for (const record of result.created || []) {
-                const kind = record.kind || 'Master';
-                groups.set(kind, (groups.get(kind) || 0) + 1);
+                const table = tables[record.kind] || record.kind || 'Master';
+                groups.set(table, (groups.get(table) || 0) + 1);
             }
             const details = [...groups].map(([kind, count]) => kind + ': ' + count).join(' · ');
             message(tr('Saved ' + result.createdCount + ' new master record(s); ' +
