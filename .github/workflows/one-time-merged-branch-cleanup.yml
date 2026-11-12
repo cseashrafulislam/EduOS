@@ -17,76 +17,76 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-          const mergedCommit = '3f5d67595ad7bc5def8d4110be1a0ce61ac189fd';
-          const keep = new Set(['master', 'Ashraful']);
-          const expected = new Map([
-            [
-              "automation/alumni-attendance-retry-20261101-0931",
-              "2bf700b55fe1e603b91cadcc11f4a35b16e57292"
-            ],
-            [
-              "automation/procurement-bank-provenance-20261101",
-              "9e6391ebedece9d2340bfee177c66d13c034d274"
-            ],
-            [
-              "automation/ui-branding-csrf-20261101",
-              "d48e3e96eccdc1b810027fe9644c25dccef8444d"
-            ],
-            [
-              "dependabot/nuget/EduOS.App/Microsoft.EntityFrameworkCore.SqlServer-10.0.14",
-              "3cc3ba2676356c8448a71c14c6d8086b5419e352"
-            ],
-            [
-              "dependabot/nuget/EduOS.App/Microsoft.Extensions.Caching.StackExchangeRedis-10.0.14",
-              "0e27a49aec0bc30e479348133d904e8dcee07815"
-            ],
-            [
-              "dependabot/nuget/EduOS.Persistence/multi-7e1928c2db",
-              "a62ed701b1358ebff654f5cdfa2fc0abc81b6384"
-            ],
-            [
-              "dependabot/nuget/EduOS.Service/AutoMapper-16.3.0",
-              "7d54ed09805faafbfed7e5985b63b031ad82a15b"
-            ],
-            [
-              "dependabot/nuget/EduOS.Tests/Microsoft.EntityFrameworkCore.InMemory-10.0.14",
-              "3030e55ecc3fcc8eb69c17fdb2d165b9ffc3c412"
-            ],
-            [
-              "task1/career-employer-verification-20261101",
-              "8a8fd2b66e6d9bd0c1643d90118ae4ef5bcd3789"
-            ]
-          ]);
-          const { owner, repo } = context.repo;
-          const all = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
-          const actual = new Set(all.map(x => x.name));
-          const unexpected = [...actual].filter(n => !keep.has(n) && !expected.has(n));
-          if (unexpected.length) throw Error('Unreviewed branch(es) present; refusing cleanup: ' + unexpected.join(', '));
-          const target = await github.rest.git.getRef({ owner, repo, ref: 'heads/Ashraful' });
-          const master = await github.rest.git.getRef({ owner, repo, ref: 'heads/master' });
-          if (!target.data.object.sha || !master.data.object.sha || target.data.object.sha === master.data.object.sha)
-              throw Error('Protected branches must remain independent.');
-          const merged = (await github.rest.repos.compareCommits({ owner, repo, base: mergedCommit, head: 'Ashraful' })).data;
-          if (merged.behind_by !== 0) throw Error('Merged dependency history is missing from Ashraful.');
-          const candidates = [];
-          for (const [name, sha] of expected) {
-              if (keep.has(name)) throw Error('Never delete protected branch: ' + name);
-              if (!actual.has(name)) { core.info('Already absent: ' + name); continue; }
-              const current = await github.rest.git.getRef({ owner, repo, ref: 'heads/' + name });
-              if (current.data.object.sha !== sha) throw Error('Branch moved; refusing cleanup: ' + name);
-              const comparison = (await github.rest.repos.compareCommits({ owner, repo, base: name, head: 'Ashraful' })).data;
-              if (comparison.behind_by !== 0 || comparison.status === 'diverged')
-                  throw Error('Unmerged commits remain on ' + name);
-              candidates.push([name, sha]);
-          }
-          core.info('All ' + candidates.length + ' branch heads verified as ancestors of Ashraful.');
-          for (const [name, sha] of candidates) {
-              const current = await github.rest.git.getRef({ owner, repo, ref: 'heads/' + name });
-              if (current.data.object.sha !== sha) throw Error('Branch changed during cleanup: ' + name);
-              await github.rest.git.deleteRef({ owner, repo, ref: 'heads/' + name });
-              core.info('Deleted merged branch: ' + name);
-          }
-          const after = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
-          const names = after.map(x => x.name).sort();
-          if (names.some(n => !keep.has(n))) throw Error('Unremoved branches remain: ' + names.join(', '));
-          core.info('Complete: only Ashraful and master remain.');
+            const mergedCommit = '3f5d67595ad7bc5def8d4110be1a0ce61ac189fd';
+            const keep = new Set(['master', 'Ashraful']);
+            const expected = new Map([
+              [
+                "automation/alumni-attendance-retry-20261101-0931",
+                "2bf700b55fe1e603b91cadcc11f4a35b16e57292"
+              ],
+              [
+                "automation/procurement-bank-provenance-20261101",
+                "9e6391ebedece9d2340bfee177c66d13c034d274"
+              ],
+              [
+                "automation/ui-branding-csrf-20261101",
+                "d48e3e96eccdc1b810027fe9644c25dccef8444d"
+              ],
+              [
+                "dependabot/nuget/EduOS.App/Microsoft.EntityFrameworkCore.SqlServer-10.0.14",
+                "3cc3ba2676356c8448a71c14c6d8086b5419e352"
+              ],
+              [
+                "dependabot/nuget/EduOS.App/Microsoft.Extensions.Caching.StackExchangeRedis-10.0.14",
+                "0e27a49aec0bc30e479348133d904e8dcee07815"
+              ],
+              [
+                "dependabot/nuget/EduOS.Persistence/multi-7e1928c2db",
+                "a62ed701b1358ebff654f5cdfa2fc0abc81b6384"
+              ],
+              [
+                "dependabot/nuget/EduOS.Service/AutoMapper-16.3.0",
+                "7d54ed09805faafbfed7e5985b63b031ad82a15b"
+              ],
+              [
+                "dependabot/nuget/EduOS.Tests/Microsoft.EntityFrameworkCore.InMemory-10.0.14",
+                "3030e55ecc3fcc8eb69c17fdb2d165b9ffc3c412"
+              ],
+              [
+                "task1/career-employer-verification-20261101",
+                "8a8fd2b66e6d9bd0c1643d90118ae4ef5bcd3789"
+              ]
+            ]);
+            const { owner, repo } = context.repo;
+            const all = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
+            const actual = new Set(all.map(x => x.name));
+            const unexpected = [...actual].filter(n => !keep.has(n) && !expected.has(n));
+            if (unexpected.length) throw Error('Unreviewed branch(es) present; refusing cleanup: ' + unexpected.join(', '));
+            const target = await github.rest.git.getRef({ owner, repo, ref: 'heads/Ashraful' });
+            const master = await github.rest.git.getRef({ owner, repo, ref: 'heads/master' });
+            if (!target.data.object.sha || !master.data.object.sha || target.data.object.sha === master.data.object.sha)
+                throw Error('Protected branches must remain independent.');
+            const merged = (await github.rest.repos.compareCommits({ owner, repo, base: mergedCommit, head: 'Ashraful' })).data;
+            if (merged.behind_by !== 0) throw Error('Merged dependency history is missing from Ashraful.');
+            const candidates = [];
+            for (const [name, sha] of expected) {
+                if (keep.has(name)) throw Error('Never delete protected branch: ' + name);
+                if (!actual.has(name)) { core.info('Already absent: ' + name); continue; }
+                const current = await github.rest.git.getRef({ owner, repo, ref: 'heads/' + name });
+                if (current.data.object.sha !== sha) throw Error('Branch moved; refusing cleanup: ' + name);
+                const comparison = (await github.rest.repos.compareCommits({ owner, repo, base: name, head: 'Ashraful' })).data;
+                if (comparison.behind_by !== 0 || comparison.status === 'diverged')
+                    throw Error('Unmerged commits remain on ' + name);
+                candidates.push([name, sha]);
+            }
+            core.info('All ' + candidates.length + ' branch heads verified as ancestors of Ashraful.');
+            for (const [name, sha] of candidates) {
+                const current = await github.rest.git.getRef({ owner, repo, ref: 'heads/' + name });
+                if (current.data.object.sha !== sha) throw Error('Branch changed during cleanup: ' + name);
+                await github.rest.git.deleteRef({ owner, repo, ref: 'heads/' + name });
+                core.info('Deleted merged branch: ' + name);
+            }
+            const after = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
+            const names = after.map(x => x.name).sort();
+            if (names.some(n => !keep.has(n))) throw Error('Unremoved branches remain: ' + names.join(', '));
+            core.info('Complete: only Ashraful and master remain.');
