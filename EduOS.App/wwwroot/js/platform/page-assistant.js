@@ -345,6 +345,10 @@
                     voiceMessage(t('Speech was not recognized clearly. Try typing.', 'কথা স্পষ্ট বোঝা যায়নি। লিখে চেষ্টা করুন।'));
                     return;
                 }
+                // A single final result owns the transcript. Abort before updating
+                // the text so later recognition events cannot replace an accepted
+                // phrase or trigger an implicit action.
+                stopSpeech();
                 query.value = transcript;
                 speechInputSnapshot = transcript;
                 reset();
