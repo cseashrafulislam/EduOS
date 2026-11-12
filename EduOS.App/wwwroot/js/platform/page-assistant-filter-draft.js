@@ -22,7 +22,7 @@
         if (!field || field.dataset?.assistantFilter !== 'true') return false;
         const labels = Array.from(field.labels || []).map(x => x.textContent || '');
         const doc = field.ownerDocument;
-        for (const id of String(field.getAttribute?.('aria-labelledby') || '').trim().split(/\\s+/u).slice(0, 8)) {
+        for (const id of String(field.getAttribute?.('aria-labelledby') || '').trim().split(/\s+/u).slice(0, 8)) {
             const node = id && doc?.getElementById?.(id);
             if (node?.textContent) labels.push(node.textContent);
         }
