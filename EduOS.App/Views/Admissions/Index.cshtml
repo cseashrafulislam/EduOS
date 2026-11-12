@@ -135,14 +135,20 @@
     </section>
 
     <div class="@(admissionFeature == "all" ? "admission-grid" : "")">
-        <section class="content-card @(showNew ? "" : "d-none")" aria-labelledby="newApplicationTitle">
-            <div class="content-card-heading">
-                <h3 id="newApplicationTitle">@T["NewApplication"]</h3>
+        <section class="content-card admission-new-card @(showNew ? "" : "d-none")" aria-labelledby="newApplicationTitle">
+            <div class="content-card-heading admission-new-heading">
+                <h3 id="newApplicationTitle">@(bn ? "নতুন ভর্তি আবেদন" : "New application")</h3>
+                <span class="admission-required-note">@(bn ? "* চিহ্নিত তথ্য আবশ্যক" : "* Required fields")</span>
             </div>
-
             <div id="admissionSubmissionReceipt" class="alert alert-success admission-receipt mb-3" role="status" aria-live="polite" tabindex="-1" hidden></div>
-            <div id="admissionDraftHost" class="mb-3" aria-label="Admission draft / ভর্তি খসড়া"></div>
-            <form id="admissionForm" class="row g-3" novalidate>
+            <div id="admissionSubmitFeedback" class="d-none" role="alert" aria-live="assertive" tabindex="-1"></div>
+            <form id="admissionForm" class="admission-application-form" novalidate>
+                <section class="admission-form-section" aria-labelledby="admissionStep01">
+                    <div class="admission-form-section-heading">
+                        <span class="admission-form-step" aria-hidden="true">01</span>
+                        <h4 id="admissionStep01">@(bn ? "ভর্তির তথ্য" : "Admission details")</h4>
+                    </div>
+                    <div class="row g-3">
                 <div class="col-12">
                     <label class="form-label" for="admissionFormReference">@(bn ? "প্রকাশিত ভর্তি ফরম" : "Published intake") *</label>
                     <select class="form-select" id="admissionFormReference" required></select>
@@ -163,6 +169,14 @@
                     <label class="form-label" for="academicUnitId">@T["AcademicUnit"] *</label>
                     <select class="form-select" id="academicUnitId" required></select>
                 </div>
+                    </div>
+                </section>
+                <section class="admission-form-section" aria-labelledby="admissionStep02">
+                    <div class="admission-form-section-heading">
+                        <span class="admission-form-step" aria-hidden="true">02</span>
+                        <h4 id="admissionStep02">@(bn ? "শিক্ষার্থীর তথ্য" : "Applicant information")</h4>
+                    </div>
+                    <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label" for="applicantName">@T["ApplicantName"] *</label>
                     <input class="form-control" id="applicantName" maxlength="200" autocomplete="name" required />
@@ -193,7 +207,14 @@
                     <input class="form-control" id="email" type="email" maxlength="254" autocomplete="email" />
                 </div>
 
-                <div class="col-12"><h4 class="form-section-title">@T["GuardianInformation"]</h4></div>
+                    </div>
+                </section>
+                <section class="admission-form-section" aria-labelledby="admissionStep03">
+                    <div class="admission-form-section-heading">
+                        <span class="admission-form-step" aria-hidden="true">03</span>
+                        <h4 id="admissionStep03">@(bn ? "অভিভাবক ও যোগাযোগ" : "Guardian & contact")</h4>
+                    </div>
+                    <div class="row g-3">
                 <div class="col-md-4">
                     <label class="form-label" for="guardianName">@T["GuardianName"]</label>
                     <input class="form-control" id="guardianName" maxlength="200" />
@@ -219,7 +240,9 @@
                     </select>
                 </div>
                 <div class="col-12"><div id="admissionCustomFields" class="row g-3" aria-live="polite"></div></div>
-                <div class="col-12">
+                    </div>
+                </section>
+                <div class="admission-form-actions">
                     <button id="submitApplicationButton" class="btn btn-primary" type="submit"
                             data-idle-label="@T["SubmitApplication"]" data-loading-label="@T["Saving"]">
                         @T["SubmitApplication"]
@@ -439,5 +462,4 @@
     <script src="~/js/admissions/offer-workflow.js" asp-append-version="true"></script>
     <script src="~/js/shared/current-page-csv.js" asp-append-version="true"></script>
     <script src="~/js/admissions/index.js" asp-append-version="true"></script>
-    <script src="~/js/admissions/transcript-draft.js" asp-append-version="true"></script>
 }
