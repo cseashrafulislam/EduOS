@@ -103,6 +103,7 @@ public class ResultPublication : BaseTenantEntity
 {
     public long AssessmentId { get; set; }
     public long AcademicBatchId { get; set; }
+    public long? AcademicSectionId { get; set; }
     public int VersionNo { get; set; } = 1;
     public ResultPublicationState State { get; set; } = ResultPublicationState.Draft;
     public DateTime? PublishedAt { get; set; }
