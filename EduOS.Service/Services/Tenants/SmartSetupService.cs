@@ -335,9 +335,9 @@ public sealed class SmartSetupService(
                     foreach (var scheme in schemes)
                     {
                         var seed = entries.FirstOrDefault(x => x.Code == scheme.Code || x.Name == scheme.Name);
-                        var valid = seed != null &&
-                            SmartSetupCatalog.GradePresets.TryGetValue(seed.Code, out var expected);
-                        if (valid)
+                        var valid = false;
+                        if (seed != null &&
+                            SmartSetupCatalog.GradePresets.TryGetValue(seed.Code, out var expected))
                         {
                             var actual = grades.Where(x => x.GradeSchemeId == scheme.Id)
                                 .OrderBy(x => x.MinMarks).ToArray();
