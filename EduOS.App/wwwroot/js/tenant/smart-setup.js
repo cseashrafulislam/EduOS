@@ -61,14 +61,17 @@
         url.searchParams.set('smartSetup', module);
         return url.pathname + url.search;
     };
-    const selected = () => (state.preview?.modules || []).filter(x => state.selected.has(x.code));
-    const validSelection = () => selected().length > 0 && selected().every(m =>
-        m.supportsSafeApply && m.isAvailable && m.entries.every(e => e.status !== 'Conflict'));
+    const entryKey = (module, entry) => module + '|' + entry.kind + '|' + entry.code;
+    const selectedRows = () => (state.preview?.modules || []).flatMap(m =>
+        !m.isAvailable || !m.supportsSafeApply ? [] : (m.entries || [])
+            .filter(e => e.status === 'Missing' && state.selected.has(entryKey(m.code, e)))
+            .map(e => ({ module: m.code, kind: e.kind, code: e.code })));
+    const validSelection = () => selectedRows().length > 0 && !!state.preview?.institutionTypeId;
     function updateSubmit() {
-        const count = selected().length;
+        const count = selectedRows().length;
         el('smartSetupSelection').textContent = count
-            ? tr(count + ' module(s) selected', count + 'টি মডিউল নির্বাচিত')
-            : tr('Select a module with missing safe defaults', 'অনুপস্থিত Safe Default আছে এমন মডিউল নির্বাচন করুন');
+            ? tr(count + ' checked record(s) will be saved', count + 'টি চিহ্নিত তথ্য সংরক্ষিত হবে')
+            : tr('Tick the records you want to create', 'যে তথ্যগুলো সংরক্ষণ করবেন, সেগুলোতে টিক দিন');
         el('smartSetupApply').disabled = state.busy || !sameSession() || !validSelection() ||
             !el('smartSetupConfirm').checked;
         el('smartSetupReload').disabled = state.busy || !sameSession();
@@ -79,121 +82,172 @@
         const p = state.preview;
         if (!p || !sameSession()) return;
         el('smartSetupInstitution').textContent = p.institutionTypeName;
-        el('smartSetupVersion').textContent =
-            p.institutionTypeCode + ' · ' + p.countryCode + ' · ' +
+        el('smartSetupVersion').textContent = p.institutionTypeCode + ' · ' + p.countryCode + ' · ' +
             tr('Template version ', 'টেমপ্লেট সংস্করণ ') + p.templateVersion;
         const host = el('smartSetupModules');
         host.replaceChildren();
         const requested = new URLSearchParams(window.location.search).get('module')?.toUpperCase();
         const ordered = p.modules.slice().sort((a, b) =>
             (b.code === requested ? 1 : 0) - (a.code === requested ? 1 : 0));
-        const checks = [...state.readiness.values()].filter(x => x.isAvailable && x.hasChecklist);
-        const completed = checks.filter(x => x.prerequisitesConfigured).length;
-        el('smartSetupReadinessSummary').textContent = tr(
-            completed + ' / ' + checks.length + ' enabled modules have their checked prerequisites. This is not an operational or financial approval.',
-            checks.length + 'টি চালু মডিউলের মধ্যে ' + completed + 'টির যাচাইকৃত প্রাথমিক সেটআপ আছে। এটি পরিচালন বা আর্থিক অনুমোদন নয়।');
+        const allChecks = [...state.readiness.values()].filter(x => x.isAvailable && x.hasChecklist);
+        const ready = allChecks.filter(x => x.prerequisitesConfigured).length;
+        let missingTotal = 0, guidedTotal = 0, shown = 0;
+        const makeField = (value, label) => {
+            const field = node('input', 'form-control form-control-sm bg-light');
+            field.type = 'text';
+            field.value = value || '';
+            field.readOnly = true;
+            field.setAttribute('aria-label', label);
+            field.title = value || '';
+            return field;
+        };
         for (const m of ordered) {
-            const wrapper = node('div', 'col-12 col-xl-6');
-            const card = node('section', 'card h-100 border-0 shadow-sm' +
-                (m.code === requested ? ' border border-primary' : ''));
+            if (!m.isAvailable) continue;
+            const entries = (m.entries || []).filter(e => e.status === 'Missing');
+            const conflicts = (m.entries || []).filter(e => e.status === 'Conflict');
+            const readiness = state.readiness.get(m.code);
+            const todo = readiness?.isAvailable
+                ? (readiness.requirements || []).filter(x => !x.configured) : [];
+            if (!entries.length && !conflicts.length && !todo.length) continue;
+            missingTotal += entries.length;
+            guidedTotal += todo.length;
+            shown++;
+            const wrapper = node('div', 'col-12');
+            const card = node('section', 'card border-0 shadow-sm' +
+                (requested === m.code ? ' border border-primary' : ''));
             const body = node('div', 'card-body');
-            const top = node('div', 'd-flex align-items-start justify-content-between gap-2 mb-2');
+            const header = node('div', 'd-flex flex-wrap align-items-center justify-content-between gap-2 mb-2');
             const heading = node('div');
             heading.append(node('h3', 'h6 fw-bold mb-1', bn ? m.nameBangla : m.name));
             heading.append(node('span', 'small text-muted', m.code));
-            top.append(heading);
-            const badge = node('span', 'badge ' + (m.isAvailable ? 'bg-primary' : 'bg-secondary'),
-                !m.isAvailable ? tr('Unavailable', 'চালু নেই') :
-                m.supportsSafeApply ? tr('Safe defaults', 'নিরাপদ ডিফল্ট') :
-                    tr('Guided setup', 'নির্দেশিত সেটআপ'));
-            top.append(badge);
-            body.append(top);
-            const guidance = node('p', 'small text-muted', m.guidance || '');
-            body.append(guidance);
-            const readiness = state.readiness.get(m.code);
-            if (readiness?.isAvailable && readiness.requirements?.length) {
-                const tasks = readiness.requirements;
-                const passed = tasks.filter(x => x.configured).length;
-                const headline = node('p', 'fw-semibold small mb-1',
-                    tr('Required setup: ' + passed + ' / ' + tasks.length + ' configured',
-                        'প্রাথমিক সেটআপ: ' + passed + ' / ' + tasks.length + ' সম্পন্ন'));
-                body.append(headline);
-                const list = node('ul', 'list-unstyled small mb-3');
-                for (const task of tasks) {
-                    const li = node('li', 'd-flex gap-2 align-items-start py-1');
-                    const status = node('span', task.configured ? 'text-success' : 'text-warning-emphasis',
-                        task.configured ? '✓' : '○');
-                    const label = node('span', 'flex-grow-1', bn ? task.labelBangla : task.label);
-                    li.append(status, label);
-                    if (!task.configured) {
-                        const link = node('a', 'small text-nowrap', tr('Configure', 'সেট করুন'));
-                        link.href = setupLink(task.actionUrl, m.code);
-                        link.target = '_blank';
-                        link.rel = 'noopener noreferrer';
-                        li.append(link);
+            header.append(heading);
+            if (entries.length)
+                header.append(node('span', 'small text-muted',
+                    tr(entries.length + ' pre-filled record(s)', entries.length + 'টি তথ্য আগে থেকে পূরণ করা')));
+            body.append(header);
+            if (entries.length) {
+                body.append(node('p', 'small text-muted mb-2',
+                    tr('Review each automatically filled column, tick the rows you want, then save below. Values come from the approved institution template.',
+                        'স্বয়ংক্রিয়ভাবে পূরণ করা তথ্যগুলো যাচাই করুন, প্রয়োজনীয় Row-তে টিক দিন, তারপর নিচে Save করুন।')));
+                const responsive = node('div', 'table-responsive');
+                const table = node('table', 'table table-sm table-bordered align-middle mb-2');
+                const thead = node('thead', 'table-light');
+                const headerRow = node('tr');
+                const selectCell = node('th');
+                selectCell.scope = 'col';
+                const selectAll = node('input', 'form-check-input');
+                selectAll.type = 'checkbox';
+                selectAll.setAttribute('aria-label', tr('Select all missing records in ' + m.name,
+                    m.nameBangla + ' এর সব অনুপস্থিত তথ্য নির্বাচন'));
+                selectAll.setAttribute('data-smart-all', m.code);
+                selectCell.append(selectAll);
+                headerRow.append(selectCell);
+                for (const name of [tr('Type', 'ধরন'), tr('Code', 'কোড'), tr('Name', 'নাম'),
+                    tr('Detail', 'বিবরণ'), tr('Status', 'অবস্থা')]) {
+                    const th = node('th', '', name);
+                    th.scope = 'col';
+                    headerRow.append(th);
+                }
+                thead.append(headerRow);
+                const tbody = node('tbody');
+                const boxes = [];
+                const syncAll = () => {
+                    const checked = boxes.filter(x => x.checked).length;
+                    selectAll.checked = checked === boxes.length;
+                    selectAll.indeterminate = checked > 0 && checked < boxes.length;
+                };
+                for (const item of entries) {
+                    const key = entryKey(m.code, item);
+                    const row = node('tr');
+                    const checkCell = node('td');
+                    const check = node('input', 'form-check-input');
+                    check.type = 'checkbox';
+                    check.checked = state.selected.has(key);
+                    check.setAttribute('data-smart-row', key);
+                    check.setAttribute('aria-label', tr('Save ' + item.name, item.name + ' সংরক্ষণ করুন'));
+                    check.addEventListener('change', () => {
+                        check.checked ? state.selected.add(key) : state.selected.delete(key);
+                        state.requestId = null;
+                        state.fingerprint = null;
+                        syncAll();
+                        updateSubmit();
+                    });
+                    checkCell.append(check);
+                    row.append(checkCell);
+                    const kindCell = node('td', 'small', item.kind);
+                    row.append(kindCell);
+                    for (const [value, fieldName] of [
+                        [item.code, tr('Code', 'কোড')],
+                        [item.name, tr('Name', 'নাম')],
+                        [item.detail || '', tr('Detail', 'বিবরণ')]
+                    ]) {
+                        const td = node('td');
+                        td.append(makeField(value, fieldName + ': ' + item.name));
+                        row.append(td);
                     }
-                    list.append(li);
+                    row.append(node('td', 'small text-success', tr('Ready to add', 'যোগ করা যাবে')));
+                    tbody.append(row);
+                    boxes.push(check);
                 }
-                body.append(list);
-            } else if (readiness?.isAvailable && !readiness.hasChecklist) {
-                body.append(node('p', 'small text-muted',
-                    tr('No mandatory reference setup; review applicable policies before operating.',
-                        'বাধ্যতামূলক প্রাথমিক তথ্য নেই; কাজের আগে প্রযোজ্য নীতিমালা যাচাই করুন।')));
-            }
-            // Entries already present are not pending tasks.
-            const pendingEntries = (m.entries || []).filter(item => item.status !== 'Existing');
-            if (pendingEntries.length) {
-                const list = node('ul', 'list-unstyled small mb-3');
-                for (const item of pendingEntries) {
-                    const li = node('li', 'd-flex justify-content-between border-bottom py-1 gap-2');
-                    li.append(node('span', '', item.name + ' (' + item.code + ')'));
-                    const status = item.status === 'Missing' ? tr('To add', 'যোগ হবে') :
-                        item.status === 'Existing' ? tr('Already exists', 'আগেই আছে') :
-                        item.status === 'Conflict' ? tr('Review conflict', 'দ্বন্দ্ব যাচাই') :
-                            tr('Module unavailable', 'মডিউল চালু নেই');
-                    li.append(node('span', 'fw-semibold text-nowrap', status));
-                    list.append(li);
-                }
-                body.append(list);
-            }
-            const missing = (m.entries || []).filter(e => e.status === 'Missing').length;
-            const conflict = (m.entries || []).some(e => e.status === 'Conflict');
-            if (m.supportsSafeApply && m.isAvailable && (missing > 0 || conflict)) {
-                const label = node('label', 'form-check mb-2');
-                const input = node('input', 'form-check-input me-2');
-                input.type = 'checkbox';
-                input.checked = state.selected.has(m.code);
-                input.disabled = conflict || missing === 0;
-                input.addEventListener('change', () => {
-                    input.checked ? state.selected.add(m.code) : state.selected.delete(m.code);
+                selectAll.addEventListener('change', () => {
+                    for (let i = 0; i < entries.length; i++) {
+                        boxes[i].checked = selectAll.checked;
+                        const key = entryKey(m.code, entries[i]);
+                        selectAll.checked ? state.selected.add(key) : state.selected.delete(key);
+                    }
                     state.requestId = null;
                     state.fingerprint = null;
+                    syncAll();
                     updateSubmit();
                 });
-                label.append(input, node('span', 'form-check-label',
-                    conflict ? tr('Resolve conflicts first', 'আগে দ্বন্দ্ব দূর করুন') :
-                    missing ? tr('Apply ' + missing + ' missing item(s)', missing + 'টি তথ্য যোগ করুন') :
-                    tr('Already configured', 'সেটআপ আগে থেকেই আছে')));
-                body.append(label);
+                syncAll();
+                table.append(thead, tbody);
+                responsive.append(table);
+                body.append(responsive);
             }
-            // Continue with the first unmet prerequisite, not a generic landing page.
-            const pendingTasks = readiness?.isAvailable
-                ? (readiness.requirements || []).filter(task => !task.configured)
-                : [];
-            const hasEditablePresetForm = ['HR', 'INVENTORY', 'LIBRARY', 'COMMUNICATION', 'DOCUMENTS']
-                .includes(m.code);
-            if (m.isAvailable && (pendingTasks.length || (missing > 0 && hasEditablePresetForm))) {
-                const target = pendingTasks[0]?.actionUrl || m.nextStepUrl;
-                const link = node('a', 'btn btn-sm btn-outline-secondary',
-                    pendingTasks.length ? tr('Continue missing setup', 'বাকি সেটআপ সম্পন্ন করুন') :
-                        tr('Open setup page', 'সেটআপ পেজ খুলুন'));
-                link.href = setupLink(target, m.code);
-                link.target = '_blank';
-                link.rel = 'noopener noreferrer';
-                body.append(link);
+            if (conflicts.length) {
+                const warning = node('p', 'small text-danger mb-2',
+                    tr(conflicts.length + ' conflicting existing record(s) need manual review; nothing will be overwritten.',
+                        conflicts.length + 'টি বিদ্যমান তথ্যের দ্বন্দ্ব আছে; কোনো তথ্য পরিবর্তন হবে না।'));
+                body.append(warning);
+                const list = node('ul', 'small mb-3');
+                for (const item of conflicts)
+                    list.append(node('li', '', item.kind + ': ' + item.name + ' (' + item.code + ')'));
+                body.append(list);
+            }
+            if (todo.length) {
+                body.append(node('p', 'small fw-semibold mb-1',
+                    tr('Institution-specific setup still needed:', 'প্রতিষ্ঠানের নিজস্ব তথ্য এখনো প্রয়োজন:')));
+                const list = node('ul', 'list-unstyled small mb-2');
+                for (const task of todo) {
+                    const li = node('li', 'd-flex flex-wrap align-items-center gap-2 py-1');
+                    li.append(node('span', 'flex-grow-1', bn ? task.labelBangla : task.label));
+                    const link = node('a', 'small', tr('Configure', 'সেট করুন'));
+                    link.href = setupLink(task.actionUrl, m.code);
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    li.append(link);
+                    list.append(li);
+                }
+                body.append(list);
             }
             card.append(body);
             wrapper.append(card);
+            host.append(wrapper);
+        }
+        el('smartSetupReadinessSummary').textContent = tr(
+            missingTotal + ' pre-filled safe record(s) available; ' + guidedTotal +
+            ' institution-specific prerequisite(s) need review. ' + ready + '/' + allChecks.length +
+            ' checked module prerequisites configured. No financial or operational approval is implied.',
+            missingTotal + 'টি প্রস্তুত তথ্য; ' + guidedTotal + 'টি প্রতিষ্ঠানের নিজস্ব সেটআপ বাকি। ' +
+            allChecks.length + 'টির মধ্যে ' + ready + 'টি মডিউলের প্রাথমিক তথ্য সম্পন্ন।');
+        if (!shown) {
+            const wrapper = node('div', 'col-12');
+            const complete = node('div', 'card card-body border-0 shadow-sm');
+            complete.append(node('p', 'mb-0 text-success',
+                tr('All reviewed safe defaults and checked setup prerequisites are present. No new records are needed.',
+                    'যাচাইকৃত Safe Defaults ও প্রাথমিক তথ্য সম্পন্ন। নতুন কিছু যোগ করার প্রয়োজন নেই।')));
+            wrapper.append(complete);
             host.append(wrapper);
         }
         updateSubmit();
@@ -230,8 +284,10 @@
         if (state.busy || !sameSession() || !validSelection() ||
             !el('smartSetupConfirm').checked || !state.preview?.institutionTypeId) return;
         const p = state.preview;
-        const names = selected().map(x => x.code).sort();
-        const fingerprint = p.institutionTypeId + '|' + p.templateVersion + '|' + names.join(',');
+        const entries = selectedRows();
+        const names = [...new Set(entries.map(x => x.module))].sort();
+        const fingerprint = p.institutionTypeId + '|' + p.templateVersion + '|' +
+            entries.map(x => entryKey(x.module, x)).sort().join(',');
         if (state.fingerprint !== fingerprint || !state.requestId) state.requestId = guid();
         state.fingerprint = fingerprint;
         state.busy = true;
@@ -244,6 +300,7 @@
                     institutionTypeId: p.institutionTypeId,
                     templateVersion: p.templateVersion,
                     modules: names,
+                    entries: entries,
                     confirmed: true
                 })
             });
