@@ -155,6 +155,9 @@ public sealed class SmartSetupService(
                 var created = new List<SmartSetupEntryDto>();
                 var existing = 0;
                 var now = DateTime.UtcNow;
+                var reviewed = SmartSetupCatalog.Build(preview.InstitutionTypeCode, preview.CountryCode)
+                    .ToDictionary(x => (x.Module, x.Kind, x.Code));
+                var postingAccounts = new List<(SmartSetupEntryDto Row, SmartSetupCatalog.Seed Seed)>();
                 foreach (var name in selection)
                 {
                     foreach (var candidate in preview.Modules.Single(x => x.Code == name).Entries
@@ -163,12 +166,28 @@ public sealed class SmartSetupService(
                     {
                         if (candidate.Status == "Existing") { existing++; continue; }
                         if (candidate.Status != "Missing") throw new SetupConflict("Setup changed. Reload the preview.");
-                        AddCanonicalMaster(candidate, now);
-                        created.Add(new SmartSetupEntryDto
+                        var seed = reviewed[(name, candidate.Kind, candidate.Code)];
+                        if (candidate.Kind == "Account" && !seed.IsGroup)
+                            postingAccounts.Add((candidate, seed));
+                        else
                         {
-                            Kind = candidate.Kind, Code = candidate.Code, Name = candidate.Name, Status = "Created"
-                        });
+                            await AddCanonicalMasterAsync(candidate, seed, now, token);
+                            created.Add(new SmartSetupEntryDto
+                            {
+                                Kind = candidate.Kind, Code = candidate.Code, Name = candidate.Name, Status = "Created"
+                            });
+                        }
                     }
+                }
+                // Parents must exist before their posting children; all writes are
+                // still inside the SAME serializable transaction and audit receipt.
+                foreach (var (candidate, seed) in postingAccounts)
+                {
+                    await AddCanonicalMasterAsync(candidate, seed, now, token);
+                    created.Add(new SmartSetupEntryDto
+                    {
+                        Kind = candidate.Kind, Code = candidate.Code, Name = candidate.Name, Status = "Created"
+                    });
                 }
                 var outcome = new SmartSetupApplyResultDto
                 {
@@ -361,7 +380,8 @@ public sealed class SmartSetupService(
         return all;
     }
 
-    private void AddCanonicalMaster(SmartSetupEntryDto row, DateTime now)
+    private async Task AddCanonicalMasterAsync(
+        SmartSetupEntryDto row, SmartSetupCatalog.Seed seed, DateTime now, CancellationToken ct)
     {
         var tenant = user.TenantId;
         switch (row.Kind)
@@ -371,6 +391,71 @@ public sealed class SmartSetupService(
                 {
                     TenantId = tenant, Code = row.Code, Name = row.Name,
                     IsDefault = false, IsActive = true, CreatedAt = now, CreatedBy = user.UserId
+                });
+                break;
+            case "Subject":
+                db.Subjects.Add(new Subject
+                {
+                    TenantId = tenant, Code = row.Code, Name = row.Name, DefaultCreditHours = 0m,
+                    IsActive = true, CreatedAt = now, CreatedBy = user.UserId
+                });
+                break;
+            case "GradeScheme":
+                if (!SmartSetupCatalog.GradePresets.TryGetValue(seed.Code, out var bands))
+                    throw new SetupConflict("Unknown grading policy. Reload the preview.");
+                var scheme = new GradeScheme
+                {
+                    TenantId = tenant, Code = row.Code, Name = row.Name,
+                    IsDefault = false, IsActive = true,
+                    UseCreditWeightedGpa = seed.Code == "BD-CGPA-4",
+                    RepeatCourseGradePolicy = RepeatCourseGradePolicy.Reject,
+                    CreatedAt = now, CreatedBy = user.UserId
+                };
+                db.GradeSchemes.Add(scheme);
+                await db.SaveChangesAsync(ct);
+                foreach (var (band, index) in bands.Select((band, index) => (band, index)))
+                    db.GradeRules.Add(new GradeRule
+                    {
+                        TenantId = tenant, GradeSchemeId = scheme.Id,
+                        MinMarks = band.Min, MaxMarks = band.Max,
+                        GradeLetter = band.Letter, GradePoint = band.Point,
+                        IsFailGrade = band.Point == 0m, DisplayOrder = index + 1,
+                        CreatedAt = now, CreatedBy = user.UserId
+                    });
+                break;
+            case "Account":
+                if (!seed.AccountType.HasValue)
+                    throw new SetupConflict("Chart of accounts classification is missing.");
+                long? parentId = null;
+                if (!seed.IsGroup)
+                {
+                    var parent = await db.Accounts.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.Code == seed.ParentCode)
+                        .Select(x => new { x.Id, x.IsGroup, x.AccountType, x.IsActive, x.IsDeleted })
+                        .SingleOrDefaultAsync(ct);
+                    if (parent == null || parent.IsDeleted || !parent.IsActive ||
+                        !parent.IsGroup || parent.AccountType != seed.AccountType)
+                        throw new SetupConflict("Create or review the matching account group before its posting accounts.");
+                    parentId = parent.Id;
+                }
+                db.Accounts.Add(new Account
+                {
+                    TenantId = tenant, Code = row.Code, Name = row.Name,
+                    ParentAccountId = parentId, AccountType = seed.AccountType.Value,
+                    IsGroup = seed.IsGroup, AllowsPosting = !seed.IsGroup,
+                    CurrencyCode = "BDT", IsCashInHand = false,
+                    IsActive = true, CreatedAt = now, CreatedBy = user.UserId
+                });
+                if (seed.IsGroup) await db.SaveChangesAsync(ct);
+                break;
+            case "SalaryComponent":
+                if (!seed.SalaryType.HasValue)
+                    throw new SetupConflict("Salary component type is missing.");
+                db.SalaryComponents.Add(new SalaryComponent
+                {
+                    TenantId = tenant, Code = row.Code, Name = row.Name,
+                    Type = seed.SalaryType.Value, IsTaxable = seed.IsTaxable,
+                    IsActive = true, CreatedAt = now, CreatedBy = user.UserId
                 });
                 break;
             case "OrganizationUnit":
@@ -396,9 +481,8 @@ public sealed class SmartSetupService(
                     TenantId = tenant, Code = row.Code, Name = row.Name,
                     // The server-reviewed catalog is the sole source of the
                     // recommended frequency. The browser submits keys only.
-                    DefaultFrequency = Enum.Parse<EduOS.Core.Enums.Domain.FeeFrequencyType>(
-                        row.Detail ?? throw new InvalidOperationException(
-                            "Reviewed fee frequency is missing.")),
+                    DefaultFrequency = seed.Frequency ??
+                        throw new InvalidOperationException("Reviewed fee frequency is missing."),
                     IsRefundable = false, IsActive = true, CreatedAt = now, CreatedBy = user.UserId
                 });
                 break;
