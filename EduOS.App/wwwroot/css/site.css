@@ -3996,3 +3996,6 @@ body[data-smart-setup-embedded="true"] .main-area {
 body[data-smart-setup-embedded="true"] .page-body {
     padding: .5rem !important;
 }
+
+/* Bootstrap cards are display:flex; preserve native hidden for the inline workspace. */
+#smartSetupInline[hidden] { display: none !important; }
