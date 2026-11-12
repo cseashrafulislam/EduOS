@@ -35,6 +35,15 @@
         @(bn ? "Basic Master Data চেক করে এখানে Save করুন। Academic Date, Hostel/Room/Bed, Bank, Fee Amount ও Opening Entry-এর জন্য Add here ক্লিক করে এই পেজেই মূল নিরাপদ ফর্ম পূরণ করুন। প্রকৃত তথ্য ছাড়া এগুলো তৈরি হবে না; পুরোনো আর্থিক লেনদেন পরিবর্তন হবে না।" :
             "Select and save reviewed basic master records here. For institution-specific academic dates, hostel/room/bed, bank, fee amounts and opening entries, use Add here to complete the original protected form inside this workspace. Those forms save separately and never assume values. No existing financial transaction is overwritten.")
     </div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <label for="smartSetupSearch" class="small fw-semibold">
+            @(bn ? "সেটিংস খুঁজুন" : "Find a setting")
+        </label>
+        <input id="smartSetupSearch" type="search" class="form-control form-control-sm"
+               style="max-width:370px;"
+               placeholder="@(bn ? "Academic, Hostel, Accounts, Fees..." : "Academic, Hostel, Accounts, Fees...")"
+               maxlength="80" autocomplete="off" />
+    </div>
     <p id="smartSetupReadinessSummary" class="small text-muted" role="status" aria-live="polite"></p>
 
     @* These are the existing protected setup forms, not copied or reimplemented forms.
