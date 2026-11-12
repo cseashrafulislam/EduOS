@@ -19,21 +19,21 @@
             ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
         ],
         academics: [
+            ['learners', 'Students & Admissions', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/LearnerIdentities', '/StudentSupport']],
+            ['operations', 'Attendance & Classes', 'উপস্থিতি ও ক্লাস', ['/AcademicRoutines', '/AcademicInstruction', '/AcademicCalendar', '/StudentLeaves', '/Attendance']],
+            ['learning', 'Academics & Learning', 'একাডেমিক ও শিক্ষা', ['/Learning', '/TeacherStudio']],
+            ['assessments', 'Exams & Results', 'পরীক্ষা ও ফলাফল', ['/AssessmentAdministration']],
             ['portal', 'My Learning Portal', 'আমার লার্নিং পোর্টাল', ['/StudentPortal', '/StudentSubjects', '/Alumni']],
-            ['learners', 'Admissions & Students', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/LearnerIdentities', '/StudentSupport']],
             ['career', 'Career & Placement', 'ক্যারিয়ার ও কর্মসংস্থান', ['/CareerEmployers', '/CareerOpportunities', '/CareerPlacements']],
             ['research', 'Research & Ethics', 'গবেষণা ও নৈতিক অনুমোদন', ['/ResearchProposals', '/ResearchGrants']],
-            ['accreditation', 'Accreditation & Quality', 'স্বীকৃতি ও মান', ['/Accreditation']],
-            ['learning', 'Learning & Courses', 'শিক্ষা ও কোর্স', ['/Learning', '/TeacherStudio']],
-            ['assessments', 'Exams & Results', 'পরীক্ষা ও ফলাফল', ['/AssessmentAdministration']],
-            ['operations', 'Classes & Attendance', 'ক্লাস ও উপস্থিতি', ['/AcademicRoutines', '/AcademicInstruction', '/AcademicCalendar', '/StudentLeaves', '/Attendance']]
+            ['accreditation', 'Accreditation & Quality', 'স্বীকৃতি ও মান', ['/Accreditation']]
         ],
         management: [
+            ['finance', 'Fees & Accounts', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview', '/InstitutionBudgets']],
             ['people', 'HR & Payroll', 'এইচআর ও বেতন', ['/HR', '/HrEmployeeRecords', '/EmployeeContracts', '/Recruitment', '/EmployeeAttendance', '/LeaveEntitlements', '/PayrollOperations', '/PayrollSalaryStructures', '/PayrollSalaryComponents', '/PayrollSalaryStatement', '/PayrollReconciliation', '/PayrollBonuses', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/EmployeePortal']],
-            ['finance', 'Fees & Accounting', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview', '/InstitutionBudgets']],
-            ['inventory', 'Inventory & Assets', 'ইনভেন্টরি ও সম্পদ', ['/InventoryCatalog', '/InventoryMovements', '/AssetLifecycle']],
-            ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights', '/FacilityWorkOrders', '/FacilitySpaces', '/FacilityCosts']],
             ['library', 'Library', 'গ্রন্থাগার', ['/Library', '/offline-study.html']],
+            ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights', '/FacilityWorkOrders', '/FacilitySpaces', '/FacilityCosts']],
+            ['inventory', 'Inventory & Assets', 'ইনভেন্টরি ও সম্পদ', ['/InventoryCatalog', '/InventoryMovements', '/AssetLifecycle']],
             ['communication', 'Communication & Documents', 'যোগাযোগ ও ডকুমেন্ট', ['/CommunicationWorkspace', '/CommunicationAdministration', '/CustomFields', '/DocumentAdministration']],
             ['governance', 'Audit & Reporting', 'অডিট ও রিপোর্ট', ['/AuditLogs', '/ImportHistory']]
         ]
@@ -506,6 +506,17 @@
             }
         }
     }
+    // Daily academic and management groups share one visible heading. A role may
+    // have links in only one group; never hide that heading because the first is empty.
+    const staticDailyNavs = navs.filter(nav => nav.dataset.sidebarStatic === 'true');
+    if (staticDailyNavs.some(nav => !nav.hidden)) {
+        const heading = staticDailyNavs[0]?.previousElementSibling;
+        if (heading?.classList.contains('menu-title')) {
+            heading.hidden = false;
+            if (heading.previousElementSibling?.classList.contains('sidebar-divider'))
+                heading.previousElementSibling.hidden = false;
+        }
+    }
 
     // The most specific link wins. Server-rendered 'active' is a safe fallback.
     function highlightCurrent() {
@@ -537,7 +548,8 @@
     for (const section of ['academics', 'management']) {
         const nav = navs.find(candidate => candidate.dataset.sidebarSection === section);
         const heading = nav?.previousElementSibling;
-        if (!nav || nav.hidden || !heading?.classList.contains('menu-title')) continue;
+        if (!nav || nav.hidden || nav.dataset.sidebarStatic === 'true' ||
+            !heading?.classList.contains('menu-title')) continue;
         // Only enhance headings after the authorized server menu is available.
         // Keep the heading directly beside its nav for breadcrumbs and search.
         const button = document.createElement('button');
@@ -601,8 +613,9 @@
     }
 
     function restoreOpenGroup() {
+        const isDashboard = matchesPrefix(selected?.getAttribute('href') || '', '/Dashboard');
         const toOpen = isTop() ? null : (activeGroup ||
-            allDetails.find(details => details.dataset.sidebarGroup === state.group));
+            (isDashboard ? null : allDetails.find(details => details.dataset.sidebarGroup === state.group)));
         for (const details of allDetails) details.open = details === toOpen;
         if (!isTop()) {
             const selectedCategory = selected?.closest('.sidebar-category');
