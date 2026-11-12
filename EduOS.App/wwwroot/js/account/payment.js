@@ -19,9 +19,9 @@
         document.getElementById('manualForm')?.addEventListener('submit', submitManualPayment);
         document.getElementById('depositSlipFile')?.addEventListener('change', updateReceiptLabel);
 
-        // Invoice IDs are optional after approval. Verify the canonical active
-        // subscription even when the original payment link was opened without it.
-        if (await showVerifiedWorkspaceState()) return;
+        // The active previous period must never suppress payment of an explicit renewal invoice.
+        // Without an invoice reference, keep the original verified-workspace recovery.
+        if (!invoiceId && await showVerifiedWorkspaceState()) return;
         if (!invoiceId) {
             renderInvoiceError(i18n.noInvoice, false);
             disablePaymentMethods();
@@ -64,67 +64,82 @@
         fragment.append(number);
 
         fragment.append(invoiceRow(
-            localized(invoice.planName, invoice.planNameBangla) || invoice.description || i18n.subscription,
-            formatMoney(invoice.subtotal, invoice.currency)
+            localized(invoice.planName, invoice.planNameBangla) || invoice.lines?.[0]?.description || invoice.description || i18n.subscription,
+            formatMoney(invoice.subtotal, invoice.currencyCode || invoice.currency)
         ));
         if (Number(invoice.discountAmount) > 0) {
             fragment.append(invoiceRow(
                 i18n.discount,
-                `− ${formatMoney(invoice.discountAmount, invoice.currency)}`,
+                `− ${formatMoney(invoice.discountAmount, invoice.currencyCode || invoice.currency)}`,
                 'text-success'
             ));
         }
         if (Number(invoice.taxAmount) > 0) {
-            fragment.append(invoiceRow(i18n.tax, formatMoney(invoice.taxAmount, invoice.currency)));
+            fragment.append(invoiceRow(i18n.tax, formatMoney(invoice.taxAmount, invoice.currencyCode || invoice.currency)));
         }
         fragment.append(invoiceRow(
             i18n.totalDue,
-            formatMoney(invoice.dueAmount, invoice.currency),
+            formatMoney(invoice.dueAmount, invoice.currencyCode || invoice.currency),
             'invoice-total'
         ));
 
         const period = document.createElement('p');
         period.className = 'invoice-period';
-        period.textContent = template(i18n.periodTemplate, {
-            start: formatDate(invoice.periodStart),
-            end: formatDate(invoice.periodEnd)
-        });
-        fragment.append(period);
+        // The invoice contract does not promise a subscription period. Never display blank dates.
+        if (invoice.periodStart && invoice.periodEnd) {
+            period.textContent = template(i18n.periodTemplate, {
+                start: formatDate(invoice.periodStart), end: formatDate(invoice.periodEnd)
+            });
+            fragment.append(period);
+        }
         invoiceDetails.replaceChildren(fragment);
 
         const onlineAmount = document.getElementById('onlineAmountLabel');
-        if (onlineAmount) onlineAmount.textContent = formatMoney(invoice.dueAmount, invoice.currency);
+        if (onlineAmount) onlineAmount.textContent = formatMoney(invoice.dueAmount, invoice.currencyCode || invoice.currency);
         const manualAmount = document.getElementById('manualAmount');
         if (manualAmount) manualAmount.value = Number(invoice.dueAmount || 0).toFixed(2);
     }
 
     async function applyPaymentState() {
-        if (await showVerifiedWorkspaceState()) return;
-        const status = Number(invoice?.paymentStatus);
-        // Invoice status or a zero due amount alone are NOT proof that the
-        // subscription was activated and verified; never grant access from them.
-        if (status === 3 || status === 4 || Number(invoice?.dueAmount) <= 0) {
-            showStatus(i18n.processing || i18n.awaiting, false);
+        const invoiceState = Number(invoice?.state);
+        const dueAmount = Number(invoice?.dueAmount);
+        // An invoice is the payment authority, not the active status of an earlier subscription.
+        if (invoiceState === 4 || dueAmount <= 0) {
+            // Preserve the initial-onboarding workspace action only when the paid invoice
+            // belongs to the actual current subscription, never a future renewal.
+            try {
+                const response = await fetch('/api/subscription/current', {
+                    cache: 'no-store', credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const payload = await response.json().catch(() => null);
+                if (response.ok && payload?.success &&
+                    Number(payload.data?.id) === Number(invoice?.tenantSubscriptionId) &&
+                    [1, 2, 3].includes(Number(payload.data?.state)) &&
+                    await showVerifiedWorkspaceState()) return;
+            } catch {
+                // A read failure cannot authorize payment or change the invoice state.
+            }
+            showStatus(i18n.alreadyPaid || i18n.processing, false);
             return;
         }
-        if (status === 7) {
-            showStatus(i18n.awaiting, false);
+        if (![2, 3].includes(invoiceState) || !Number.isFinite(dueAmount) || dueAmount <= 0) {
+            showStatus(i18n.invoiceLoadFailed, false);
             return;
         }
-
         try {
             const response = await fetch(`/api/subscription-payment/invoice/${encodeURIComponent(invoiceId)}`, {
-                cache: 'no-store',
-                credentials: 'same-origin',
+                cache: 'no-store', credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' }
             });
             const payload = await response.json().catch(() => null);
             const payments = Array.isArray(payload?.data) ? payload.data : [];
-            if (response.ok && payload?.success && payments.some(item => Number(item.status) === 2)) {
-                showStatus(i18n.processing, false);
+            if (response.ok && payload?.success &&
+                payments.some(item => [1, 2].includes(Number(item.state)))) {
+                showStatus(i18n.awaiting || i18n.processing, false);
             }
         } catch {
-            // The invoice remains usable when optional payment-history lookup fails.
+            // The server rechecks invoice and payment state before accepting any payment.
         }
     }
 
@@ -530,7 +545,7 @@
         }
         if (button.id === 'payOnlineBtn') {
             button.textContent = template(i18n.payTemplate, {
-                amount: formatMoney(invoice?.dueAmount, invoice?.currency)
+                amount: formatMoney(invoice?.dueAmount, invoice?.currencyCode || invoice?.currency)
             });
         } else {
             button.textContent = button.dataset.idleLabel || i18n.submitLabel || '';
