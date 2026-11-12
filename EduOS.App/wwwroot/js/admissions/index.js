@@ -37,8 +37,8 @@
         }
         const feature = document.querySelector('section[data-admission-feature]')?.dataset.admissionFeature || 'all';
         form.addEventListener('submit', submitApplication);
-        form.addEventListener('input', () => clearAdmissionErrors(form));
-        form.addEventListener('change', () => clearAdmissionErrors(form));
+        form.addEventListener('input', () => { clearAdmissionErrors(form); clearSubmissionFeedback(); });
+        form.addEventListener('change', () => { clearAdmissionErrors(form); clearSubmissionFeedback(); });
         document.getElementById('admissionFilters')?.addEventListener('submit', applyFilters);
         document.getElementById('admissionPageSize')?.addEventListener('change', changePageSize);
         document.getElementById('academicYearId')?.addEventListener('change', refreshTerms);
@@ -879,19 +879,21 @@
             .filter(field => field.willValidate && !field.checkValidity());
         const entries = invalid.map(field => ({
             field,
-            label: form.querySelector('label[for="' + field.id + '"]')?.textContent?.trim()
-                || field.getAttribute('aria-label') || field.name || field.id
+            label: (field.id ? form.querySelector('label[for="' + field.id + '"]')?.textContent?.trim() : null)
+                || field.closest('label')?.textContent?.trim()
+                || field.getAttribute('aria-label') || field.dataset.admissionField || field.name || field.id
                 || (bangla ? 'তথ্য' : 'Field')
         }));
         extra.forEach(field => {
             if (field && !entries.some(item => item.field === field))
-                entries.push({ field, label: form.querySelector('label[for="' + field.id + '"]')?.textContent?.trim() || field.id });
+                entries.push({ field, label: form.querySelector('label[for="' + field.id + '"]')?.textContent?.trim()
+                    || field.closest('label')?.textContent?.trim() || field.dataset.admissionField || field.id });
         });
         let summary = document.getElementById('admissionValidationSummary');
         if (!summary) {
             summary = document.createElement('div');
             summary.id = 'admissionValidationSummary';
-            summary.className = 'alert alert-danger col-12';
+            summary.className = 'alert alert-danger admission-field-summary';
             summary.tabIndex = -1;
             summary.setAttribute('role', 'alert');
             form.prepend(summary);
@@ -921,6 +923,50 @@
         form.querySelectorAll('[aria-invalid="true"]').forEach(field => field.removeAttribute('aria-invalid'));
     }
 
+    // Submission errors belong to this form, not a permanent readiness widget.
+    // Never disclose raw internal server errors to the applicant.
+    function clearSubmissionFeedback() {
+        const node = document.getElementById('admissionSubmitFeedback');
+        if (!node) return;
+        node.className = 'd-none';
+        node.replaceChildren();
+    }
+
+    function showSubmissionFeedback(message) {
+        const host = document.getElementById('admissionSubmitFeedback');
+        if (!host || !sameSession()) return;
+        const heading = document.createElement('strong');
+        heading.className = 'admission-submit-title';
+        heading.textContent = bangla ? 'আবেদন সংরক্ষণ করা যায়নি' : 'Unable to save application';
+        const detail = document.createElement('p');
+        detail.className = 'admission-submit-detail';
+        detail.textContent = message;
+        host.replaceChildren(heading, detail);
+        host.className = 'admission-submit-feedback';
+        host.focus();
+    }
+
+    function applicationSubmissionError(response, payload) {
+        const retain = bangla
+            ? 'আপনার দেওয়া তথ্য ফরমে রয়েছে। যাচাই করে আবার চেষ্টা করুন।'
+            : 'Your entered information is still in the form. Review it before retrying.';
+        if (response.status >= 500)
+            return bangla
+                ? 'সার্ভারের সমস্যায় আবেদনটি সংরক্ষণ করা যায়নি। আবার চেষ্টা করার আগে আবেদন তালিকা যাচাই করুন; সমস্যা থাকলে প্রশাসককে জানান।'
+                : 'The server could not complete the request. Check the application list before retrying; contact an administrator if the problem continues.';
+        if (response.status === 429)
+            return bangla ? 'অনেকবার অনুরোধ পাঠানো হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।' : 'Too many requests. Please try again later.';
+        if (response.status === 401 || response.status === 403)
+            return bangla ? 'আপনার সেশন বা অনুমতি যাচাই করুন এবং আবার লগইন করুন।' : 'Your session or permission needs attention. Sign in again if needed.';
+        const validation = payload?.errors && typeof payload.errors === 'object'
+            ? Object.values(payload.errors).flatMap(value => Array.isArray(value) ? value : [value])
+                .filter(value => typeof value === 'string' && value.trim()).slice(0, 3).join(' ')
+            : '';
+        const detail = typeof payload?.message === 'string' && payload.message.trim()
+            ? payload.message.trim() : validation;
+        return detail && detail.length <= 600 ? detail + ' ' + retain : retain;
+    }
+
     async function submitApplication(event) {
         event.preventDefault();
         const form = event.currentTarget;
@@ -934,15 +980,16 @@
             return;
         }
         clearAdmissionErrors(form);
+        clearSubmissionFeedback();
         const selectedForm = state.options?.openForms?.find(x => x.reference === valueOf('admissionFormReference'));
         if (!selectedForm) {
-            showAlert('danger', bangla ? 'আবেদন জমা দেওয়ার আগে চালু ভর্তি ফরম নির্বাচন করুন।' : 'Select an open admission intake before submitting.');
+            showSubmissionFeedback(bangla ? 'আবেদন জমা দেওয়ার আগে চালু ভর্তি ফরম নির্বাচন করুন।' : 'Select an open admission intake before submitting.');
             admissionErrors(form, [document.getElementById('admissionFormReference')]);
             return;
         }
         const dateOfBirth = valueOf('dateOfBirth');
         if (isMinor(dateOfBirth) && (!valueOf('guardianName') || !valueOf('guardianRelation') || !valueOf('guardianMobile'))) {
-            showAlert('danger', i18n.minorGuardianRequired);
+            showSubmissionFeedback(i18n.minorGuardianRequired);
             admissionErrors(form, ['guardianName', 'guardianRelation', 'guardianMobile'].map(id => document.getElementById(id)).filter(field => field && !field.value.trim()));
             return;
         }
@@ -983,9 +1030,8 @@
             const payload = await response.json().catch(() => null);
             if (!sameSession()) return;
             if (!response.ok || !payload?.success) {
-                showAlert('danger', i18n.createFailed);
+                showSubmissionFeedback(applicationSubmissionError(response, payload));
                 // Preserve every entered field and the idempotency key for a safe retry.
-                document.getElementById('submitApplicationButton')?.focus();
                 return;
             }
             // Display a privacy-minimal receipt before clearing the form. A network
@@ -1009,13 +1055,14 @@
             refreshTerms();
             state.activeIntakeReference = valueOf('admissionFormReference');
             guards.application?.markClean();
-            showAlert('success', `${i18n.created} ${payload.data?.applicationNumber || ''}`.trim());
+            clearSubmissionFeedback();
             state.page = 1;
             await loadApplications();
         } catch {
             if (sameSession()) {
-                showAlert('danger', i18n.networkError);
-                document.getElementById('submitApplicationButton')?.focus();
+                showSubmissionFeedback(bangla
+                    ? 'সংযোগ সমস্যায় আবেদন নিশ্চিত করা যায়নি। পুনরায় জমা দেওয়ার আগে আবেদন তালিকা যাচাই করুন। আপনার তথ্য ফরমে রয়েছে।'
+                    : 'The response could not be confirmed. Check the application list before retrying. Your entries remain in the form.');
             }
         } finally {
             state.submitting = false;
