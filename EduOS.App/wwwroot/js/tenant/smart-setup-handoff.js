@@ -96,6 +96,14 @@
         const fields = formFields(entry);
         if (!fields || entry.status !== 'Missing') return;
         const [form, id, code, name] = fields;
+        if (!id.value && code.value === entry.code && name.value === entry.name) {
+            if (!automatic) {
+                inform(t('This suggestion is already in the form. Review it and Save.',
+                    'এই প্রস্তাব আগেই ফর্মে বসানো আছে। যাচাই করে Save করুন।'));
+                form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
         if (id.value || code.value.trim() || name.value.trim()) {
             inform(t('Clear the current form before filling another suggestion. No changes were made.',
                 'অন্য প্রস্তাব বসানোর আগে বর্তমান ফর্ম Clear করুন। কোনো তথ্য বদলানো হয়নি।'), true);
