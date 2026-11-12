@@ -121,6 +121,7 @@ function createNode() {
         addEventListener(name, listener) { listeners.set(name, listener); },
         click() { return listeners.get('click')?.({ preventDefault() {} }); },
         keydown(key) { listeners.get('keydown')?.({ key, preventDefault() {} }); },
+        input() { listeners.get('input')?.({}); },
         append(...items) { this.children.push(...items); },
         replaceChildren(...items) { this.children = [...items]; },
         focus() { this.focusCount = (this.focusCount || 0) + 1; },
@@ -209,6 +210,48 @@ test('local speech creates an editable label draft without searching or changing
     staleMic.onresult({ resultIndex: 0, results: [[{ transcript: 'Guardian name' }]] });
     assert.equal(staleMic.aborted, true);
     assert.equal(ids.pageAssistantQuery.value, '', 'stale speech cannot populate the assistant');
+});
+
+test('local voice preserves typed edits and rejects stale speech callbacks in both languages', async () => {
+    for (const [lang, typed] of [['en-BD', 'Guardian typed manually'], ['bn-BD', 'অভিভাবকের নাম নিজে লিখেছি']]) {
+        const ids = Object.fromEntries(['pageAssistantDialog', 'pageAssistantOpen', 'pageAssistantClose',
+            'pageAssistantQuery', 'pageAssistantFind', 'pageAssistantResult', 'pageAssistantVoice',
+            'pageAssistantVoiceStatus', 'main-content', 'sidebarMenu'].map(id => [id, createNode()]));
+        ids['main-content'].querySelectorAll = () => [];
+        ids.sidebarMenu.querySelectorAll = () => [];
+        class LocalSpeech {
+            constructor() { this.processLocally = false; LocalSpeech.current = this; }
+            static async available() { return 'available'; }
+            start() { this.started = true; }
+            abort() { this.aborted = true; }
+        }
+        const doc = {
+            documentElement: { lang }, body: { dataset: { authTenantId: '22', authSessionReference: 'session-a' } },
+            getElementById: id => ids[id], createElement: () => createNode()
+        };
+        assistant.mount(doc, { SpeechRecognition: LocalSpeech, addEventListener() {} });
+        ids.pageAssistantOpen.click();
+        await ids.pageAssistantVoice.click();
+        const first = LocalSpeech.current;
+        const late = first.onresult;
+        ids.pageAssistantQuery.value = typed;
+        ids.pageAssistantQuery.input();
+        assert.equal(first.aborted, true, lang);
+        assert.equal(ids.pageAssistantVoice.attributes['aria-pressed'], 'false');
+        late({ resultIndex: 0, results: [[{ transcript: 'Overwrite attempt' }]] });
+        assert.equal(ids.pageAssistantQuery.value, typed, lang);
+        assert.equal(ids.pageAssistantResult.children.length, 0);
+
+        await ids.pageAssistantVoice.click();
+        const second = LocalSpeech.current;
+        const lateSecond = second.onresult;
+        ids.pageAssistantQuery.value = typed + '!';
+        // Also guard programmatic edits that do not dispatch an input event.
+        lateSecond({ resultIndex: 0, results: [[{ transcript: 'Stale result' }]] });
+        assert.equal(second.aborted, true);
+        assert.equal(ids.pageAssistantQuery.value, typed + '!');
+        assert.equal(ids.pageAssistantResult.children.length, 0);
+    }
 });
 
 test('large page treatments retain canonical form and preference controls', () => {
