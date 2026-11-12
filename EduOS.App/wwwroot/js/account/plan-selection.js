@@ -33,7 +33,19 @@
             if (response.status === 404) return false;
 
             const payload = await response.json().catch(() => null);
-            if (response.ok && payload?.success && !payload.data) return false;
+            if (response.ok && payload?.success && !payload.data) {
+                // A prepaid future period may exist even when no current live period is returned.
+                const upcoming = await fetch('/api/subscription/upcoming', {
+                    cache: 'no-store', credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const upcomingPayload = await upcoming.json().catch(() => null);
+                if (upcoming.ok && upcomingPayload?.success && upcomingPayload.data) {
+                    window.location.assign('/SubscriptionBilling/Index');
+                    return true;
+                }
+                return false;
+            }
             if (!response.ok || !payload?.success || !payload.data) {
                 renderLoadError();
                 return true;
@@ -55,6 +67,7 @@
                     const expiry = formatExpiry(existingSubscription.endsAt);
                     showAlert('info', template(i18n.currentPlanReadOnly, { name, date: expiry }));
                     document.getElementById('planDashboardLink')?.classList.remove('d-none');
+                    document.getElementById('planBillingLink')?.classList.remove('d-none');
                     continueButton.textContent = i18n.currentPlanSelected || i18n.selected || '';
                     continueButton.disabled = true;
                     await loadPlans();
@@ -62,7 +75,7 @@
                 }
             }
             if (Number(payload.data.state) === 7) {
-                const invoiceId = await findPendingInvoice();
+                const invoiceId = await findPendingInvoice(payload.data.id);
                 if (invoiceId) {
                     window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
                     return true;
@@ -80,7 +93,7 @@
         }
     }
 
-    async function findPendingInvoice() {
+    async function findPendingInvoice(subscriptionId) {
         const response = await fetch('/api/subscription/invoices/unpaid', {
             cache: 'no-store',
             credentials: 'same-origin',
@@ -88,7 +101,9 @@
         });
         const payload = await response.json().catch(() => null);
         if (!response.ok || !payload?.success || !Array.isArray(payload.data)) return null;
-        const invoice = payload.data.find(item => positiveInteger(item.id) && Number(item.dueAmount) > 0);
+        const invoice = payload.data.find(item =>
+            positiveInteger(item.id) && Number(item.tenantSubscriptionId) === Number(subscriptionId) &&
+            Number(item.dueAmount) > 0 && [2, 3].includes(Number(item.state)));
         return positiveInteger(invoice?.id);
     }
 
@@ -279,7 +294,7 @@
 
             pendingRequestId = null;
             if (Number(payload.data.state) === 7) {
-                const invoiceId = await findPendingInvoice();
+                const invoiceId = await findPendingInvoice(payload.data.id);
                 if (invoiceId) {
                     window.location.assign(`/Account/Payment?invoiceId=${encodeURIComponent(invoiceId)}`);
                     return;
