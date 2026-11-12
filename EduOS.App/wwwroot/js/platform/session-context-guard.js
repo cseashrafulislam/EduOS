@@ -16,16 +16,24 @@
     let recheckRequested = false;
     let sessionChangePending = false;
     let navigationPending = false;
+    let wasHidden = document.visibilityState === 'hidden';
+    let lostFocus = false;
 
-    function block() {
+    function block(quiet = false) {
         shield.hidden = false;
+        // Keep stale tenant data covered while a tab resumes, but do not
+        // flash a modal/focus the Retry button on ordinary tab switches.
+        shield.classList.toggle('auth-session-shield--quiet', quiet);
         shell?.setAttribute('inert', '');
-        message.textContent = bangla ? 'আপনার অ্যাকাউন্টের নিরাপত্তা যাচাই হচ্ছে…' :
-            'Checking your account session…';
-        retry.focus();
+        if (!quiet) {
+            message.textContent = bangla ? 'আপনার অ্যাকাউন্টের নিরাপত্তা যাচাই হচ্ছে…' :
+                'Checking your account session…';
+            retry.focus();
+        }
     }
     function unblock() {
         shield.hidden = true;
+        shield.classList.remove('auth-session-shield--quiet');
         shell?.removeAttribute('inert');
     }
     function failed() {
@@ -40,61 +48,72 @@
         block();
         window.location.replace(url);
     }
-    function check() {
-        // A redirect is terminal: queued checks cannot reveal a stale page.
+    function check({ quiet = false, forceRecheck = false } = {}) {
         if (navigationPending) return pending || Promise.resolve();
-        // Focus/visibility events must never skip verification for a time-based
-        // cooldown: a different tab may have switched institutions moments ago.
-        // If the cookie changes during an in-flight request, perform another
-        // server check before ever unshielding the previous institution page.
         if (pending) {
-            recheckRequested = true;
+            // Explicit operations/session rotations require a fresh snapshot.
+            // Duplicated focus + visibility events never create a request loop.
+            if (forceRecheck) recheckRequested = true;
             return pending;
         }
-        block();
+        block(quiet && !sessionChangePending &&
+            (shield.hidden || shield.classList.contains('auth-session-shield--quiet')));
         const expectedReference = original;
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), 10000);
         pending = (async () => {
-            try {
-                const response = await fetch('/api/auth/session-context', {
-                    credentials: 'same-origin', cache: 'no-store',
-                    headers: { Accept: 'application/json' }, signal: controller.signal
-                });
-                if (response.status === 401 || response.status === 403) {
-                    redirectSafely('/Account/Login');
+            // Retry one transient network/5xx error before displaying recovery UI.
+            // Unauthorized sessions and cross-tenant changes never retry or unblock.
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const controller = new AbortController();
+                const timeout = window.setTimeout(() => controller.abort(), 5000);
+                try {
+                    const response = await fetch('/api/auth/session-context', {
+                        credentials: 'same-origin', cache: 'no-store',
+                        headers: { Accept: 'application/json' }, signal: controller.signal
+                    });
+                    if (response.status === 401 || response.status === 403) {
+                        redirectSafely('/Account/Login');
+                        return;
+                    }
+                    if (!response.ok) throw new Error('Session check unavailable');
+                    const payload = await response.json();
+                    const current = payload?.data?.sessionReference;
+                    const currentTenant = payload?.data?.tenantId == null ? '' : String(payload.data.tenantId);
+                    if (payload?.success !== true || !/^[0-9A-F]{64}$/.test(current || ''))
+                        throw new Error('Invalid session response');
+                    if (expectedReference !== original) {
+                        recheckRequested = true;
+                        return;
+                    }
+                    if (current !== original || currentTenant !== originalTenant) {
+                        // Never reuse an old page/form against the new institution cookie.
+                        redirectSafely('/Dashboard/Index');
+                        return;
+                    }
+                    if (sessionChangePending) {
+                        message.textContent = bangla ?
+                            'অন্য ট্যাবে সেশন পরিবর্তন চলছে। যাচাই করতে আবার চেষ্টা করুন।' :
+                            'Another tab is changing your session. Retry to verify access.';
+                        return;
+                    }
+                    if (document.visibilityState !== 'visible') {
+                        // The cookie may change again before the tab is reactivated.
+                        block(true);
+                        return;
+                    }
+                    if (!recheckRequested) unblock();
                     return;
+                } catch {
+                    if (navigationPending) return;
+                    if (attempt === 0 && window.navigator?.onLine !== false) {
+                        await new Promise(resolve => window.setTimeout(resolve, 350));
+                        continue;
+                    }
+                    // Persistent failures remain fail-closed: never expose
+                    // previous-tenant private content or enable stale forms.
+                    failed();
+                } finally {
+                    window.clearTimeout(timeout);
                 }
-                if (!response.ok) throw new Error('Session check unavailable');
-                const payload = await response.json();
-                const current = payload?.data?.sessionReference;
-                const currentTenant = payload?.data?.tenantId == null ? '' : String(payload.data.tenantId);
-                if (payload?.success !== true || !/^[0-9A-F]{64}$/.test(current || ''))
-                    throw new Error('Invalid session response');
-                if (expectedReference !== original) {
-                    recheckRequested = true;
-                    return;
-                }
-                if (current !== original || currentTenant !== originalTenant) {
-                    // Never reuse an old page/form against the new institution cookie.
-                    redirectSafely('/Dashboard/Index');
-                    return;
-                }
-                // A cross-tab logout is announced before the server has finished
-                // revoking its cookie. A successful check against the OLD session
-                // is not permission to reveal the old institution's private page.
-                if (sessionChangePending) {
-                    message.textContent = bangla ?
-                        'অন্য ট্যাবে সেশন পরিবর্তন চলছে। যাচাই করতে আবার চেষ্টা করুন।' :
-                        'Another tab is changing your session. Retry to verify access.';
-                    return;
-                }
-                if (!recheckRequested) unblock();
-            } catch {
-                // Fail closed: do not display the previous institution's data offline.
-                failed();
-            } finally {
-                window.clearTimeout(timeout);
             }
         })().finally(() => {
             pending = null;
@@ -108,7 +127,7 @@
 
     // A switch response can be lost after the server commits the new cookie.
     // Reconcile against the server before an uncertain modal can show old data.
-    window.EduOSVerifySessionContext = () => check();
+    window.EduOSVerifySessionContext = () => check({ forceRecheck: true });
     // Reject institution-specific UI readbacks while cross-tab session changes are pending.
     window.EduOSSessionTransitionPending = () => sessionChangePending || navigationPending;
 
@@ -136,12 +155,30 @@
         void check();
     });
     window.addEventListener('pageshow', event => {
-        if (event.persisted) void check();
+        if (event.persisted) {
+            block(true);
+            void check({ quiet: true, forceRecheck: true });
+        }
     });
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') void check();
+        if (document.visibilityState === 'hidden') {
+            wasHidden = true;
+            block(true);
+            return;
+        }
+        if (!wasHidden) return;
+        wasHidden = false;
+        lostFocus = false; // Focus immediately after visibility is the same activation.
+        void check({ quiet: true });
     });
-    window.addEventListener('focus', () => { void check(); });
+    window.addEventListener('blur', () => { lostFocus = true; });
+    window.addEventListener('focus', () => {
+        // Initial focus and ordinary clicks are not session changes. Still
+        // verify a real window return even if visibilitychange did not fire.
+        if (!lostFocus || wasHidden || document.visibilityState !== 'visible') return;
+        lostFocus = false;
+        void check({ quiet: true });
+    });
 
     // Broadcast contains no user ID, tenant ID, SID, or other private data.
     // Never trust the event itself: revalidate against the server before redirect.
