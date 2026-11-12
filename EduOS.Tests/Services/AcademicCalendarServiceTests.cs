@@ -230,6 +230,122 @@ public class AcademicCalendarServiceTests
         (await vicePrincipal.CreateEventAsync(Event(seed, "Denied event", true))).StatusCode.Should().Be(403);
     }
 
+
+    [Fact]
+    public async Task Official_BD_2027_holiday_import_is_reviewed_scoped_idempotent_and_audited()
+    {
+        var options = CreateOptions();
+        var seed = await SeedAsync(options, 101);
+        await using var db = CreateContext(options, 101, 7, "TenantAdmin");
+        var year = await db.AcademicYears.SingleAsync(x => x.Id == seed.YearId);
+        year.StartDate = new DateOnly(2027, 1, 1);
+        year.EndDate = new DateOnly(2027, 12, 31);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, new TestCurrentUser(101, 7, "TenantAdmin"));
+        var from = new DateOnly(2027, 1, 1);
+        var to = new DateOnly(2027, 12, 31);
+        var preview = await service.PreviewGovernmentHolidaysAsync(seed.YearId, null, from, to);
+        preview.Success.Should().BeTrue();
+        preview.Data!.Holidays.Should().HaveCount(19);
+        preview.Data.Holidays.Should().OnlyContain(x => x.Status == "Missing");
+        preview.Data.Holidays.Should().Contain(x => x.Code == "BD27-EID-FITR" &&
+            x.StartDate == new DateOnly(2027, 3, 8) &&
+            x.EndDate == new DateOnly(2027, 3, 12) && x.MoonDependent);
+        preview.Data.Holidays.Should().NotContain(x => x.Title.Contains("Chaitra Sankranti"));
+        var request = new ImportGovernmentHolidaysRequestDto
+        {
+            AcademicYearId = seed.YearId, FromDate = from, ToDate = to,
+            SourceVersion = preview.Data.SourceVersion,
+            ClientRequestId = Guid.NewGuid(), Confirmed = true,
+            SelectedCodes = ["BD27-LANGUAGE", "BD27-EID-FITR"]
+        };
+        var first = await service.ImportGovernmentHolidaysAsync(request);
+        first.Success.Should().BeTrue(first.Message);
+        first.Data!.CreatedCount.Should().Be(2);
+        (await db.AcademicCalendarEvents.CountAsync()).Should().Be(2);
+        (await db.AuditLogs.CountAsync(x => x.Action == "AcademicCalendar.ImportGovernmentHolidays"))
+            .Should().Be(1);
+        var replay = await service.ImportGovernmentHolidaysAsync(request);
+        replay.Success.Should().BeTrue();
+        replay.Data!.CreatedCount.Should().Be(2);
+        var next = new ImportGovernmentHolidaysRequestDto
+        {
+            AcademicYearId = request.AcademicYearId, FromDate = from, ToDate = to,
+            SourceVersion = request.SourceVersion, ClientRequestId = Guid.NewGuid(),
+            Confirmed = true, SelectedCodes = request.SelectedCodes
+        };
+        var already = await service.ImportGovernmentHolidaysAsync(next);
+        already.Success.Should().BeTrue();
+        already.Data!.CreatedCount.Should().Be(0);
+        already.Data.ExistingCount.Should().Be(2);
+        (await db.AcademicCalendarEvents.CountAsync()).Should().Be(2);
+        var changedPayload = new ImportGovernmentHolidaysRequestDto
+        {
+            AcademicYearId = request.AcademicYearId, FromDate = from, ToDate = to,
+            SourceVersion = request.SourceVersion, ClientRequestId = request.ClientRequestId,
+            Confirmed = true, SelectedCodes = ["BD27-VICTORY"]
+        };
+        (await service.ImportGovernmentHolidaysAsync(changedPayload)).StatusCode.Should().Be(409);
+        (await db.AcademicCalendarEvents.CountAsync()).Should().Be(2);
+        var report = await service.GetWorkingDaysAsync(seed.YearId, seed.CampusId,
+            new DateOnly(2027, 3, 8), new DateOnly(2027, 3, 12));
+        report.Success.Should().BeTrue();
+        report.Data!.Should().OnlyContain(x => !x.IsWorkingDay);
+    }
+
+    [Fact]
+    public async Task Official_holiday_preview_and_import_reject_cross_country_unauthorized_and_conflicts()
+    {
+        var options = CreateOptions();
+        var seed = await SeedAsync(options, 101);
+        await using var db = CreateContext(options, 101, 7, "TenantAdmin");
+        var year = await db.AcademicYears.SingleAsync(x => x.Id == seed.YearId);
+        year.StartDate = new DateOnly(2027, 1, 1);
+        year.EndDate = new DateOnly(2027, 12, 31);
+        await db.SaveChangesAsync();
+        var admin = CreateService(db, new TestCurrentUser(101, 7, "TenantAdmin"));
+        var teacher = CreateService(db, new TestCurrentUser(101, 71, "Teacher"));
+        var principal = CreateService(db, new TestCurrentUser(101, 9, "Principal"));
+        var from = new DateOnly(2027, 1, 1);
+        var to = new DateOnly(2027, 12, 31);
+        (await teacher.PreviewGovernmentHolidaysAsync(seed.YearId, null, from, to)).StatusCode.Should().Be(403);
+        (await principal.PreviewGovernmentHolidaysAsync(seed.YearId, null, from, to)).StatusCode.Should().Be(403);
+        (await principal.PreviewGovernmentHolidaysAsync(seed.YearId, seed.CampusId, from, to)).StatusCode.Should().Be(403);
+        db.UserCampusAccesses.Add(new UserCampusAccess
+        {
+            TenantId = 101, UserId = 9, CampusId = seed.CampusId, IsActive = true
+        });
+        await db.SaveChangesAsync();
+        (await principal.PreviewGovernmentHolidaysAsync(seed.YearId, seed.CampusId, from, to))
+            .Success.Should().BeTrue();
+        db.AcademicCalendarEvents.Add(new AcademicCalendarEvent
+        {
+            TenantId = 101, AcademicYearId = seed.YearId, CampusId = null,
+            EventType = CalendarEventKind.Academic, IsHoliday = false,
+            Title = "Language Martyrs' Day",
+            StartDate = new DateOnly(2027, 2, 21),
+            EndDate = new DateOnly(2027, 2, 21)
+        });
+        await db.SaveChangesAsync();
+        var conflict = await admin.PreviewGovernmentHolidaysAsync(seed.YearId, null, from, to);
+        conflict.Data!.Holidays.Single(x => x.Code == "BD27-LANGUAGE").Status.Should().Be("Conflict");
+        var request = new ImportGovernmentHolidaysRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), AcademicYearId = seed.YearId,
+            FromDate = from, ToDate = to,
+            SourceVersion = conflict.Data.SourceVersion, Confirmed = true,
+            SelectedCodes = ["BD27-LANGUAGE"]
+        };
+        (await admin.ImportGovernmentHolidaysAsync(request)).StatusCode.Should().Be(409);
+        (await db.AcademicCalendarEvents.CountAsync()).Should().Be(1);
+        var tenant = await db.Tenants.SingleAsync(x => x.Id == 101);
+        tenant.CountryCode = "US";
+        await db.SaveChangesAsync();
+        (await admin.PreviewGovernmentHolidaysAsync(seed.YearId, null, from, to))
+            .StatusCode.Should().Be(403);
+        (await db.AcademicCalendarEvents.CountAsync()).Should().Be(1);
+    }
+
     private static SaveAcademicCalendarEventRequestDto Event(CalendarSeed seed, string title, bool visible) => new()
     {
         CampusId = seed.CampusId,
@@ -273,6 +389,12 @@ public class AcademicCalendarServiceTests
         await using var context = CreateContext(options, tenantId, tenantId, "TenantAdmin");
         var campus = new Campus { TenantId = tenantId, Name = $"Campus {tenantId}", Code = $"C-{tenantId}", IsActive = true };
         var year = new AcademicYear { TenantId = tenantId, Name = "2026", Code = "2026", StartDate = new DateOnly(2026, 1, 1), EndDate = new DateOnly(2026, 12, 31), IsCurrent = true, IsActive = true };
+        context.Tenants.Add(new Tenant
+        {
+            Id = tenantId, Name = "Calendar Institution " + tenantId,
+            Code = "CAL-" + tenantId, Email = "calendar" + tenantId + "@example.test",
+            CountryCode = "BD"
+        });
         context.AddRange(campus, year);
         await context.SaveChangesAsync();
         var term = new AcademicTerm { TenantId = tenantId, AcademicYearId = year.Id, Name = "Autumn", StartDate = new DateOnly(2026, 7, 1), EndDate = new DateOnly(2026, 12, 15), IsActive = true };
