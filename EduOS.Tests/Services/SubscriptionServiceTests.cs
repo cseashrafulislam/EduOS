@@ -314,6 +314,7 @@ public sealed class SubscriptionServiceTests
             ClientRequestId = Guid.NewGuid(), RowVersion = Convert.ToBase64String(new byte[] { 1, 2, 3 })
         });
         bad.StatusCode.Should().Be(409);
+        current.BillingCycleCode = "Quarterly";
         current.EndsAt = DateTime.UtcNow.AddDays(31);
         await setup.Db.SaveChangesAsync();
         var early = await setup.Service.RenewAsync(current.PublicId, new RenewSubscriptionRequestDto
@@ -322,6 +323,64 @@ public sealed class SubscriptionServiceTests
         });
         early.StatusCode.Should().Be(409);
         (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Active_monthly_subscription_can_prepay_one_next_month_on_first_day()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 1000m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var current = await setup.Db.TenantSubscriptions.SingleAsync();
+        current.State = SubscriptionState.Active;
+        current.StartsAt = DateTime.UtcNow.AddMinutes(-5);
+        current.EndsAt = DateTime.UtcNow.AddDays(31);
+        current.RowVersion = new byte[] { 7, 7, 7 };
+        await setup.Db.SaveChangesAsync();
+        var request = new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(),
+            RowVersion = Convert.ToBase64String(current.RowVersion)
+        };
+        var renewal = await setup.Service.RenewAsync(current.PublicId, request);
+        renewal.Success.Should().BeTrue(renewal.Message);
+        renewal.Data!.State.Should().Be(SubscriptionState.PendingPayment);
+        renewal.Data.StartsAt.Should().Be(current.EndsAt);
+        renewal.Data.EndsAt.Should().Be(current.EndsAt.AddMonths(1));
+        renewal.Data.PriceSnapshot.Should().Be(1000m);
+        (await setup.Service.GetCurrentAsync()).Data!.Id.Should().Be(current.Id);
+        (await setup.Service.GetUpcomingAsync()).Data!.Id.Should().Be(renewal.Data.Id);
+        var replay = await setup.Service.RenewAsync(current.PublicId, request);
+        replay.Success.Should().BeTrue(replay.Message);
+        replay.Data!.Id.Should().Be(renewal.Data.Id);
+        var different = await setup.Service.RenewAsync(current.PublicId, new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), RowVersion = request.RowVersion
+        });
+        different.StatusCode.Should().Be(409);
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(2);
+        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(2);
+        (await setup.Db.SubscriptionInvoiceLines.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Unverified_first_payment_cannot_create_next_month()
+    {
+        await using var setup = await SetupAsync();
+        setup.ActivateRequest();
+        var plan = await AddPlanAsync(setup.Db, 700m);
+        (await setup.Service.StartAsync(Request(plan.Id))).Success.Should().BeTrue();
+        var pending = await setup.Db.TenantSubscriptions.SingleAsync();
+        pending.State.Should().Be(SubscriptionState.PendingPayment);
+        var result = await setup.Service.RenewAsync(pending.PublicId, new RenewSubscriptionRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(),
+            RowVersion = Convert.ToBase64String(pending.RowVersion)
+        });
+        result.StatusCode.Should().Be(409);
+        (await setup.Db.TenantSubscriptions.CountAsync()).Should().Be(1);
+        (await setup.Db.SubscriptionInvoices.CountAsync()).Should().Be(1);
     }
 
     [Fact]
