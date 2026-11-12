@@ -205,8 +205,9 @@ public sealed class AcademicSetupController : ControllerBase
     [HttpGet("batches/{academicBatchId:long}/offerings")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> Offerings(long academicBatchId, [FromQuery] string? search,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
-        ToAction(await _service.GetSubjectOfferingsAsync(academicBatchId, search, page, pageSize, cancellationToken));
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] long? academicSectionId = null, CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetSubjectOfferingsAsync(academicBatchId, search, page, pageSize, cancellationToken, academicSectionId));
 
     [HttpPost("offerings")]
     [Authorize(Roles = "TenantAdmin")]
