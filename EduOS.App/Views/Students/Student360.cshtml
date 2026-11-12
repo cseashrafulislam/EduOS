@@ -18,6 +18,12 @@
     <section class="card" aria-label="@(bn ? "নির্বাচিত ইতিহাস" : "Selected history")">
         <div class="card-body">
             <p id="s360Status" role="status" aria-live="polite"></p>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                <button id="s360Retry" type="button" class="btn btn-sm btn-outline-primary">@(bn ? "আবার লোড" : "Retry history")</button>
+                <button id="s360Export" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "এই পৃষ্ঠা CSV" : "Export current page (CSV)")</button>
+                <button id="s360Print" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "এই পৃষ্ঠা প্রিন্ট" : "Print current page")</button>
+                <span class="small text-muted align-self-center">@(bn ? "শুধু বর্তমানে অনুমোদিত দৃশ্যমান তথ্য" : "Only currently authorized visible records")</span>
+            </div>
             <div class="table-responsive">
                 <table class="table table-sm table-striped align-middle">
                     <thead id="s360Head"></thead><tbody id="s360Rows"></tbody>

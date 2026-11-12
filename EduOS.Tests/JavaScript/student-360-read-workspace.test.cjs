@@ -42,3 +42,18 @@ test('F10 tabs reuse canonical paged authorized APIs and fail closed on session 
         ['EduOS.App/Controllers/Api/StudentGuardiansController.cs', 'TenantAdmin']
     ]) assert.ok(read(p).includes('Authorize(Roles = "' + role + '")'), p);
 });
+
+test('F10 current-page export and print are fail-closed and reuse displayed authorized rows', () => {
+    const js = read('EduOS.App/wwwroot/js/students/student-360.js');
+    const view = read('EduOS.App/Views/Students/Student360.cshtml');
+    for (const id of ['s360Retry', 's360Export', 's360Print']) assert.ok(view.includes('id="' + id + '"'));
+    assert.match(js, /currentTab === tab/);
+    assert.match(js, /profileReady && historyReady/);
+    assert.match(js, /historyReady = false; currentRows = \[\]/);
+    assert.match(js, /const rows = authorizedPage\(\)/);
+    assert.match(js, /csvCell/);
+    assert.match(js, /replace\(\/"\/g, '""'\)/);
+    assert.match(js, /textContent = value/);
+    assert.doesNotMatch(js, /innerHTML\s*=/);
+    assert.doesNotMatch(js, /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/);
+});

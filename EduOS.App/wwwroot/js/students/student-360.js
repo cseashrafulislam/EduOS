@@ -32,12 +32,17 @@
         }
     };
     let tab = 'enrollment', page = 1, totalPages = 1, busy = false, token = 0, controller = null;
+    let currentRows = [], currentTab = null, profileReady = false, historyReady = false;
     const node = (tag, value) => { const e = document.createElement(tag); e.textContent = value == null || value === '' ? '—' : String(value); return e; };
     const alert = value => { $('s360Alert').className = 'alert alert-danger'; $('s360Alert').textContent = value; };
     function controls() {
         $('s360Previous').disabled = busy || page <= 1;
         $('s360Next').disabled = busy || page >= totalPages;
         $('s360Page').textContent = page + ' / ' + totalPages;
+        const canExport = !busy && profileReady && historyReady && currentTab === tab && currentRows.length > 0 && sameSession();
+        $('s360Export').disabled = !canExport;
+        $('s360Print').disabled = !canExport;
+        $('s360Retry').disabled = busy || !profileReady;
     }
     function render(items) {
         const cfg = configs[tab];
@@ -70,7 +75,7 @@
         const local = new AbortController();
         controller = local;
         const ticket = ++token, selected = tab;
-        busy = true; controls();
+        busy = true; historyReady = false; currentRows = []; currentTab = null; controls();
         $('s360Status').textContent = msg('Loading history…', 'ইতিহাস লোড হচ্ছে…');
         $('s360Rows').replaceChildren();
         try {
@@ -94,6 +99,9 @@
                 totalPages = Math.max(1, Math.ceil(data.totalCount / 20));
                 if (page > totalPages) { page = totalPages; load(); return; }
             }
+            currentRows = items.map(item => ({...item}));
+            currentTab = selected;
+            historyReady = true;
             render(items);
             $('s360Alert').className = 'd-none';
             $('s360Status').textContent = items.length
@@ -103,6 +111,8 @@
             if (ticket !== token || local.signal.aborted || !sameSession()) return;
             $('s360Rows').replaceChildren();
             totalPages = page;
+            historyReady = false;
+            currentRows = [];
             alert(error.message || msg('Could not load history.', 'ইতিহাস লোড করা যায়নি।'));
             $('s360Status').textContent = msg('Unavailable (not zero).', 'অনুপলব্ধ (শূন্য নয়)।');
         } finally {
@@ -122,6 +132,7 @@
             const summary = node('p', [d.studentCode, d.academicLevelName, d.academicBatchName, d.status]
                 .filter(Boolean).join(' · ')); summary.className = 'mb-0 text-muted';
             body.append(title, summary); host.replaceChildren(body);
+            profileReady = true;
             load();
         } catch {
             if (!sameSession()) return;
@@ -132,6 +143,7 @@
     document.querySelectorAll('[data-s360-tab]').forEach(button => button.addEventListener('click', () => {
         if (!sameSession()) return;
         tab = button.dataset.s360Tab; page = 1; totalPages = 1;
+        historyReady = false; currentRows = []; currentTab = null;
         document.querySelectorAll('[data-s360-tab]').forEach(b => {
             const active = b === button;
             b.className = active ? 'btn btn-primary' : 'btn btn-outline-primary';
@@ -141,6 +153,69 @@
     }));
     $('s360Previous').addEventListener('click', () => { if (!busy && page > 1) { page--; load(); } });
     $('s360Next').addEventListener('click', () => { if (!busy && page < totalPages) { page++; load(); } });
-    window.addEventListener('pagehide', () => controller?.abort());
+    $('s360Retry').addEventListener('click', () => { if (!busy && profileReady && sameSession()) load(); });
+    function authorizedPage() {
+        return !busy && profileReady && historyReady && currentTab === tab &&
+            currentRows.length > 0 && sameSession() ? currentRows : null;
+    }
+    function pageCells() {
+        const rows = authorizedPage();
+        if (!rows) return null;
+        const cols = configs[tab].columns;
+        const headers = cols.map(col => bn ? col[2] : col[1]);
+        const body = rows.map(item => cols.map(([field]) => {
+            const value = item[field];
+            if (typeof value === 'boolean') return value ? msg('Yes', 'হ্যাঁ') : msg('No', 'না');
+            if (value == null) return '';
+            if (field === 'occurredAt') {
+                const d = new Date(value);
+                return Number.isNaN(d.getTime()) ? '' : d.toLocaleString(bn ? 'bn-BD' : 'en-BD');
+            }
+            return String(value);
+        }));
+        return {headers, body};
+    }
+    function csvCell(value) {
+        // Quoting all cells prevents spreadsheet formula execution for untrusted historical text.
+        const safe = /^[=+@\-\t\r]/.test(value) ? "'" + value : value;
+        return '"' + safe.replace(/"/g, '""') + '"';
+    }
+    $('s360Export').addEventListener('click', () => {
+        const cells = pageCells();
+        if (!cells) return;
+        const content = '\uFEFF' + [cells.headers, ...cells.body].map(row => row.map(csvCell).join(',')).join('\r\n');
+        const url = URL.createObjectURL(new Blob([content], {type: 'text/csv;charset=utf-8'}));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'student-history-' + tab + '-page-' + page + '.csv';
+        document.body.append(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    });
+    $('s360Print').addEventListener('click', () => {
+        const cells = pageCells();
+        if (!cells) return;
+        // Print only the currently displayed authorized projection, never a broader report.
+        const w = window.open('', '_blank');
+        if (!w) { alert(msg('Pop-up blocked. Allow pop-ups to print.', 'প্রিন্ট পপ-আপ বন্ধ আছে।')); return; }
+        w.opener = null;
+        const doc = w.document;
+        const title = doc.createElement('h1');
+        title.textContent = msg('Student history — ', 'শিক্ষার্থীর ইতিহাস — ') + tab + ' (' + page + ')';
+        const table = doc.createElement('table');
+        table.style.borderCollapse = 'collapse';
+        const tr = doc.createElement('tr');
+        cells.headers.forEach(value => { const th = doc.createElement('th'); th.textContent = value; th.style.border = '1px solid #888'; tr.append(th); });
+        table.append(tr);
+        cells.body.forEach(row => {
+            const r = doc.createElement('tr');
+            row.forEach(value => { const td = doc.createElement('td'); td.textContent = value; td.style.border = '1px solid #888'; r.append(td); });
+            table.append(r);
+        });
+        doc.body.append(title, table);
+        w.print();
+    });
+    window.addEventListener('pagehide', () => { controller?.abort(); historyReady = false; currentRows = []; controls(); });
     profile();
 })();
