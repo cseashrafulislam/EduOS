@@ -19,9 +19,12 @@ test('Dashboard and everyday workflows precede administrative setup', () => {
     const institution = layout.indexOf('Path: "/InstitutionManagement/Profile"');
     assert.ok([dashboard, workCenter, academicManagement, academics, management,
         adminHeading, userAccess, institution].every(index => index >= 0));
-    assert.ok(dashboard < workCenter && workCenter < academicManagement);
-    assert.ok(academicManagement < academics && academics < management);
-    assert.ok(management < adminHeading && adminHeading < userAccess && userAccess < institution);
+    assert.ok(dashboard < workCenter && workCenter < academics);
+    assert.ok(academics < management && management < adminHeading);
+    assert.ok(adminHeading < userAccess && userAccess < institution);
+    assert.ok(institution < academicManagement, 'academic master-data setup belongs under administration');
+    assert.match(layout, /data-sidebar-section="academics" data-sidebar-static="true"/);
+    assert.match(layout, /data-sidebar-section="management" data-sidebar-static="true"/);
 });
 
 test('No administrative link is duplicated, lost, or exposed outside TenantAdmin', () => {
@@ -58,4 +61,7 @@ test('Existing authorization-backed sidebar categories and grouping remain intac
     assert.match(layout, /data-shell-next-task="true"/);
     assert.match(layout, /OptionalModuleNavigation\.GetAvailableAsync/);
     assert.match(layout, /V2RolePortalNavigation\.GetLinks/);
+    assert.match(layout, /My Work & Approvals/);
+    assert.match(layout, /Daily Operations/);
+    assert.match(layout, /sidebarFavoriteShortcuts/);
 });
