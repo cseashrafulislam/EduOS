@@ -40,6 +40,9 @@ test('Admission editor scrolls inside its modal while Save draft remains visible
     assert.match(css, /#intakeFormModal \.admission-intake-body\s*\{[^}]*overflow-y:\s*auto/s);
     assert.match(css, /#intakeFormModal \.admission-intake-footer\s*\{[^}]*flex:\s*0 0 auto/s);
     assert.doesNotMatch(view, /Form description is not stored by the current canonical intake model/);
+    assert.match(js, /modalTitle\.textContent = item/);
+    assert.match(js, /querySelectorAll\('\.intake-field-row'\)\.length >= 50/);
+    assert.match(js, /querySelectorAll\('\.intake-document-row'\)\.length >= 20/);
 });
 test('a duplicate admission code is linked to Code, not mislabeled as a stale edit', () => {
     const api = errorApi();
