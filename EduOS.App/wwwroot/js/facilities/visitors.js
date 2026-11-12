@@ -128,7 +128,12 @@
             });
             commandIds.delete(key);
             $('fvReason').value = ''; $('fvBadge').value = '';
-            await load();
+            try {
+                await load();
+            } catch (refreshError) {
+                status(label('Action saved, but the visit list could not refresh. Refresh the list; do not repeat the action.',
+                    'কাজটি সংরক্ষিত হয়েছে, কিন্তু তালিকা রিফ্রেশ হয়নি। তালিকা রিফ্রেশ করুন; একই কাজ আবার করবেন না।'));
+            }
         } catch (e) { status(e.message); }
         finally { inFlightActions.delete(key); }
     };
@@ -290,7 +295,12 @@
             pendingCreateId = crypto.randomUUID(); lastCreateFingerprint = '';
             $('fvName').value = ''; $('fvPurpose').value = '';
             createGuard?.markClean();
-            await load();
+            try {
+                await load();
+            } catch (refreshError) {
+                status(label('Visit saved, but the list could not refresh. Refresh the list; do not create it again.',
+                    'ভিজিট সংরক্ষিত হয়েছে, কিন্তু তালিকা রিফ্রেশ হয়নি। তালিকা রিফ্রেশ করুন; আবার তৈরি করবেন না।'));
+            }
         } catch (err) { status(err.message); }
         finally { creating = false; createForm.inert = false; }
     });
@@ -401,7 +411,12 @@
             pendingPolicyId = crypto.randomUUID(); lastPolicyFingerprint = '';
             $('fvPolicyReason').value = '';
             policyGuard?.markClean();
-            await loadPolicies();
+            try {
+                await loadPolicies();
+            } catch (refreshError) {
+                status(label('Policy request saved, but the list could not refresh. Refresh the list; do not submit again.',
+                    'নীতির অনুরোধ সংরক্ষিত হয়েছে, কিন্তু তালিকা রিফ্রেশ হয়নি। তালিকা রিফ্রেশ করুন; আবার জমা দেবেন না।'));
+            }
         } catch (error) { status(error.message); }
         finally { requestingPolicy = false; policyForm.inert = false; }
     });
