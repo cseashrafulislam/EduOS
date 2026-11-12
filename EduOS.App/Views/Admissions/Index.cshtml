@@ -74,7 +74,7 @@
 
 <section class="admission-page" aria-labelledby="admissionTitle" data-admission-feature="@admissionFeature">
     @Html.AntiForgeryToken()
-    <header class="content-header-card">
+    <header class="content-header-card admission-page-header">
         <div>
             <p class="dashboard-eyebrow">@T["Admission"]</p>
             <h2 id="admissionTitle">@focusedTitle</h2>
@@ -149,26 +149,26 @@
                         <h4 id="admissionStep01">@(bn ? "ভর্তির তথ্য" : "Admission details")</h4>
                     </div>
                     <div class="row g-3">
-                <div class="col-12">
-                    <label class="form-label" for="admissionFormReference">@(bn ? "প্রকাশিত ভর্তি ফরম" : "Published intake") *</label>
-                    <select class="form-select" id="admissionFormReference" required></select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="academicYearId">@T["AcademicYear"] *</label>
-                    <select class="form-select" id="academicYearId" required></select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="academicTermId">@T["AcademicTerm"]</label>
-                    <select class="form-select" id="academicTermId"></select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="campusId">@T["Campus"] *</label>
-                    <select class="form-select" id="campusId" required></select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="academicUnitId">@T["AcademicUnit"] *</label>
-                    <select class="form-select" id="academicUnitId" required></select>
-                </div>
+                        <div class="col-12">
+                            <label class="form-label" for="admissionFormReference">@(bn ? "প্রকাশিত ভর্তি ফরম" : "Published intake") *</label>
+                            <select class="form-select" id="admissionFormReference" required></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="academicYearId">@T["AcademicYear"] *</label>
+                            <select class="form-select" id="academicYearId" required></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="academicTermId">@T["AcademicTerm"]</label>
+                            <select class="form-select" id="academicTermId"></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="campusId">@T["Campus"] *</label>
+                            <select class="form-select" id="campusId" required></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="academicUnitId">@T["AcademicUnit"] *</label>
+                            <select class="form-select" id="academicUnitId" required></select>
+                        </div>
                     </div>
                 </section>
                 <section class="admission-form-section" aria-labelledby="admissionStep02">
@@ -177,35 +177,35 @@
                         <h4 id="admissionStep02">@(bn ? "শিক্ষার্থীর তথ্য" : "Applicant information")</h4>
                     </div>
                     <div class="row g-3">
-                <div class="col-md-6">
-                    <label class="form-label" for="applicantName">@T["ApplicantName"] *</label>
-                    <input class="form-control" id="applicantName" maxlength="200" autocomplete="name" required />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="applicantNameBangla">@T["ApplicantNameBangla"]</label>
-                    <input class="form-control" id="applicantNameBangla" maxlength="200" lang="bn" />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="dateOfBirth">@T["DateOfBirth"] *</label>
-                    <input class="form-control" id="dateOfBirth" type="date" max="@maximumBirthDate" required />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="gender">@T["Gender"] *</label>
-                    <select class="form-select" id="gender" required>
-                        <option value="">@T["SelectOption"]</option>
-                        <option value="1">@T["Male"]</option>
-                        <option value="2">@T["Female"]</option>
-                        <option value="3">@T["Other"]</option>
-                    </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="primaryMobile">@T["PrimaryMobile"] *</label>
-                    <input class="form-control" id="primaryMobile" type="tel" maxlength="30" inputmode="tel" autocomplete="tel" required />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label" for="email">@T["EmailAddress"]</label>
-                    <input class="form-control" id="email" type="email" maxlength="254" autocomplete="email" />
-                </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="applicantName">@T["ApplicantName"] *</label>
+                            <input class="form-control" id="applicantName" maxlength="200" autocomplete="name" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="applicantNameBangla">@T["ApplicantNameBangla"]</label>
+                            <input class="form-control" id="applicantNameBangla" maxlength="200" lang="bn" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="dateOfBirth">@T["DateOfBirth"] *</label>
+                            <input class="form-control" id="dateOfBirth" type="date" max="@maximumBirthDate" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="gender">@T["Gender"] *</label>
+                            <select class="form-select" id="gender" required>
+                                <option value="">@T["SelectOption"]</option>
+                                <option value="1">@T["Male"]</option>
+                                <option value="2">@T["Female"]</option>
+                                <option value="3">@T["Other"]</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="primaryMobile">@T["PrimaryMobile"] *</label>
+                            <input class="form-control" id="primaryMobile" type="tel" maxlength="30" inputmode="tel" autocomplete="tel" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="email">@T["EmailAddress"]</label>
+                            <input class="form-control" id="email" type="email" maxlength="254" autocomplete="email" />
+                        </div>
 
                     </div>
                 </section>
@@ -215,31 +215,31 @@
                         <h4 id="admissionStep03">@(bn ? "অভিভাবক ও যোগাযোগ" : "Guardian & contact")</h4>
                     </div>
                     <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label" for="guardianName">@T["GuardianName"]</label>
-                    <input class="form-control" id="guardianName" maxlength="200" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label" for="guardianRelation">@T["GuardianRelation"]</label>
-                    <input class="form-control" id="guardianRelation" maxlength="50" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label" for="guardianMobile">@T["GuardianMobile"]</label>
-                    <input class="form-control" id="guardianMobile" type="tel" maxlength="30" inputmode="tel" />
-                </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="guardianName">@T["GuardianName"]</label>
+                            <input class="form-control" id="guardianName" maxlength="200" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="guardianRelation">@T["GuardianRelation"]</label>
+                            <input class="form-control" id="guardianRelation" maxlength="50" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="guardianMobile">@T["GuardianMobile"]</label>
+                            <input class="form-control" id="guardianMobile" type="tel" maxlength="30" inputmode="tel" />
+                        </div>
 
-                <div class="col-12">
-                    <label class="form-label" for="presentAddress">@(bn ? "যোগাযোগের ঠিকানা" : "Contact address")</label>
-                    <textarea class="form-control" id="presentAddress" maxlength="1000" rows="2" autocomplete="street-address"></textarea>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label" for="preferredLanguage">@T["PreferredLanguage"]</label>
-                    <select class="form-select" id="preferredLanguage">
-                        <option value="bn-BD">@T["Bangla"]</option>
-                        <option value="en-BD">@T["English"]</option>
-                    </select>
-                </div>
-                <div class="col-12"><div id="admissionCustomFields" class="row g-3" aria-live="polite"></div></div>
+                        <div class="col-12">
+                            <label class="form-label" for="presentAddress">@(bn ? "যোগাযোগের ঠিকানা" : "Contact address")</label>
+                            <textarea class="form-control" id="presentAddress" maxlength="1000" rows="2" autocomplete="street-address"></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="preferredLanguage">@T["PreferredLanguage"]</label>
+                            <select class="form-select" id="preferredLanguage">
+                                <option value="bn-BD">@T["Bangla"]</option>
+                                <option value="en-BD">@T["English"]</option>
+                            </select>
+                        </div>
+                        <div class="col-12"><div id="admissionCustomFields" class="row g-3" aria-live="polite"></div></div>
                     </div>
                 </section>
                 <div class="admission-form-actions">
