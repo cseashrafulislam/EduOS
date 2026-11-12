@@ -599,12 +599,35 @@ public sealed partial class SubscriptionPaymentService : ISubscriptionPaymentSer
                 x.Id == invoice.TenantSubscriptionId && !x.IsDeleted);
         if (subscription == null)
             throw new InvalidOperationException("Subscription is not available for the settled invoice.");
-        if (subscription.State == SubscriptionState.Active) return;
-        if (subscription.State != SubscriptionState.PendingPayment)
+        if (subscription.State == SubscriptionState.PendingPayment)
+        {
+            subscription.State = SubscriptionState.Active;
+            subscription.UpdatedAt = DateTime.UtcNow;
+            _subscriptionRows.Update(subscription);
+        }
+        else if (subscription.State != SubscriptionState.Active)
             throw new InvalidOperationException("Subscription cannot be activated from this state.");
-        subscription.State = SubscriptionState.Active;
-        subscription.UpdatedAt = DateTime.UtcNow;
-        _subscriptionRows.Update(subscription);
+
+        // The first verified invoice unlocks the ERP immediately. This must be part
+        // of the settled-payment transaction, not depend on a subsequent UI button.
+        // Prepaid renewals (future StartsAt / PreviousSubscriptionId) cannot change
+        // the current institution onboarding state or grant early entitlements.
+        var now = DateTime.UtcNow;
+        if (!subscription.PreviousSubscriptionId.HasValue &&
+            subscription.StartsAt <= now && subscription.EndsAt > now)
+        {
+            var tenant = await _tenants.GetQueryable().IgnoreQueryFilters()
+                .FirstOrDefaultAsync(x => x.Id == invoice.TenantId && !x.IsDeleted);
+            if (tenant != null && tenant.OnboardingStage == OnboardingStage.Payment &&
+                OnboardingWorkspacePolicy.CanActivate(tenant, subscription, now))
+            {
+                tenant.OnboardingStage = OnboardingStage.CampusSetup;
+                if (tenant.State == TenantState.PendingVerification)
+                    tenant.State = TenantState.Active;
+                tenant.UpdatedAt = now;
+                _tenants.Update(tenant);
+            }
+        }
         await _uow.SaveChangesAsync();
     }
 
