@@ -1,0 +1,35 @@
+@{
+    ViewData["Title"] = "Student 360";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+}
+<section id="student360" class="container-fluid py-3" data-reference="@ViewBag.StudentReference" data-bn="@(bn ? "true" : "false")">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div><h1 class="h4 mb-1">@(bn ? "শিক্ষার্থী ৩৬০°" : "Student 360°")</h1>
+            <p class="small text-muted mb-0">@(bn ? "অনুমোদিত শিক্ষার্থীর তথ্য ও ইতিহাস; কোনো পরিবর্তন এখানে সংরক্ষণ হয় না।" : "Authorized student records and history. Read-only workspace.")</p></div>
+        <a asp-controller="Students" asp-action="Index" class="btn btn-outline-secondary">@(bn ? "শিক্ষার্থী তালিকা" : "Student directory")</a>
+    </header>
+    <div id="s360Alert" class="d-none" role="alert" aria-live="polite"></div>
+    <div id="s360Identity" class="card mb-3"><div class="card-body" aria-live="polite">@(bn ? "প্রোফাইল লোড হচ্ছে…" : "Loading profile…")</div></div>
+    <nav class="d-flex gap-2 flex-wrap mb-3" aria-label="@(bn ? "শিক্ষার্থীর ইতিহাস" : "Student history")">
+        <button class="btn btn-primary" type="button" data-s360-tab="enrollment" aria-pressed="true">@(bn ? "ভর্তির ইতিহাস" : "Enrollment history")</button>
+        <button class="btn btn-outline-primary" type="button" data-s360-tab="lifecycle" aria-pressed="false">@(bn ? "অবস্থা পরিবর্তন" : "Lifecycle history")</button>
+        <button class="btn btn-outline-primary" type="button" data-s360-tab="guardian" aria-pressed="false">@(bn ? "অভিভাবক সংযোগ ইতিহাস" : "Guardian relationship history")</button>
+    </nav>
+    <section class="card" aria-label="@(bn ? "নির্বাচিত ইতিহাস" : "Selected history")">
+        <div class="card-body">
+            <p id="s360Status" role="status" aria-live="polite"></p>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped align-middle">
+                    <thead id="s360Head"></thead><tbody id="s360Rows"></tbody>
+                </table>
+            </div>
+            <div class="d-flex justify-content-end align-items-center gap-2">
+                <button id="s360Previous" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "আগে" : "Previous")</button>
+                <span id="s360Page" class="small" aria-live="polite"></span>
+                <button id="s360Next" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "পরে" : "Next")</button>
+            </div>
+        </div>
+    </section>
+    <p class="small text-muted mt-3">@(bn ? "উপস্থিতি, ফি ও ফলাফলের জন্য সংশ্লিষ্ট অনুমোদিত রিপোর্ট ব্যবহার করুন। এই পৃষ্ঠায় অনুমানভিত্তিক আর্থিক বা একাডেমিক সংখ্যা দেখানো হয় না।" : "Use the authorized Attendance, Fees and Results reports for their canonical figures. This workspace does not infer academic or financial totals.")</p>
+</section>
+@section Scripts { <script src="~/js/students/student-360.js" asp-append-version="true"></script> }

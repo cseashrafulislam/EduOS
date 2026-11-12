@@ -75,7 +75,7 @@
             <button id="studentResetFilters" class="btn btn-outline-secondary" type="button">@(CultureInfo.CurrentUICulture.Name == "bn-BD" ? "ফিল্টার পরিষ্কার" : "Clear filters")</button>
             <button id="studentExportPage" class="btn btn-outline-secondary" type="button" disabled>@T["ExportPageCsv"]</button>
         </form>
-        <div id="studentList" class="admission-list" aria-live="polite" aria-busy="true"></div>
+        <div id="studentList" data-can-student360="@(User.IsInRole("TenantAdmin") ? "true" : "false")" class="admission-list" aria-live="polite" aria-busy="true"></div>
         <nav class="admission-pagination" aria-label="@T["StudentPagination"]">
             <button id="studentPrevious" class="btn btn-sm btn-outline-secondary" type="button">@T["Previous"]</button>
             <span id="studentPageStatus" role="status" aria-live="polite"></span>

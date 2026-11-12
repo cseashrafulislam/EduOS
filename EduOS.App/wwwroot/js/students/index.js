@@ -97,6 +97,13 @@
             button.className = 'btn btn-sm btn-outline-primary';
             button.dataset.reference = item.reference;
             button.textContent = i18n.view || '';
+            if (document.getElementById('studentList')?.dataset.canStudent360 === 'true') {
+                const workspace = document.createElement('a');
+                workspace.className = 'btn btn-sm btn-outline-secondary';
+                workspace.href = '/Students/Student360?reference=' + encodeURIComponent(item.reference);
+                workspace.textContent = i18n.culture?.startsWith('bn') ? 'শিক্ষার্থী ৩৬০°' : 'Student 360°';
+                card.append(workspace);
+            }
             card.append(heading, line(i18n.studentCode, item.studentCode), line(i18n.roll, item.rollNo),
                 line(i18n.academicUnit, [item.academicLevelName, item.academicBatchName, item.academicYear].filter(Boolean).join(' · ')),
                 line(i18n.fullContact, item.maskedMobile), button);
