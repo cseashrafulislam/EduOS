@@ -8,7 +8,7 @@ namespace EduOS.Service.Services.Academic;
 /// </summary>
 internal static class BangladeshGovernmentHolidayCatalog
 {
-    internal const string Version = "BD-MOPA-2026-2027-v1";
+    internal const string Version = "BD-MOPA-2026-2027-v2";
     internal const string Source2026 = "https://mopa.gov.bd/pages/public-holiday?archived=true";
     internal const string Source2027 = "https://mopa.gov.bd/pages/public-holiday";
     internal sealed record Holiday(string Code, string Name, DateOnly Start, DateOnly End,
@@ -44,6 +44,10 @@ internal static class BangladeshGovernmentHolidayCatalog
         Day(2026, 9, 4, "BD26-JANMASHTAMI", "Janmashtami"),
         Day(2026, 10, 20, "BD26-DURGA-NAVAMI", "Durga Puja (Navami)"),
         Day(2026, 10, 21, "BD26-DURGA-DASHAMI", "Durga Puja (Vijaya Dashami)"),
+        new Holiday("BD26-REVOLUTION", "National Revolution and Solidarity Day",
+            new DateOnly(2026, 11, 7), new DateOnly(2026, 11, 7), false, 2026,
+            "https://mopa.gov.bd/pages/go-ultimates/6ac5e76d9594596dad446b72",
+            "Additional MoPA public holiday notification dated 7 October 2026."),
         Day(2026, 12, 16, "BD26-VICTORY", "Victory Day"),
         Day(2026, 12, 25, "BD26-CHRISTMAS", "Christmas Day"),
 
