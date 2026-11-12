@@ -38,16 +38,20 @@
                     <h2 class="h5">2. Select section &amp; curriculum</h2>
                     <form id="enrollmentForm" class="row g-3">
                         <div class="col-md-7">
-                            <label for="enrollmentBatchSearch" class="form-label">Find section (prefix search)</label>
+                            <label for="enrollmentBatchSearch" class="form-label">Find academic batch (prefix search)</label>
                             <input id="enrollmentBatchSearch" maxlength="100" class="form-control" placeholder="Grade Nine, G9-A" />
                         </div>
                         <div class="col-md-5 d-flex align-items-end">
-                            <button id="enrollmentBatchSearchButton" type="button" class="btn btn-outline-secondary w-100">Search sections</button>
+                            <button id="enrollmentBatchSearchButton" type="button" class="btn btn-outline-secondary w-100">Search batches</button>
                         </div>
                         <div class="col-12">
-                            <label for="enrollmentBatch" class="form-label">Academic section *</label>
+                            <label for="enrollmentBatch" class="form-label">Academic batch *</label>
                             <select id="enrollmentBatch" class="form-select" required></select>
-                            <small class="text-muted">Only the first 100 matches are shown. Search by section name or code for larger institutions.</small>
+                            <small class="text-muted">Search by academic batch name or code for larger institutions.</small>
+                        </div>
+                        <div class="col-12">
+                            <label for="enrollmentSection" class="form-label">Academic section *</label>
+                            <select id="enrollmentSection" class="form-select"></select>
                         </div>
                         <div class="col-md-6">
                             <label for="enrollmentDate" class="form-label">Enrollment date *</label>
