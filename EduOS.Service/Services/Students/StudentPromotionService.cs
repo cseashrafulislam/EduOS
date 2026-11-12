@@ -7,6 +7,7 @@ using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using EduOS.Core.Interfaces.IServices;
+using EduOS.Service.Services.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -22,6 +23,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
     private readonly IGenericRepository<AcademicYear> _years;
     private readonly IGenericRepository<AcademicLevel> _levels;
     private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicSection>? _sections;
     private readonly IGenericRepository<AcademicCurriculum> _curricula;
     private readonly IUnitOfWork _uow;
     private readonly ICurrentUserService _user;
@@ -34,10 +36,10 @@ public sealed class StudentPromotionService : IStudentPromotionService
         IGenericRepository<AcademicYear> years, IGenericRepository<AcademicLevel> levels,
         IGenericRepository<AcademicBatch> batches, IGenericRepository<AcademicCurriculum> curricula,
         IUnitOfWork unitOfWork, ICurrentUserService currentUser, TimeProvider clock,
-        ILogger<StudentPromotionService> logger)
+        ILogger<StudentPromotionService> logger, IGenericRepository<AcademicSection>? sections = null)
     {
         _students = students; _enrollments = enrollments; _records = records;
-        _years = years; _levels = levels; _batches = batches; _curricula = curricula;
+        _years = years; _levels = levels; _batches = batches; _sections = sections; _curricula = curricula;
         _uow = unitOfWork; _user = currentUser; _clock = clock; _logger = logger;
     }
 
@@ -140,6 +142,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                     replayResult.Data.AcademicYearId != request.TargetAcademicYearId ||
                     replayResult.Data.AcademicLevelId != request.TargetAcademicLevelId ||
                     replayResult.Data.AcademicBatchId != request.TargetAcademicBatchId ||
+                    replayResult.Data.AcademicSectionId != request.TargetAcademicSectionId && request.TargetAcademicSectionId.HasValue ||
                     replayResult.Data.AcademicTrackId != request.TargetAcademicTrackId && request.TargetAcademicTrackId.HasValue ||
                     !string.Equals(replayResult.Data.Roll, roll, StringComparison.OrdinalIgnoreCase) ||
                     replayResult.Data.Decision != request.Decision)
@@ -174,6 +177,11 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 x.AcademicYearId == request.TargetAcademicYearId && x.AcademicLevelId == request.TargetAcademicLevelId, ct);
             if (sourceYear == null || targetYear == null || sourceLevel == null || targetLevel == null || batch == null)
                 return Error("Academic placement is unavailable.", 409);
+            var sectionPlacement = _sections == null
+                ? (SectionId: (long?)null, Capacity: 0, Error: (string?)null)
+                : await AcademicSectionPlacementPolicy.ResolveAsync(_sections.GetQueryable(),
+                    tenant, batch.Id, request.TargetAcademicSectionId, ct);
+            if (sectionPlacement.Error != null) return Error(sectionPlacement.Error, 409);
             if (targetYear.Id == sourceYear.Id || targetYear.StartDate <= sourceYear.StartDate)
                 return Error("Progression must target a later academic year.", 409);
             if (sourceLevel.AcademicProgramId != targetLevel.AcademicProgramId ||
@@ -222,6 +230,11 @@ public sealed class StudentPromotionService : IStudentPromotionService
             if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.State == EnrollmentState.Active && x.IsCurrent && !x.IsDeleted, ct) >= batch.Capacity)
                 throw new BatchAllocationException("Target batch is closed or has reached capacity.");
+            if (sectionPlacement.SectionId.HasValue &&
+                !await AcademicSectionPlacementPolicy.CapacityAvailableAsync(
+                    _enrollments.GetQueryable(), tenant, sectionPlacement.SectionId.Value,
+                    sectionPlacement.Capacity, ct))
+                throw new BatchAllocationException("Target section has reached capacity.");
 
             var now = _clock.GetUtcNow().UtcDateTime;
             source.IsCurrent = false;
@@ -237,7 +250,7 @@ public sealed class StudentPromotionService : IStudentPromotionService
                 StudentId = student.Id, CampusId = batch.CampusId, AcademicYearId = batch.AcademicYearId,
                 AcademicTermId = batch.AcademicTermId, AcademicProgramId = batch.AcademicProgramId,
                 AcademicLevelId = batch.AcademicLevelId, AcademicBatchId = batch.Id,
-                AcademicCurriculumId = curricula[0], AcademicTrackId = batch.AcademicTrackId,
+                AcademicSectionId = sectionPlacement.SectionId, AcademicCurriculumId = curricula[0], AcademicTrackId = batch.AcademicTrackId,
                 MediumId = batch.MediumId, ShiftId = batch.ShiftId,
                 RollNo = roll, EnrollmentDate = targetDate, IsCurrent = true,
                 State = EnrollmentState.Active, CreatedAt = now, CreatedBy = _user.UserId
@@ -411,7 +424,8 @@ public sealed class StudentPromotionService : IStudentPromotionService
         Reference = record.PublicId, StudentReference = student.PublicId, FromEnrollmentId = source.Id,
         ToEnrollmentId = target.Id, Decision = record.Decision,
         AcademicYearId = target.AcademicYearId, AcademicLevelId = target.AcademicLevelId,
-        AcademicBatchId = target.AcademicBatchId, AcademicTrackId = target.AcademicTrackId,
+        AcademicBatchId = target.AcademicBatchId, AcademicSectionId = target.AcademicSectionId,
+        AcademicTrackId = target.AcademicTrackId,
         Roll = target.RollNo, ProcessedAt = record.ProcessedAt,
         StudentRowVersion = Convert.ToBase64String(student.RowVersion),
         AlreadyProcessed = already
@@ -421,7 +435,8 @@ public sealed class StudentPromotionService : IStudentPromotionService
     private static bool IsValid(PromoteStudentWorkflowRequestDto? request) =>
         request != null && request.ClientRequestId != Guid.Empty && request.SourceEnrollmentId > 0 &&
         request.TargetAcademicYearId > 0 && request.TargetAcademicLevelId > 0 && request.TargetAcademicBatchId > 0 &&
-        request.TargetAcademicTrackId is not <= 0 && !string.IsNullOrWhiteSpace(request.TargetRoll) &&
+        request.TargetAcademicTrackId is not <= 0 && request.TargetAcademicSectionId is not <= 0 &&
+        !string.IsNullOrWhiteSpace(request.TargetRoll) &&
         request.TargetRoll.Trim().Length <= 50 && (request.Note == null || request.Note.Length <= 500) &&
         Enum.IsDefined(request.Decision);
     private static bool TryVersion(string? value, out byte[] version)
