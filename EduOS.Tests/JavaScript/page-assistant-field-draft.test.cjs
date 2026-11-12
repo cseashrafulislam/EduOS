@@ -161,3 +161,18 @@ test('a form handler unmounting the field cannot produce a successful draft conf
     target.dispatchEvent = event => { target.events.push(event); target.isConnected = false; };
     assert.equal(fieldDraft.apply(target, 'Public note', eventHost), false);
 });
+
+
+test('field draft rejects hidden protected labels after eighth reference and ambiguous names', () => {
+    const make = ids => field({ ownerDocument: { getElementById: id => id === 'missing' ? null :
+        { textContent: id === 'label11' ? 'ব্যাংক হিসাব' : 'Public note' } },
+        getAttribute: key => key === 'aria-labelledby' ? ids : null });
+    const many = Array.from({ length: 12 }, (_, i) => 'label' + i).join(' ');
+    for (const ids of [many, 'label0 missing', 'label0 label0',
+        Array.from({ length: 33 }, (_, i) => 'label' + i).join(' ')]) {
+        const target = make(ids);
+        assert.equal(fieldDraft.safeTarget(target), false);
+        assert.equal(fieldDraft.apply(target, 'Draft', eventHost), false);
+    }
+    assert.equal(fieldDraft.safeTarget(make('label0 label1')), true);
+});
