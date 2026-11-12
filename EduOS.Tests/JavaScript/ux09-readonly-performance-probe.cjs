@@ -35,9 +35,13 @@ async function probe(config,opts={}) {
         const response=await fetchImpl(new URL(r.path,base),{method:'GET',redirect:'manual',cache:'no-store',signal:controller.signal,
           headers:{Authorization:'Bearer '+token,Accept:'application/json','Cache-Control':'no-store'}});
         statuses[response.status]=(statuses[response.status]||0)+1;
-        if (response.status===200) times.push(Number((clock()-start).toFixed(2)));
-        else failures++;
-        await response.body?.cancel?.();
+        if (response.status===200) {
+          const elapsed=clock()-start;
+          if (Number.isFinite(elapsed) && elapsed>=0) times.push(Number(elapsed.toFixed(2)));
+          else { failures++; statuses.invalidClock=(statuses.invalidClock||0)+1; }
+        } else failures++;
+        // Body cleanup must not turn a completed HTTP response into a network failure.
+        try { await response.body?.cancel?.(); } catch (_) { /* cleanup is best effort */ }
       } catch (_) { failures++; statuses.network=(statuses.network||0)+1; }
       finally {clearTimeout(timer);}
     }
@@ -76,7 +80,7 @@ function compare(before,after) {
   if(map.size!==before.routes.length||after.routes.length!==before.routes.length||new Set(after.routes.map(r=>r.id)).size!==after.routes.length) throw Error('Route set mismatch');
   return after.routes.map(r=>{
     const old=map.get(r.id);
-    if(!old||old.failures||r.failures||![old.p75Ms,old.p95Ms,r.p75Ms,r.p95Ms].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0)) throw Error('Cannot compare failed or invalid route: '+r.id);
+    if(!old||old.failures||r.failures||![old.p75Ms,old.p95Ms,r.p75Ms,r.p95Ms].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0)||old.p75Ms>old.p95Ms||r.p75Ms>r.p95Ms) throw Error('Cannot compare failed or invalid route: '+r.id);
     return {id:r.id,baselineP75Ms:old.p75Ms,candidateP75Ms:r.p75Ms,
       deltaP75Pct:Number(((r.p75Ms-old.p75Ms)/Math.max(old.p75Ms,.01)*100).toFixed(2)),
       baselineP95Ms:old.p95Ms,candidateP95Ms:r.p95Ms,
