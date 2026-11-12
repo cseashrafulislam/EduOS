@@ -333,7 +333,10 @@
             recognizer = next;
             voice.setAttribute('aria-pressed', 'true');
             next.onresult = event => {
-                if (recognizer !== next || !currentContext() || !dialog.open ||
+                // A callback from an older cancelled microphone must never stop
+                // a newer, explicitly started listening session.
+                if (recognizer !== next) return;
+                if (!currentContext() || !dialog.open ||
                     query.value !== speechInputSnapshot) {
                     stopSpeech();
                     voiceMessage(t('Transcript changed. Your typed text was kept.',
@@ -356,6 +359,7 @@
                     'লেখাটি যাচাই করে খুঁজুন চাপুন। কোনো কাজ স্বয়ংক্রিয়ভাবে হয়নি।'));
             };
             next.onerror = () => {
+                if (recognizer !== next) return;
                 stopSpeech();
                 voiceMessage(t('On-device recognition stopped. Type instead.', 'ডিভাইসের ভয়েস বন্ধ হয়েছে। লিখে ব্যবহার করুন।'));
             };
