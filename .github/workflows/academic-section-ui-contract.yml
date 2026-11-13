@@ -1,0 +1,35 @@
+name: Academic Section UI Contract
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - "EduOS.Core/DTOs/Students/StudentDirectoryDtos.cs"
+      - "EduOS.Core/DTOs/Academic/StudentEnrollmentHistoryDtos.cs"
+      - "EduOS.Service/Services/Students/StudentDirectoryService.cs"
+      - "EduOS.Service/Services/Academic/StudentEnrollmentHistoryQueryService.cs"
+      - "EduOS.App/Views/Admissions/Index.cshtml"
+      - "EduOS.App/Views/Attendance/Index.cshtml"
+      - "EduOS.App/Views/EnrollmentManagement/Index.cshtml"
+      - "EduOS.App/wwwroot/js/students/**"
+      - "EduOS.App/wwwroot/js/admissions/index.js"
+      - "EduOS.Tests/JavaScript/academic-section-*.test.cjs"
+      - ".github/workflows/academic-section-ui-contract.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  section-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test Section UI and compatibility contracts
+        run: node --test EduOS.Tests/JavaScript/academic-section-contract.test.cjs EduOS.Tests/JavaScript/academic-section-integrations.test.cjs EduOS.Tests/JavaScript/academic-section-directory-display.test.cjs
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile application and academic query contracts
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --filter "FullyQualifiedName~StudentEnrollmentHistoryWorkflowTests|FullyQualifiedName~AcademicSectionModelContractTests" --logger "console;verbosity=normal"
