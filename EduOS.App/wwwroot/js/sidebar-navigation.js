@@ -30,7 +30,7 @@
         ],
         management: [
             ['finance', 'Fees & Accounts', 'ফি ও হিসাব', ['/FeeOperations', '/FeeDiscountRules', '/FeeReceivablesAging', '/FeeHeadAccounting', '/AdmissionCashReceipts', '/FinanceAdjustments', '/AccountingSetup', '/AccountingJournals', '/AccountingReports', '/StudentInvoicePosting', '/StudentPaymentPosting', '/FeeDueCalendar', '/FeeInstallmentProjection', '/FeeInstallmentPlans', '/FeeInvoiceCoverage', '/FeeDiscountAttributionReview', '/InstitutionBudgets']],
-            ['people', 'HR & Payroll', 'এইচআর ও বেতন', ['/HR', '/HrEmployeeRecords', '/EmployeeContracts', '/Recruitment', '/EmployeeAttendance', '/LeaveEntitlements', '/PayrollOperations', '/PayrollSalaryStructures', '/PayrollSalaryComponents', '/PayrollSalaryStatement', '/PayrollReconciliation', '/PayrollBonuses', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/EmployeePortal']],
+            ['people', 'HR & Payroll', 'এইচআর ও বেতন', ['/HR', '/HrSetup', '/HrEmployeeRecords', '/EmployeeContracts', '/Recruitment', '/EmployeeAttendance', '/LeaveEntitlements', '/PayrollOperations', '/PayrollSalaryStructures', '/PayrollSalaryComponents', '/PayrollSalaryStatement', '/PayrollReconciliation', '/PayrollBonuses', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/EmployeePortal']],
             ['library', 'Library', 'গ্রন্থাগার', ['/Library', '/offline-study.html']],
             ['campus', 'Campus Operations', 'ক্যাম্পাস পরিচালনা', ['/HostelOperations', '/hostel', '/TransportOperations', '/OperationsInsights', '/FacilityWorkOrders', '/FacilitySpaces', '/FacilityCosts']],
             ['inventory', 'Inventory & Assets', 'ইনভেন্টরি ও সম্পদ', ['/InventoryCatalog', '/InventoryMovements', '/AssetLifecycle']],
@@ -106,7 +106,7 @@
             ['reports', 'Reports', 'রিপোর্ট', ['/Attendance/Reports', '/Attendance/Corrections']]
         ],
         'management:people': [
-            ['settings', 'Settings', 'সেটিংস', ['/HR/ShiftAssignments', '/HR/CampusAssignments', '/HR/BankAccounts', '/HR', '/HrEmployeeRecords', '/LeaveEntitlements', '/EmployeeContracts', '/Recruitment', '/PayrollSalaryStructures', '/PayrollSalaryComponents']],
+            ['settings', 'Settings', 'সেটিংস', ['/HrSetup', '/HR/ShiftAssignments', '/HR/CampusAssignments', '/HR/BankAccounts', '/HR', '/HrEmployeeRecords', '/LeaveEntitlements', '/EmployeeContracts', '/Recruitment', '/PayrollSalaryStructures', '/PayrollSalaryComponents']],
             ['operations', 'Operations', 'কার্যক্রম', ['/HR/Directory', '/HR/Leaves', '/EmployeeAttendance', '/PayrollOperations', '/PayrollBonuses', '/PayrollLoanRegister', '/LoanDisbursement', '/LoanRecovery', '/PayrollJournalPosting', '/PayrollPaymentPosting', '/EmployeePortal']],
             ['reports', 'Reports', 'রিপোর্ট', ['/PayrollSalaryStatement', '/PayrollReconciliation']]
         ],

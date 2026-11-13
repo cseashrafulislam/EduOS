@@ -122,6 +122,8 @@ test('section-specific categories include dynamic role portals and privileged ad
     assert.equal(categoryFor('management', 'people', '/HR/Directory'), 'operations');
     assert.equal(categoryFor('management', 'people', '/HR/Leaves'), 'operations');
     assert.equal(categoryFor('management', 'people', '/HR/ShiftAssignments'), 'settings');
+    assert.equal(groupFor('management', '/HrSetup/Index'), 'people');
+    assert.equal(categoryFor('management', 'people', '/HrSetup/Index'), 'settings');
     assert.equal(categoryFor('management', 'people', '/PayrollSalaryStructures/Index'), 'settings');
     assert.equal(categoryFor('management', 'people', '/PayrollSalaryStatement/Index'), 'reports');
     assert.equal(categoryFor('management', 'people', '/PayrollPaymentPosting/Index'), 'operations');
@@ -215,6 +217,20 @@ test('server-rendered static sidebar anchors have no duplicate destinations', ()
     assert.ok(links.length > 50, 'route inventory unexpectedly empty');
     assert.equal(new Set(links).size, links.length,
         'duplicate static sidebar routes need explicit review');
+});
+
+test('HR Master Setup is directly accessible only inside the existing HR/Principal/TenantAdmin role gate', () => {
+    const sidebar = layout.slice(layout.indexOf('<aside class="sidebar"'), layout.indexOf('</aside>'));
+    const permission = '@if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("HR") == true)';
+    const gate = sidebar.indexOf(permission);
+    const link = sidebar.indexOf('(Path: "/HrSetup/Index", En: "HR Master Setup", Bn: "এইচআর মাস্টার সেটআপ")');
+    const nextGate = sidebar.indexOf('@if (User?.IsInRole("TenantAdmin") == true)', gate + permission.length);
+    assert.ok(gate >= 0 && link > gate && nextGate > link, 'HR setup must retain its authorized role gate');
+    assert.equal(sidebar.split('(Path: "/HrSetup/Index"').length - 1, 1, 'HR Master Setup must have one sidebar destination');
+    const controller = require('node:fs').readFileSync(
+        require('node:path').resolve(__dirname, '../../EduOS.App/Controllers/HrSetupController.cs'), 'utf8');
+    assert.match(controller, /Authorize\(Roles = "TenantAdmin,Principal,HR"\)/);
+    assert.match(controller, /RequireModule\("HR"\)/);
 });
 
 test('Razor localizes all static sidebar leaf labels before client enhancement', () => {

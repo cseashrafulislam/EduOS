@@ -544,6 +544,7 @@
                 @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true || User?.IsInRole("HR") == true)
                 {
                     @foreach (var hrPage in new[] {
+                        (Path: "/HrSetup/Index", En: "HR Master Setup", Bn: "এইচআর মাস্টার সেটআপ"),
                         (Path: "/HR/Directory", En: "Employee Directory", Bn: "কর্মী তালিকা"),
                         (Path: "/HR/Leaves", En: "Employee Leave Review", Bn: "কর্মীর ছুটির আবেদন"),
                         (Path: "/HrEmployeeRecords/Index", En: "Employee Registration & Status", Bn: "কর্মী নিবন্ধন ও অবস্থা")
