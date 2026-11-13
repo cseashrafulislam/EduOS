@@ -130,7 +130,6 @@ public class AcademicSection : BaseTenantEntity
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     public int Capacity { get; set; }
-    public bool IsLegacyDefault { get; set; }
     public bool IsActive { get; set; } = true;
     public int DisplayOrder { get; set; }
 }
