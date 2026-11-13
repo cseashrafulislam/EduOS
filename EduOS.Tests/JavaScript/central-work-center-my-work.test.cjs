@@ -48,3 +48,21 @@ test('My Work reference search and ordering stay server-side and preserve scoped
   assert.match(service, /reference is \{ Length: > 80 \}/);
   assert.match(service, /order is not \("oldest" or "newest"\)/);
 });
+
+test('Work Center compact UI uses canonical campuses and the existing global assistant', () => {
+  const dto = read('EduOS.Core/DTOs/Platform/CentralWorkCenterDtos.cs');
+  const service = read('EduOS.Service/Services/Platform/CentralWorkCenterService.cs');
+  const ui = read('EduOS.App/wwwroot/js/platform/central-work-center.js');
+  const view = read('EduOS.App/Views/CentralWorkCenter/Index.cshtml');
+  const layout = read('EduOS.App/Views/Shared/_Layout.cshtml');
+  assert.match(dto, /List<CentralWorkCampusDto> CampusOptions/);
+  assert.match(service, /visibleCampuses\.Contains\(c\.Id\)/);
+  assert.match(service, /result\.CampusOptions = await db\.Campuses\.AsNoTracking\(\)/);
+  assert.match(view, /<select id="cwcCampus"/);
+  assert.doesNotMatch(view, /<h1\b/);
+  assert.match(view, /id="cwcClear"/);
+  assert.match(ui, /renderCampusOptions\(data\.campusOptions\)/);
+  assert.match(ui, /sourceRoutes\[item\.source\] === item\.workspaceUrl/);
+  assert.match(layout, /id="pageAssistantOpen"/);
+  assert.doesNotMatch(view, /id="pageAssistantVoice"|id="pageAssistantOpen"/);
+});
