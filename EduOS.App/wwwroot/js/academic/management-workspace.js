@@ -23,9 +23,6 @@
         prerequisiteForm: ['Add subject prerequisite', 'বিষয়ের পূর্বশর্ত যোগ']
     };
     const panels = new Map();
-    const top = root.querySelector(':scope > div.d-flex, :scope > header, :scope > div[class*="justify-content-between"]');
-    if (top) top.classList.add('academic-page-top');
-
     function show(form, focus) {
         form.hidden = false;
         const panel = panels.get(form.id);
