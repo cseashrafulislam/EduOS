@@ -34,7 +34,10 @@
                     </select>
                 </div>
                 <div class="col-auto">
-                    <button type="submit" class="btn btn-outline-primary btn-sm" disabled="@(Model.Endpoints.Items.Count == 0)">@(bn ? "ডেলিভারি দেখুন" : "View deliveries")</button>
+                    @if (Model.Endpoints.Items.Count > 0)
+                    {
+                        <button type="submit" class="btn btn-outline-primary btn-sm">@(bn ? "ডেলিভারি দেখুন" : "View deliveries")</button>
+                    }
                 </div>
             </form>
             @if (Model.Endpoints.Items.Count == 0)
@@ -103,7 +106,7 @@
                                             <input type="hidden" name="deliveryId" value="@delivery.Id" />
                                             <input type="hidden" name="expectedAttemptCount" value="@delivery.AttemptCount" />
                                             <input type="hidden" name="clientRequestId" value="@Guid.NewGuid()" />
-                                            <button type="submit" class="btn btn-outline-warning btn-sm">@(bn ? "Retry" : "Retry")</button>
+                                            <button type="submit" class="btn btn-outline-warning btn-sm">@(bn ? "পুনরায় পাঠান" : "Retry")</button>
                                         </form>
                                     }
                                 </td>
