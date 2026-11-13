@@ -44,7 +44,7 @@
     };
     const setBusy = busy => {
         state.busy = busy;
-        for (const id of ['sectionSave', 'sectionCancel', 'sectionRefresh', 'sectionFilterButton'])
+        for (const id of ['sectionSave', 'sectionCancel', 'sectionFilterButton'])
             el(id).disabled = busy;
     };
     function clearEditor(ask = true) {
@@ -221,11 +221,6 @@
     });
     el('sectionFilterButton').addEventListener('click', () => {
         state.page = 1; load().catch(error => notice(error.message, true));
-    });
-    el('sectionRefresh').addEventListener('click', async () => {
-        if (state.busy || !clearEditor()) return;
-        try { await loadOptions(); await load(); }
-        catch (error) { notice(error.message, true); }
     });
     el('sectionPrevious').addEventListener('click', () => {
         if (state.page > 1 && !state.busy) {
