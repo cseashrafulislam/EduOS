@@ -11,10 +11,12 @@
     const sameSession = () => identity[0] === (document.body?.dataset.authTenantId || '') &&
         identity[1] === (document.body?.dataset.authSessionReference || '') &&
         window.EduOSSessionTransitionPending?.() !== true;
-    const state = { batches: [], curricula: [], saving: false, batchSeq: 0, curriculumSeq: 0,
+    const state = { batches: [], sections: [], curricula: [], saving: false,
+        batchSeq: 0, sectionSeq: 0, curriculumSeq: 0,
         requestId: null, fingerprint: null };
     const value = id => (el(id)?.value || '').trim();
     const currentBatch = () => state.batches.find(x => x.id === Number(value('runningBatch')));
+    const currentSection = () => state.sections.find(x => x.id === Number(value('runningSection')));
     const currentCurriculum = () => state.curricula.find(x => x.id === Number(value('runningCurriculum')));
     const say = (en, bd) => bn ? bd : en;
 
@@ -74,7 +76,11 @@
         const seq = ++state.batchSeq, search = value('runningBatchSearch');
         const button = el('runningBatchSearchButton');
         button.disabled = true;
-        selectMenu('runningBatch', [], say('Loading sections...', 'শাখা লোড হচ্ছে...'));
+        selectMenu('runningBatch', [], say('Loading batches...', 'ব্যাচ লোড হচ্ছে...'));
+        ++state.sectionSeq;
+        state.sections = [];
+        selectMenu('runningSection', [], say('Select batch first', 'আগে ব্যাচ নির্বাচন করুন'));
+        el('runningSection').disabled = true;
         // A late response from the previous batch must not repopulate the
         // curriculum after the batch search has reset its dependent selector.
         ++state.curriculumSeq;
@@ -87,14 +93,41 @@
             if (seq !== state.batchSeq || !sameSession()) return;
             state.batches = (catalog?.batches || []).filter(x => x.isActive);
             selectMenu('runningBatch', state.batches,
-                say('Select class / section', 'শ্রেণি / শাখা নির্বাচন করুন'));
+                say('Select academic batch', 'একাডেমিক ব্যাচ নির্বাচন করুন'));
             if (!state.batches.length) alertMessage(
-                say('No active section found. Check Academic Setup or try another search.',
-                    'সক্রিয় শাখা পাওয়া যায়নি। Academic Setup দেখুন অথবা অন্যভাবে খুঁজুন।'), true);
+                say('No active academic batch found. Search another term or check Academic Batches.',
+                    'সক্রিয় একাডেমিক ব্যাচ পাওয়া যায়নি। অন্যভাবে খুঁজুন অথবা Academic Batches দেখুন।'), true);
         } catch (err) {
             if (seq === state.batchSeq && sameSession()) alertMessage(err.message, true);
         } finally {
             if (seq === state.batchSeq) button.disabled = state.saving;
+        }
+    }
+    async function sections() {
+        const seq = ++state.sectionSeq;
+        state.sections = [];
+        const select = el('runningSection');
+        select.disabled = true;
+        selectMenu('runningSection', [], say('Select academic section', 'একাডেমিক শাখা নির্বাচন করুন'));
+        const batch = currentBatch();
+        if (!batch || !sameSession()) return;
+        try {
+            const query = new URLSearchParams({
+                academicBatchId: String(batch.id), page: '1', pageSize: '100'
+            });
+            const result = await api('/api/academic-sections?' + query);
+            if (seq !== state.sectionSeq || !sameSession() || batch !== currentBatch()) return;
+            state.sections = (result?.items || []).filter(x => x.isActive && x.capacity > 0);
+            selectMenu('runningSection', state.sections,
+                say('Select academic section', 'একাডেমিক শাখা নির্বাচন করুন'));
+            select.disabled = !state.sections.length;
+            if (state.sections.length === 1)
+                select.value = String(state.sections[0].id);
+            if (!state.sections.length)
+                alertMessage(say('This class has no active Section. Create one in Academic Sections.',
+                    'এই শ্রেণিতে সক্রিয় শাখা নেই। Academic Sections-এ তৈরি করুন।'), true);
+        } catch (error) {
+            if (seq === state.sectionSeq && sameSession()) alertMessage(error.message, true);
         }
     }
     async function curricula() {
@@ -139,6 +172,7 @@
             fullName: value('runningStudentName'),
             fullNameBangla: value('runningStudentNameBn') || null,
             academicBatchId: currentBatch()?.id || 0,
+            academicSectionId: currentSection()?.id || 0,
             academicCurriculumId: currentCurriculum()?.id || 0,
             rollNo: value('runningRoll'),
             enrollmentDate: value('runningEnrollDate'),
@@ -168,8 +202,8 @@
         // or when an old selection survived a dependent-field refresh.
         if (el('runningBatchSearchButton').disabled || el('runningCurriculum').disabled)
             return alertMessage(say('Wait for academic options to load.', 'শিক্ষাক্রম লোড হওয়া পর্যন্ত অপেক্ষা করুন।'), true);
-        const batch = currentBatch(), curriculum = currentCurriculum();
-        if (!batch || !curriculum || batch.capacity <= 0)
+        const batch = currentBatch(), section = currentSection(), curriculum = currentCurriculum();
+        if (!batch || !section || !curriculum || batch.capacity <= 0)
             return alertMessage(say('Select an available section with an eligible curriculum.',
                 'খালি আসনসহ উপযুক্ত শাখা ও পাঠ্যক্রম নির্বাচন করুন।'), true);
         if (value('runningAdmissionDate') > value('runningEnrollDate'))
@@ -212,8 +246,12 @@
     function reset() {
         if (state.saving || !sameSession()) return;
         ++state.batchSeq;
+        ++state.sectionSeq;
         ++state.curriculumSeq;
         state.batches = [];
+        state.sections = [];
+        el('runningSection').disabled = true;
+        selectMenu('runningSection', [], say('Select batch first', 'আগে ব্যাচ নির্বাচন করুন'));
         state.curricula = [];
         selectMenu('runningBatch', [], say('Select class / section', 'শ্রেণি / শাখা নির্বাচন করুন'));
         selectMenu('runningCurriculum', [], say('Choose a section first', 'আগে শাখা নির্বাচন করুন'));
@@ -233,7 +271,10 @@
     el('runningBatchSearch').addEventListener('keydown', event => {
         if (event.key === 'Enter') { event.preventDefault(); batches(); }
     });
-    el('runningBatch').addEventListener('change', curricula);
+    el('runningBatch').addEventListener('change', () => {
+        sections().catch(error => alertMessage(error.message, true));
+        curricula().catch(error => alertMessage(error.message, true));
+    });
     el('runningEnrollDate').addEventListener('change', curricula);
     el('runningAddGuardian').addEventListener('change', toggleGuardian);
     form.addEventListener('submit', save);
