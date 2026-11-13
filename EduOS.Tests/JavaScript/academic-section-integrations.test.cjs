@@ -8,7 +8,7 @@ const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 
 test('enrollment, admission, promotion, readmission and import do not silently lose section identity', () => {
     const workflows = [
-        ['EduOS.Service/Services/Academic/AcademicEnrollmentService.cs', 'AcademicSectionId = section?.Id'],
+        ['EduOS.Service/Services/Academic/AcademicEnrollmentService.cs', 'AcademicSectionId = sectionId'],
         ['EduOS.Service/Services/Admission/AdmissionEnrollmentService.cs', 'AcademicSectionId = sectionPlacement.SectionId'],
         ['EduOS.Service/Services/Students/StudentPromotionService.cs', 'AcademicSectionId = sectionPlacement.SectionId'],
         ['EduOS.Service/Services/Students/StudentReadmissionService.cs', 'AcademicSectionId=sectionPlacement.SectionId'],
