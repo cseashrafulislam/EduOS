@@ -132,7 +132,8 @@ public sealed class AcademicSectionService
                 {
                     if (replay.AcademicBatchId != request.AcademicBatchId || replay.Name != name ||
                         replay.Code != code || replay.Capacity != request.Capacity ||
-                        replay.DisplayOrder != request.DisplayOrder || replay.IsDeleted)
+                        replay.DisplayOrder != request.DisplayOrder || replay.IsActive != request.IsActive ||
+                        replay.IsDeleted)
                         return Error<AcademicSectionDto>("Request ID already used for another section.", 409);
                     return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(replay), "Section already saved.");
                 }
@@ -149,7 +150,7 @@ public sealed class AcademicSectionService
                 {
                     TenantId = tenant, AcademicBatchId = batch.Id, ClientRequestId = request.ClientRequestId,
                     Name = name, Code = code, Capacity = request.Capacity,
-                    IsActive = true, DisplayOrder = request.DisplayOrder,
+                    IsActive = request.IsActive, DisplayOrder = request.DisplayOrder,
                     CreatedBy = _user.UserId, CreatedAt = DateTime.UtcNow
                 };
                 await _sections.AddAsync(row);
