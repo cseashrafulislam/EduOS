@@ -48,6 +48,8 @@ jobs:
         run: npm install --no-save --no-audit --no-fund playwright@1.56.0
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
+      - name: Verify academic checkbox and navigation responsive layout in Chromium
+        run: node tests/browser/academic-management-layout.cjs
       - name: Exercise academic management browser UI
         run: node tests/browser/academic-management.cjs
       - name: Exercise authenticated transcript issue and revocation UI
