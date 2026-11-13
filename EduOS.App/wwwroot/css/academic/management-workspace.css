@@ -74,7 +74,7 @@
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-control,
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-select {
     border-radius: .55rem;
-    min-height: 2.55rem;
+    min-height: 44px;
     border-color: var(--academic-line);
     background-color: var(--academic-paper);
     color: var(--academic-ink);
@@ -93,7 +93,7 @@
     align-items: center;
     gap: .58rem;
     max-width: 100%;
-    min-height: 2.55rem;
+    min-height: 44px;
     padding: .48rem .7rem;
     margin: .15rem 0;
     border: 1px solid var(--academic-line);
@@ -121,7 +121,7 @@
     border-radius: .54rem;
     font-size: .84rem;
     font-weight: 600;
-    min-height: 2.35rem;
+    min-height: 44px;
     white-space: normal;
     text-align: center;
 }
@@ -234,6 +234,7 @@
 }
 #academicManagement .academic-curriculum-create {
     min-width: 11rem;
+    min-height: 44px;
 }
 #academicManagement .academic-curriculum-related .btn {
     min-height: 2.55rem;
@@ -253,7 +254,7 @@
     justify-content: center;
     align-items: center;
     gap: .4rem;
-    min-height: 2.55rem;
+    min-height: 44px;
     padding-inline: .5rem;
     font-size: .82rem;
     font-weight: 650;
@@ -275,7 +276,7 @@
     margin: 0 0 .45rem;
 }
 #prerequisiteWorkspace .academic-editor-bar button {
-    min-height: 2rem;
+    min-height: 40px;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-check-cell {
     display: flex;
