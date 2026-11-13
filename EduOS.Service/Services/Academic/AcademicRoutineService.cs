@@ -619,7 +619,8 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                         return Error<RoutineEntryDto>("Academic section service unavailable.", 503);
                     var section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                         x.TenantId == tenant && x.Id == offering.AcademicSectionId.Value &&
-                        x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted, token);
+                        x.CampusId == batch.CampusId && x.AcademicLevelId == batch.AcademicLevelId &&
+                        x.IsActive && !x.IsDeleted, token);
                     if (section == null)
                         return Error<RoutineEntryDto>("Section for this subject offering is inactive or invalid.", 409);
                     classCapacity = section.Capacity;
