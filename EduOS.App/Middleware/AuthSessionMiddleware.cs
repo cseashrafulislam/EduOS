@@ -1,5 +1,6 @@
 using EduOS.App.Security;
 using EduOS.Persistence.Context;
+using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
 namespace EduOS.App.Middleware;
@@ -23,7 +24,7 @@ public sealed class AuthSessionMiddleware(RequestDelegate next)
         {
             if (!long.TryParse(tenantText, out var parsed) || parsed <= 0)
             {
-                await RejectAsync(context);
+                await RejectOrAllowAnonymousAsync(context);
                 return;
             }
             tenantId = parsed;
@@ -31,19 +32,32 @@ public sealed class AuthSessionMiddleware(RequestDelegate next)
         if (!long.TryParse(id, out var userId) ||
             !await AuthSessionRegistry.IsValidAsync(db, userId, sid, tenantId))
         {
-            await RejectAsync(context);
+            await RejectOrAllowAnonymousAsync(context);
             return;
         }
         await next(context);
     }
 
-    private static async Task RejectAsync(HttpContext context)
+    private async Task RejectOrAllowAnonymousAsync(HttpContext context)
     {
         // An older in-flight request can finish after another tab rotates the cookie.
         // Clearing the cookie here would erase the NEW valid cookie on the shared
         // browser. Reject the stale request without emitting a Set-Cookie header;
         // a fresh sign-in replaces a genuinely expired cookie normally.
         context.Response.Headers.CacheControl = "no-store";
+
+        // Stale cookies are still authenticated by the cookie handler. Redirecting
+        // the Login page itself to Login caused ERR_TOO_MANY_REDIRECTS and prevented
+        // reauthentication via /api/auth/login. Only endpoints explicitly marked
+        // AllowAnonymous may proceed, with every stale claim discarded first.
+        // Protected routes still reject the invalid session.
+        if (context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() != null)
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity());
+            await _next(context);
+            return;
+        }
+
         if (context.Request.Path.StartsWithSegments("/api"))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
