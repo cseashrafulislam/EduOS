@@ -5,7 +5,7 @@ public sealed class StudentEnrollmentHistoryRowDto
 {
     public Guid EnrollmentReference { get; set; }
     public long CampusId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public string BatchCode { get; set; } = string.Empty;
     public string BatchName { get; set; } = string.Empty;
     public long? AcademicSectionId { get; set; }

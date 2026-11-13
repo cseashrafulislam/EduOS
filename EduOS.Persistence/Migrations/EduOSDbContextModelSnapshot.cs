@@ -858,7 +858,7 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("AcademicBatchId")
+                    b.Property<long?>("AcademicBatchId")
                         .HasColumnType("bigint");
 
                     b.Property<DateOnly>("AttendanceDate")
@@ -1610,7 +1610,7 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("AcademicBatchId")
+                    b.Property<long?>("AcademicBatchId")
                         .HasColumnType("bigint");
 
                     b.Property<long>("AcademicCurriculumId")
@@ -1738,9 +1738,9 @@ namespace EduOS.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
 
-                    b.HasIndex("TenantId", "AcademicBatchId", "RollNo")
+                    b.HasIndex("TenantId", "AcademicYearId", "AcademicSectionId", "RollNo")
                         .IsUnique()
-                        .HasFilter("[RollNo] <> ''");
+                        .HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0 AND [AcademicSectionId] IS NOT NULL AND [RollNo] <> ''");
 
                     b.HasIndex("TenantId", "StudentId", "AcademicYearId", "AcademicTermId");
 
@@ -1905,7 +1905,7 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("AcademicBatchId")
+                    b.Property<long?>("AcademicBatchId")
                         .HasColumnType("bigint");
 
                     b.Property<long?>("AcademicTermId")
@@ -1975,8 +1975,13 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "CurriculumSubjectId");
 
-                    b.HasIndex("TenantId", "AcademicBatchId", "Code")
-                        .IsUnique();
+                    b.HasIndex("TenantId", "AcademicBatchId", "AcademicYearId", "AcademicSectionId", "Code")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "AcademicBatchId", "AcademicYearId", "AcademicSectionId", "CurriculumSubjectId")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("SubjectOfferings");
                 });
@@ -5220,7 +5225,7 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("AcademicBatchId")
+                    b.Property<long?>("AcademicBatchId")
                         .HasColumnType("bigint");
 
                     b.Property<long>("AssessmentId")
@@ -5287,7 +5292,7 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "AcademicBatchId");
 
-                    b.HasIndex("TenantId", "AssessmentId", "AcademicBatchId", "VersionNo")
+                    b.HasIndex("TenantId", "AssessmentId", "AcademicBatchId", "AcademicSectionId", "VersionNo")
                         .IsUnique();
 
                     b.ToTable("ResultPublications");

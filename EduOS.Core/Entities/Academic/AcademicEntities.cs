@@ -193,7 +193,7 @@ public class SubjectPrerequisite : BaseTenantEntity
 public class SubjectOffering : BaseTenantEntity
 {
     public Guid PublicId { get; set; } = Guid.NewGuid();
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public long CurriculumSubjectId { get; set; }
     public long AcademicYearId { get; set; }
@@ -214,7 +214,7 @@ public class StudentEnrollment : BaseTenantEntity
     public long? AcademicTermId { get; set; }
     public long AcademicProgramId { get; set; }
     public long AcademicLevelId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public long AcademicCurriculumId { get; set; }
     public long? AcademicTrackId { get; set; }
@@ -327,7 +327,7 @@ public class AcademicCalendarEvent : BaseTenantEntity
 public class AttendanceSession : BaseTenantEntity
 {
     public Guid ClientRequestId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public long? SubjectOfferingId { get; set; }
     public long? RoutineEntryId { get; set; }

@@ -1690,12 +1690,15 @@ public class EduOSDbContext :
         UniqueTenant<ProgramCampus>(modelBuilder, nameof(ProgramCampus.AcademicProgramId), nameof(ProgramCampus.CampusId));
         UniqueTenant<CurriculumSubject>(modelBuilder, nameof(CurriculumSubject.AcademicCurriculumId), nameof(CurriculumSubject.AcademicLevelId), nameof(CurriculumSubject.SubjectId));
         UniqueTenant<SubjectPrerequisite>(modelBuilder, nameof(SubjectPrerequisite.AcademicCurriculumId), nameof(SubjectPrerequisite.SubjectId), nameof(SubjectPrerequisite.PrerequisiteSubjectId));
-        UniqueTenant<SubjectOffering>(modelBuilder, nameof(SubjectOffering.AcademicBatchId), nameof(SubjectOffering.Code));
+        modelBuilder.Entity<SubjectOffering>().HasIndex(x => new { x.TenantId, x.AcademicBatchId, x.AcademicYearId, x.AcademicSectionId, x.Code })
+            .IsUnique().HasFilter("[IsDeleted] = 0");
+        modelBuilder.Entity<SubjectOffering>().HasIndex(x => new { x.TenantId, x.AcademicBatchId, x.AcademicYearId, x.AcademicSectionId, x.CurriculumSubjectId })
+            .IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<StudentEnrollment>(modelBuilder, nameof(StudentEnrollment.ClientRequestId));
         modelBuilder.Entity<StudentEnrollment>().HasIndex(x => new { x.TenantId, x.StudentId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
-        modelBuilder.Entity<StudentEnrollment>().HasIndex(x => new { x.TenantId, x.AcademicBatchId, x.RollNo })
-            .IsUnique().HasFilter("[RollNo] <> ''");
+        modelBuilder.Entity<StudentEnrollment>().HasIndex(x => new { x.TenantId, x.AcademicYearId, x.AcademicSectionId, x.RollNo })
+            .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0 AND [AcademicSectionId] IS NOT NULL AND [RollNo] <> ''");
         modelBuilder.Entity<StudentEnrollment>().HasIndex(x => new { x.TenantId, x.RegistrationNo })
             .IsUnique().HasFilter("[RegistrationNo] IS NOT NULL");
         UniqueTenant<StudentSubjectRegistration>(modelBuilder, nameof(StudentSubjectRegistration.StudentEnrollmentId), nameof(StudentSubjectRegistration.SubjectOfferingId));
@@ -1774,7 +1777,7 @@ public class EduOSDbContext :
             "[State] IN ('Captured','Reviewed','Posted') AND [UncertainCount] BETWEEN 0 AND 200"));
         UniqueTenant<StudentAssessmentMark>(modelBuilder, nameof(StudentAssessmentMark.AssessmentSubjectId), nameof(StudentAssessmentMark.StudentSubjectRegistrationId));
         UniqueTenant<StudentAssessmentComponentMark>(modelBuilder, nameof(StudentAssessmentComponentMark.AssessmentComponentId), nameof(StudentAssessmentComponentMark.StudentAssessmentMarkId));
-        UniqueTenant<ResultPublication>(modelBuilder, nameof(ResultPublication.AssessmentId), nameof(ResultPublication.AcademicBatchId), nameof(ResultPublication.VersionNo));
+        UniqueTenant<ResultPublication>(modelBuilder, nameof(ResultPublication.AssessmentId), nameof(ResultPublication.AcademicBatchId), nameof(ResultPublication.AcademicSectionId), nameof(ResultPublication.VersionNo));
         UniqueTenant<StudentResultSummary>(modelBuilder, nameof(StudentResultSummary.ResultPublicationId), nameof(StudentResultSummary.StudentEnrollmentId));
         UniqueTenant<CertificateTemplate>(modelBuilder, nameof(CertificateTemplate.Code));
         UniqueTenant<CertificateIssue>(modelBuilder, nameof(CertificateIssue.CertificateNumber));

@@ -187,7 +187,7 @@ public class ResultPublicationDto
 {
     public long Id { get; set; }
     public Guid AssessmentReference { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public string AcademicBatchName { get; set; } = string.Empty;
     public ResultPublicationState State { get; set; }
     public DateTime? PublishedAt { get; set; }
@@ -202,7 +202,7 @@ public class PublishResultRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public Guid AssessmentReference { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public bool VisibleToStudent { get; set; } = true;
     public bool VisibleToGuardian { get; set; } = true;
     [MaxLength(1000)] public string? PublishNote { get; set; }

@@ -430,7 +430,7 @@ public class SubjectOfferingDto
 {
     public long Id { get; set; }
     public Guid Reference { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public string AcademicBatchName { get; set; } = string.Empty;
     public long CurriculumSubjectId { get; set; }
@@ -456,7 +456,7 @@ public class SubjectOfferingDto
 public class SaveSubjectOfferingRequestDto
 {
     public Guid ClientRequestId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public long CurriculumSubjectId { get; set; }
     public long AcademicYearId { get; set; }
@@ -485,7 +485,7 @@ public class StudentEnrollmentDto
     public string AcademicProgramName { get; set; } = string.Empty;
     public long AcademicLevelId { get; set; }
     public string AcademicLevelName { get; set; } = string.Empty;
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public string AcademicBatchName { get; set; } = string.Empty;
     public string? AcademicSectionName { get; set; }
@@ -509,10 +509,12 @@ public class CreateStudentEnrollmentRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public Guid StudentReference { get; set; }
-    /// <summary>Campus, academic year, program, level, track, medium and shift are resolved from the selected batch.</summary>
-    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
-    public long? AcademicSectionId { get; set; }
-    /// <summary>Selected curriculum must be validated against the selected batch and enrollment date.</summary>
+    /// <summary>Batch is an optional cohort. Without it select an academic year and class-owned Section.</summary>
+    [Range(1, long.MaxValue)] public long? AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long? AcademicSectionId { get; set; }
+    [Range(1, long.MaxValue)] public long? AcademicYearId { get; set; }
+    [Range(1, long.MaxValue)] public long? AcademicTermId { get; set; }
+    /// <summary>The chosen curriculum must be effective for the enrollment date, program and class.</summary>
     [Range(1, long.MaxValue)] public long AcademicCurriculumId { get; set; }
     [Required, MaxLength(50)] public string RollNo { get; set; } = string.Empty;
     public DateOnly EnrollmentDate { get; set; }
@@ -853,7 +855,7 @@ public class SaveAcademicCalendarEventRequestDto
 public class AttendanceSessionDto
 {
     public long Id { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public string AcademicBatchName { get; set; } = string.Empty;
     public long? SubjectOfferingId { get; set; }
     public string? SubjectName { get; set; }
@@ -869,7 +871,7 @@ public class AttendanceSessionDto
 public class CreateAttendanceSessionRequestDto
 {
     public Guid ClientRequestId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public Guid? SubjectOfferingReference { get; set; }
     public long? RoutineEntryId { get; set; }
     public DateOnly AttendanceDate { get; set; }
