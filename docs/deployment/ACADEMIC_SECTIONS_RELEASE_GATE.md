@@ -1,13 +1,13 @@
 # EduOS Academic Batch / Academic Section rollout gate
 
-**Branch:** `Ashraful`. **Schema migration:** `20261113010000_AcademicSectionFoundation`.
+**Branch:** `Ashraful`. **Schema migration:** `20261113010000_AcademicSectionFoundation` + `20261113030000_PruneUnusedBatchGeneratedSections`.
 
 ## Contract
 
 - `AcademicBatches` remains the cohort/master record and retains existing `AcademicBatchId` in all dependent modules.
 - `AcademicSections` stores an explicit, tenant-scoped Section within the Batch.
-- Historic `AcademicBatchId` relationships are not rewritten or dropped. One read-only `IsLegacyDefault` section is inserted per existing batch.
-- New Section placement is explicit for a multi-section batch; batch-only legacy clients without configured sections remain supported.
+- Historic `AcademicBatchId` relationships are not rewritten or dropped. During the foundation migration, compatibility section rows may be inserted for prior batches. The follow-on data-only migration `20261113030000_PruneUnusedBatchGeneratedSections` deletes only unused generated placeholders after checking all five dependent tables. It never deletes user-created sections or referenced history.
+- Every active teaching group is an explicit `AcademicSection`; batches and sections are both permanent first-class settings. Existing batch-only integrations without configured sections remain compatible while consumers transition.
 - Enrollment and stock/financial actions are never changed by a Section edit.
 - `StudentEnrollments`, `SubjectOfferings`, `AttendanceSessions`, `ResultPublications` and `FeeStructures` have nullable additive `AcademicSectionId`.
 
@@ -20,7 +20,7 @@
    `node --test EduOS.Tests/JavaScript/academic-section-contract.test.cjs EduOS.Tests/JavaScript/academic-section-integrations.test.cjs`.
 4. Apply EF SQL Server migrations in staging first. Inspect generated SQL/EF migration history, duplicate indexes and index locks. Rehearse against a restored production-size database.
 5. Execute `scripts/migrations/backfill-academic-sections.sql` after the migration and **before enabling new section writes**. Run again until all five Unmapped counts are zero for rows with a legacy Batch ID. Reconcile representative tenants; Section mapping is deterministic, never guessed by Class/Name.
-6. Release the server application and frontend together; clear/version static asset caches. Inspect `/AcademicManagement/Batches`, `/AcademicManagement/Sections`, Section CRUD and permissions. Check concurrent client versions against the additive API.
+6. Release the server application and frontend together; clear/version static asset caches. Inspect `/AcademicManagement/Batches`, `/AcademicManagement/Sections`, Section CRUD and permissions. Check concurrent client versions against the additive API. Confirm `/AcademicManagement/Batches` and `/AcademicManagement/Sections` are distinct, neither UI displays a “Legacy” label, the batch register links to its own sections, and admission roles can read tenant-scoped section choices but cannot mutate section settings.
 7. Repeat the exact-commit SQL Server integration, permission and UI/browser smoke suites before general enablement.
 
 ## Minimum acceptance and negative tests
@@ -38,7 +38,7 @@
 | Attendance | Section-specific roster and sessions, no posting of another Section's student |
 | Routine | Separate Sections can run simultaneously; teacher/room collisions still blocked |
 | Exam / Results | Subject offering shows Section, mark roster resolves its original enrollment; published history not rewritten |
-| Legacy history | Backfilled Section identity, no altered historic Batch IDs, counts and reports unchanged |
+| Existing academic history | Backfilled Section identity, no altered historic Batch IDs, counts and reports unchanged |
 | Forms | No duplicate fields, clear empty/error/success states, mobile and bilingual checks |
 | Performance | Server paging, tenant/index filtering and no unbounded lookups |
 | Operations | Migration/rollback rehearsed; latest commit's workflow runs and integration results recorded |
