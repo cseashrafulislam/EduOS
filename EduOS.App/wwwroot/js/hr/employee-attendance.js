@@ -92,7 +92,7 @@ async function load(){
 function csvCell(value){
  let s=String(value??'');
  // Spreadsheet programs can execute formulas even in quoted CSV fields.
- if(/^[\\s\\uFEFF]*[=+@-]/u.test(s))s="'"+s;
+ if(/^[\s\uFEFF]*[=+@-]/u.test(s))s="'"+s;
  return '"'+s.replace(/"/g,'""')+'"';
 }
 $('Export').addEventListener('click',()=>{
@@ -102,7 +102,7 @@ $('Export').addEventListener('click',()=>{
   r.attendanceDate,r.employeeCode,r.employeeName,statuses[r.state]||r.state,
   r.inTime?.slice(0,5),r.outTime?.slice(0,5),r.overtimeHours,r.remarks
  ])].map(row=>row.map(csvCell).join(','));
- const blob=new Blob(['\\uFEFF'+lines.join('\\r\\n')],{type:'text/csv;charset=utf-8'});
+ const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
  const url=URL.createObjectURL(blob),a=document.createElement('a');
  a.href=url;a.download='employee-attendance-page-'+page+'.csv';
  document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
