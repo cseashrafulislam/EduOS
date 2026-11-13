@@ -7,7 +7,7 @@
 <div class="container-fluid py-4" id="prerequisiteWorkspace">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-        <div><p class="small text-muted mb-1">@(bn ? "একাডেমিক ব্যবস্থাপনা / সেটিংস" : "Academic Management / Settings")</p><h1 class="h4 mb-0">@(bn ? "বিষয়ের পূর্বশর্ত" : "Subject prerequisites")</h1></div>
+        <div><h1 class="h4 mb-0">@(bn ? "বিষয়ের পূর্বশর্ত" : "Subject prerequisites")</h1></div>
         <a class="btn btn-outline-secondary" asp-controller="AcademicManagement" asp-action="Curricula">@(bn ? "পাঠ্যক্রমে ফিরুন" : "Back to Curriculum")</a>
     </div>
     <div id="prerequisiteNotice" class="alert d-none" role="alert" aria-live="polite"></div>
@@ -19,14 +19,12 @@
         </div>
     </div></div>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-        <h2 class="h6">Add prerequisite</h2>
         <form id="prerequisiteForm" class="row g-2 align-items-end">
             <div class="col-lg-4"><label for="prerequisiteSubject" class="form-label">Subject</label><select id="prerequisiteSubject" class="form-select" required></select></div>
             <div class="col-lg-4"><label for="prerequisiteRequired" class="form-label">Required prior subject</label><select id="prerequisiteRequired" class="form-select" required></select></div>
             <div class="col-lg-2"><label class="form-check"><input id="prerequisiteMandatory" type="checkbox" class="form-check-input" checked /> <span class="form-check-label">Mandatory</span></label></div>
             <div class="col-lg-2"><button type="submit" class="btn btn-primary w-100">Add link</button></div>
         </form>
-        <p class="small text-muted mt-2 mb-0">Both subjects must be mapped to this curriculum. Circular dependencies are rejected.</p>
     </div></div>
     <div class="card border-0 shadow-sm"><div class="card-body">
         <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
