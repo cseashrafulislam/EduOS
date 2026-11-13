@@ -42,7 +42,7 @@
         el('batchEditVersion').value = row.rowVersion;
         el('batchEditName').value = row.name;
         el('batchEditCapacity').value = row.capacity;
-        el('batchEditCapacity').min = String(row.capacity);
+        el('batchEditCapacity').min = '0';
         el('batchEditOrder').value = row.displayOrder;
         el('batchEditContext').textContent = [row.code, row.campusName, row.academicYearName,
             row.academicProgramName, row.academicLevelName].filter(Boolean).join(' · ');
@@ -128,7 +128,7 @@
         const capacity = Number(value('batchEditCapacity')), displayOrder = Number(value('batchEditOrder'));
         if (!Number.isInteger(capacity) || !Number.isInteger(displayOrder) ||
             capacity < Number(el('batchEditCapacity').min) || capacity > 100000 || displayOrder < 0) {
-            notice('Capacity cannot decrease; enter valid non-negative values.', true); return;
+            notice('Capacity and display order must be valid non-negative values.', true); return;
         }
         ++editSequence; // Do not allow a pending edit lookup to replace the saving form.
         editSaving = true; button.disabled = true; form.inert = true;
