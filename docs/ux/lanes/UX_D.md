@@ -66,4 +66,12 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## Current in-progress or blocked route
 
-None assigned yet. Update when selecting the first unchecked page.
+**Selected route:** `/FeeDiscountRules/Index` (first unchecked, remains unchecked). **Status: QA Pending / Blocked** — resume this same route next execution; no route marked Verified Complete.
+
+**Baseline inspected:** Ashraful HEAD `2e8cfb76daeb5ad5f3940ffadba588a9605a3bf1` (2026-11-14 run). Read `AGENTS.md`, `docs/UI_UX_FINAL_IMPLEMENTATION_PLAN_20261109.md`, route ownership, this ledger, `EduOS.App/Controllers/FeeDiscountRulesController.cs`, `EduOS.App/Views/FeeDiscountRules/Index.cshtml`, `EduOS.App/wwwroot/js/finance/discount-rules.js`, and `EduOS.Tests/JavaScript/fee-discount-rules-ui.test.cjs`. Existing controller enforces TenantAdmin + FINANCE; UI uses existing fee API, antiforgery token, rowVersion, session-change guard, and bilingual labels (source inspection only).
+
+**Confirmed source-level UX gaps:** duplicate in-content h1 despite shared shell title; `discountRuleRefresh` button conflicts with no-Refresh rule; explanatory text creates unnecessary vertical space. Existing form/list already support create/edit, fee-head options, effective dates, active status, pagination and confirmation; preserve canonical service and financial history. Do not remove the only stale-data recovery path without replacing it safely (e.g. reload on navigation or conflict recovery).
+
+**QA evidence:** GitHub connector source reads **PASS**. Local `git ls-remote https://github.com/cseashrafulislam/EduOS.git refs/heads/Ashraful` **FAIL** (`Could not resolve host: github.com`). `node --version` **PASS** (`v22.16.0`); `dotnet --version` **BLOCKED** (`dotnet: command not found`). `dotnet build -c Release`, `node --test EduOS.Tests/JavaScript/fee-discount-rules-ui.test.cjs`, .NET integration/security tests, authenticated browser/phone/theme/locale/accessibility, SQL tenant/finance/history and shared regression: **NOT RUN** (repository checkout/runtime unavailable). No application files changed; no route completion or production claims. Ledger-only progress note; this commit is not a verified application implementation.
+
+**Next required work on this same page:** obtain a usable Ashraful checkout and .NET/browser/SQL QA runtime; implement compact single-shell-heading form/list UX without Refresh, ensure safe conflict recovery, verify full create/edit/invalid/duplicate/retry/concurrency/tenant/CSRF/IDOR, run focused and shared regressions at the exact final code SHA. Keep checkbox empty until all required QA passes.
