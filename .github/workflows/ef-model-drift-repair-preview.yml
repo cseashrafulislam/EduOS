@@ -1,0 +1,57 @@
+name: EF Model Drift Repair Preview
+
+on:
+  push:
+    branches: [ automation/ef-model-drift-repair-20261113 ]
+    paths:
+      - '.github/workflows/ef-model-drift-repair-preview.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  scaffold-reviewed-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout diagnostics branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore EduOS.App/EduOS.App.csproj
+      - name: Build
+        run: dotnet build EduOS.App/EduOS.App.csproj --configuration Release --no-restore
+      - name: Install matching dotnet-ef
+        run: dotnet tool install --global dotnet-ef --version 10.0.14
+      - name: Generate pending model migration (diagnostic branch only)
+        run: |
+          dotnet ef migrations add PendingModelChangesReconcile20261113 \
+            --project EduOS.Persistence --startup-project EduOS.App \
+            --context EduOSDbContext --configuration Release --no-build
+      - name: Print generated migration operation summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="$(find EduOS.Persistence/Migrations -maxdepth 1 -type f -name '*_PendingModelChangesReconcile20261113.cs' | head -1)"
+          test -n "$file"
+          echo "Generated migration: $file"
+          sed -n '/protected override void Up(/,/protected override void Down(/p' "$file" | head -400 || true
+      - name: Commit preview on diagnostics branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add EduOS.Persistence/Migrations/
+          git diff --cached --stat
+          if git diff --cached --quiet; then
+            echo "No changed migration files."
+            exit 0
+          fi
+          git commit -m "chore(ef): scaffold pending model diff for review only"
+          git push origin HEAD:automation/ef-model-drift-repair-20261113
