@@ -79,9 +79,10 @@ async function run() {
                 await toggle.click();
                 assert.equal(await page.locator(formId).evaluate(e => e.hidden), false);
                 const barRect = await rect(page, rootId + ' .academic-editor-bar');
-                const fieldRect = await rect(page, formId + ' .form-control, ' + formId + ' .form-select');
-                assert(fieldRect.y - (barRect.y + barRect.height) < 52,
-                    kind + ' has an oversized empty band above form fields at ' + width);
+                const fieldRect = await rect(page, formId + ' .form-label');
+                const fieldGap = fieldRect.y - (barRect.y + barRect.height);
+                assert(fieldGap < 34,
+                    kind + ' has an oversized empty band above field labels at ' + width + ' (' + fieldGap + 'px)');
                 assert.equal(errors.length, 0, kind + ' runtime JS errors: ' + errors.join('; '));
                 await page.close();
             }
