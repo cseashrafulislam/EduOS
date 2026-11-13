@@ -143,6 +143,12 @@ async function load(){
   if(seq!==state.sequence||controller.signal.aborted)return;
   blank(t('No verified rules loaded.','যাচাইকৃত কোনো নিয়ম লোড হয়নি।'));
   notice('danger',err.message);
+  const alert=el('discountRuleAlert');
+  const retry=document.createElement('button');
+  retry.type='button';retry.className='btn btn-outline-danger btn-sm ms-2';
+  retry.textContent=t('Retry loading','আবার লোড করুন');
+  retry.addEventListener('click',()=>{state.page=1;void load();});
+  alert.append(retry);
   return false;
  }finally{
   if(seq===state.sequence&&!state.locked){
@@ -195,6 +201,12 @@ async function save(event){
   if(reloaded&&!state.locked)notice('success',t('Discount rule saved.','ফি ছাড়ের নিয়ম সংরক্ষিত হয়েছে।'));
  }catch(err){
   if(!sameSession()){lockSession();return;}
+  if(/changed, already exists|পরিবর্তিত, আগে থেকেই/.test(err.message)){
+   state.saving=false;
+   for(const control of root.querySelectorAll('input,select,button'))control.disabled=false;
+   state.page=1;
+   await load();
+  }
   notice('danger',err.message);
  }finally{
   state.saving=false;
@@ -209,7 +221,6 @@ async function save(event){
 el('discountRuleForm').addEventListener('submit',save);
 el('discountRuleReset').addEventListener('click',reset);
 el('discountRuleType').addEventListener('change',valueLimit);
-el('discountRuleRefresh').addEventListener('click',()=>{state.page=1;load();});
 el('discountRulePrev').addEventListener('click',()=>{if(!state.loading&&!state.saving&&state.page>1){--state.page;load();}});
 el('discountRuleNext').addEventListener('click',()=>{if(!state.loading&&!state.saving&&state.page<state.pages){++state.page;load();}});
 new MutationObserver(lockSession).observe(document.body,{attributes:true,attributeFilter:['data-auth-tenant-id','data-auth-session-reference']});
