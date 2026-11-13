@@ -169,8 +169,13 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         if (scopeError != null)
             return Error<PagedResult<StudentAttendanceSectionChoiceDto>>(scopeError, 403);
         var tenant = _user.TenantId;
+        var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == academicBatchId && !x.IsDeleted, ct);
+        if (batch == null)
+            return Error<PagedResult<StudentAttendanceSectionChoiceDto>>("Academic batch unavailable.", 404);
         var query = _sections.GetQueryable().AsNoTracking().Where(x =>
-            x.TenantId == tenant && x.AcademicBatchId == academicBatchId && x.IsActive && !x.IsDeleted);
+            x.TenantId == tenant && x.CampusId == batch.CampusId &&
+            x.AcademicLevelId == batch.AcademicLevelId && x.IsActive && !x.IsDeleted);
         if (_user.IsInRole("Teacher") && !_user.IsTenantAdmin &&
             !_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal"))
         {
@@ -191,7 +196,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new StudentAttendanceSectionChoiceDto
             {
-                Id = x.Id, AcademicBatchId = x.AcademicBatchId, Name = x.Name,
+                Id = x.Id, AcademicBatchId = academicBatchId, Name = x.Name,
                 Code = x.Code, Capacity = x.Capacity
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<StudentAttendanceSectionChoiceDto>>.SuccessResponse(
@@ -923,17 +928,21 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 requestedSectionId = offeringSectionId;
             }
         }
+        var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == tenant && x.Id == batchId && x.IsActive && !x.IsDeleted, ct);
+        if (batch == null) return (null, "Academic batch unavailable.");
         if (!requestedSectionId.HasValue)
         {
             var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
-                _sections.GetQueryable(), tenant, batchId, null, ct);
+                _sections.GetQueryable(), tenant, batch.CampusId, batch.AcademicLevelId, null, ct);
             if (placement.Error != null) return (null, placement.Error);
             requestedSectionId = placement.SectionId;
         }
         var section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == requestedSectionId.Value &&
-            x.AcademicBatchId == batchId && x.IsActive && !x.IsDeleted, ct);
-        if (section == null) return (null, "Academic section not found for this batch.");
+            x.CampusId == batch.CampusId && x.AcademicLevelId == batch.AcademicLevelId &&
+            x.IsActive && !x.IsDeleted, ct);
+        if (section == null) return (null, "Academic section does not belong to this campus/class.");
         if (subjectOfferingId.HasValue && !offeringSectionId.HasValue)
             return (null, "A subject offering must belong to an academic section.");
         return (section.Id, null);
