@@ -1,5 +1,7 @@
 # EduOS — Professional UI, Personalization, Localization and PWA Specification
 
+**Mandatory one-page UX + QA acceptance (2026-11-14):** For each selected page, implement all applicable layout, inputs, backend-generated Codes, workflow/list/report, responsive, bilingual Help and shared AI/Voice support, then run **that page's final functional/security/tenant/concurrency/real-browser QA and shared regression in the same delivery** before taking up the next page. `Verified Complete` is one page-wide status supported by actual exact-SHA PASS evidence. Implemented but untested or blocked pages remain `QA Pending / Blocked`; do not defer QA or claim "UX Complete" independently. Preserve existing canonical domain records and user-specific appearance settings. See [Unified UX acceptance §12.6](UI_UX_FINAL_IMPLEMENTATION_PLAN_20261109.md#126-mandatory-page-by-page-full-ux--final-qa-gate-2026-11-14).
+
 **LATEST OWNER CONSOLIDATION (2026-11-14):** All previously numbered UX-01…UX-12 deliverables are **one UX workstream**, with one shared page/route backlog, one AI/Voice integration and one final acceptance track. The complete previous functional requirements remain valid. Internal technical Code fields are backend-generated, all pages must be compact/clean without duplicate headers or decorative notes, and shared AI/Voice capabilities are added where genuinely appropriate. Treat old UX numbering in dated progress/evidence below as historical only; do not create or reconfigure automations by editing this document.
 
 
