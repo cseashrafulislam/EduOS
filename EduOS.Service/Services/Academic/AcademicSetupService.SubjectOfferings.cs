@@ -98,7 +98,8 @@ public sealed partial class AcademicSetupService
             if (_sections == null)
                 return Error<SubjectOfferingDto>("Academic section service unavailable.", 503);
             var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
-                _sections.GetQueryable(), tenant, batch.Id, request.AcademicSectionId, ct);
+                _sections.GetQueryable(), tenant, batch.CampusId, batch.AcademicLevelId,
+                request.AcademicSectionId, ct);
             if (placement.Error != null)
                 return Error<SubjectOfferingDto>(placement.Error, 409);
             if (request.Capacity > placement.Capacity)
