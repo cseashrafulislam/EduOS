@@ -436,5 +436,6 @@ partial class EduOSDbContextModelSnapshot
             b.Navigation("Tenant");
         });
         AddStudentInvoiceDiscountAttributionSnapshot(modelBuilder);
+        AddAcademicSectionsSnapshot(modelBuilder);
     }
 }
