@@ -19,9 +19,6 @@
 }
 <div id="academicManagement" class="container-fluid py-4" data-active-feature="@(section)">
     @Html.AntiForgeryToken()
-    <div class="academic-actions">
-        <button id="academicRefresh" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
-    </div>
     <div id="academicNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <section data-section="departments" class="card border-0 shadow-sm @(section == "departments" ? "" : "d-none")">
         <div class="card-body">
