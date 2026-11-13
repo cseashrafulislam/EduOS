@@ -6,7 +6,8 @@
 
 - `AcademicYear` and `AcademicTerm`: institution-scoped foundation records; dates and current flags are protected by server-side validation.
 - **Class/Grade:** `AcademicProgram` + `AcademicLevel`; no duplicate Class master.
-- **Section:** `AcademicBatch`, linked to campus/year/program/level and optional term.
+- **Academic Batch:** `AcademicBatches` stores the admission cohort/intake, linked to campus, academic year, programme, grade and optional term.
+- **Academic Section:** `AcademicSections` stores a class group within an Academic Batch. Section IDs, capacity, status and codes are separate from batch facts; Attendance, Routine and Exam subject offerings are section-aware.
 - **Subject:** tenant-scoped `Subject`; a subject is not copied into each section.
 - **Curriculum:** `AcademicCurriculum` and `CurriculumSubject`; versioned releases retain old records.
 - Activation of a current curriculum is transactional. The SQL Server filtered unique index on `(TenantId, AcademicProgramId, AcademicTrackId, MediumId)` ensures at most one current curriculum per scope.
