@@ -43,7 +43,7 @@
                             <input id="runningStudentNameBn" class="form-control" lang="bn" maxlength="200" />
                         </div>
                         <div class="col-12">
-                            <label for="runningBatchSearch" class="form-label">@(bn ? "শ্রেণি / শাখা খুঁজুন" : "Find class / section") *</label>
+                            <label for="runningBatchSearch" class="form-label">@(bn ? "একাডেমিক ব্যাচ খুঁজুন" : "Find academic batch") *</label>
                             <div class="input-group">
                                 <input id="runningBatchSearch" class="form-control" maxlength="100"
                                        placeholder="@(bn ? "যেমন: Class Six, A" : "e.g. Grade Six, A")" />
@@ -51,12 +51,18 @@
                             </div>
                         </div>
                         <div class="col-md-6">
-                            <div class="form-text mb-2">@(bn ? "শ্রেণি/শাখা প্রস্তুত নেই?" : "Class or section not ready?")
+                            <div class="form-text mb-2">@(bn ? "ব্যাচ বা শাখা প্রস্তুত নেই?" : "Batch or section not ready?")
                                 <a href="/SmartSetup/Index">@(bn ? "Smart Setup দেখুন" : "Open Smart Setup")</a>
                             </div>
-                            <label for="runningBatch" class="form-label">@(bn ? "শ্রেণি / শাখা" : "Class / Section") *</label>
+                            <label for="runningBatch" class="form-label">@(bn ? "একাডেমিক ব্যাচ" : "Academic Batch") *</label>
                             <select id="runningBatch" class="form-select" required></select>
-                            <div class="form-text">@(bn ? "শাখা থেকে ক্যাম্পাস, প্রোগ্রাম ও শিক্ষাবর্ষ নির্ধারিত হবে।" : "Campus, program and academic year are resolved from the section.")</div>
+                            <div class="form-text">@(bn ? "বর্তমান ভর্তি পদ্ধতিতে ব্যাচ শিক্ষাবর্ষ নির্ধারণ করে; শাখা আলাদাভাবে নির্বাচন করুন।" : "Current enrollment uses a batch for academic-year context; select the class section separately.")</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="runningSection" class="form-label">@(bn ? "একাডেমিক শাখা" : "Academic Section") *</label>
+                            <select id="runningSection" class="form-select" required disabled>
+                                <option value="">@(bn ? "প্রথমে ব্যাচ নির্বাচন করুন" : "Select academic batch first")</option>
+                            </select>
                         </div>
                         <div class="col-md-6">
                             <label for="runningRoll" class="form-label">@(bn ? "রোল নম্বর" : "Roll number") *</label>
