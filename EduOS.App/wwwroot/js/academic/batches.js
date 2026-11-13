@@ -54,7 +54,7 @@
         const body = el('batchRegisterRows');
         body.replaceChildren();
         if (!rows.length) {
-            const tr = text('tr', ''), td = text('td', 'No sections found.');
+            const tr = text('tr', ''), td = text('td', 'No academic batches found.');
             td.colSpan = 7; tr.append(td); body.append(tr);
         }
         rows.forEach(row => {
@@ -73,9 +73,13 @@
                 catch (error) { if (sameSession()) notice(error.message, true); }
                 finally { edit.disabled = false; }
             });
-            action.append(edit); tr.append(action); body.append(tr);
+            const sections = text('a', 'Sections');
+            sections.href = '/AcademicManagement/Sections?academicBatchId=' + encodeURIComponent(String(row.id));
+            sections.className = 'btn btn-sm btn-outline-secondary ms-2';
+            sections.setAttribute('aria-label', 'Manage sections in ' + row.name);
+            action.append(edit, sections); tr.append(action); body.append(tr);
         });
-        el('batchPageStatus').textContent = total + ' section(s) · page ' + page +
+        el('batchPageStatus').textContent = total + ' batch(es) · page ' + page +
             ' of ' + Math.max(1, Math.ceil(total / pageSize));
         el('batchPrevious').disabled = page <= 1;
         el('batchNext').disabled = page * pageSize >= total;
@@ -95,12 +99,12 @@
     }
     el('batchExport').addEventListener('click', () => {
         if (!rows.length) return;
-        const lines = [['Section', 'Code', 'Campus', 'Academic year', 'Programme',
+        const lines = [['Batch', 'Code', 'Campus', 'Academic year', 'Programme',
             'Class', 'Capacity', 'Active'].map(csvCell).join(',')];
         rows.forEach(x => lines.push([x.name, x.code, x.campusName, x.academicYearName,
             x.academicProgramName, x.academicLevelName, x.capacity, x.isActive].map(csvCell).join(',')));
         const url = URL.createObjectURL(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
-        const a = document.createElement('a'); a.href = url; a.download = 'academic-sections-page-' + page + '.csv';
+        const a = document.createElement('a'); a.href = url; a.download = 'academic-batches-page-' + page + '.csv';
         a.click(); URL.revokeObjectURL(url);
     });
     el('batchSearchForm').addEventListener('submit', event => {
@@ -139,10 +143,10 @@
             committed = true;
             if (!sameSession()) return;
             form.classList.add('d-none'); editGuard?.markClean();
-            try { await Promise.all([load(), reload()]); notice('Section metadata saved.'); }
-            catch { notice('Section saved, but the directory did not refresh. Reload the page.', true); }
+            try { await Promise.all([load(), reload()]); notice('Academic batch updated.'); }
+            catch { notice('Batch saved, but the directory did not refresh. Reload the page.', true); }
         } catch (error) {
-            if (sameSession()) notice(committed ? 'Section saved, but the display failed.' : error.message, true);
+            if (sameSession()) notice(committed ? 'Batch saved, but the display failed.' : error.message, true);
         } finally { editSaving = false; button.disabled = false; form.inert = false; }
     });
     window.addEventListener('eduos:academic-reloaded', () => {
