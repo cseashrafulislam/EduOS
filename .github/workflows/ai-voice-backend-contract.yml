@@ -1,0 +1,33 @@
+name: AI Voice Backend Contract
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - "EduOS.AI/**"
+      - "EduOS.App/Controllers/Api/AiVoicePageController.cs"
+      - "EduOS.Tests/AI/**"
+      - ".github/workflows/ai-voice-backend-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact SHA
+        uses: actions/checkout@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run reviewed AI/Voice unit tests
+        run: >
+          dotnet test EduOS.Tests/EduOS.Tests.csproj
+          --configuration Release
+          --filter "FullyQualifiedName~EduOS.Tests.AI.ReviewedVoicePageIntentCompilerTests|FullyQualifiedName~EduOS.Tests.AI.ReviewedAttendanceQueryCompilerTests"
+          --logger "console;verbosity=normal"
+      - name: Build application
+        run: dotnet build EduOS.App/EduOS.App.csproj --configuration Release --no-restore
