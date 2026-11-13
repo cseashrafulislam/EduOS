@@ -129,7 +129,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                     x.TenantId == tenant && x.Id == replay.StudentId, ct);
                 if (linked == null || linked.PublicId != request.StudentReference ||
                     replay.AcademicBatchId != request.AcademicBatchId ||
-                    replay.AcademicSectionId != request.AcademicSectionId ||
+                    request.AcademicSectionId.HasValue && replay.AcademicSectionId != request.AcademicSectionId ||
                     replay.AcademicCurriculumId != request.AcademicCurriculumId ||
                     !string.Equals(replay.RollNo, roll, StringComparison.OrdinalIgnoreCase) ||
                     request.EnrollmentDate != default && replay.EnrollmentDate != request.EnrollmentDate)
@@ -144,19 +144,13 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive, ct);
             if (batch == null) return Error<StudentEnrollmentDto>("Active academic batch not found.", 404);
-            AcademicSection? section = null;
-            if (request.AcademicSectionId.HasValue)
-            {
-                if (_sections == null) return Error<StudentEnrollmentDto>("Academic section service unavailable.", 503);
-                section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.AcademicSectionId.Value &&
-                    x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted, ct);
-                if (section == null) return Error<StudentEnrollmentDto>("Selected section is invalid for the batch.", 409);
-            }
-            else if (_sections != null && await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
-                !x.IsLegacyDefault && x.IsActive && !x.IsDeleted, ct))
-                return Error<StudentEnrollmentDto>("Choose an academic section before enrollment.", 409);
+            if (_sections == null)
+                return Error<StudentEnrollmentDto>("Academic section service unavailable.", 503);
+            var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
+                _sections.GetQueryable(), tenant, batch.Id, request.AcademicSectionId, ct);
+            if (placement.Error != null)
+                return Error<StudentEnrollmentDto>(placement.Error, 409);
+            var sectionId = placement.SectionId!.Value;
             var year = await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == batch.AcademicYearId && x.IsActive, ct);
             if (year == null) return Error<StudentEnrollmentDto>("Academic year is unavailable.", 409);
@@ -171,7 +165,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             if (current != null)
             {
                 if (current.AcademicBatchId == batch.Id &&
-                    current.AcademicSectionId == request.AcademicSectionId &&
+                    current.AcademicSectionId == sectionId &&
                     string.Equals(current.RollNo, roll, StringComparison.OrdinalIgnoreCase) &&
                     current.EnrollmentDate == date)
                     return ApiResponse<StudentEnrollmentDto>.SuccessResponse(
@@ -195,8 +189,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             var requiredIds = requiredSubjects.Select(x => x.Id).ToArray();
             var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted &&
-                (x.AcademicSectionId == request.AcademicSectionId ||
-                    section != null && section.IsLegacyDefault && x.AcademicSectionId == null) &&
+                x.AcademicSectionId == sectionId &&
                 requiredIds.Contains(x.CurriculumSubjectId)).ToListAsync(ct);
             if (offerings.GroupBy(x => x.CurriculumSubjectId).Any(x => x.Count() != 1) ||
                 requiredSubjects.Any(x => offerings.All(y => y.CurriculumSubjectId != x.Id)))
@@ -216,14 +209,9 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
             if (batch.Capacity <= 0 || occupied >= batch.Capacity)
                 throw new BatchAllocationException("Batch capacity has been reached.");
-            if (section != null)
-            {
-                var occupiedSection = await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
-                    x.TenantId == tenant && x.AcademicSectionId == section.Id &&
-                    x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
-                if (section.Capacity <= 0 || occupiedSection >= section.Capacity)
-                    throw new BatchAllocationException("Academic section capacity has been reached.");
-            }
+            if (!await AcademicSectionPlacementPolicy.CapacityAvailableAsync(
+                _enrollments.GetQueryable(), tenant, sectionId, placement.Capacity, ct))
+                throw new BatchAllocationException("Academic section capacity has been reached.");
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
                 x.IsCurrent && !x.IsDeleted, ct))
@@ -246,7 +234,7 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 StudentId = student.Id, CampusId = batch.CampusId, AcademicYearId = batch.AcademicYearId,
                 AcademicTermId = batch.AcademicTermId, AcademicProgramId = batch.AcademicProgramId,
                 AcademicLevelId = batch.AcademicLevelId, AcademicBatchId = batch.Id,
-                AcademicSectionId = section?.Id, AcademicCurriculumId = curriculum.Id, AcademicTrackId = batch.AcademicTrackId,
+                AcademicSectionId = sectionId, AcademicCurriculumId = curriculum.Id, AcademicTrackId = batch.AcademicTrackId,
                 MediumId = batch.MediumId, ShiftId = batch.ShiftId, RollNo = roll,
                 EnrollmentDate = date, State = EnrollmentState.Active,
                 IsCurrent = true, Remarks = Trim(request.Remarks),
