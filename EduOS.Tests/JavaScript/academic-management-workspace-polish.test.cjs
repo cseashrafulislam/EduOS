@@ -31,6 +31,31 @@ test('global app header is the only Academic Management page title on all eleven
     assert.match(prerequisites, /asp-action="Curricula"/);
 });
 
+test('Academic Years and Terms start close to the shared header without a nested empty editor', () => {
+    assert.match(index, /id="academicRefresh"/);
+    assert.match(script, /section\[data-section\]:not\(\.d-none\) \.academic-editor-bar/);
+    assert.match(script, /activeBar\.append\(refresh\)/);
+    assert.match(script, /root\.querySelector\('\.academic-actions'\)\?\.remove\(\)/);
+    assert.match(css, /\.page-body:has\(> :is\(#academicManagement/);
+    assert.match(css, /padding-top:\s*0 !important;/);
+    assert.match(css, /\.academic-editor-shell\.is-expanded\s*\{/);
+    assert.match(css, /\.academic-editor-bar\s*\{/);
+    assert.match(css, /border:\s*0;\s*border-radius:\s*0;\s*margin:\s*0 0 \.75rem;/);
+});
+
+test('Term date inputs, current checkbox and action buttons have independent responsive grid cells', () => {
+    assert.match(index, /class="col-md-4 academic-check-cell">[^\n]*id="termCurrent"/);
+    assert.match(index, /class="col-12 academic-form-actions">[^\n]*Save Term/);
+    assert.match(index, /class="col-md-4">[^\n]*id="termStart"/);
+    assert.match(index, /class="col-md-4">[^\n]*id="termEnd"/);
+    assert.match(index, /class="col-md-3 academic-check-cell">[^\n]*id="yearCurrent"/);
+    assert.match(css, /\.academic-check-control\s*\{[\s\S]*?width:\s*100%/);
+    assert.match(css, /\.academic-check-control \.form-check-input\s*\{[\s\S]*?float:\s*none/);
+    assert.match(css, /\.academic-form-actions\s*\{[\s\S]*?justify-content:\s*flex-end/);
+    assert.match(css, /@media \(max-width: 767\.98px\)/);
+    assert.doesNotMatch(index, /col-md-2 d-flex align-items-end"><label class="form-check"><input id="termCurrent"/);
+});
+
 test('all eleven Academic Management sidebar pages share one scoped progressive UX layer', () => {
     assert.match(layout, /Request\.Path\.StartsWithSegments\("\/AcademicManagement"\)/);
     assert.match(layout, /css\/academic\/management-workspace\.css/);
