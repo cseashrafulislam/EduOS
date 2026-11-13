@@ -101,7 +101,7 @@
 
     // Include the other six editors in the shared unsaved-navigation guard.
     // Reuse the same guard instance on resets and successful submissions.
-    for (const id of ['yearForm', 'termForm', 'programForm', 'levelForm', 'sectionForm',
+    for (const id of ['yearForm', 'termForm', 'programForm', 'levelForm', 'batchCreateForm',
         'subjectForm', 'curriculumForm', 'curriculumSubjectForm']) guard(id);
 
     el('programForm').addEventListener('submit', event => submit(event, async () => {
@@ -122,18 +122,18 @@
             isPromotable: true, isTerminalLevel: false, isActive: true, displayOrder: 0
         }) });
     }, 'Class / grade created.'));
-    el('sectionForm').addEventListener('submit', event => submit(event, async () => {
+    el('batchCreateForm').addEventListener('submit', event => submit(event, async () => {
         const form = event.currentTarget;
-        const year = findYear(idOf('sectionYear')), term = state.terms.find(x => x.id === idOf('sectionTerm'));
-        const program = find('programs', idOf('sectionProgram'));
-        const classLevel = find('levels', idOf('sectionLevel'));
-        const campusId = idOf('sectionCampus');
+        const year = findYear(idOf('batchCreateYear')), term = state.terms.find(x => x.id === idOf('batchCreateTerm'));
+        const program = find('programs', idOf('batchCreateProgram'));
+        const classLevel = find('levels', idOf('batchCreateLevel'));
+        const campusId = idOf('batchCreateCampus');
         if (!year || !classLevel || !program ||
             classLevel.academicProgramId !== program.id)
             throw new Error('Select a valid academic year, programme and class.');
         if (program.campusIds?.length && !program.campusIds.includes(campusId))
             throw new Error('Programme is unavailable at the chosen campus.');
-        const startDate = field('sectionStart'), endDate = field('sectionEnd');
+        const startDate = field('batchCreateStart'), endDate = field('batchCreateEnd');
         validDates(startDate, endDate);
         if (startDate < year.startDate || endDate > year.endDate ||
             (term && (startDate < term.startDate || endDate > term.endDate)))
@@ -141,9 +141,9 @@
         await api('/api/academic-setup/batches', { method: 'POST', body: JSON.stringify({
             clientRequestId: requestId(form), campusId, academicYearId: year.id,
             academicTermId: term?.id || null, academicProgramId: program.id,
-            academicLevelId: classLevel.id, name: field('sectionName'),
-            code: field('sectionCode').toUpperCase(),
-            capacity: Number(field('sectionCapacity')) || 0,
+            academicLevelId: classLevel.id, name: field('batchCreateName'),
+            code: field('batchCreateCode').toUpperCase(),
+            capacity: Number(field('batchCreateCapacity')) || 0,
             startDate, endDate, deliveryMode: 1,
             isDefault: false, isActive: true, displayOrder: 0
         }) });
@@ -182,14 +182,14 @@
             })
         });
     }, 'Curriculum subject mapped.'));
-    el('sectionYear').addEventListener('change', updateSectionDates);
-    el('sectionTerm').addEventListener('change', updateSectionDates);
+    el('batchCreateYear').addEventListener('change', updateSectionDates);
+    el('batchCreateTerm').addEventListener('change', updateSectionDates);
     function updateSectionDates() {
-        const term = state.terms.find(x => x.id === idOf('sectionTerm'));
-        const year = findYear(idOf('sectionYear'));
+        const term = state.terms.find(x => x.id === idOf('batchCreateTerm'));
+        const year = findYear(idOf('batchCreateYear'));
         if (term || year) {
-            el('sectionStart').value = (term || year).startDate;
-            el('sectionEnd').value = (term || year).endDate;
+            el('batchCreateStart').value = (term || year).startDate;
+            el('batchCreateEnd').value = (term || year).endDate;
         }
     }
 })();
