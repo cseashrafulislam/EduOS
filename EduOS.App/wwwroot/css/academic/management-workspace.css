@@ -18,28 +18,16 @@
     padding-bottom: 2rem !important;
     color: var(--academic-ink);
 }
-:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top {
-    margin-bottom: 1.05rem !important;
-    gap: .8rem;
+/* Page title is provided by the shared shell; content begins with actions and data. */
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-actions {
+    display: flex;
+    justify-content: flex-end;
     align-items: center;
+    gap: .5rem;
+    margin: 0 0 .55rem;
 }
-:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top h1 {
-    font-size: clamp(1.18rem, 1.6vw, 1.55rem);
-    font-weight: 750;
-    letter-spacing: -.025em;
-    margin: 0 0 .2rem;
-}
-:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top > div > .small:first-child {
-    font-size: .76rem;
-    letter-spacing: .015em;
-    color: var(--academic-subtle) !important;
-}
-:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-intro {
-    max-width: 72ch;
-    line-height: 1.45;
-    font-size: .86rem;
-    color: var(--academic-subtle);
-    margin: .15rem 0 0;
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-actions .btn {
+    min-height: 2.55rem;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .card {
     border: 1px solid var(--academic-line) !important;
@@ -49,10 +37,6 @@
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .card > .card-body {
     padding: clamp(1rem, 1.7vw, 1.5rem);
-}
-/* Route title is already rendered in the page header; do not repeat it in the card. */
-#academicManagement > section[data-section] > .card-body > h2:first-child {
-    display: none;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) h2,
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) h3 {
@@ -128,6 +112,8 @@
     border-radius: .72rem;
     background: var(--academic-paper);
     margin: .65rem 0 1rem;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-inline: contain;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table-responsive > .table {
     margin: 0;
@@ -178,17 +164,11 @@
     display: flex;
     gap: .7rem;
     align-items: center;
-    justify-content: space-between;
-    background: var(--bs-tertiary-bg, #f8fafc);
-}
-:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-label {
-    font-size: .88rem;
-    line-height: 1.3;
-    font-weight: 700;
-    margin: 0;
+    justify-content: flex-end;
+    background: var(--academic-paper);
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-bar button {
-    min-height: 2.1rem;
+    min-height: 2.55rem;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form {
     padding: 1rem .95rem 1.1rem;
@@ -209,19 +189,12 @@
     cursor: pointer;
     font-weight: 600;
 }
-:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-catalog-note {
-    font-size: .79rem;
-    color: var(--academic-subtle);
-    padding: .45rem .75rem;
-    border-left: 3px solid var(--edu-primary, #1d4ed8);
-    background: color-mix(in srgb, var(--edu-primary, #1d4ed8) 4%, var(--academic-paper));
-    margin-bottom: 1.1rem;
-}
 @media (max-width: 767.98px) {
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) { padding-inline: .65rem !important; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .card > .card-body { padding: .9rem; }
-    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top { align-items: flex-start; }
-    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top > .btn { width: 100%; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-actions { justify-content: flex-end; margin-bottom: .5rem; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-actions .btn { min-height: 2.75rem; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table td:last-child .btn { min-height: 2.35rem; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form { padding: .85rem .75rem 1rem; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table-responsive > .table { min-width: 620px; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-bar { align-items: flex-start; }
