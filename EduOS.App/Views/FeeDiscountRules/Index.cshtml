@@ -4,14 +4,7 @@
     string L(string en, string bd) => bn ? bd : en;
     ViewData["Title"] = L("Fee Discount Rule Administration", "ফি ছাড়ের নিয়ম পরিচালনা");
 }
-<section id="discountRulesApp" class="container-fluid py-3">
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div>
-            <h1 class="h4 mb-1">@L("Fee Discount Rules", "ফি ছাড়ের নিয়ম")</h1>
-            <p class="text-muted mb-0">@L("Configure institution-wide discounts for future billing. Issued invoices remain unchanged.", "ভবিষ্যৎ বিলিংয়ের জন্য প্রতিষ্ঠানের ছাড়ের নিয়ম নির্ধারণ করুন। ইস্যুকৃত ইনভয়েস অপরিবর্তিত থাকবে।")</p>
-        </div>
-        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@L("Back to Fees & Billing", "ফি ও বিলিংয়ে ফিরুন")</a>
-    </header>
+<section id="discountRulesApp" class="container-fluid py-2">
     <div id="discountRuleAlert" class="d-none" role="alert" tabindex="-1" aria-live="assertive"></div>
     <div class="row g-3">
         <div class="col-xl-4">
@@ -26,13 +19,12 @@
                     <div class="col-md-6"><label class="form-label" for="discountRuleTo">@L("Effective to", "কার্যকর শেষের তারিখ")</label><input class="form-control" id="discountRuleTo" type="date" /></div>
                     <div class="col-12"><div class="form-check"><input class="form-check-input" id="discountRuleActive" type="checkbox" checked /><label class="form-check-label" for="discountRuleActive">@L("Active for future billing", "ভবিষ্যৎ বিলিংয়ের জন্য সক্রিয়")</label></div></div>
                     <div class="col-12 d-flex flex-wrap gap-2"><button id="discountRuleSave" class="btn btn-primary" type="submit">@L("Create rule", "নিয়ম তৈরি")</button><button id="discountRuleReset" class="btn btn-outline-secondary" type="button">@L("New / Reset", "নতুন / রিসেট")</button></div>
-                    <p class="small text-muted mb-0">@L("Assigned financial terms cannot be edited. A conflict requires refreshing the register; deactivation does not reverse posted invoices.", "বরাদ্দকৃত আর্থিক শর্ত সম্পাদনাযোগ্য নয়। সংঘাত হলে তালিকা রিফ্রেশ করুন; নিষ্ক্রিয় করলেও পোস্ট করা ইনভয়েস রিভার্স হয় না।")</p>
                 </form>
             </section>
         </div>
         <div class="col-xl-8">
             <section class="card">
-                <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2"><h2 class="h6 mb-0">@L("Discount rule register", "ফি ছাড়ের নিয়মের তালিকা")</h2><button id="discountRuleRefresh" class="btn btn-outline-primary btn-sm" type="button">@L("Refresh", "রিফ্রেশ")</button></div>
+                <div class="card-header"><h2 class="h6 mb-0">@L("Discount rule register", "ফি ছাড়ের নিয়মের তালিকা")</h2></div>
                 <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
                     <thead><tr><th scope="col">@L("Name", "নাম")</th><th scope="col">@L("Fee head", "ফি খাত")</th><th scope="col">@L("Type", "ধরন")</th><th scope="col">@L("Value", "অঙ্ক")</th><th scope="col">@L("Effective dates", "কার্যকর তারিখ")</th><th scope="col">@L("Status", "অবস্থা")</th><th scope="col">@L("Action", "কার্যক্রম")</th></tr></thead>
                     <tbody id="discountRuleRows"><tr><td colspan="7" class="text-center text-muted p-3">@L("Loading…", "লোড হচ্ছে…")</td></tr></tbody>
