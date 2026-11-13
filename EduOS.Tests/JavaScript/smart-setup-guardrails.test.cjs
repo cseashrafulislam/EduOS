@@ -55,3 +55,12 @@ test('Smart Setup row-level write contract does not trust browser names', () => 
     assert.match(wizard, /Save Checked Records|smartSetupApply/);
     assert.match(wizard, /entries: /);
 });
+
+test('section readiness does not require an optional academic batch', () => {
+    const readiness = read('EduOS.Service/Services/Tenants/SmartSetupReadinessService.cs');
+    const checks = readiness.match(/db\.AcademicSections\.AsNoTracking\(\)\.AnyAsync\(x => x\.TenantId == tenant && x\.IsActive, ct\)/g) || [];
+    assert.equal(checks.length, 3, 'Academic, student and attendance readiness must check active sections');
+    assert.doesNotMatch(readiness, /db\.AcademicBatches\.AsNoTracking\(\)/);
+    assert.match(readiness, /"SECTION", "Academic Section", "একাডেমিক শাখা"/);
+    assert.doesNotMatch(readiness, /Section \/ batch and capacity/);
+});
