@@ -51,8 +51,8 @@
                 <div class="col-lg-2"><label for="yearStart" class="form-label">Start date *</label><input id="yearStart" type="date" class="form-control" required /></div>
                 <div class="col-lg-2"><label for="yearEnd" class="form-label">End date *</label><input id="yearEnd" type="date" class="form-control" required /></div>
                 <div class="col-md-4"><label for="yearCycle" class="form-label">Cycle</label><select id="yearCycle" class="form-select"><option value="1">Annual</option><option value="2">Semester</option><option value="3">Trimester</option><option value="4">Quarterly</option><option value="5">Modular</option><option value="6">Batch-based</option></select></div>
-                <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input id="yearCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current year</span></label></div>
-                <div class="col-md-5 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">Save Year</button><button type="button" data-reset="year" class="btn btn-outline-secondary">Clear</button></div>
+                <div class="col-md-3 academic-check-cell"><label class="form-check academic-check-control"><input id="yearCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current year</span></label></div>
+                <div class="col-md-5 academic-form-actions"><button type="submit" class="btn btn-primary">Save Year</button><button type="button" data-reset="year" class="btn btn-outline-secondary">Clear</button></div>
             </form>
             <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Year</th><th>Code</th><th>Campus</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="yearRows"></tbody></table></div>
         </div>
@@ -64,10 +64,10 @@
                 <div class="col-md-4"><label for="termYear" class="form-label">Academic year *</label><select id="termYear" class="form-select" required></select></div>
                 <div class="col-md-4"><label for="termName" class="form-label">Term name *</label><input id="termName" class="form-control" maxlength="100" required /></div>
                 <div class="col-md-4"><label for="termCode" class="form-label">Code</label><input id="termCode" class="form-control" maxlength="30" /></div>
-                <div class="col-md-3"><label for="termStart" class="form-label">Start date *</label><input id="termStart" type="date" class="form-control" required /></div>
-                <div class="col-md-3"><label for="termEnd" class="form-label">End date *</label><input id="termEnd" type="date" class="form-control" required /></div>
-                <div class="col-md-2 d-flex align-items-end"><label class="form-check"><input id="termCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current term</span></label></div>
-                <div class="col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary">Save Term</button><button type="button" data-reset="term" class="btn btn-outline-secondary">Clear</button></div>
+                <div class="col-md-4"><label for="termStart" class="form-label">Start date *</label><input id="termStart" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label for="termEnd" class="form-label">End date *</label><input id="termEnd" type="date" class="form-control" required /></div>
+                <div class="col-md-4 academic-check-cell"><label class="form-check academic-check-control"><input id="termCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current term</span></label></div>
+                <div class="col-12 academic-form-actions"><button type="submit" class="btn btn-primary">Save Term</button><button type="button" data-reset="term" class="btn btn-outline-secondary">Clear</button></div>
             </form>
             <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Term</th><th>Year</th><th>Code</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="termRows"></tbody></table></div>
         </div>
