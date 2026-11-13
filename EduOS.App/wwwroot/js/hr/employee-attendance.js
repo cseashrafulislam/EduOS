@@ -5,7 +5,7 @@ const $=id=>document.getElementById('employeeAttendance'+id);
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 const statuses={1:'Present',2:'Absent',3:'Late',4:'Leave',5:'Excused'};
 let page=1,pages=1,busy=false,accessRevoked=false,searchSeq=0,loadSeq=0,historySeq=0,
-    selectedHistory=null,requestKey=null,requestSignature='',lastPosted=null,previousState='1';
+    selectedHistory=null,requestKey=null,requestSignature='',lastPosted=null,previousState='';
 const forms={record:$('Form'),correction:$('CorrectionForm')},guards={};
 for(const [name,form] of Object.entries(forms))
  if(window.EduOSFormGuard)guards[name]=window.EduOSFormGuard.create(form);
@@ -104,6 +104,7 @@ $('State').addEventListener('change',()=>{
 $('Form').addEventListener('submit',async event=>{
  event.preventDefault();if(busy||accessRevoked||!forms.record.reportValidity())return;
  const active=[1,3].includes(Number($('State').value));
+ if(!$('State').value)return notice('Choose an attendance status before recording.');
  const command={employeeReference:$('Employee').value,attendanceDate:$('Date').value,state:Number($('State').value),
   inTime:active&&$('In').value?$('In').value+':00':null,
   outTime:active&&$('Out').value?$('Out').value+':00':null,
