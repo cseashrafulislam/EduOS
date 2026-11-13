@@ -614,6 +614,91 @@ namespace EduOS.Persistence.Migrations
                     b.ToTable("AcademicPrograms");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicSection", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AcademicLevelId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AcademicLevelId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique()
+                        .HasFilter("[ClientRequestId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "CampusId", "AcademicLevelId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AcademicSections_Campus_Level_Code")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("AcademicSections", t =>
+                        {
+                            t.HasCheckConstraint("CK_AcademicSections_Capacity", "[Capacity] BETWEEN 0 AND 100000");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicTerm", b =>
                 {
                     b.Property<long>("Id")
@@ -861,6 +946,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("AcademicBatchId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateOnly>("AttendanceDate")
                         .HasColumnType("date");
 
@@ -926,6 +1014,8 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("FinalizedByUserId");
 
                     b.HasIndex("TenantId", "AcademicBatchId");
+
+                    b.HasIndex("TenantId", "AcademicSectionId");
 
                     b.HasIndex("TenantId", "ClientRequestId")
                         .IsUnique();
@@ -1080,11 +1170,11 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "EmployeeId");
-
                     b.HasIndex("TenantId", "ClientRequestId")
                         .IsUnique()
                         .HasFilter("[ClientRequestId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "EmployeeId");
 
                     b.HasIndex("TenantId", "SubjectOfferingId", "EmployeeId")
                         .IsUnique();
@@ -1172,8 +1262,6 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("PublicId")
                         .IsUnique();
@@ -1622,6 +1710,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("AcademicProgramId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<long?>("AcademicTermId")
                         .HasColumnType("bigint");
 
@@ -1714,6 +1805,8 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "AcademicLevelId");
 
                     b.HasIndex("TenantId", "AcademicProgramId");
+
+                    b.HasIndex("TenantId", "AcademicSectionId");
 
                     b.HasIndex("TenantId", "AcademicTermId");
 
@@ -1908,6 +2001,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("AcademicBatchId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<long?>("AcademicTermId")
                         .HasColumnType("bigint");
 
@@ -1968,6 +2064,8 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("PublicId")
                         .IsUnique();
+
+                    b.HasIndex("TenantId", "AcademicSectionId");
 
                     b.HasIndex("TenantId", "AcademicTermId");
 
@@ -2722,39 +2820,104 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashFlowActivityRule", b =>
                 {
-                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-                    b.Property<long>("AccountId").HasColumnType("bigint");
-                    b.Property<string>("ActivityCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
-                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
-                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
-                    b.Property<DateOnly>("EffectiveFromDate").HasColumnType("date");
-                    b.Property<bool>("IsDeleted").HasColumnType("bit");
-                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<Guid?>("ReviewRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
-                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
-                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
-                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
-                    b.Property<string>("StateCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
-                    b.Property<DateTime>("SubmittedAtUtc").HasColumnType("datetime2");
-                    b.Property<long>("SubmittedByUserId").HasColumnType("bigint");
-                    b.Property<long>("TenantId").HasColumnType("bigint");
-                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ActivityCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("EffectiveFromDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ReviewRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("SubmittedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
+
                     b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("ReviewedByUserId");
+
                     b.HasIndex("SubmittedByUserId");
-                    b.HasIndex("TenantId", "AccountId", "EffectiveFromDate").IsUnique()
-                        .HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
-                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
-                    b.HasIndex("TenantId", "ReviewRequestId").IsUnique()
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ReviewRequestId")
+                        .IsUnique()
                         .HasFilter("[ReviewRequestId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "AccountId", "EffectiveFromDate")
+                        .IsUnique()
+                        .HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
+
                     b.ToTable("CashFlowActivityRules", t =>
                         {
                             t.HasCheckConstraint("CK_CashFlowActivityRule_Approval", "[ActivityCode] IN (N'Operating',N'Investing',N'Financing') AND [StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND (([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR ([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))");
@@ -2763,42 +2926,115 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashFlowJournalAllocation", b =>
                 {
-                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
-                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
-                    b.Property<string>("Direction").IsRequired().HasMaxLength(10).HasColumnType("nvarchar(10)");
-                    b.Property<decimal>("FinancingAmount").HasColumnType("decimal(18,2)");
-                    b.Property<decimal>("InvestingAmount").HasColumnType("decimal(18,2)");
-                    b.Property<bool>("IsDeleted").HasColumnType("bit");
-                    b.Property<string>("JournalFingerprint").IsRequired().HasMaxLength(64).HasColumnType("nvarchar(64)");
-                    b.Property<long>("JournalId").HasColumnType("bigint");
-                    b.Property<decimal>("OperatingAmount").HasColumnType("decimal(18,2)");
-                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<Guid?>("ReviewRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
-                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
-                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
-                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
-                    b.Property<string>("StateCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
-                    b.Property<DateTime>("SubmittedAtUtc").HasColumnType("datetime2");
-                    b.Property<long>("SubmittedByUserId").HasColumnType("bigint");
-                    b.Property<long>("TenantId").HasColumnType("bigint");
-                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<decimal>("FinancingAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("InvestingAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("JournalFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("JournalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("OperatingAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ReviewRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("SubmittedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
+
                     b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("ReviewedByUserId");
+
                     b.HasIndex("SubmittedByUserId");
-                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
-                    b.HasIndex("TenantId", "JournalId").IsUnique()
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "JournalId")
+                        .IsUnique()
                         .HasFilter("[StateCode] IN (N'Submitted',N'Approved') AND [IsDeleted] = 0");
-                    b.HasIndex("TenantId", "ReviewRequestId").IsUnique()
+
+                    b.HasIndex("TenantId", "ReviewRequestId")
+                        .IsUnique()
                         .HasFilter("[ReviewRequestId] IS NOT NULL");
+
                     b.ToTable("CashFlowJournalAllocations", t =>
                         {
                             t.HasCheckConstraint("CK_CashFlowJournalAllocation_Approval", "[Direction] IN (N'Inflow',N'Outflow') AND [StateCode] IN (N'Submitted',N'Approved',N'Rejected') AND [OperatingAmount] >= 0 AND [InvestingAmount] >= 0 AND [FinancingAmount] >= 0 AND ([OperatingAmount]+[InvestingAmount]+[FinancingAmount]) > 0 AND (([StateCode] = N'Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR ([StateCode] <> N'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId] <> [SubmittedByUserId]))");
@@ -2813,35 +3049,88 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<long>("AccountId").HasColumnType("bigint");
-                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
-                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
-                    b.Property<bool>("IsDeleted").HasColumnType("bit");
-                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<string>("ReviewReason").HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<Guid?>("ReviewRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
-                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
-                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
-                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
-                    b.Property<string>("StateCode").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
-                    b.Property<DateTime>("SubmittedAtUtc").HasColumnType("datetime2");
-                    b.Property<long>("SubmittedByUserId").HasColumnType("bigint");
-                    b.Property<long>("TenantId").HasColumnType("bigint");
-                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ReviewRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("SubmittedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
                     b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("ReviewedByUserId");
+
                     b.HasIndex("SubmittedByUserId");
-                    b.HasIndex("TenantId", "AccountId").IsUnique()
+
+                    b.HasIndex("TenantId", "AccountId")
+                        .IsUnique()
                         .HasFilter("[StateCode] = N'Submitted' AND [IsDeleted] = 0");
-                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
-                    b.HasIndex("TenantId", "ReviewRequestId").IsUnique()
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ReviewRequestId")
+                        .IsUnique()
                         .HasFilter("[ReviewRequestId] IS NOT NULL");
 
                     b.ToTable("CashLedgerDesignationRequests", t =>
@@ -4997,108 +5286,291 @@ namespace EduOS.Persistence.Migrations
 
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheet", b =>
                 {
-                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-                    b.Property<long>("CapturedByUserId").HasColumnType("bigint");
-                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<string>("ConfirmedAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
-                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
-                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
-                    b.Property<long>("FileAssetId").HasColumnType("bigint");
-                    b.Property<bool>("IsDeleted").HasColumnType("bit");
-                    b.Property<long>("OmrTemplateId").HasColumnType("bigint");
-                    b.Property<DateTime?>("PostedAtUtc").HasColumnType("datetime2");
-                    b.Property<long?>("PostedByUserId").HasColumnType("bigint");
-                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
-                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
-                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
-                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
-                    b.Property<string>("State").IsRequired().HasMaxLength(20).HasColumnType("nvarchar(20)");
-                    b.Property<long>("StudentSubjectRegistrationId").HasColumnType("bigint");
-                    b.Property<string>("SuggestedAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
-                    b.Property<string>("SuggestionStates").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
-                    b.Property<long>("TenantId").HasColumnType("bigint");
-                    b.Property<int>("UncertainCount").HasColumnType("int");
-                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.Property<long>("CapturedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ConfirmedAnswers")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("FileAssetId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("OmrTemplateId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("PostedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("PostedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long>("StudentSubjectRegistrationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SuggestedAnswers")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SuggestionStates")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("UncertainCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
-                    b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("CapturedByUserId");
+
                     b.HasIndex("PostedByUserId");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
                     b.HasIndex("ReviewedByUserId");
-                    b.HasIndex("PublicId").IsUnique();
-                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
-                    b.HasIndex("TenantId", "FileAssetId").IsUnique();
-                    b.HasIndex("TenantId", "OmrTemplateId", "StudentSubjectRegistrationId").IsUnique();
-                    b.HasIndex("TenantId", "State", "CreatedAt");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "FileAssetId")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "StudentSubjectRegistrationId");
-                    b.ToTable("OmrSheets", t => t.HasCheckConstraint("CK_OmrSheets_State",
-                        "[State] IN ('Captured','Reviewed','Posted') AND [UncertainCount] BETWEEN 0 AND 200"));
+
+                    b.HasIndex("TenantId", "OmrTemplateId", "StudentSubjectRegistrationId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "State", "CreatedAt");
+
+                    b.ToTable("OmrSheets", t =>
+                        {
+                            t.HasCheckConstraint("CK_OmrSheets_State", "[State] IN ('Captured','Reviewed','Posted') AND [UncertainCount] BETWEEN 0 AND 200");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheetEvent", b =>
                 {
-                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-                    b.Property<string>("Action").IsRequired().HasMaxLength(24).HasColumnType("nvarchar(24)");
-                    b.Property<long>("ActorUserId").HasColumnType("bigint");
-                    b.Property<string>("AfterAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
-                    b.Property<string>("BeforeAnswers").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
-                    b.Property<Guid>("ClientRequestId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
-                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
-                    b.Property<bool>("IsDeleted").HasColumnType("bit");
-                    b.Property<long>("OmrSheetId").HasColumnType("bigint");
-                    b.Property<DateTime>("OccurredAtUtc").HasColumnType("datetime2");
-                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
-                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
-                    b.Property<long>("TenantId").HasColumnType("bigint");
-                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AfterAnswers")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("BeforeAnswers")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("OmrSheetId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
+
                     b.HasAlternateKey("TenantId", "Id");
+
                     b.HasIndex("ActorUserId");
-                    b.HasIndex("TenantId", "ClientRequestId").IsUnique();
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
                     b.HasIndex("TenantId", "OmrSheetId", "Id");
+
                     b.ToTable("OmrSheetEvents");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrTemplate", b =>
                 {
-                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-                    b.Property<string>("AnswerKey").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
-                    b.Property<long>("AssessmentComponentId").HasColumnType("bigint");
-                    b.Property<decimal>("CorrectAnswerMarks").HasColumnType("decimal(18,2)");
-                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
-                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
-                    b.Property<decimal>("IncorrectAnswerMarks").HasColumnType("decimal(18,2)");
-                    b.Property<bool>("IsDeleted").HasColumnType("bit");
-                    b.Property<string>("Name").IsRequired().HasMaxLength(160).HasColumnType("nvarchar(160)");
-                    b.Property<int>("OptionsPerQuestion").HasColumnType("int");
-                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
-                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
-                        .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
-                    b.Property<DateTime>("SealedAtUtc").HasColumnType("datetime2");
-                    b.Property<long>("SealedByUserId").HasColumnType("bigint");
-                    b.Property<long>("TenantId").HasColumnType("bigint");
-                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+
+                    b.Property<string>("AnswerKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<long>("AssessmentComponentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("CorrectAnswerMarks")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("IncorrectAnswerMarks")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("OptionsPerQuestion")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<DateTime>("SealedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("SealedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
-                    b.HasAlternateKey("TenantId", "Id");
-                    b.HasIndex("PublicId").IsUnique();
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
                     b.HasIndex("SealedByUserId");
+
                     b.HasIndex("TenantId", "AssessmentComponentId");
-                    b.ToTable("OmrTemplates", t => t.HasCheckConstraint("CK_OmrTemplates_Marks",
-                        "[OptionsPerQuestion] IN (4,5) AND LEN([AnswerKey]) BETWEEN 1 AND 200 AND [CorrectAnswerMarks] > 0 AND [IncorrectAnswerMarks] >= 0"));
+
+                    b.ToTable("OmrTemplates", t =>
+                        {
+                            t.HasCheckConstraint("CK_OmrTemplates_Marks", "[OptionsPerQuestion] IN (4,5) AND LEN([AnswerKey]) BETWEEN 1 AND 200 AND [CorrectAnswerMarks] > 0 AND [IncorrectAnswerMarks] >= 0");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.ResultCorrectionEvent", b =>
@@ -5223,6 +5695,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("AcademicBatchId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("AssessmentId")
                         .HasColumnType("bigint");
 
@@ -5286,6 +5761,8 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("PublishedByUserId");
 
                     b.HasIndex("TenantId", "AcademicBatchId");
+
+                    b.HasIndex("TenantId", "AcademicSectionId");
 
                     b.HasIndex("TenantId", "AssessmentId", "AcademicBatchId", "VersionNo")
                         .IsUnique();
@@ -9312,18 +9789,6 @@ namespace EduOS.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("CreatedBy")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("DeletedBy")
-                        .HasColumnType("bigint");
-
                     b.Property<string>("ContentBoardCode")
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
@@ -9389,6 +9854,18 @@ namespace EduOS.Persistence.Migrations
                     b.Property<string>("ContentTopic")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("DocumentTypeCode")
                         .IsRequired()
@@ -9471,10 +9948,6 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "ContentSubjectId");
 
-                    b.HasIndex("TenantId", "ContentCurriculumId", "ContentSubjectId", "IsActive");
-
-                    b.HasIndex("TenantId", "ContentExamCode", "ContentBoardCode", "ContentSyllabusYear", "IsActive");
-
                     b.HasIndex("TenantId", "DocumentTypeCode");
 
                     b.HasIndex("TenantId", "FileAssetId")
@@ -9485,79 +9958,13 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "SupersedesDocumentId");
 
+                    b.HasIndex("TenantId", "ContentCurriculumId", "ContentSubjectId", "IsActive");
+
+                    b.HasIndex("TenantId", "ContentExamCode", "ContentBoardCode", "ContentSyllabusYear", "IsActive");
+
                     b.ToTable("Documents", t =>
                         {
                             t.HasCheckConstraint("CK_Documents_VerificationStatus", "[VerificationStatusCode] IN (N'NotRequired', N'Pending', N'Approved', N'Rejected')");
-                        });
-                });
-
-            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyBookmark", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("CreatedBy")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("DeletedBy")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("DocumentId")
-                        .HasColumnType("bigint");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid?>("LastProgressCommandId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("LastReadPage")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ProgressUpdatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<long>("TenantId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<long?>("UpdatedBy")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("UserId")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasAlternateKey("TenantId", "Id");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("TenantId", "DocumentId");
-
-                    b.HasIndex("TenantId", "UserId", "DocumentId")
-                        .IsUnique();
-
-                    b.ToTable("StudyBookmarks", t =>
-                        {
-                            t.HasCheckConstraint("CK_StudyBookmarks_LastReadPage", "[LastReadPage] >= 0 AND [LastReadPage] <= 100000");
                         });
                 });
 
@@ -9963,6 +10370,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("AcademicProgramId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("AcademicYearId")
                         .HasColumnType("bigint");
 
@@ -10025,6 +10435,8 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "AcademicLevelId");
 
                     b.HasIndex("TenantId", "AcademicProgramId");
+
+                    b.HasIndex("TenantId", "AcademicSectionId");
 
                     b.HasIndex("TenantId", "AcademicYearId");
 
@@ -10637,6 +11049,421 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipApplication", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AwardMode")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.Property<DateTime?>("AwardedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("CashAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("DiscountRuleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<string>("EligibilityStatement")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("nvarchar(700)");
+
+                    b.Property<long?>("EvidenceFileAssetId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("RenewalOfApplicationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long?>("StudentDiscountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentEnrollmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("SubmittedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "DiscountRuleId");
+
+                    b.HasIndex("TenantId", "EvidenceFileAssetId");
+
+                    b.HasIndex("TenantId", "RenewalOfApplicationId");
+
+                    b.HasIndex("TenantId", "StudentDiscountId");
+
+                    b.HasIndex("TenantId", "State", "SubmittedAtUtc");
+
+                    b.HasIndex("TenantId", "StudentEnrollmentId", "SubmittedAtUtc");
+
+                    b.ToTable("ScholarshipApplications", t =>
+                        {
+                            t.HasCheckConstraint("CK_ScholarshipApplications_Benefit", "([AwardMode]='FeeCredit' AND [DiscountRuleId] IS NOT NULL AND [CashAmount] IS NULL) OR ([AwardMode]='CashGrant' AND [DiscountRuleId] IS NULL AND [CashAmount]>0 AND [StudentDiscountId] IS NULL)");
+
+                            t.HasCheckConstraint("CK_ScholarshipApplications_State", "[State] IN ('Submitted','Approved','Rejected','Awarded','Cancelled')");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipApplicationEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("ScholarshipApplicationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ScholarshipApplicationId", "Id");
+
+                    b.ToTable("ScholarshipApplicationEvents");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipDisbursement", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("AccountingPeriodId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<long?>("BankAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("BeneficiaryNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("BeneficiaryType")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ExpenseAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ExternalPaymentReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ExternalReversalReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long?>("GuardianId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("JournalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<long>("PaymentAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly>("PaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<long>("PreparedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("ReversalAccountingPeriodId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateOnly?>("ReversalDate")
+                        .HasColumnType("date");
+
+                    b.Property<long?>("ReversalJournalId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReversalReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ReversalRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReversalRequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReversalRequestedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("ReversalReviewRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReversedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReversedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ReviewRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("ScholarshipApplicationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<DateTime>("SubmittedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("PreparedByUserId");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("ReversalRequestedByUserId");
+
+                    b.HasIndex("ReversedByUserId");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("TenantId", "AccountingPeriodId");
+
+                    b.HasIndex("TenantId", "BankAccountId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ExpenseAccountId");
+
+                    b.HasIndex("TenantId", "GuardianId");
+
+                    b.HasIndex("TenantId", "JournalId");
+
+                    b.HasIndex("TenantId", "PaymentAccountId");
+
+                    b.HasIndex("TenantId", "ReversalAccountingPeriodId");
+
+                    b.HasIndex("TenantId", "ReversalJournalId");
+
+                    b.HasIndex("TenantId", "ReviewRequestId")
+                        .IsUnique()
+                        .HasFilter("[ReviewRequestId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "ScholarshipApplicationId")
+                        .IsUnique()
+                        .HasFilter("[State] <> N'Rejected' AND [IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "Method", "PaymentAccountId", "ExternalPaymentReference")
+                        .IsUnique();
+
+                    b.ToTable("ScholarshipDisbursements", t =>
+                        {
+                            t.HasCheckConstraint("CK_ScholarshipDisbursements_Amount", "[Amount] > 0 AND [Amount] <= 99999999");
+
+                            t.HasCheckConstraint("CK_ScholarshipDisbursements_Beneficiary", "([BeneficiaryType]='Student' AND [GuardianId] IS NULL) OR ([BeneficiaryType]='Guardian' AND [GuardianId] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ScholarshipDisbursements_Method", "([Method]='Cash' AND [BankAccountId] IS NULL) OR ([Method]='Bank' AND [BankAccountId] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ScholarshipDisbursements_State", "[State] IN ('Submitted','Posted','Rejected','ReversalRequested','Reversed')");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentDiscount", b =>
                 {
                     b.Property<long>("Id")
@@ -10701,8 +11528,6 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("ApprovedByUserId");
 
@@ -11184,6 +12009,82 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentInvoiceDiscountAttribution", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("DiscountRuleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPercentageSnapshot")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long?>("RuleFeeHeadIdSnapshot")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("RuleValueSnapshot")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<long>("StudentDiscountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("StudentInvoiceLineId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "DiscountRuleId");
+
+                    b.HasIndex("TenantId", "StudentDiscountId", "StudentInvoiceLineId");
+
+                    b.HasIndex("TenantId", "StudentInvoiceLineId", "StudentDiscountId")
+                        .IsUnique();
+
+                    b.ToTable("StudentInvoiceDiscountAttributions", t =>
+                        {
+                            t.HasCheckConstraint("CK_StudentInvoiceDiscountAttribution_PositiveAmount", "[Amount] > 0");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentInvoiceLine", b =>
                 {
                     b.Property<long>("Id")
@@ -11257,8 +12158,6 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("TenantId", "FeeHeadId");
 
@@ -12068,8 +12967,6 @@ namespace EduOS.Persistence.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasAlternateKey("TenantId", "Id");
 
                     b.HasIndex("TenantId", "CampusId");
 
@@ -16256,6 +17153,157 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AdaptiveStudyGoal", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CourseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CourseSectionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("SetByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SkillCode")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("TargetPercent")
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("TeacherNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "CourseSectionId");
+
+                    b.HasIndex("TenantId", "StudentId");
+
+                    b.HasIndex("TenantId", "CourseId", "StudentId", "CourseSectionId", "SkillCode")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.ToTable("AdaptiveStudyGoals", t =>
+                        {
+                            t.HasCheckConstraint("CK_AdaptiveStudyGoals_Target", "[TargetPercent] >= 0 AND [TargetPercent] <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AdaptiveStudyPlanHistory", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AlgorithmVersion")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("CourseEnrollmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PlanJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "StudentId");
+
+                    b.HasIndex("TenantId", "CourseEnrollmentId", "GeneratedAt");
+
+                    b.ToTable("AdaptiveStudyPlanHistories");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.LMS.Assignment", b =>
                 {
                     b.Property<long>("Id")
@@ -16791,11 +17839,11 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
-                    b.Property<DateTime>("EnrolledAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<long?>("EmployeeId")
                         .HasColumnType("bigint");
+
+                    b.Property<DateTime>("EnrolledAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -16835,6 +17883,10 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "StudentId");
 
+                    b.HasIndex("TenantId", "CourseId", "EmployeeId")
+                        .IsUnique()
+                        .HasFilter("[EmployeeId] IS NOT NULL AND [IsDeleted] = 0");
+
                     b.HasIndex("TenantId", "CourseId", "StudentEnrollmentId")
                         .IsUnique()
                         .HasFilter("[StudentEnrollmentId] IS NOT NULL AND [IsDeleted] = 0");
@@ -16842,10 +17894,6 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "CourseId", "StudentId")
                         .IsUnique()
                         .HasFilter("[StudentEnrollmentId] IS NULL AND [StudentId] IS NOT NULL AND [IsDeleted] = 0");
-
-                    b.HasIndex("TenantId", "CourseId", "EmployeeId")
-                        .IsUnique()
-                        .HasFilter("[EmployeeId] IS NOT NULL AND [IsDeleted] = 0");
 
                     b.ToTable("CourseEnrollments", t =>
                         {
@@ -17341,11 +18389,11 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("DeletedBy")
                         .HasColumnType("bigint");
 
-                    b.Property<int>("GradedAssignmentsSnapshot")
-                        .HasColumnType("int");
-
                     b.Property<long?>("EmployeeId")
                         .HasColumnType("bigint");
+
+                    b.Property<int>("GradedAssignmentsSnapshot")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -17560,74 +18608,6 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("EduOS.Core.Entities.LMS.TeacherResource", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<long?>("AcademicLevelId").HasColumnType("bigint");
-                    b.Property<long>("AuthorEmployeeId").HasColumnType("bigint");
-                    b.Property<long>("CampusId").HasColumnType("bigint");
-                    b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("CreatedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
-                    b.Property<long?>("DeletedBy").HasColumnType("bigint");
-                    b.Property<DateTime?>("ExpiresAtUtc").HasColumnType("datetime2");
-                    b.Property<long>("FileAssetId").HasColumnType("bigint");
-                    b.Property<bool>("IsDeleted").HasColumnType("bit");
-                    b.Property<string>("KindCode").IsRequired().HasMaxLength(24).HasColumnType("nvarchar(24)");
-                    b.Property<string>("LanguageCode").IsRequired().HasMaxLength(10).HasColumnType("nvarchar(10)");
-                    b.Property<string>("LicenceCode").IsRequired().HasMaxLength(32).HasColumnType("nvarchar(32)");
-                    b.Property<string>("LicenceEvidence").IsRequired().HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<long?>("LessonPlanId").HasColumnType("bigint");
-                    b.Property<Guid>("PublicId").HasColumnType("uniqueidentifier");
-                    b.Property<DateTime?>("PublishedAtUtc").HasColumnType("datetime2");
-                    b.Property<string>("ReviewNote").HasMaxLength(500).HasColumnType("nvarchar(500)");
-                    b.Property<DateTime?>("ReviewedAtUtc").HasColumnType("datetime2");
-                    b.Property<long?>("ReviewedByUserId").HasColumnType("bigint");
-                    b.Property<string>("RightsHolder").IsRequired().HasMaxLength(200).HasColumnType("nvarchar(200)");
-                    b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired().ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
-                    b.Property<string>("ScopeCode").IsRequired().HasMaxLength(24).HasColumnType("nvarchar(24)");
-                    b.Property<string>("SourceUrl").HasMaxLength(1000).HasColumnType("nvarchar(1000)");
-                    b.Property<string>("StateCode").IsRequired().HasMaxLength(24).HasColumnType("nvarchar(24)");
-                    b.Property<long?>("SubjectId").HasColumnType("bigint");
-                    b.Property<long?>("SupersedesResourceId").HasColumnType("bigint");
-                    b.Property<long>("TenantId").HasColumnType("bigint");
-                    b.Property<string>("Title").IsRequired().HasMaxLength(250).HasColumnType("nvarchar(250)");
-                    b.Property<string>("Topic").HasMaxLength(150).HasColumnType("nvarchar(150)");
-                    b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
-                    b.Property<long?>("UpdatedBy").HasColumnType("bigint");
-                    b.Property<int>("VersionNo").HasColumnType("int");
-                    b.Property<DateTime?>("WithdrawnAtUtc").HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-                    b.HasAlternateKey("TenantId", "Id");
-                    b.HasIndex("ReviewedByUserId");
-                    b.HasIndex("PublicId").IsUnique();
-                    b.HasIndex("ScopeCode", "StateCode", "PublishedAtUtc")
-                        .HasFilter("[IsDeleted] = 0");
-                    b.HasIndex("TenantId", "AcademicLevelId");
-                    b.HasIndex("TenantId", "FileAssetId").IsUnique();
-                    b.HasIndex("TenantId", "LessonPlanId");
-                    b.HasIndex("TenantId", "PublicId").IsUnique();
-                    b.HasIndex("TenantId", "SubjectId");
-                    b.HasIndex("TenantId", "SupersedesResourceId").IsUnique()
-                        .HasFilter("[SupersedesResourceId] IS NOT NULL AND [IsDeleted] = 0");
-                    b.HasIndex("TenantId", "AuthorEmployeeId", "CreatedAt");
-                    b.HasIndex("TenantId", "CampusId", "StateCode", "CreatedAt");
-
-                    b.ToTable("TeacherResources", t =>
-                        {
-                            t.HasCheckConstraint("CK_TeacherResources_Version", "[VersionNo] >= 1");
-                            t.HasCheckConstraint("CK_TeacherResources_State", "[StateCode] IN (N'Draft', N'Submitted', N'Approved', N'Rejected', N'Withdrawn')");
-                            t.HasCheckConstraint("CK_TeacherResources_Scope", "[ScopeCode] IN (N'Private', N'Campus', N'Institution', N'Public')");
-                            t.HasCheckConstraint("CK_TeacherResources_Kind", "[KindCode] IN (N'LessonPlan', N'Slide', N'Worksheet', N'Assessment', N'Exemplar', N'Other')");
-                        });
-                });
-
             modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsProgressGuardianGrant", b =>
                 {
                     b.Property<long>("Id")
@@ -17726,6 +18706,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long>("CourseId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("CourseSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -17756,6 +18739,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<decimal>("PassMarks")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int>("PracticeDifficulty")
+                        .HasColumnType("int");
+
                     b.Property<long?>("PreviousVersionId")
                         .HasColumnType("bigint");
 
@@ -17767,6 +18753,10 @@ namespace EduOS.Persistence.Migrations
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
+
+                    b.Property<string>("SkillCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<long>("TenantId")
                         .HasColumnType("bigint");
@@ -17792,9 +18782,16 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasIndex("TenantId", "CourseId");
 
+                    b.HasIndex("TenantId", "CourseSectionId");
+
                     b.HasIndex("TenantId", "PreviousVersionId");
 
-                    b.ToTable("Quizzes");
+                    b.HasIndex("TenantId", "CourseId", "CourseSectionId", "SkillCode");
+
+                    b.ToTable("Quizzes", t =>
+                        {
+                            t.HasCheckConstraint("CK_Quizzes_PracticeDifficulty", "[PracticeDifficulty] BETWEEN 1 AND 3");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.LMS.QuizAnswer", b =>
@@ -18075,6 +19072,10 @@ namespace EduOS.Persistence.Migrations
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("int");
 
+                    b.Property<string>("Explanation")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -18114,6 +19115,180 @@ namespace EduOS.Persistence.Migrations
                     b.HasIndex("TenantId", "QuizId");
 
                     b.ToTable("QuizQuestions");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.TeacherResource", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long?>("AcademicLevelId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AuthorEmployeeId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("FileAssetId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("KindCode")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<long?>("LessonPlanId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("LicenceCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("LicenceEvidence")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RightsHolder")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("ScopeCode")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<string>("SourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<long?>("SubjectId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("SupersedesResourceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<string>("Topic")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("WithdrawnAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("TenantId", "AcademicLevelId");
+
+                    b.HasIndex("TenantId", "FileAssetId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "LessonPlanId");
+
+                    b.HasIndex("TenantId", "PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "SubjectId");
+
+                    b.HasIndex("TenantId", "SupersedesResourceId")
+                        .IsUnique()
+                        .HasFilter("[SupersedesResourceId] IS NOT NULL AND [IsDeleted] = 0");
+
+                    b.HasIndex("ScopeCode", "StateCode", "PublishedAtUtc")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "AuthorEmployeeId", "CreatedAt");
+
+                    b.HasIndex("TenantId", "CampusId", "StateCode", "CreatedAt");
+
+                    b.ToTable("TeacherResources", t =>
+                        {
+                            t.HasCheckConstraint("CK_TeacherResources_Kind", "[KindCode] IN (N'LessonPlan', N'Slide', N'Worksheet', N'Assessment', N'Exemplar', N'Other')");
+
+                            t.HasCheckConstraint("CK_TeacherResources_Scope", "[ScopeCode] IN (N'Private', N'Campus', N'Institution', N'Public')");
+
+                            t.HasCheckConstraint("CK_TeacherResources_State", "[StateCode] IN (N'Draft', N'Submitted', N'Approved', N'Rejected', N'Withdrawn')");
+
+                            t.HasCheckConstraint("CK_TeacherResources_Version", "[VersionNo] >= 1");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Learners.LearnerConsentRequest", b =>
@@ -19450,6 +20625,172 @@ namespace EduOS.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyBookmark", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("DocumentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("LastProgressCommandId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("LastReadPage")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProgressUpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("UserId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("TenantId", "DocumentId");
+
+                    b.HasIndex("TenantId", "UserId", "DocumentId")
+                        .IsUnique();
+
+                    b.ToTable("StudyBookmarks", t =>
+                        {
+                            t.HasCheckConstraint("CK_StudyBookmarks_LastReadPage", "[LastReadPage] >= 0 AND [LastReadPage] <= 100000");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyEvidenceExcerpt", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("DocumentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ExcerptText")
+                        .IsRequired()
+                        .HasMaxLength(1200)
+                        .HasColumnType("nvarchar(1200)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SourceLocator")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<string>("StateCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<long>("SubmittedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "DocumentId", "SourceLocator")
+                        .IsUnique()
+                        .HasFilter("[IsDeleted] = 0 AND [StateCode] IN ('Pending','Approved')");
+
+                    b.HasIndex("TenantId", "DocumentId", "StateCode", "LanguageCode", "Id");
+
+                    b.ToTable("StudyEvidenceExcerpts", t =>
+                        {
+                            t.HasCheckConstraint("CK_StudyEvidenceExcerpts_State", "[StateCode] IN (N'Pending',N'Approved',N'Rejected',N'Revoked')");
+                        });
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Payroll.Bonus", b =>
                 {
                     b.Property<long>("Id")
@@ -19508,11 +20849,11 @@ namespace EduOS.Persistence.Migrations
 
                     b.HasAlternateKey("TenantId", "Id");
 
-                    b.HasIndex("TenantId", "EmployeeId");
-
                     b.HasIndex("TenantId", "ClientRequestId")
                         .IsUnique()
                         .HasFilter("[ClientRequestId] IS NOT NULL");
+
+                    b.HasIndex("TenantId", "EmployeeId");
 
                     b.ToTable("Bonuses", t =>
                         {
@@ -21878,6 +23219,426 @@ namespace EduOS.Persistence.Migrations
                         .HasFilter("[IsDeleted] = 0");
 
                     b.ToTable("UserLegalAcceptances");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCampusPolicy", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("ApprovedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("ApprovedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EmergencyGuidanceBn")
+                        .IsRequired()
+                        .HasMaxLength(350)
+                        .HasColumnType("nvarchar(350)");
+
+                    b.Property<string>("EmergencyGuidanceEn")
+                        .IsRequired()
+                        .HasMaxLength(350)
+                        .HasColumnType("nvarchar(350)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("LegalHold")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("RetentionDays")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("TenantId", "CampusId")
+                        .IsUnique();
+
+                    b.ToTable("CounselingCampusPolicies", t =>
+                        {
+                            t.HasCheckConstraint("CK_CounselingCampusPolicy_Retention", "[RetentionDays] BETWEEN 30 AND 3650");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCase", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("AssignedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("AssignedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("AssignedCounselorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ClosedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("GuardianConsentAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("GuardianContactConsented")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsUrgent")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("OpenedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("OpenedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ProtectedSummary")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("RedactedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("RedactedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("RedactionRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("RedactionRequestedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("RedactionRequestedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<long>("StudentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("AssignedCounselorUserId");
+
+                    b.HasIndex("ClosedByUserId");
+
+                    b.HasIndex("OpenedByUserId");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("RedactedByUserId");
+
+                    b.HasIndex("RedactionRequestedByUserId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "StudentId");
+
+                    b.HasIndex("TenantId", "AssignedCounselorUserId", "State");
+
+                    b.HasIndex("TenantId", "CampusId", "State", "OpenedAtUtc");
+
+                    b.ToTable("CounselingCases", t =>
+                        {
+                            t.HasCheckConstraint("CK_CounselingCases_State", "[State] IN ('Requested','Assigned','Active','Escalated','Closed')");
+                        });
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCaseEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("nvarchar(24)");
+
+                    b.Property<long>("ActorUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("AppointmentAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("CounselingCaseId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProtectedNote")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CounselingCaseId", "Id");
+
+                    b.ToTable("CounselingCaseEvents");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingPolicyChange", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CampusId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("ClientRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("DeletedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EmergencyGuidanceBn")
+                        .IsRequired()
+                        .HasMaxLength(350)
+                        .HasColumnType("nvarchar(350)");
+
+                    b.Property<string>("EmergencyGuidanceEn")
+                        .IsRequired()
+                        .HasMaxLength(350)
+                        .HasColumnType("nvarchar(350)");
+
+                    b.Property<byte[]>("ExpectedPolicyVersion")
+                        .HasMaxLength(8)
+                        .HasColumnType("varbinary(8)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("LegalHold")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("ProposedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("ProposedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("PublicId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("RetentionDays")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ReviewRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("ReviewedByUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.Property<long>("TenantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long?>("UpdatedBy")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasAlternateKey("TenantId", "Id");
+
+                    b.HasIndex("ProposedByUserId");
+
+                    b.HasIndex("PublicId")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.HasIndex("TenantId", "CampusId")
+                        .IsUnique()
+                        .HasFilter("[State] = N'Submitted' AND [IsDeleted] = 0");
+
+                    b.HasIndex("TenantId", "ClientRequestId")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "ReviewRequestId")
+                        .IsUnique()
+                        .HasFilter("[ReviewRequestId] IS NOT NULL");
+
+                    b.ToTable("CounselingPolicyChanges", t =>
+                        {
+                            t.HasCheckConstraint("CK_CounselingPolicyChange_Retention", "[RetentionDays] BETWEEN 30 AND 3650");
+
+                            t.HasCheckConstraint("CK_CounselingPolicyChange_Reviewer", "([State]='Submitted' AND [ReviewedByUserId] IS NULL AND [ReviewedAtUtc] IS NULL AND [ReviewRequestId] IS NULL) OR ([State]<>'Submitted' AND [ReviewedByUserId] IS NOT NULL AND [ReviewedAtUtc] IS NOT NULL AND [ReviewRequestId] IS NOT NULL AND [ReviewedByUserId]<>[ProposedByUserId])");
+
+                            t.HasCheckConstraint("CK_CounselingPolicyChange_State", "[State] IN ('Submitted','Approved','Rejected')");
+                        });
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Students.Guardian", b =>
@@ -24831,6 +26592,31 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicSection", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicLevel", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcademicLevelId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicTerm", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
@@ -24902,6 +26688,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcademicSectionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.RoutineEntry", null)
                         .WithMany()
@@ -25160,6 +26952,12 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcademicSectionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicTerm", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "AcademicTermId")
@@ -25263,6 +27061,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcademicSectionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicTerm", null)
                         .WithMany()
@@ -25507,28 +27311,58 @@ namespace EduOS.Persistence.Migrations
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashFlowActivityRule", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("ReviewedByUserId").OnDelete(DeleteBehavior.Restrict);
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("SubmittedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
-                        .WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.Accounting.Account", null)
-                        .WithMany().HasForeignKey("TenantId", "AccountId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Accounting.CashFlowJournalAllocation", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("ReviewedByUserId").OnDelete(DeleteBehavior.Restrict);
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("SubmittedByUserId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
-                        .WithMany().HasForeignKey("TenantId").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.Accounting.Journal", null)
-                        .WithMany().HasForeignKey("TenantId", "JournalId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId", "JournalId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Tenant");
                 });
 
@@ -26262,54 +28096,96 @@ namespace EduOS.Persistence.Migrations
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheet", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("CapturedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("CapturedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("ReviewedByUserId")
+                        .WithMany()
+                        .HasForeignKey("PostedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("PostedByUserId")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
-                        .WithMany().HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("EduOS.Core.Entities.Assessment.OmrTemplate", null)
-                        .WithMany().HasForeignKey("TenantId", "OmrTemplateId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("EduOS.Core.Entities.Academic.StudentSubjectRegistration", null)
-                        .WithMany().HasForeignKey("TenantId", "StudentSubjectRegistrationId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
-                        .WithMany().HasForeignKey("TenantId", "FileAssetId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId", "FileAssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Assessment.OmrTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "OmrTemplateId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentSubjectRegistration", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentSubjectRegistrationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrSheetEvent", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("ActorUserId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
-                        .WithMany().HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.Assessment.OmrSheet", null)
-                        .WithMany().HasForeignKey("TenantId", "OmrSheetId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId", "OmrSheetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Assessment.OmrTemplate", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("SealedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("SealedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
-                        .WithMany().HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.Assessment.AssessmentComponent", null)
-                        .WithMany().HasForeignKey("TenantId", "AssessmentComponentId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AssessmentComponentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("Tenant");
                 });
 
@@ -26370,6 +28246,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcademicSectionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.Assessment.Assessment", null)
                         .WithMany()
@@ -27492,20 +29374,6 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("EduOS.Core.Entities.Files.DocumentTypeDefinition", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "DocumentTypeCode")
-                        .HasPrincipalKey("TenantId", "Code")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "FileAssetId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicCurriculum", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ContentCurriculumId")
@@ -27524,6 +29392,20 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("EduOS.Core.Entities.Files.DocumentTypeDefinition", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentTypeCode")
+                        .HasPrincipalKey("TenantId", "Code")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "FileAssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "LibraryCampusId")
@@ -27535,30 +29417,6 @@ namespace EduOS.Persistence.Migrations
                         .HasForeignKey("TenantId", "SupersedesDocumentId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Tenant");
-                });
-
-            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyBookmark", b =>
-                {
-                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("EduOS.Core.Entities.Files.Document", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "DocumentId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
 
                     b.Navigation("Tenant");
                 });
@@ -27664,6 +29522,12 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.Academic.AcademicProgram", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "AcademicProgramId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcademicSectionId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
 
@@ -27886,6 +29750,173 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipApplication", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Finance.DiscountRule", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DiscountRuleId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EvidenceFileAssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Finance.ScholarshipApplication", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "RenewalOfApplicationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Finance.StudentDiscount", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentDiscountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.StudentEnrollment", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentEnrollmentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipApplicationEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Finance.ScholarshipApplication", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ScholarshipApplicationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.ScholarshipDisbursement", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("PreparedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReversalRequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReversedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.AccountingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AccountingPeriodId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.BankAccount", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "BankAccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.Account", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ExpenseAccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Guardian", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "GuardianId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.Journal", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "JournalId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.Account", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "PaymentAccountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.AccountingPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversalAccountingPeriodId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Accounting.Journal", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ReversalJournalId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Finance.ScholarshipApplication", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ScholarshipApplicationId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentDiscount", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
@@ -28067,6 +30098,40 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Finance.StudentInvoiceDiscountAttribution", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Finance.DiscountRule", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DiscountRuleId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Finance.StudentDiscount", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentDiscountId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Finance.StudentInvoiceLine", "StudentInvoiceLine")
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentInvoiceLineId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("StudentInvoiceLine");
 
                     b.Navigation("Tenant");
                 });
@@ -28347,6 +30412,13 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("EduOS.Core.Entities.HR.EmployeeCampusAssignment", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "EmployeeCampusAssignmentId")
@@ -28357,13 +30429,6 @@ namespace EduOS.Persistence.Migrations
                     b.HasOne("EduOS.Core.Entities.HR.Employee", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "EmployeeId")
-                        .HasPrincipalKey("TenantId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
-                        .WithMany()
-                        .HasForeignKey("TenantId", "CampusId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
@@ -29719,6 +31784,63 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AdaptiveStudyGoal", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.Course", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CourseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.CourseSection", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CourseSectionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Student", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.AdaptiveStudyPlanHistory", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.CourseEnrollment", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CourseEnrollmentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Student", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("EduOS.Core.Entities.LMS.Assignment", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
@@ -30127,38 +32249,6 @@ namespace EduOS.Persistence.Migrations
                     b.Navigation("Tenant");
                 });
 
-            modelBuilder.Entity("EduOS.Core.Entities.LMS.TeacherResource", b =>
-                {
-                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
-                        .WithMany().HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
-                        .WithMany().HasForeignKey("TenantId", "AuthorEmployeeId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
-                        .WithMany().HasForeignKey("TenantId", "CampusId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
-                        .WithMany().HasForeignKey("TenantId", "FileAssetId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
-                    b.HasOne("EduOS.Core.Entities.Academic.LessonPlan", null)
-                        .WithMany().HasForeignKey("TenantId", "LessonPlanId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
-                    b.HasOne("EduOS.Core.Entities.Academic.AcademicLevel", null)
-                        .WithMany().HasForeignKey("TenantId", "AcademicLevelId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
-                    b.HasOne("EduOS.Core.Entities.Academic.Subject", null)
-                        .WithMany().HasForeignKey("TenantId", "SubjectId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
-                    b.HasOne("EduOS.Core.Entities.LMS.TeacherResource", null)
-                        .WithMany().HasForeignKey("TenantId", "SupersedesResourceId")
-                        .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
-                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
-                        .WithMany().HasForeignKey("ReviewedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-                    b.Navigation("Tenant");
-                });
-
             modelBuilder.Entity("EduOS.Core.Entities.LMS.LmsProgressGuardianGrant", b =>
                 {
                     b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
@@ -30198,6 +32288,12 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.LMS.CourseSection", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CourseSectionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("EduOS.Core.Entities.LMS.Quiz", null)
                         .WithMany()
@@ -30321,6 +32417,67 @@ namespace EduOS.Persistence.Migrations
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.LMS.TeacherResource", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.AcademicLevel", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AcademicLevelId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.HR.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AuthorEmployeeId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Files.FileAsset", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "FileAssetId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Academic.LessonPlan", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "LessonPlanId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Academic.Subject", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SubjectId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.LMS.TeacherResource", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SupersedesResourceId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Tenant");
                 });
@@ -30704,6 +32861,48 @@ namespace EduOS.Persistence.Migrations
                         .HasForeignKey("TenantId", "StudentInvoiceId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyBookmark", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Files.Document", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Library.StudyEvidenceExcerpt", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Files.Document", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "DocumentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.Navigation("Tenant");
                 });
@@ -31196,6 +33395,139 @@ namespace EduOS.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCampusPolicy", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCase", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedCounselorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ClosedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("OpenedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RedactedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("RedactionRequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.Student", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "StudentId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingCaseEvent", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Students.CounselingCase", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CounselingCaseId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("EduOS.Core.Entities.Students.CounselingPolicyChange", b =>
+                {
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ProposedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CampusId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("EduOS.Core.Entities.Students.Guardian", b =>
@@ -31966,8 +34298,6 @@ namespace EduOS.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
-            // Compose additive student-support mappings after all principal entities exist.
-            AddStudentSupportSnapshot(modelBuilder);
 #pragma warning restore 612, 618
         }
     }
