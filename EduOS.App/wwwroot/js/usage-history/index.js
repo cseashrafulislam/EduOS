@@ -3,7 +3,9 @@
 const $ = id => document.getElementById(id);
 const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || "";
 const state = { page: 1, pages: 1, generation: 0, quotaGeneration: 0, capturing: false };
-const format = n => Number(n || 0).toLocaleString();
+const bn = (document.documentElement.lang || "").toLowerCase().startsWith("bn");
+const say = (en, bd) => bn ? bd : en;
+const format = n => Number(n || 0).toLocaleString(bn ? "bn-BD" : "en-BD");
 function status(message, error = false) {
     const el = $("uhStatus"); el.textContent = message;
     el.className = "small mb-3 " + (error ? "text-danger" : "text-muted");
@@ -26,7 +28,7 @@ function td(tr, value) {
 async function loadQuota() {
     const generation = ++state.quotaGeneration;
     const info = $("uhQuotaInfo"), rows = $("uhQuotaRows");
-    info.textContent = "Loading quota comparison...";
+    info.textContent = say("Loading quota comparison...", "কোটা লোড হচ্ছে…");
     try {
         const data = await api("/quota-overview");
         if (generation !== state.quotaGeneration) return;
@@ -37,7 +39,7 @@ async function loadQuota() {
             : "No currently effective subscription. ")
             + (snapshot ? "Saved usage as of " + snapshot + " (not live)." :
                 "No saved usage snapshot yet. Capture today's usage to compare limits.")
-            + " Users, students, employees and storage are counted live.";
+            + " User seats and committed file storage are live; student, employee and campus figures come from the saved snapshot.";
         for (const metric of [data.currentUserSeats, data.currentStudents,
             data.currentEmployees, ...(data.metrics || [])].filter(Boolean)) {
             const tr = document.createElement("tr");
@@ -88,7 +90,7 @@ async function loadAutomation() {
 }
 async function load() {
     const generation = ++state.generation, page = state.page;
-    status("Loading usage history...");
+    status(say("Loading usage history...", "ব্যবহারের ইতিহাস লোড হচ্ছে…"));
     try {
         const data = await api("?page=" + page + "&pageSize=20");
         if (generation !== state.generation || page !== state.page) return;
@@ -107,20 +109,19 @@ async function load() {
         }
         $("uhPage").textContent = "Page " + page + " / " + state.pages;
         $("uhPrev").disabled = page <= 1; $("uhNext").disabled = page >= state.pages;
-        status((data.totalCount || 0) + " recorded daily snapshots.");
+        status(format(data.totalCount || 0) + say(" recorded daily snapshots.", "টি দৈনিক রেকর্ড সংরক্ষিত আছে।"));
     } catch (error) { if (generation === state.generation) status(error.message, true); }
 }
 $("uhCapture").addEventListener("click", async () => {
     if (state.capturing) return;
     state.capturing = true; $("uhCapture").disabled = true;
-    status("Capturing current counts...");
+    status(say("Capturing current counts...", "আজকের সংখ্যা সংরক্ষণ করা হচ্ছে…"));
     try {
         await api("/capture", "POST");
         state.page = 1; await load(); await loadQuota(); await loadAutomation();
     } catch (error) { status(error.message, true); }
     finally { state.capturing = false; $("uhCapture").disabled = false; }
 });
-$("uhRefresh").addEventListener("click", () => { load(); loadQuota(); loadAutomation(); });
 for (const [id, delta] of [["uhPrev", -1], ["uhNext", 1]]) {
     $(id).addEventListener("click", () => {
         const next = state.page + delta;
