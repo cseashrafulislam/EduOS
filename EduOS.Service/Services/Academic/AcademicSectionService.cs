@@ -45,6 +45,9 @@ public sealed class AcademicSectionService
         _uow = uow;
     }
 
+    private bool CanRead => _user.IsAuthenticated && _user.TenantId > 0 &&
+        (_user.IsTenantAdmin || _user.IsInRole("Principal") ||
+         _user.IsInRole("VicePrincipal") || _user.IsInRole("AdmissionOfficer"));
     private bool Allowed => _user.IsAuthenticated && _user.IsTenantAdmin && _user.TenantId > 0;
     private static ApiResponse<T> Error<T>(string message, int code = 400) =>
         ApiResponse<T>.ErrorResponse(message, code);
@@ -65,7 +68,7 @@ public sealed class AcademicSectionService
     public async Task<ApiResponse<PagedResult<AcademicSectionDto>>> ListAsync(
         long? academicBatchId, string? search, int page, int pageSize, CancellationToken ct)
     {
-        if (!Allowed) return Error<PagedResult<AcademicSectionDto>>("Section administration requires tenant administrator access.", 403);
+        if (!CanRead) return Error<PagedResult<AcademicSectionDto>>("Section administration requires tenant administrator access.", 403);
         if (academicBatchId is <= 0 || page < 1 || pageSize is < 1 or > 100 ||
             search?.Length > 80 || (long)(page - 1) * pageSize > int.MaxValue)
             return Error<PagedResult<AcademicSectionDto>>("Invalid section filters.");
@@ -95,7 +98,7 @@ public sealed class AcademicSectionService
 
     public async Task<ApiResponse<AcademicSectionDto>> GetAsync(long id, CancellationToken ct)
     {
-        if (!Allowed) return Error<AcademicSectionDto>("Section administration requires tenant administrator access.", 403);
+        if (!CanRead) return Error<AcademicSectionDto>("Section administration requires tenant administrator access.", 403);
         if (id <= 0) return Error<AcademicSectionDto>("Invalid section ID.");
         var tenant = _user.TenantId;
         var row = await _sections.GetQueryable().AsNoTracking()
