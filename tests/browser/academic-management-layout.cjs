@@ -44,7 +44,15 @@ function intersect(a, b) {
 }
 
 async function geometry(page, sel) {
-    return page.locator(sel).boundingBox();
+    const rect = await page.locator(sel).boundingBox();
+    if (!rect) return null;
+    return {
+        ...rect,
+        left: rect.x,
+        top: rect.y,
+        right: rect.x + rect.width,
+        bottom: rect.y + rect.height
+    };
 }
 async function run() {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
