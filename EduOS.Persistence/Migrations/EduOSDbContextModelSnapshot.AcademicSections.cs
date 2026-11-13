@@ -112,5 +112,27 @@ partial class EduOSDbContextModelSnapshot
                 .WithMany().HasForeignKey("TenantId", "AcademicSectionId")
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
         });
+        // The 20261113190000 migration made AcademicBatchId optional in these
+        // four tables. The main snapshot predates that change and still marks
+        // its composite relationships required; the live model does not.
+        // Align relationship metadata without adding a fictitious migration
+        // or changing the tenant-scoped principal key.
+        foreach (var entityTypeName in new[]
+        {
+            "EduOS.Core.Entities.Academic.StudentEnrollment",
+            "EduOS.Core.Entities.Academic.SubjectOffering",
+            "EduOS.Core.Entities.Academic.AttendanceSession",
+            "EduOS.Core.Entities.Assessment.ResultPublication"
+        })
+        {
+            modelBuilder.Entity(entityTypeName)
+                .HasOne("EduOS.Core.Entities.Academic.AcademicBatch", null)
+                .WithMany()
+                .HasForeignKey("TenantId", "AcademicBatchId")
+                .HasPrincipalKey("TenantId", "Id")
+                .OnDelete(DeleteBehavior.Restrict)
+                .IsRequired(false);
+        }
+
     }
 }
