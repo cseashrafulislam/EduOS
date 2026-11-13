@@ -248,8 +248,8 @@
     <section data-section="sections" class="card border-0 shadow-sm @(section == "sections" ? "" : "d-none")">
         <div class="card-body">
             <h2 class="h5">Academic Batches</h2>
-            <div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-sm btn-outline-primary" href="/AcademicManagement/Sections">Manage Academic Sections</a><span class="small text-muted align-self-center">Batch = admission cohort. Section = class group within the batch.</span></div>
-            <p class="small text-muted">Create a cohort or intake once, then manage its class groups in <a href="/AcademicManagement/Sections">Academic Sections</a>. Attendance, routine and exam assignments use the selected section.</p>
+            <div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-sm btn-outline-primary" href="/AcademicManagement/Sections">Manage Academic Sections</a><span class="small text-muted align-self-center">Batch = optional intake/cohort. Section = class group within a campus and class.</span></div>
+            <p class="small text-muted">Create a cohort/intake here only when required. Academic Sections are maintained independently under Campus + Class; creating a Section never requires a Batch.</p>
             <form id="sectionForm" class="row g-2 align-items-end mb-3">
                 <div class="col-md-3"><label for="sectionCampus" class="form-label">Campus *</label><select id="sectionCampus" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="sectionYear" class="form-label">Academic year *</label><select id="sectionYear" class="form-select" required></select></div>
