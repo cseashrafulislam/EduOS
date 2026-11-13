@@ -33,6 +33,7 @@ public sealed class StudentDirectoryServiceTests
         page.Data!.Items.Should().ContainSingle();
         page.Data.Items[0].RollNo.Should().Be("12");
         page.Data.Items[0].AcademicLevelName.Should().Be("Level Six");
+        page.Data.Items[0].AcademicSectionName.Should().Be("Section A");
         page.Data.Items[0].MaskedMobile.Should().EndWith("5678")
             .And.NotBe("+8801712345678");
         details.Success.Should().BeTrue();
@@ -40,7 +41,9 @@ public sealed class StudentDirectoryServiceTests
         details.Data.DateOfBirth.Should().Be(new DateOnly(2012, 2, 3));
         details.Data.AdmissionDate.Should().Be(new DateOnly(2026, 9, 8));
         details.Data.Guardians.Should().ContainSingle();
+        details.Data.AcademicSectionName.Should().Be("Section A");
         details.Data.Enrollments.Should().ContainSingle();
+        details.Data.Enrollments[0].AcademicSectionName.Should().Be("Section A");
         details.Data.Enrollments[0].State.Should().Be(EduOS.Core.Enums.Domain.EnrollmentState.Active);
     }
 
@@ -90,6 +93,7 @@ public sealed class StudentDirectoryServiceTests
         page.Data.Items[0].RollNo.Should().BeEmpty();
         page.Data.Items[0].AcademicLevelName.Should().BeEmpty();
         page.Data.Items[0].AcademicBatchName.Should().BeEmpty();
+        page.Data.Items[0].AcademicSectionName.Should().BeNull();
         details.Success.Should().BeTrue();
         details.Data!.RollNo.Should().BeEmpty();
         details.Data.AcademicLevelName.Should().BeEmpty();
@@ -118,6 +122,21 @@ public sealed class StudentDirectoryServiceTests
         details.Data.Enrollments.Should().ContainSingle(x => x.RollNo == "12");
     }
 
+    [Fact]
+    public async Task Directory_hides_current_section_label_if_its_class_scope_changes()
+    {
+        var options = Options();
+        await using var db = Context(options, 101);
+        var student = await SeedAsync(db, 101);
+        var section = await db.Set<AcademicSection>().SingleAsync();
+        section.AcademicLevelId += 1000;
+        await db.SaveChangesAsync();
+        var result = await Service(db, 101).GetAsync(student.PublicId);
+        result.Success.Should().BeTrue();
+        result.Data!.AcademicSectionName.Should().BeNull();
+        result.Data.Enrollments[0].AcademicSectionName.Should().BeNull();
+    }
+
     private static StudentDirectoryService Service(EduOSDbContext db, long tenant, string role = "TenantAdmin") => new(
         new GenericRepository<Student>(db),
         new GenericRepository<StudentEnrollment>(db),
@@ -130,7 +149,8 @@ public sealed class StudentDirectoryServiceTests
         new GenericRepository<AcademicTrack>(db),
         new GenericRepository<Campus>(db),
         new TestCurrentUser(tenant, role),
-        NullLogger<StudentDirectoryService>.Instance);
+        NullLogger<StudentDirectoryService>.Instance,
+        new GenericRepository<AcademicSection>(db));
 
     private static async Task<Student> SeedAsync(EduOSDbContext db, long tenant)
     {
@@ -149,7 +169,9 @@ public sealed class StudentDirectoryServiceTests
             Name = "Batch A", Code = "BA", Capacity = 30 };
         var curriculum = new AcademicCurriculum { TenantId = tenant, AcademicProgramId = program.Id,
             Name = "Main Curriculum", Code = "CUR", EffectiveFrom = new DateOnly(2026, 1, 1) };
-        db.AddRange(batch, curriculum); await db.SaveChangesAsync();
+        var section = new AcademicSection { TenantId = tenant, CampusId = campus.Id,
+            AcademicLevelId = level.Id, Name = "Section A", Code = "A", Capacity = 30 };
+        db.AddRange(batch, curriculum, section); await db.SaveChangesAsync();
         var student = new Student
         {
             TenantId = tenant, PublicId = Guid.NewGuid(),
@@ -169,7 +191,7 @@ public sealed class StudentDirectoryServiceTests
             {
                 TenantId = tenant, StudentId = student.Id, CampusId = campus.Id,
                 AcademicYearId = year.Id, AcademicProgramId = program.Id,
-                AcademicLevelId = level.Id, AcademicBatchId = batch.Id,
+                AcademicLevelId = level.Id, AcademicBatchId = batch.Id, AcademicSectionId = section.Id,
                 AcademicCurriculumId = curriculum.Id, RollNo = "12",
                 EnrollmentDate = new DateOnly(2026, 9, 8), IsCurrent = true
             });

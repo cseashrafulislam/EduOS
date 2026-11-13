@@ -23,6 +23,7 @@ public sealed class StudentDirectoryExportTests
             RollNo = "@external",
             AcademicYear = "2026",
             AcademicLevelName = "Class, Six",
+            AcademicSectionName = "A/শাখা",
             AcademicBatchName = "A\"B",
             Status = "Active",
             MaskedMobile = "••••5678"
@@ -34,6 +35,7 @@ public sealed class StudentDirectoryExportTests
         Assert.Contains("\"'@external\"", text);
         Assert.Contains("\"Class, Six\"", text);
         Assert.Contains("\"A\"\"B\"", text);
+        Assert.Contains("A/শাখা", text);
         Assert.DoesNotContain("5678", text);
         Assert.DoesNotContain("Guardian", text);
         var bangla = Encoding.UTF8.GetString(StudentDirectoryCsvWriter.Write(rows, new CultureInfo("bn-BD")));

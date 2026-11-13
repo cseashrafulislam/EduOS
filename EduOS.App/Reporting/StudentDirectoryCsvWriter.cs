@@ -19,15 +19,15 @@ public static class StudentDirectoryCsvWriter
         var csv = new StringBuilder("\uFEFF");
         var bangla = (culture ?? CultureInfo.CurrentUICulture).TwoLetterISOLanguageName == "bn";
         csv.AppendLine(bangla
-            ? "শিক্ষার্থী কোড,পূর্ণ নাম,রোল,শিক্ষাবর্ষ,শ্রেণি,ব্যাচ,অবস্থা"
-            : "Student Code,Full Name,Roll,Academic Year,Level,Batch,Status");
+            ? "শিক্ষার্থী কোড,পূর্ণ নাম,রোল,শিক্ষাবর্ষ,শ্রেণি,শাখা,ব্যাচ,অবস্থা"
+            : "Student Code,Full Name,Roll,Academic Year,Level,Section,Batch,Status");
         foreach (var row in rows)
         {
             csv.AppendJoin(",", new[]
             {
                 Cell(row.StudentCode), Cell(row.FullName), Cell(row.RollNo),
                 Cell(row.AcademicYear), Cell(row.AcademicLevelName),
-                Cell(row.AcademicBatchName), Cell(row.Status)
+                Cell(row.AcademicSectionName), Cell(row.AcademicBatchName), Cell(row.Status)
             });
             csv.AppendLine();
         }

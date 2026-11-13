@@ -31,11 +31,14 @@ public sealed class StudentEnrollmentHistoryWorkflowTests
         db.AcademicBatches.AddRange(
             new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8, Name = "Old Section", Code = "A" },
             new AcademicBatch { Id = 11, TenantId = 71, CampusId = 9, Name = "New Section", Code = "B" });
+        db.AcademicSections.Add(new AcademicSection { Id = 25, TenantId = 71,
+            CampusId = 8, AcademicLevelId = 3, Name = "Class A", Code = "A", Capacity = 40 });
         db.StudentEnrollments.AddRange(
             new StudentEnrollment
             {
                 Id = 30, TenantId = 71, StudentId = 20, CampusId = 8,
-                AcademicBatchId = 10, RollNo = "OLD-07", IsCurrent = false,
+                AcademicBatchId = 10, AcademicSectionId = 25, AcademicLevelId = 3,
+                RollNo = "OLD-07", IsCurrent = false,
                 EnrollmentDate = new DateOnly(2025, 1, 1),
                 State = EnrollmentState.Promoted
             },
@@ -60,6 +63,8 @@ public sealed class StudentEnrollmentHistoryWorkflowTests
         Assert.Equal("OLD-07", Assert.Single(second.Data!.Items).RollNo);
         Assert.Equal("Old Section", second.Data.Items[0].BatchName);
         Assert.False(second.Data.Items[0].IsCurrent);
+        Assert.Equal("Class A", second.Data.Items[0].SectionName);
+        Assert.Equal((long?)25, second.Data.Items[0].AcademicSectionId);
     }
 
     [Fact]
