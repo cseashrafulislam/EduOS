@@ -55,7 +55,8 @@ public sealed partial class LmsWorkflowService
         if (matched.Count == 0) return errors;
 
         var yearIds = matched.Select(x => x.Academic.AcademicYearId).Distinct().ToArray();
-        var batchIds = matched.Select(x => x.Academic.AcademicBatchId).Distinct().ToArray();
+        var batchIds = matched.Where(x => x.Academic.AcademicBatchId.HasValue)
+            .Select(x => x.Academic.AcademicBatchId!.Value).Distinct().ToArray();
         var curriculumIds = matched.Select(x => x.Academic.AcademicCurriculumId).Distinct().ToArray();
         var years = (await _submissionYears.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && yearIds.Contains(x.Id) && !x.IsDeleted)
@@ -67,7 +68,7 @@ public sealed partial class LmsWorkflowService
             .Where(x => x.TenantId == tenant && curriculumIds.Contains(x.Id) && !x.IsDeleted)
             .ToListAsync(ct)).ToDictionary(x => x.Id);
 
-        var offered = new HashSet<(long BatchId, long YearId, long CurriculumId)>();
+        var offered = new HashSet<(long? BatchId, long YearId, long? SectionId, long CurriculumId)>();
         if (course.SubjectId.HasValue)
         {
             var offerings = await (from offering in _offerings.GetQueryable().AsNoTracking()
@@ -75,36 +76,40 @@ public sealed partial class LmsWorkflowService
                     on offering.CurriculumSubjectId equals item.Id
                 where offering.TenantId == tenant && item.TenantId == tenant &&
                       !offering.IsDeleted && !item.IsDeleted && offering.IsActive && item.IsActive &&
-                      batchIds.Contains(offering.AcademicBatchId) &&
+                      (!offering.AcademicBatchId.HasValue || batchIds.Contains(offering.AcademicBatchId.Value)) &&
                       yearIds.Contains(offering.AcademicYearId) &&
                       curriculumIds.Contains(item.AcademicCurriculumId) &&
                       item.SubjectId == course.SubjectId.Value
-                select new { offering.AcademicBatchId, offering.AcademicYearId, item.AcademicCurriculumId })
+                select new { offering.AcademicBatchId, offering.AcademicYearId,
+                    offering.AcademicSectionId, item.AcademicCurriculumId })
                 .Distinct().ToListAsync(ct);
             foreach (var offering in offerings)
-                offered.Add((offering.AcademicBatchId, offering.AcademicYearId, offering.AcademicCurriculumId));
+                offered.Add((offering.AcademicBatchId, offering.AcademicYearId,
+                    offering.AcademicSectionId, offering.AcademicCurriculumId));
         }
 
         var today = DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime);
         foreach (var (enrollment, academic) in matched)
         {
+            batches.TryGetValue(academic.AcademicBatchId.GetValueOrDefault(), out var batch);
             if (!years.TryGetValue(academic.AcademicYearId, out var year) ||
-                !(!academic.AcademicBatchId.HasValue || !batches.TryGetValue(academic.AcademicBatchId.Value, out var batch)) ||
+                (academic.AcademicBatchId.HasValue && batch == null) ||
                 !curricula.TryGetValue(academic.AcademicCurriculumId, out var curriculum) ||
-                batch.CampusId != academic.CampusId ||
-                batch.AcademicYearId != academic.AcademicYearId ||
-                batch.AcademicProgramId != academic.AcademicProgramId ||
+                (batch != null && (batch.CampusId != academic.CampusId ||
+                    batch.AcademicYearId != academic.AcademicYearId ||
+                    batch.AcademicProgramId != academic.AcademicProgramId)) ||
                 curriculum.AcademicProgramId != academic.AcademicProgramId ||
                 (year.CampusId.HasValue && year.CampusId != academic.CampusId) ||
                 today < year.StartDate || today > year.EndDate ||
                 today < academic.EnrollmentDate || (academic.EndDate.HasValue && today > academic.EndDate) ||
                 today < curriculum.EffectiveFrom ||
                 (curriculum.EffectiveTo.HasValue && today > curriculum.EffectiveTo) ||
-                (batch.StartDate.HasValue && today < batch.StartDate) ||
-                (batch.EndDate.HasValue && today > batch.EndDate))
+                (batch != null && batch.StartDate.HasValue && today < batch.StartDate) ||
+                (batch != null && batch.EndDate.HasValue && today > batch.EndDate))
                 errors[enrollment.Id] = dates;
             else if (course.SubjectId.HasValue &&
-                !offered.Contains((academic.AcademicBatchId, academic.AcademicYearId, academic.AcademicCurriculumId)))
+                !offered.Contains((academic.AcademicBatchId, academic.AcademicYearId,
+                    academic.AcademicSectionId, academic.AcademicCurriculumId)))
                 errors[enrollment.Id] = subject;
         }
         return errors;
