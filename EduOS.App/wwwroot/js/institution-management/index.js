@@ -321,19 +321,12 @@
     el('uploadInstitutionFavicon').addEventListener('click', e => uploadBranding('favicon', e.currentTarget));
     el('removeInstitutionFavicon').addEventListener('click', e => removeBranding('favicon', e.currentTarget));
 
-    el('refreshInstitutionHistory').addEventListener('click', async () => {
-        try { await loadHistory(1); } catch (error) { notify(error.message, true); }
-    });
     el('institutionHistoryPrevious').addEventListener('click', async () => {
         try { await loadHistory(Math.max(1, state.historyPage - 1)); }
         catch (error) { notify(error.message, true); }
     });
     el('institutionHistoryNext').addEventListener('click', async () => {
         try { await loadHistory(state.historyPage + 1); }
-        catch (error) { notify(error.message, true); }
-    });
-    el('reloadInstitution').addEventListener('click', async () => {
-        try { await Promise.all([loadProfile(), loadCampuses(), loadHistory(1)]); notify('Institution data refreshed.'); }
         catch (error) { notify(error.message, true); }
     });
 

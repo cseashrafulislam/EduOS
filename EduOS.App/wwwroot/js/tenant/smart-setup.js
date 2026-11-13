@@ -97,7 +97,6 @@
             : tr('Tick the records you want to create', 'যে তথ্যগুলো সংরক্ষণ করবেন, সেগুলোতে টিক দিন');
         el('smartSetupApply').disabled = state.busy || !sameSession() || !validSelection() ||
             !el('smartSetupConfirm').checked;
-        el('smartSetupReload').disabled = state.busy || !sameSession();
         for (const cb of el('smartSetupModules').querySelectorAll('input[type=checkbox]'))
             cb.disabled = state.busy || !sameSession();
     }
@@ -430,7 +429,6 @@
             updateSubmit();
         }
     }
-    el('smartSetupReload').addEventListener('click', load);
     el('smartSetupSearch')?.addEventListener('input', render);
     el('smartSetupSelectAll')?.addEventListener('click', () => {
         if (!sameSession() || state.busy || !state.preview) return;
@@ -457,7 +455,6 @@
         closeEmbeddedSetup();
         load();
     });
-    el('smartSetupInlineRefresh')?.addEventListener('click', load);
     el('smartSetupConfirm').addEventListener('change', updateSubmit);
     el('smartSetupForm').addEventListener('submit', apply);
     document.addEventListener('visibilitychange', () => {

@@ -13,14 +13,8 @@
     };
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="container-fluid py-4" id="institutionManagementApp" data-institution-feature="@feature">
+<div class="container-fluid institution-settings-workspace" id="institutionManagementApp" data-institution-feature="@feature">
     @Html.AntiForgeryToken()
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
-        <div>
-            <h1 class="h4 fw-bold mb-1">@ViewData["Title"]</h1>
-        </div>
-        <button type="button" id="reloadInstitution" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
-    </div>
     <div id="institutionMessage" role="alert" aria-live="polite" class="alert d-none"></div>
     <ul class="nav nav-tabs mb-3 @(feature == "all" ? "" : "d-none")" role="tablist" aria-label="Institution management sections">
         <li class="nav-item"><button type="button" id="institutionProfileTab" class="nav-link active">@(bn ? "প্রতিষ্ঠানের প্রোফাইল" : "Institution Profile")</button></li>
@@ -29,7 +23,7 @@
     <section id="institutionProfileSection" class="@(feature == "campuses" ? "d-none" : "")">
         <div class="card border-0 shadow-sm mb-3 @(feature == "all" || feature == "profile" ? "" : "d-none")" id="institutionDetailsPanel">
             <div class="card-body">
-                <h2 class="h5">@(bn ? "প্রতিষ্ঠানের তথ্য" : "Institution details")</h2>
+                @if (feature == "all") { <h2 class="h6 fw-semibold mb-3">@(bn ? "প্রতিষ্ঠানের তথ্য" : "Institution details")</h2> }
                 <form id="institutionProfileForm" class="row g-3">
                     <div class="col-md-6">
                         <label for="institutionName" class="form-label">@(bn ? "প্রতিষ্ঠানের নাম" : "Institution name") *</label>
@@ -59,7 +53,7 @@
         </div>
         <div class="card border-0 shadow-sm mb-3 @(feature == "all" || feature == "regional" ? "" : "d-none")" id="institutionRegionalPanel">
             <div class="card-body">
-                <h2 class="h5">@(bn ? "আঞ্চলিক সেটিংস" : "Regional settings")</h2>
+                @if (feature == "all") { <h2 class="h6 fw-semibold mb-3">@(bn ? "আঞ্চলিক সেটিংস" : "Regional settings")</h2> }
                 <form id="institutionRegionForm" class="row g-3">
                     <div class="col-md-4">
                         <label for="institutionCurrency" class="form-label">@(bn ? "মুদ্রা (ISO 4217)" : "Currency (ISO 4217)")</label>
@@ -94,8 +88,8 @@
         </div>
         <div class="card border-0 shadow-sm mb-3 @(feature == "all" || feature == "branding" ? "" : "d-none")" id="institutionBrandingPanel">
             <div class="card-body">
-                <h2 class="h5">@(bn ? "প্রতিষ্ঠানের ব্র্যান্ডিং" : "Institution branding")</h2>
-                <p class="text-muted small">Only PNG, JPEG or WebP for logo; favicon supports PNG/JPEG. Maximum 5 MB per image.</p>
+                @if (feature == "all") { <h2 class="h6 fw-semibold mb-3">@(bn ? "প্রতিষ্ঠানের ব্র্যান্ডিং" : "Institution branding")</h2> }
+                <p class="form-text mb-2">@(bn ? "ছবি: সর্বোচ্চ ৫ MB; লোগো PNG/JPEG/WebP, ফেভিকন PNG/JPEG।" : "Images: maximum 5 MB. Logo PNG/JPEG/WebP; favicon PNG/JPEG.")</p>
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label for="institutionLogoFile" class="form-label">Logo</label>
@@ -124,7 +118,7 @@
         </div>
         <div class="card border-0 shadow-sm @(feature == "all" || feature == "subdomain" ? "" : "d-none")" id="institutionSubdomainPanel">
             <div class="card-body">
-                <h2 class="h5">@(bn ? "প্রতিষ্ঠানের সাবডোমেইন" : "Institution subdomain")</h2>
+                @if (feature == "all") { <h2 class="h6 fw-semibold mb-3">@(bn ? "প্রতিষ্ঠানের সাবডোমেইন" : "Institution subdomain")</h2> }
                 <form id="institutionDomainForm" class="row g-2">
                     <div class="col-md-8">
                         <label for="institutionSubdomain" class="form-label">@(bn ? "সাবডোমেইন প্রিফিক্স" : "Subdomain prefix")</label>
@@ -140,11 +134,10 @@
 
         <section class="card border-0 shadow-sm mt-3 @(feature == "all" || feature == "history" ? "" : "d-none")" aria-labelledby="institutionHistoryTitle">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
                     <div>
-                        <h2 class="h5 mb-1" id="institutionHistoryTitle">@(bn ? "প্রতিষ্ঠানের পরিবর্তনের ইতিহাস" : "Institution change history")</h2>
+                        <h2 class="@(feature == "history" ? "visually-hidden" : "h6 fw-semibold mb-0")" id="institutionHistoryTitle">@(bn ? "প্রতিষ্ঠানের পরিবর্তনের ইতিহাস" : "Institution change history")</h2>
                     </div>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshInstitutionHistory">@(bn ? "ইতিহাস রিফ্রেশ" : "Refresh history")</button>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-sm table-striped align-middle" data-workspace-table="institution-change-history">
@@ -163,10 +156,9 @@
     <section id="institutionCampusSection" class="@(feature == "campuses" ? "" : "d-none")">
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-body">
-                <div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-3">
+                <div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-2">
                     <div>
-                        <h2 class="h5 mb-1">Campus directory</h2>
-                        <p class="text-muted small mb-0">The head office designation is exclusive to one campus.</p>
+                        <h2 class="h6 fw-semibold mb-0">@(bn ? "ক্যাম্পাস তালিকা" : "Campus directory")</h2>
                     </div>
                     <button type="button" id="newCampus" class="btn btn-primary">Add campus</button>
                 </div>
@@ -181,8 +173,7 @@
         </div>
         <div id="campusEditor" class="card border-0 shadow-sm d-none">
             <div class="card-body">
-                <h2 id="campusEditorHeading" class="h5">Add campus</h2>
-                <p class="small text-muted">Archiving is blocked while the campus has users, academic history or active dependencies.</p>
+                <h2 id="campusEditorHeading" class="h6 fw-semibold mb-3">@(bn ? "ক্যাম্পাস যোগ করুন" : "Add campus")</h2>
                 <form id="institutionCampusForm" class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label" for="campusName">Campus name *</label>
@@ -204,7 +195,7 @@
                         <label class="form-label" for="campusHeadName">Campus head name</label>
                         <input id="campusHeadName" maxlength="150" class="form-control" />
                     </div>
-                    <div class="col-md-6 d-flex align-items-end">
+                    <div class="col-md-6 d-flex align-items-center">
                         <div class="form-check">
                             <input id="campusHeadOffice" type="checkbox" class="form-check-input" />
                             <label for="campusHeadOffice" class="form-check-label">Head office / main campus</label>

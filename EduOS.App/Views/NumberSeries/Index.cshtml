@@ -2,8 +2,7 @@
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "নম্বর সিরিজ" : "Number Series";
 }
-<div class="container-fluid py-3">
-    <h2>@(bn ? "নম্বর সিরিজ" : "Number Series")</h2>
+<div class="container-fluid institution-settings-workspace" id="numberSeriesWorkspace">
     <div id="nsNotice" class="alert d-none" role="alert"></div>
     <div class="card mb-3"><div class="card-body">
         <form id="nsForm">
@@ -20,7 +19,7 @@
         </form>
     </div></div>
     <div class="card"><div class="card-body">
-        <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
             <h3 class="h5 mb-0">@(bn ? "সংরক্ষিত সিরিজ" : "Configured series")</h3>
             <input id="nsSearch" class="form-control" style="max-width:280px" placeholder="@(bn ? "কী দিয়ে খুঁজুন" : "Search key")" aria-label="@(bn ? "সিরিজ খুঁজুন" : "Search series")" />
         </div>

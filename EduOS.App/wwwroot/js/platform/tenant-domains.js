@@ -66,6 +66,5 @@ document.addEventListener("DOMContentLoaded", () => {
       await refresh();
     } catch (error) { notice.textContent = error.message; }
   });
-  document.getElementById("domainRefresh").addEventListener("click", refresh);
   refresh().catch(error => notice.textContent = error.message);
 });

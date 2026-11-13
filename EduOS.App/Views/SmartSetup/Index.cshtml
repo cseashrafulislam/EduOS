@@ -2,19 +2,7 @@
     ViewData["Title"] = "Smart Institution Setup";
     var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
 }
-<div id="smartSetupWorkspace" class="container-fluid py-4" data-language="@(bn ? "bn-BD" : "en-BD")">
-    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
-        <div>
-            <h1 class="h4 fw-bold mb-1">@(bn ? "স্মার্ট প্রতিষ্ঠান সেটআপ" : "Smart Institution Setup")</h1>
-            <p class="text-muted mb-0">
-                @(bn ? "প্রতিষ্ঠানের ধরন অনুযায়ী প্রস্তুত Master Data দেখুন, যাচাই করুন এবং নিরাপদে যোগ করুন।" :
-                    "Review organization-based reference data before creating only missing, safe master records.")
-            </p>
-        </div>
-        <a href="/TenantSettings/Index" class="btn btn-outline-secondary btn-sm">
-            @(bn ? "প্রতিষ্ঠানের সেটিংস" : "Institution Settings")
-        </a>
-    </div>
+<div id="smartSetupWorkspace" class="container-fluid institution-settings-workspace" data-language="@(bn ? "bn-BD" : "en-BD")">
     <div id="smartSetupNotice" class="alert d-none" role="alert" aria-live="assertive" tabindex="-1"></div>
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body">
@@ -24,9 +12,6 @@
                     <h2 class="h5 mb-0" id="smartSetupInstitution">@(bn ? "লোড হচ্ছে..." : "Loading...")</h2>
                     <div id="smartSetupVersion" class="small text-muted mt-1"></div>
                 </div>
-                <button type="button" id="smartSetupReload" class="btn btn-outline-primary btn-sm">
-                    @(bn ? "আবার যাচাই করুন" : "Refresh preview")
-                </button>
             </div>
         </div>
     </div>
@@ -39,7 +24,7 @@
                placeholder="@(bn ? "Academic, Hostel, Accounts, Fees..." : "Academic, Hostel, Accounts, Fees...")"
                maxlength="80" autocomplete="off" />
     </div>
-    <p id="smartSetupReadinessSummary" class="small text-muted" role="status" aria-live="polite"></p>
+    <p id="smartSetupReadinessSummary" class="small text-muted mb-2" role="status" aria-live="polite"></p>
 
     @* These are the existing protected setup forms, not copied or reimplemented forms.
        Save/edit still occurs through each module's normal server-side validation. *@
@@ -48,15 +33,8 @@
         <div class="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
                 <h2 id="smartSetupInlineTitle" class="h6 fw-bold mb-1">@(bn ? "এখানেই সেটআপ করুন" : "Complete setup here")</h2>
-                <p id="smartSetupInlineInfo" class="small text-muted mb-0">
-                    @(bn ? "মূল সেটিংসের অনুমোদিত ফর্ম; এখানে Save হলে একই মূল ডাটাবেসে সংরক্ষণ হবে।" :
-                        "The original authorized settings form. Saving here updates the same master records.")
-                </p>
             </div>
             <div class="d-flex gap-2">
-                <button id="smartSetupInlineRefresh" type="button" class="btn btn-sm btn-outline-primary">
-                    @(bn ? "সেটআপ স্ট্যাটাস যাচাই" : "Refresh setup status")
-                </button>
                 <button id="smartSetupInlineClose" type="button" class="btn btn-sm btn-outline-secondary">
                     @(bn ? "বন্ধ করুন" : "Close")
                 </button>

@@ -30,11 +30,7 @@
     };
     var json = System.Text.Json.JsonSerializer.Serialize(strings);
 }
-<div class="container-fluid py-3">
-    <header class="mb-3">
-        <h1 class="h4">@(bn ? "প্রতিষ্ঠানের মডিউল" : "Institution Modules")</h1>
-        <a href="/SubscriptionBilling/Index">@(bn ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing")</a> <span class="mx-2">·</span> <a href="/TenantFeatures/Index">@(bn ? "ফিচারের সীমাবদ্ধতা" : "Feature Restrictions")</a>
-    </header>
+<div class="container-fluid institution-settings-workspace" id="institutionModulesWorkspace">
     <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
     <div id="moduleSummary" role="status" class="mb-3">@T["LoadingModules"]</div>
     <div id="moduleList" class="module-group-list" aria-live="polite" aria-busy="true"></div>

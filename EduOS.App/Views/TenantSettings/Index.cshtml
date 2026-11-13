@@ -6,11 +6,7 @@
     var selected = ViewBag.Selected as TenantSettingDto;
     var category = ViewBag.Category as string;
 }
-<div class="container-fluid py-3" id="tenantSettingsPage">
-    <div class="d-flex justify-content-between align-items-center mb-3 gap-2">
-        <h2 class="mb-1">@(bn ? "প্রতিষ্ঠানের সেটিং" : "Institution Settings")</h2>
-        <a class="btn btn-outline-secondary btn-sm" href="/TenantTerminology/Index">@(bn ? "পরিভাষা" : "Terminology")</a>
-    </div>
+<div class="container-fluid institution-settings-workspace" id="tenantSettingsPage">
     @if (TempData["SettingsError"] is string error) { <div class="alert alert-danger" role="alert">@error</div> }
     @if (TempData["SettingsSuccess"] is string success) { <div class="alert alert-success" role="status">@success</div> }
     <section class="card mb-3" aria-labelledby="tsDirectoryTitle">
@@ -63,7 +59,7 @@
                 </div>
                 <div class="col-md-4"><label for="tsCategory" class="form-label">@(bn ? "বিভাগ" : "Category")</label>
                     <input id="tsCategory" name="Category" class="form-control" maxlength="100" value="@selected?.Category" /></div>
-                <div class="col-md-3 d-flex align-items-end">
+                <div class="col-md-3 d-flex align-items-center">
                     @if (selected?.IsSensitive == true)
                     {
                         <input type="hidden" name="IsSensitive" value="true" />

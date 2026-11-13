@@ -307,7 +307,6 @@ async function refresh(){
 $("sbInvoiceState").addEventListener("change",e=>{state.invoiceState=e.target.value;state.invoicePage=1;refreshInvoices();});
 $("sbInvoicePrev").addEventListener("click",()=>{if(state.invoicePage>1){state.invoicePage--;refreshInvoices();}});
 $("sbInvoiceNext").addEventListener("click",()=>{if(state.invoicePage<state.invoicePages){state.invoicePage++;refreshInvoices();}});
-$("sbRefresh").addEventListener("click",refresh);
 $("sbPrev").addEventListener("click",()=>{if(state.page>1){state.page--;refresh();}});
 $("sbNext").addEventListener("click",()=>{if(state.page<state.pages){state.page++;refresh();}});
 refresh();

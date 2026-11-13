@@ -3,12 +3,11 @@
     ViewData["Title"] = bn ? "নিজস্ব ডোমেইন" : "Custom Domains";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section class="container-fluid" id="tenantDomainWorkspace">
+<section class="container-fluid institution-settings-workspace" id="tenantDomainWorkspace">
     @Html.AntiForgeryToken()
-    <h2>@(bn ? "নিজস্ব ডোমেইন পরিচালনা" : "Custom Domain Management")</h2>
     <form id="domainRegistration" class="row g-2 align-items-end mb-3">
         <div class="col-md-8"><label class="form-label" for="domainHost">@(bn ? "নিজস্ব হোস্টনেম" : "Custom hostname")</label><input id="domainHost" class="form-control" placeholder="portal.school.example.com" maxlength="253" autocomplete="off" required /></div>
-        <div class="col-md-4"><button id="domainRegisterButton" class="btn btn-primary" type="submit">@(bn ? "নিবন্ধন / অপেক্ষমাণ যাচাই বদলান" : "Register / Rotate pending challenge")</button></div>
+        <div class="col-md-4 d-flex align-items-end"><button id="domainRegisterButton" class="btn btn-primary" type="submit">@(bn ? "নিবন্ধন / অপেক্ষমাণ যাচাই বদলান" : "Register / Rotate pending challenge")</button></div>
     </form>
     <div id="domainNotice" role="status" aria-live="polite" class="mb-3"></div>
     <div id="domainChallenge" class="alert alert-info" hidden>
@@ -22,7 +21,6 @@
         <thead><tr><th>@(bn ? "হোস্টনেম" : "Hostname")</th><th>@(bn ? "যাচাই" : "Verification")</th><th>@(bn ? "সক্রিয়" : "Active")</th><th>@(bn ? "প্রধান" : "Primary")</th><th>@(bn ? "যাচাইয়ের সময় (UTC)" : "Verified UTC")</th><th>@(bn ? "কাজ" : "Actions")</th></tr></thead>
         <tbody id="domainRows"></tbody>
     </table></div>
-    <button type="button" id="domainRefresh" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
 </section>
 @section Scripts {
     <script src="~/js/platform/tenant-domains.js" asp-append-version="true"></script>

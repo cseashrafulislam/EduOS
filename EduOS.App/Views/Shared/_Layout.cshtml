@@ -88,6 +88,18 @@
     {
         <link rel="stylesheet" href="~/css/academic/management-workspace.css" asp-append-version="true" />
     }
+    @if (Context.Request.Path.StartsWithSegments("/InstitutionManagement") ||
+         Context.Request.Path.StartsWithSegments("/TenantDomains") ||
+         Context.Request.Path.StartsWithSegments("/TenantTerminology") ||
+         Context.Request.Path.StartsWithSegments("/TenantSettings") ||
+         Context.Request.Path.StartsWithSegments("/SmartSetup") ||
+         Context.Request.Path.StartsWithSegments("/NumberSeries") ||
+         Context.Request.Path.StartsWithSegments("/TenantModules") ||
+         Context.Request.Path.StartsWithSegments("/SubscriptionBilling") ||
+         Context.Request.Path.StartsWithSegments("/IntegrationAdministration"))
+    {
+        <link rel="stylesheet" href="~/css/institution-settings-workspace.css" asp-append-version="true" />
+    }
 </head>
 <body data-auth-session-reference="@sessionReference" data-auth-tenant-id="@(User?.FindFirst("TenantId")?.Value ?? "")" data-auth-user-id="@(User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "")" data-workspace-preferences="@(User?.Identity?.IsAuthenticated == true && User?.IsInRole("SuperAdmin") != true ? "enabled" : "disabled")" data-smart-setup-embedded="@(Context.Request.Query["smartSetupEmbedded"] == "1" && User?.IsInRole("TenantAdmin") == true ? "true" : "false")">
     <a class="skip-link" href="#main-content">@T["SkipToContent"]</a>
