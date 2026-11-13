@@ -106,14 +106,14 @@ public sealed class SmartSetupReadinessService(
                 Add(row, "CURRICULUM", "Reviewed curriculum", "যাচাইকৃত পাঠ্যক্রম",
                     "/AcademicManagement/Curricula",
                     await db.AcademicCurriculums.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
-                Add(row, "SECTION", "Section / batch and capacity", "শাখা / ব্যাচ ও আসনসংখ্যা",
+                Add(row, "SECTION", "Academic Section", "একাডেমিক শাখা",
                     "/AcademicManagement/Sections",
-                    await db.AcademicBatches.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
+                    await db.AcademicSections.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
                 break;
             case "STUDENT":
                 Add(row, "STUDENT_SECTION", "Academic section for enrollment", "ভর্তির জন্য শ্রেণি / শাখা",
                     "/AcademicManagement/Sections",
-                    await db.AcademicBatches.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
+                    await db.AcademicSections.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
                 Add(row, "STUDENT_CURRICULUM", "Enrollment curriculum", "ভর্তির পাঠ্যক্রম",
                     "/AcademicManagement/Curricula",
                     await db.AcademicCurriculums.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
@@ -127,7 +127,7 @@ public sealed class SmartSetupReadinessService(
             case "ATTENDANCE":
                 Add(row, "ATTENDANCE_SECTION", "Active academic section", "সক্রিয় শাখা",
                     "/AcademicManagement/Sections",
-                    await db.AcademicBatches.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
+                    await db.AcademicSections.AsNoTracking().AnyAsync(x => x.TenantId == tenant && x.IsActive, ct));
                 break;
             case "ASSESSMENT":
                 Add(row, "GRADE_SCHEME", "Grade scheme", "গ্রেড কাঠামো",
