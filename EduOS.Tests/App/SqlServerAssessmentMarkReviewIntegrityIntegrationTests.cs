@@ -264,7 +264,7 @@ public sealed class SqlServerAssessmentMarkReviewIntegrityIntegrationTests
             assessmentId = subject.AssessmentId;
             batchId = await db.SubjectOfferings.AsNoTracking()
                 .Where(x => x.Id == subject.SubjectOfferingId)
-                .Select(x => x.AcademicBatchId).SingleAsync();
+                .Select(x => x.AcademicBatchId).SingleAsync() ?? 0;
             db.ResultPublications.AddRange(
                 new ResultPublication {
                     TenantId = tenantA, AssessmentId = assessmentId, AcademicBatchId = batchId,

@@ -158,7 +158,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             }
             assessmentId = currentExam.Id;
             assessmentReference = currentExam.PublicId;
-            batchId = offering.AcademicBatchId;
+            batchId = offering.AcademicBatchId!.Value;
         }
         await using (var db = TenantDb(options, seeded.TenantId))
         {
@@ -294,7 +294,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 ObtainedMarks = 90m, EnteredByUserId = seeded.TeacherId });
             await db.SaveChangesAsync();
             examId = exam.Id;
-            batchId = offering.AcademicBatchId;
+            batchId = offering.AcademicBatchId!.Value;
         }
         await using (var db = TenantDb(options, seeded.TenantId))
         {
@@ -1730,7 +1730,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             var before = await service.SearchMarkRosterAsync(new AssessmentMarkRosterPageQueryDto
             { AssessmentId = retakeId, AcademicBatchId = await db.SubjectOfferings.Where(x =>
                 x.Id == db.AssessmentSubjects.Where(s => s.Id == retakeSubjectId).Select(s => s.SubjectOfferingId)
-                    .First()).Select(x => x.AcademicBatchId).FirstAsync(),
+                    .First()).Select(x => x.AcademicBatchId).FirstAsync() ?? 0,
                 AssessmentSubjectId = retakeSubjectId, Page = 1, PageSize = 10 });
             Assert.True(before.Success);
             Assert.Equal(0, before.Data!.TotalCount);
@@ -1762,7 +1762,7 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
             await db.SaveChangesAsync();
             var scopeBatch = await (from subject in db.AssessmentSubjects
                 join offering in db.SubjectOfferings on subject.SubjectOfferingId equals offering.Id
-                where subject.Id == retakeSubjectId select offering.AcademicBatchId).FirstAsync();
+                where subject.Id == retakeSubjectId select offering.AcademicBatchId).FirstAsync() ?? 0;
             var service = Service(db, controller);
             var roster = await service.SearchMarkRosterAsync(new AssessmentMarkRosterPageQueryDto
             { AssessmentId = retakeId, AcademicBatchId = scopeBatch,
