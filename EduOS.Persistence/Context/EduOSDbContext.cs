@@ -838,6 +838,8 @@ public class EduOSDbContext :
         TenantReference<AcademicLevel, AcademicProgram>(modelBuilder, nameof(AcademicLevel.AcademicProgramId));
         TenantReference<AcademicTrack, AcademicProgram>(modelBuilder, nameof(AcademicTrack.AcademicProgramId));
         TenantReference<AcademicBatch, Campus>(modelBuilder, nameof(AcademicBatch.CampusId));
+        TenantReference<AcademicSection, Campus>(modelBuilder, nameof(AcademicSection.CampusId));
+        TenantReference<AcademicSection, AcademicLevel>(modelBuilder, nameof(AcademicSection.AcademicLevelId));
         TenantReference<AcademicSection, AcademicBatch>(modelBuilder, nameof(AcademicSection.AcademicBatchId));
         TenantReference<StudentEnrollment, AcademicSection>(modelBuilder, nameof(StudentEnrollment.AcademicSectionId));
         TenantReference<SubjectOffering, AcademicSection>(modelBuilder, nameof(SubjectOffering.AcademicSectionId));
@@ -2490,7 +2492,10 @@ public class EduOSDbContext :
         modelBuilder.Entity<AcademicSection>(b =>
         {
             b.HasIndex(x => new { x.TenantId, x.AcademicBatchId, x.Code })
-                .IsUnique().HasFilter("[IsDeleted] = 0");
+                .IsUnique().HasFilter("[AcademicBatchId] IS NOT NULL AND [IsDeleted] = 0");
+            b.HasIndex(x => new { x.TenantId, x.CampusId, x.AcademicLevelId, x.Code })
+                .IsUnique().HasFilter("[AcademicBatchId] IS NULL AND [IsDeleted] = 0")
+                .HasDatabaseName("UX_AcademicSections_Campus_Level_Code");
             b.HasIndex(x => new { x.TenantId, x.ClientRequestId })
                 .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
             b.ToTable(t => t.HasCheckConstraint("CK_AcademicSections_Capacity", "[Capacity] BETWEEN 0 AND 100000"));
