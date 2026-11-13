@@ -35,6 +35,8 @@ partial class EduOSDbContextModelSnapshot
             b.HasIndex("TenantId", "CampusId", "AcademicLevelId", "Code")
                 .IsUnique().HasFilter("[IsDeleted] = 0")
                 .HasDatabaseName("UX_AcademicSections_Campus_Level_Code");
+            b.HasIndex("TenantId", "CampusId");
+            b.HasIndex("TenantId", "AcademicLevelId");
             b.HasIndex("TenantId", "ClientRequestId")
                 .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
             b.ToTable("AcademicSections", t =>
