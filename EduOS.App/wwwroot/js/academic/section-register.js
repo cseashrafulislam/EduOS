@@ -198,7 +198,7 @@
             ? { name: text('sectionName'), capacity, displayOrder: order,
                 isActive: el('sectionActive').value === 'true', rowVersion: text('sectionVersion') }
             : { academicBatchId: batch.id, name: text('sectionName'), code: text('sectionCode'),
-                capacity, displayOrder: order };
+                capacity, displayOrder: order, isActive: el('sectionActive').value === 'true' };
         if (!id) {
             const fingerprint = JSON.stringify(payload);
             if (fingerprint !== state.fingerprint) {
