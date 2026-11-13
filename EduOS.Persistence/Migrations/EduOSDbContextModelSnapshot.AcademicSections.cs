@@ -24,7 +24,6 @@ partial class EduOSDbContextModelSnapshot
             b.Property<int>("DisplayOrder").HasColumnType("int");
             b.Property<bool>("IsActive").HasColumnType("bit");
             b.Property<bool>("IsDeleted").HasColumnType("bit");
-            b.Property<bool>("IsLegacyDefault").HasColumnType("bit");
             b.Property<string>("Name").IsRequired().HasMaxLength(150).HasColumnType("nvarchar(150)");
             b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
                 .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
@@ -32,9 +31,6 @@ partial class EduOSDbContextModelSnapshot
             b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
             b.Property<long?>("UpdatedBy").HasColumnType("bigint");
             b.HasKey("Id");
-            b.HasIndex("TenantId", "AcademicBatchId")
-                .IsUnique().HasDatabaseName("UX_AcademicSections_LegacyDefault")
-                .HasFilter("[IsLegacyDefault] = 1 AND [IsDeleted] = 0");
             b.HasIndex("TenantId", "AcademicBatchId", "Code")
                 .IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasIndex("TenantId", "ClientRequestId")
