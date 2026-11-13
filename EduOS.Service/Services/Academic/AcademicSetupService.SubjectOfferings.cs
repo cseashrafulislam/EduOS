@@ -83,6 +83,8 @@ public sealed partial class AcademicSetupService
         SaveSubjectOfferingRequestDto request, CancellationToken ct = default)
     {
         if (!CanManageOfferings()) return Task.FromResult(Denied<SubjectOfferingDto>());
+        if (request != null && !request.AcademicBatchId.HasValue)
+            return CreateSectionOfferingAsync(request, ct);
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.AcademicBatchId <= 0 || request.CurriculumSubjectId <= 0 ||
             request.AcademicYearId <= 0 || request.AcademicTermId is <= 0 ||
@@ -176,7 +178,7 @@ public sealed partial class AcademicSetupService
             };
             await _offerings.AddAsync(row);
             await _unitOfWork.SaveChangesAsync(ct);
-            return Created(MapOffering(row, batch.Name, subject.Id, subject.Name, subject.Code),
+            return Created(MapOffering(row, batch?.Name ?? "", subject.Id, subject.Name, subject.Code),
                 "Subject offering created.");
         }, serializable: true);
     }
@@ -201,19 +203,25 @@ public sealed partial class AcademicSetupService
                 x.TenantId == tenant && x.Id == row.AcademicBatchId && !x.IsDeleted, ct);
             var mapping = await _curriculumSubjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == row.CurriculumSubjectId && !x.IsDeleted, ct);
-            if (batch == null || mapping == null)
+            var section = row.AcademicBatchId == null && row.AcademicSectionId.HasValue && _sections != null
+                ? await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == row.AcademicSectionId.Value && !x.IsDeleted, ct)
+                : null;
+            if (mapping == null || row.AcademicBatchId.HasValue && batch == null ||
+                !row.AcademicBatchId.HasValue && section == null)
                 return Error<SubjectOfferingDto>("Offering academic mapping is unavailable.", 409);
             var subject = await _subjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == mapping.SubjectId && !x.IsDeleted, ct);
             if (subject == null) return Error<SubjectOfferingDto>("Offering subject not found.", 409);
-            var dto = MapOffering(row, batch.Name, subject.Id, subject.Name, subject.Code);
+            var dto = MapOffering(row, batch?.Name ?? "", subject.Id, subject.Name, subject.Code);
             // A successful identical retry is safe even if the first write advanced RowVersion.
             if (row.Capacity == request.Capacity && row.IsActive == request.IsActive)
                 return ApiResponse<SubjectOfferingDto>.SuccessResponse(dto, "Offering already has these settings.");
             if (!row.RowVersion.SequenceEqual(expected))
                 return Error<SubjectOfferingDto>("Offering changed concurrently. Reload and retry.", 409);
-            if (!batch.IsActive || batch.Capacity <= 0 || request.Capacity > batch.Capacity)
-                return Error<SubjectOfferingDto>("Capacity exceeds active batch capacity.", 409);
+            if (batch != null && (!batch.IsActive || batch.Capacity <= 0 || request.Capacity > batch.Capacity) ||
+                section != null && (!section.IsActive || section.Capacity <= 0 || request.Capacity > section.Capacity))
+                return Error<SubjectOfferingDto>("Capacity exceeds active batch/section capacity.", 409);
             var registered = await _registrations.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && x.SubjectOfferingId == row.Id && !x.IsDeleted &&
                 x.State != SubjectRegistrationState.Rejected && x.State != SubjectRegistrationState.Dropped, ct);
@@ -226,7 +234,7 @@ public sealed partial class AcademicSetupService
             _offerings.Update(row);
             await _unitOfWork.SaveChangesAsync(ct);
             return ApiResponse<SubjectOfferingDto>.SuccessResponse(
-                MapOffering(row, batch.Name, subject.Id, subject.Name, subject.Code), "Offering updated.");
+                MapOffering(row, batch?.Name ?? "", subject.Id, subject.Name, subject.Code), "Offering updated.");
         }, serializable: true);
     }
 

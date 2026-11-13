@@ -209,6 +209,12 @@ public sealed class AcademicSetupController : ControllerBase
         [FromQuery] long? academicSectionId = null, CancellationToken cancellationToken = default) =>
         ToAction(await _service.GetSubjectOfferingsAsync(academicBatchId, search, page, pageSize, cancellationToken, academicSectionId));
 
+    [HttpGet("sections/{sectionId:long}/offerings")]
+    public async Task<IActionResult> SectionOfferings(long sectionId, [FromQuery] long academicYearId,
+        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default) =>
+        ToAction(await _service.GetSectionOfferingsAsync(sectionId, academicYearId, search, page, pageSize, cancellationToken));
+
     [HttpPost("offerings")]
     [Authorize(Roles = "TenantAdmin")]
     public async Task<IActionResult> CreateOffering([FromBody] SaveSubjectOfferingRequestDto request,
