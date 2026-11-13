@@ -15,6 +15,22 @@ const sections = read('EduOS.App/Views/AcademicManagement/SectionRegister.cshtml
 const prerequisites = read('EduOS.App/Views/AcademicManagement/Prerequisites.cshtml');
 const controller = read('EduOS.App/Controllers/AcademicManagementController.cs');
 
+test('global app header is the only Academic Management page title on all eleven routes', () => {
+    assert.match(layout, /<h1>@pageTitle<\/h1>/);
+    for (const [name, view] of [['shared nine routes', index], ['sections', sections], ['prerequisites', prerequisites]]) {
+        assert.doesNotMatch(view, /<h1\b/i, name + ' repeats the page title');
+        assert.doesNotMatch(view, /Academic Management \/ Settings|Academic Management \/ Operations/i, name + ' contains an extra breadcrumb');
+        assert.doesNotMatch(view, /<p\s+class="(?:small text-muted|text-muted small)"\s*>[^<]*<\/p>/i,
+            name + ' contains unnecessary static help paragraphs');
+        assert.match(view, /ViewData\["Title"\]/, name + ' must provide global page title');
+    }
+    assert.doesNotMatch(script, /academic-intro|insertAdjacentElement\('afterend'/);
+    assert.doesNotMatch(css, /academic-page-top|academic-intro/);
+    assert.match(index, /id="academicRefresh"/);
+    assert.match(sections, /href="\/AcademicManagement\/Batches"/);
+    assert.match(prerequisites, /asp-action="Curricula"/);
+});
+
 test('all eleven Academic Management sidebar pages share one scoped progressive UX layer', () => {
     assert.match(layout, /Request\.Path\.StartsWithSegments\("\/AcademicManagement"\)/);
     assert.match(layout, /css\/academic\/management-workspace\.css/);
