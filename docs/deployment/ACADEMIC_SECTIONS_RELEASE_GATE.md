@@ -28,6 +28,7 @@
 | Scenario | Required outcome |
 | --- | --- |
 | Batch and Section creation | Separate table IDs; Section validates active parent Batch, tenant and normalized unique code |
+| Batch capacity correction | Lower only if the new capacity covers active enrollments and every independent section capacity |
 | Repeated create request | Same key and body returns prior Section; different body conflicts |
 | Stale update/delete | Conflict without loss of current values |
 | Delete used Section | Blocked; audited deletion allowed only when no dependent work references it |
