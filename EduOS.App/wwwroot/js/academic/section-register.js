@@ -10,8 +10,10 @@
     const sameSession = () => identity[0] === (document.body?.dataset?.authTenantId || '') &&
         identity[1] === (document.body?.dataset?.authSessionReference || '') &&
         window.EduOSSessionTransitionPending?.() !== true;
+    const linkedBatchId = new URLSearchParams(window.location.search).get('academicBatchId');
     const state = { page: 1, hasPrevious: false, hasNext: false, busy: false,
-        requestId: null, fingerprint: null, sequence: 0, batches: [] };
+        requestId: null, fingerprint: null, sequence: 0, batches: [], batchRequest: 0,
+        initialBatchId: /^\d+$/.test(linkedBatchId || '') ? linkedBatchId : null };
     const selectedBatch = () => state.batches.find(x => String(x.id) === el('sectionBatch').value);
     const text = id => el(id).value.trim();
     function notice(message, danger = false) {
@@ -45,24 +47,56 @@
         el('sectionCode').readOnly = false;
         el('sectionBatch').disabled = false;
         el('sectionSave').textContent = 'Add Section';
+        el('sectionAdvanced').open = false;
         state.requestId = null;
         state.fingerprint = null;
         guard?.markClean();
         return true;
     }
     async function loadBatches() {
-        const query = text('sectionBatchSearch');
+        const request = ++state.batchRequest, query = text('sectionBatchSearch');
         const data = await api('/api/academic-setup/batches?search=' +
             encodeURIComponent(query) + '&pageSize=100&page=1');
-        if (!sameSession()) return;
-        state.batches = data.items || [];
-        const select = el('sectionBatch'), previous = select.value;
+        if (!sameSession() || request !== state.batchRequest) return;
+        const batches = data.items || [];
+        let desired = state.initialBatchId || el('sectionBatch').value;
+        if (desired && !batches.some(x => String(x.id) === desired)) {
+            try {
+                const batch = await api('/api/academic-setup/batches/' + encodeURIComponent(desired));
+                if (!sameSession() || request !== state.batchRequest) return;
+                if (batch) batches.push(batch);
+            } catch (error) {
+                if (state.initialBatchId) notice('Linked academic batch is unavailable. Search or select another batch.', true);
+            }
+        }
+        if (!sameSession() || request !== state.batchRequest) return;
+        state.batches = batches;
+        const select = el('sectionBatch');
         select.replaceChildren(new Option('Select academic batch', ''));
-        state.batches.forEach(batch => select.add(new Option(
+        batches.forEach(batch => select.add(new Option(
             [batch.academicYearName, batch.academicProgramName, batch.name].filter(Boolean).join(' / '),
             String(batch.id))));
-        if (state.batches.some(x => String(x.id) === previous)) select.value = previous;
-        if (!select.value && state.batches.length === 1) select.value = String(state.batches[0].id);
+        if (batches.some(x => String(x.id) === desired)) select.value = desired;
+        else if (batches.length === 1) select.value = String(batches[0].id);
+        state.initialBatchId = null;
+        el('sectionBatchHint').textContent = batches.length
+            ? 'Section belongs to the selected batch. Capacity is limited by its parent batch (' +
+                (selectedBatch()?.capacity ?? '—') + ' seats).'
+            : 'No batch found. Create an Academic Batch first using Manage Batches.';
+        if (!text('sectionId')) syncCapacity();
+    }
+    function syncCapacity() {
+        const batch = selectedBatch();
+        if (batch && !text('sectionId')) {
+            const current = Number(el('sectionCapacity').value);
+            if (!Number.isInteger(current) || current > batch.capacity || current === 40)
+                el('sectionCapacity').value = String(Math.min(40, batch.capacity));
+            el('sectionCapacity').max = String(batch.capacity);
+        }
+        el('sectionBatchHint').textContent = batch
+            ? 'Selected: ' + batch.name + ' · Maximum cohort capacity: ' + batch.capacity +
+              '. Each section has its own capacity.'
+            : 'Select a batch before adding a section.';
     }
     function render(rows) {
         const body = el('sectionRows');
@@ -81,7 +115,10 @@
             }
             const actions = document.createElement('td');
             if (row.isLegacyDefault) {
-                actions.textContent = 'Legacy · Read only';
+                const managed = document.createElement('span');
+                managed.className = 'small text-muted';
+                managed.textContent = 'Batch-managed section';
+                actions.append(managed);
             } else {
                 const edit = document.createElement('button');
                 edit.className = 'btn btn-sm btn-outline-primary me-2';
@@ -130,6 +167,7 @@
         el('sectionOrder').value = String(row.displayOrder);
         el('sectionActive').value = String(row.isActive);
         el('sectionSave').textContent = 'Save Section';
+        el('sectionAdvanced').open = true;
         guard?.markClean();
         form.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -199,7 +237,12 @@
         try { await loadBatches(); state.page = 1; await load(); }
         catch (e) { notice(e.message, true); }
     });
-    el('sectionBatch').addEventListener('change', () => { state.page = 1; load().catch(e => notice(e.message, true)); });
+    el('sectionBatch').addEventListener('change', () => {
+        if (text('sectionId')) return;
+        syncCapacity();
+        state.page = 1;
+        load().catch(e => notice(e.message, true));
+    });
     el('sectionFilterButton').addEventListener('click', () => {
         state.page = 1; load().catch(e => notice(e.message, true));
     });
