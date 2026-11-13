@@ -39,11 +39,11 @@ function find(node, match) {
 }
 function setup({ hostel = false } = {}) {
     const ids = ['smartSetupWorkspace', 'smartSetupNotice', 'smartSetupInstitution',
-        'smartSetupVersion', 'smartSetupReload', 'smartSetupReadinessSummary',
+        'smartSetupVersion', 'smartSetupReadinessSummary', 'smartSetupActions',
         'smartSetupModules', 'smartSetupSelection', 'smartSetupApply',
         'smartSetupConfirm', 'smartSetupForm', 'smartSetupSelectAll',
         'smartSetupClearSelected', 'smartSetupInline', 'smartSetupFrame',
-        'smartSetupInlineTitle', 'smartSetupInlineClose', 'smartSetupInlineRefresh'];
+        'smartSetupInlineTitle', 'smartSetupInlineClose'];
     const elems = new Map(ids.map(id => [id, createElement('div', id)]));
     const root = elems.get('smartSetupWorkspace');
     root.dataset.language = 'en-BD';
@@ -120,6 +120,30 @@ function setup({ hostel = false } = {}) {
         node => node.attributes?.['data-smart-row'] === key);
     return { elems, data, requests, ready, selectedBox, body };
 }
+test('clean setup hides save controls when no safe records are missing', async () => {
+    const h = setup();
+    h.data.modules.forEach(module => module.entries.forEach(entry => entry.status = 'Existing'));
+    await h.ready();
+    assert.equal(h.elems.get('smartSetupActions').hidden, true);
+    assert.equal(h.elems.get('smartSetupApply').disabled, true);
+    assert.equal(h.requests.filter(request => request.init.method === 'POST').length, 0);
+});
+
+test('clean setup shows compact save controls for missing records and requires confirmation', async () => {
+    const h = setup();
+    await h.ready();
+    assert.equal(h.elems.get('smartSetupActions').hidden, false);
+    const table = find(h.elems.get('smartSetupModules'), element => element.tag === 'table');
+    assert.ok(table);
+    assert.ok(find(table, element => element.className.includes('smart-setup-readonly')));
+    assert.equal(h.elems.get('smartSetupApply').disabled, true);
+    const header = find(h.elems.get('smartSetupModules'),
+        element => element.className === 'smart-setup-module-header');
+    assert.ok(header);
+    assert.ok(!find(h.elems.get('smartSetupModules'), element =>
+        element.tag === 'p' && element.textContent.includes('Review each automatically filled')));
+});
+
 test('reviewed missing rows are rendered as pre-filled readonly columns, with no automatic POST', async () => {
     const h = setup();
     await h.ready();

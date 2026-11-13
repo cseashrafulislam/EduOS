@@ -1,80 +1,55 @@
 @{
-    ViewData["Title"] = "Smart Institution Setup";
     var bn = CultureInfo.CurrentUICulture.Name.StartsWith("bn", StringComparison.OrdinalIgnoreCase);
+    ViewData["Title"] = bn ? "স্মার্ট প্রতিষ্ঠান সেটআপ" : "Smart Institution Setup";
 }
-<div id="smartSetupWorkspace" class="container-fluid institution-settings-workspace" data-language="@(bn ? "bn-BD" : "en-BD")">
+<div id="smartSetupWorkspace" class="container-fluid institution-settings-workspace smart-setup-page" data-language="@(bn ? "bn-BD" : "en-BD")">
     <div id="smartSetupNotice" class="alert d-none" role="alert" aria-live="assertive" tabindex="-1"></div>
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body">
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                <div>
-                    <div class="small text-muted">@(bn ? "প্রতিষ্ঠানের ধরন" : "Organization type")</div>
-                    <h2 class="h5 mb-0" id="smartSetupInstitution">@(bn ? "লোড হচ্ছে..." : "Loading...")</h2>
-                    <div id="smartSetupVersion" class="small text-muted mt-1"></div>
-                </div>
-            </div>
+    <div class="smart-setup-toolbar">
+        <div class="smart-setup-context">
+            <span class="smart-setup-context-label">@(bn ? "প্রতিষ্ঠানের ধরন" : "Institution type")</span>
+            <strong id="smartSetupInstitution">@(bn ? "লোড হচ্ছে..." : "Loading...")</strong>
+            <span id="smartSetupVersion" class="smart-setup-version"></span>
+        </div>
+        <div class="smart-setup-search">
+            <label class="visually-hidden" for="smartSetupSearch">@(bn ? "সেটিংস খুঁজুন" : "Find a setting")</label>
+            <input id="smartSetupSearch" type="search" class="form-control form-control-sm"
+                   placeholder="@(bn ? "মডিউল বা সেটিংস খুঁজুন" : "Search module or setting")"
+                   maxlength="80" autocomplete="off" />
         </div>
     </div>
-    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-        <label for="smartSetupSearch" class="small fw-semibold">
-            @(bn ? "সেটিংস খুঁজুন" : "Find a setting")
-        </label>
-        <input id="smartSetupSearch" type="search" class="form-control form-control-sm"
-               style="max-width:370px;"
-               placeholder="@(bn ? "Academic, Hostel, Accounts, Fees..." : "Academic, Hostel, Accounts, Fees...")"
-               maxlength="80" autocomplete="off" />
-    </div>
-    <p id="smartSetupReadinessSummary" class="small text-muted mb-2" role="status" aria-live="polite"></p>
+    <div id="smartSetupReadinessSummary" class="smart-setup-summary" role="status" aria-live="polite"></div>
 
-    @* These are the existing protected setup forms, not copied or reimplemented forms.
-       Save/edit still occurs through each module's normal server-side validation. *@
-    <section id="smartSetupInline" class="card border-0 shadow-sm mb-3" hidden
-             aria-labelledby="smartSetupInlineTitle">
-        <div class="card-header bg-white d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <div>
-                <h2 id="smartSetupInlineTitle" class="h6 fw-bold mb-1">@(bn ? "এখানেই সেটআপ করুন" : "Complete setup here")</h2>
-            </div>
-            <div class="d-flex gap-2">
-                <button id="smartSetupInlineClose" type="button" class="btn btn-sm btn-outline-secondary">
-                    @(bn ? "বন্ধ করুন" : "Close")
-                </button>
-            </div>
+    @* Settings use the original authorized module forms. There is no second editable master store. *@
+    <section id="smartSetupInline" class="card smart-setup-embedded mb-2" hidden aria-labelledby="smartSetupInlineTitle">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h2 id="smartSetupInlineTitle" class="h6 mb-0">@(bn ? "সেটআপ" : "Setup")</h2>
+            <button id="smartSetupInlineClose" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "বন্ধ করুন" : "Close")</button>
         </div>
-        <div class="card-body p-1 p-sm-2">
+        <div class="card-body p-1">
             <iframe id="smartSetupFrame" class="w-100 bg-white rounded"
                     title="@(bn ? "নির্বাচিত সেটিংস ফর্ম" : "Selected setting form")"
-                    loading="lazy" referrerpolicy="same-origin"
-                    style="height:min(80vh,880px);min-height:560px;border:1px solid var(--edu-border);"></iframe>
+                    loading="lazy" referrerpolicy="same-origin"></iframe>
         </div>
     </section>
 
     <form id="smartSetupForm">
         @Html.AntiForgeryToken()
-        <div id="smartSetupModules" class="row g-3" aria-live="polite">
-            <div class="col-12"><div class="card"><div class="card-body text-muted">
-                @(bn ? "Setup Preview লোড হচ্ছে..." : "Loading setup preview...")
-            </div></div></div>
+        <div id="smartSetupModules" class="smart-setup-modules" aria-live="polite">
+            <div class="smart-setup-loading" role="status">@(bn ? "সেটিংস লোড হচ্ছে..." : "Loading settings...")</div>
         </div>
-        <div class="card border-0 shadow-sm mt-3 position-sticky bottom-0" style="z-index:10;">
-            <div class="card-body py-3">
-                <div class="form-check">
-                    <input id="smartSetupConfirm" class="form-check-input" type="checkbox" required />
-                    <label for="smartSetupConfirm" class="form-check-label">
-                        @(bn ? "স্বয়ংক্রিয়ভাবে পূরণ করা নির্বাচিত Row-গুলোর তথ্য যাচাই করেছি; শুধু এগুলো সংরক্ষণ করুন।" :
-                            "I reviewed the checked, pre-filled rows. Save only these records.")
-                    </label>
+        <div id="smartSetupActions" class="smart-setup-actions" hidden>
+            <div class="smart-setup-actions-top">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <button id="smartSetupSelectAll" type="button" class="btn btn-sm btn-outline-primary">@(bn ? "সব অনুপস্থিত নির্বাচন" : "Select all missing")</button>
+                    <button id="smartSetupClearSelected" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "নির্বাচন বাদ" : "Clear")</button>
+                    <span id="smartSetupSelection" class="small text-muted" aria-live="polite"></span>
                 </div>
-                <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-                    <button id="smartSetupSelectAll" type="button" class="btn btn-sm btn-outline-primary">
-                        @(bn ? "সব Missing Defaults নির্বাচন" : "Select all missing defaults")
-                    </button>
-                    <button id="smartSetupClearSelected" type="button" class="btn btn-sm btn-outline-secondary">
-                        @(bn ? "নির্বাচন বাদ" : "Clear selection")
-                    </button>
-                    <button id="smartSetupApply" type="submit" class="btn btn-primary" disabled>
-                        @(bn ? "নির্বাচিত Row সংরক্ষণ করুন" : "Save Checked Records")
-                    </button>
-                    <span id="smartSetupSelection" class="small text-muted"></span>
+                <div class="smart-setup-confirm-group">
+                    <div class="form-check">
+                        <input id="smartSetupConfirm" class="form-check-input" type="checkbox" required />
+                        <label for="smartSetupConfirm" class="form-check-label">@(bn ? "নির্বাচিত তথ্য যাচাই করেছি" : "I reviewed the selected records")</label>
+                    </div>
+                    <button id="smartSetupApply" type="submit" class="btn btn-primary btn-sm" disabled>@(bn ? "নির্বাচিত তথ্য সংরক্ষণ" : "Save selected")</button>
                 </div>
             </div>
         </div>
