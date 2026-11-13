@@ -1,13 +1,13 @@
 # EduOS Academic Batch / Academic Section rollout gate
 
-**Branch:** `Ashraful`. **Schema migration:** `20261113010000_AcademicSectionFoundation` + `20261113030000_PruneUnusedBatchGeneratedSections`.
+**Branch:** `Ashraful`. **Schema migration:** `20261113010000_AcademicSectionFoundation` + `20261113030000_PruneUnusedBatchGeneratedSections` + `20261113040000_RemoveAcademicSectionLegacyDefault`.
 
 ## Contract
 
 - `AcademicBatches` remains the cohort/master record and retains existing `AcademicBatchId` in all dependent modules.
 - `AcademicSections` stores an explicit, tenant-scoped Section within the Batch.
-- Historic `AcademicBatchId` relationships are not rewritten or dropped. During the foundation migration, compatibility section rows may be inserted for prior batches. The follow-on data-only migration `20261113030000_PruneUnusedBatchGeneratedSections` deletes only unused generated placeholders after checking all five dependent tables. It never deletes user-created sections or referenced history.
-- Every active teaching group is an explicit `AcademicSection`; batches and sections are both permanent first-class settings. Existing batch-only integrations without configured sections remain compatible while consumers transition.
+- Historical migrations are retained unchanged. The old foundation migration may have generated placeholder sections. The next cleanup deletes only unreferenced placeholders; the final migration **refuses to drop `IsLegacyDefault`** if any generated section remains referenced. Reconcile those records explicitly rather than lose historical links.
+- `IsLegacyDefault` does not exist in the active Section entity, API, DTO, EF model, or final database schema. Batches and Sections are permanent first-class settings. One active Section can be selected unambiguously; multiple require a specific Section selection, and zero Sections require an explicit setup step.
 - Enrollment and stock/financial actions are never changed by a Section edit.
 - `StudentEnrollments`, `SubjectOfferings`, `AttendanceSessions`, `ResultPublications` and `FeeStructures` have nullable additive `AcademicSectionId`.
 
@@ -17,9 +17,9 @@
 2. Run .NET restore/build and **the full solution tests** against the exact commit. For example:
    `dotnet test EduOS.sln --configuration Release` (use the repository's actual solution filename if different).
 3. Run the JavaScript regression tests:
-   `node --test EduOS.Tests/JavaScript/academic-section-contract.test.cjs EduOS.Tests/JavaScript/academic-section-integrations.test.cjs`.
+   `node --test EduOS.Tests/JavaScript/academic-section-contract.test.cjs EduOS.Tests/JavaScript/academic-section-integrations.test.cjs EduOS.Tests/JavaScript/academic-batches-sections-ux.test.cjs`.
 4. Apply EF SQL Server migrations in staging first. Inspect generated SQL/EF migration history, duplicate indexes and index locks. Rehearse against a restored production-size database.
-5. Execute `scripts/migrations/backfill-academic-sections.sql` after the migration and **before enabling new section writes**. Run again until all five Unmapped counts are zero for rows with a legacy Batch ID. Reconcile representative tenants; Section mapping is deterministic, never guessed by Class/Name.
+5. Run `scripts/migrations/validate-academic-section-scope.sql` in staging and production read-only. Investigate any missing/mismatched section IDs. Never automatically infer a Section from Batch. The final migration aborts if referenced generated placeholders remain; reconcile historical data with a reviewed plan, not a blind delete.
 6. Release the server application and frontend together; clear/version static asset caches. Inspect `/AcademicManagement/Batches`, `/AcademicManagement/Sections`, Section CRUD and permissions. Check concurrent client versions against the additive API. Confirm `/AcademicManagement/Batches` and `/AcademicManagement/Sections` are distinct, neither UI displays a “Legacy” label, the batch register links to its own sections, and admission roles can read tenant-scoped section choices but cannot mutate section settings.
 7. Repeat the exact-commit SQL Server integration, permission and UI/browser smoke suites before general enablement.
 
@@ -46,7 +46,7 @@
 
 ## Rollback safety
 
-The migration is additive. **Never run Down or delete `AcademicSections` after users have entered data**; that would destroy new Sections and references. For a post-write issue, disable the new UI/API, roll back application code only after checking its compatibility with the retained schema, and reconcile data before resuming. No automatic destructive rollback is authorized.
+The foundation migration is additive; the final marker removal is intentionally destructive **only to the obsolete column**, and aborts if referenced generated sections remain. **Never run Down or delete `AcademicSections` after users have entered data**; that would destroy new Sections and references. For a post-write issue, disable the new UI/API, roll back application code only after checking its compatibility with the retained schema, and reconcile data before resuming. No automatic destructive rollback is authorized.
 
 ## QA evidence
 
