@@ -39,9 +39,9 @@ function bind(type,route,body,refresh){const f=$(type+'Form');f.addEventListener
  try{await call(route+(id?'/'+id:''),id?'PUT':'POST',body());reset(type);await refresh();notice(type+' saved.',true);}
  catch(e){notice(e.message);}finally{b.disabled=false;}});}
 if(edit){
- bind('Department','departments',()=>({code:$('DepartmentCode').value.trim(),name:$('DepartmentName').value.trim(),parentId:$('DepartmentParent').value?Number($('DepartmentParent').value):null,isActive:$('DepartmentActive').checked,rowVersion:$('DepartmentVersion').value||null}),departments);
- bind('Designation','designations',()=>({code:$('DesignationCode').value.trim(),name:$('DesignationName').value.trim(),rank:Number($('DesignationRank').value),isActive:$('DesignationActive').checked,rowVersion:$('DesignationVersion').value||null}),designations);
- bind('Shift','shifts',()=>({code:$('ShiftCode').value.trim(),name:$('ShiftName').value.trim(),startTime:$('ShiftStart').value+':00',endTime:$('ShiftEnd').value+':00',graceMinutes:Number($('ShiftGrace').value),isActive:$('ShiftActive').checked,rowVersion:$('ShiftVersion').value||null}),shifts);
+ bind('Department','departments',()=>({code:$('DepartmentId').value?$('DepartmentCode').value.trim():null,name:$('DepartmentName').value.trim(),parentId:$('DepartmentParent').value?Number($('DepartmentParent').value):null,isActive:$('DepartmentActive').checked,rowVersion:$('DepartmentVersion').value||null}),departments);
+ bind('Designation','designations',()=>({code:$('DesignationId').value?$('DesignationCode').value.trim():null,name:$('DesignationName').value.trim(),rank:Number($('DesignationRank').value),isActive:$('DesignationActive').checked,rowVersion:$('DesignationVersion').value||null}),designations);
+ bind('Shift','shifts',()=>({code:$('ShiftId').value?$('ShiftCode').value.trim():null,name:$('ShiftName').value.trim(),startTime:$('ShiftStart').value+':00',endTime:$('ShiftEnd').value+':00',graceMinutes:Number($('ShiftGrace').value),isActive:$('ShiftActive').checked,rowVersion:$('ShiftVersion').value||null}),shifts);
 }
 $('DepartmentPrev').addEventListener('click',()=>{if(page>1){page--;departments().catch(e=>notice(e.message));}});
 $('DepartmentNext').addEventListener('click',()=>{if(page<pages){page++;departments().catch(e=>notice(e.message));}});

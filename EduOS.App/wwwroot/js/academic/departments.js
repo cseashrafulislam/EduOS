@@ -91,14 +91,14 @@
         const id = Number(el('departmentId').value) || 0;
         const body = {
             name: el('departmentName').value.trim(),
-            code: el('departmentCode').value.trim().toUpperCase(),
+            code: id ? el('departmentCode').value.trim().toUpperCase() : null,
             description: el('departmentDescription').value.trim() || null,
             isActive: el('departmentActive').checked,
             rowVersion: id ? el('departmentVersion').value : null
         };
-        if (!body.name || !body.code || body.name.length > 150 ||
-            body.code.length > 30 || (body.description || '').length > 500) {
-            notice('Enter a valid department name, code and description.', true); return;
+        if (!body.name || body.name.length > 150 ||
+            (body.description || '').length > 500) {
+            notice('Enter a valid department name and description.', true); return;
         }
         pending = true; el('departmentSave').disabled = true; e.currentTarget.inert = true;
         let committed = false;

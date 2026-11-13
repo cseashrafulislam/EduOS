@@ -16,7 +16,7 @@
                 {
                     <form id="hrSetupDepartmentForm" class="mb-3">
                         <input id="hrSetupDepartmentId" type="hidden" /><input id="hrSetupDepartmentVersion" type="hidden" />
-                        <label class="form-label" for="hrSetupDepartmentCode">Code</label><input class="form-control mb-2" id="hrSetupDepartmentCode" required maxlength="50" />
+                        <input type="hidden" id="hrSetupDepartmentCode" />
                         <label class="form-label" for="hrSetupDepartmentName">Name</label><input class="form-control mb-2" id="hrSetupDepartmentName" required maxlength="150" />
                         <label class="form-label" for="hrSetupDepartmentParent">Parent department</label><select class="form-select mb-2" id="hrSetupDepartmentParent"><option value="">None</option></select>
                         <label class="form-check mb-2"><input class="form-check-input" type="checkbox" id="hrSetupDepartmentActive" checked /> Active</label>
@@ -34,7 +34,7 @@
                 {
                     <form id="hrSetupDesignationForm" class="mb-3">
                         <input id="hrSetupDesignationId" type="hidden" /><input id="hrSetupDesignationVersion" type="hidden" />
-                        <label class="form-label" for="hrSetupDesignationCode">Code</label><input class="form-control mb-2" id="hrSetupDesignationCode" required maxlength="50" />
+                        <input type="hidden" id="hrSetupDesignationCode" />
                         <label class="form-label" for="hrSetupDesignationName">Name</label><input class="form-control mb-2" id="hrSetupDesignationName" required maxlength="150" />
                         <label class="form-label" for="hrSetupDesignationRank">Rank</label><input class="form-control mb-2" id="hrSetupDesignationRank" type="number" min="0" max="100000" value="0" required />
                         <label class="form-check mb-2"><input class="form-check-input" type="checkbox" id="hrSetupDesignationActive" checked /> Active</label>
@@ -51,7 +51,7 @@
                 {
                     <form id="hrSetupShiftForm" class="mb-3">
                         <input id="hrSetupShiftId" type="hidden" /><input id="hrSetupShiftVersion" type="hidden" />
-                        <label class="form-label" for="hrSetupShiftCode">Code</label><input class="form-control mb-2" id="hrSetupShiftCode" required maxlength="50" />
+                        <input type="hidden" id="hrSetupShiftCode" />
                         <label class="form-label" for="hrSetupShiftName">Name</label><input class="form-control mb-2" id="hrSetupShiftName" required maxlength="100" />
                         <div class="row g-2"><div class="col-6"><label class="form-label" for="hrSetupShiftStart">Start</label><input class="form-control mb-2" id="hrSetupShiftStart" type="time" required /></div>
                         <div class="col-6"><label class="form-label" for="hrSetupShiftEnd">End</label><input class="form-control mb-2" id="hrSetupShiftEnd" type="time" required /></div></div>

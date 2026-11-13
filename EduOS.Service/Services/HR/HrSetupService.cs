@@ -8,6 +8,7 @@ using EduOS.Core.Interfaces.IServices;
 using EduOS.Persistence.Context;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using EduOS.Service.Services.Platform;
 
 namespace EduOS.Service.Services.HR;
 
@@ -41,7 +42,7 @@ public sealed class HrSetupService : IHrSetupService
     { Id = x.Id, Name = x.Name, Code = x.Code, StartTime = x.StartTime, EndTime = x.EndTime, GraceMinutes = x.GraceMinutes, IsActive = x.IsActive, RowVersion = Version(x.RowVersion) };
     private static bool Valid(string? name, int nameLength, string? code) =>
         !string.IsNullOrWhiteSpace(name) && name.Trim().Length <= nameLength &&
-        !string.IsNullOrWhiteSpace(code) && code.Trim().Length <= 50;
+        (code == null || code.Trim().Length <= 50);
     private static string Code(string value) => value.Trim().ToUpperInvariant();
 
     public async Task<ApiResponse<PagedResult<OrganizationUnitDto>>> GetOrganizationUnitsAsync(int page, int pageSize, CancellationToken ct = default)
@@ -68,7 +69,8 @@ public sealed class HrSetupService : IHrSetupService
         if (!Writable) return Error<OrganizationUnitDto>("Only the institution administrator can change shared HR masters.", 403);
         if (request == null || !Valid(request.Name, 150, request.Code) || request.ParentId is <= 0 || id is <= 0)
             return Error<OrganizationUnitDto>("Invalid department details.");
-        var code = Code(request.Code); var name = request.Name.Trim();
+        var suppliedCode = string.IsNullOrWhiteSpace(request.Code) ? null : Code(request.Code);
+        var name = request.Name.Trim();
         try
         {
             return await ((IUnitOfWork)db).ExecuteInTransactionAsync(async token =>
@@ -76,6 +78,17 @@ public sealed class HrSetupService : IHrSetupService
                 var row = id.HasValue ? await Units.FirstOrDefaultAsync(x => x.Id == id.Value && x.CampusId == null, token) : null;
                 if (id.HasValue && row == null) return Error<OrganizationUnitDto>("Department not found or campus-owned.", 404);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion)) return Error<OrganizationUnitDto>("Department changed; reload.", 409);
+                if (row != null && suppliedCode != null && row.Code != suppliedCode)
+                    return Error<OrganizationUnitDto>("Department code cannot be changed.", 409);
+                if (row == null && suppliedCode == null)
+                {
+                    var replay = await Units.AsNoTracking().FirstOrDefaultAsync(x => x.CampusId == null && x.Name == name && x.ParentId == request.ParentId, token);
+                    if (replay != null)
+                        return replay.IsActive == request.IsActive
+                            ? ApiResponse<OrganizationUnitDto>.SuccessResponse(UnitDto(replay), "Department already exists.")
+                            : Error<OrganizationUnitDto>("Department name already exists with different settings.", 409);
+                }
+                var code = row?.Code ?? suppliedCode ?? InternalCode.New("HRD");
                 if (await Units.AnyAsync(x => x.Code == code && (!id.HasValue || x.Id != id.Value), token))
                     return Error<OrganizationUnitDto>("Department code already exists.", 409);
                 if (request.ParentId.HasValue)
@@ -128,7 +141,8 @@ public sealed class HrSetupService : IHrSetupService
         if (!Writable) return Error<DesignationDto>("Only the institution administrator can change shared HR masters.", 403);
         if (request == null || !Valid(request.Name, 150, request.Code) || request.Rank is < 0 or > 100000 || id is <= 0)
             return Error<DesignationDto>("Invalid designation details.");
-        var code = Code(request.Code); var name = request.Name.Trim();
+        var suppliedCode = string.IsNullOrWhiteSpace(request.Code) ? null : Code(request.Code);
+        var name = request.Name.Trim();
         try
         {
             return await ((IUnitOfWork)db).ExecuteInTransactionAsync(async token =>
@@ -136,6 +150,17 @@ public sealed class HrSetupService : IHrSetupService
                 var row = id.HasValue ? await Designations.FirstOrDefaultAsync(x => x.Id == id.Value, token) : null;
                 if (id.HasValue && row == null) return Error<DesignationDto>("Designation not found.", 404);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion)) return Error<DesignationDto>("Designation changed; reload.", 409);
+                if (row != null && suppliedCode != null && row.Code != suppliedCode)
+                    return Error<DesignationDto>("Designation code cannot be changed.", 409);
+                if (row == null && suppliedCode == null)
+                {
+                    var replay = await Designations.AsNoTracking().FirstOrDefaultAsync(x => x.Name == name, token);
+                    if (replay != null)
+                        return replay.Rank == request.Rank && replay.IsActive == request.IsActive
+                            ? ApiResponse<DesignationDto>.SuccessResponse(DesignationDto(replay), "Designation already exists.")
+                            : Error<DesignationDto>("Designation name already exists with different settings.", 409);
+                }
+                var code = row?.Code ?? suppliedCode ?? InternalCode.New("HRP");
                 if (await Designations.AnyAsync(x => x.Code == code && (!id.HasValue || x.Id != id.Value), token))
                     return Error<DesignationDto>("Designation code already exists.", 409);
                 if (row != null && !request.IsActive && await db.Employees.AnyAsync(x => x.TenantId == user.TenantId &&
@@ -167,7 +192,8 @@ public sealed class HrSetupService : IHrSetupService
         if (request == null || !Valid(request.Name, 100, request.Code) || request.GraceMinutes is < 0 or > 240 ||
             request.StartTime == request.EndTime || id is <= 0)
             return Error<WorkShiftDto>("Invalid shift details or equal start/end times.");
-        var code = Code(request.Code); var name = request.Name.Trim();
+        var suppliedCode = string.IsNullOrWhiteSpace(request.Code) ? null : Code(request.Code);
+        var name = request.Name.Trim();
         try
         {
             return await ((IUnitOfWork)db).ExecuteInTransactionAsync(async token =>
@@ -175,6 +201,17 @@ public sealed class HrSetupService : IHrSetupService
                 var row = id.HasValue ? await Shifts.FirstOrDefaultAsync(x => x.Id == id.Value, token) : null;
                 if (id.HasValue && row == null) return Error<WorkShiftDto>("Shift not found.", 404);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion)) return Error<WorkShiftDto>("Shift changed; reload.", 409);
+                if (row != null && suppliedCode != null && row.Code != suppliedCode)
+                    return Error<WorkShiftDto>("Shift code cannot be changed.", 409);
+                if (row == null && suppliedCode == null)
+                {
+                    var replay = await Shifts.AsNoTracking().FirstOrDefaultAsync(x => x.Name == name, token);
+                    if (replay != null)
+                        return replay.StartTime == request.StartTime && replay.EndTime == request.EndTime && replay.GraceMinutes == request.GraceMinutes && replay.IsActive == request.IsActive
+                            ? ApiResponse<WorkShiftDto>.SuccessResponse(ShiftDto(replay), "Shift already exists.")
+                            : Error<WorkShiftDto>("Shift name already exists with different settings.", 409);
+                }
+                var code = row?.Code ?? suppliedCode ?? InternalCode.New("HRS");
                 if (await Shifts.AnyAsync(x => x.Code == code && (!id.HasValue || x.Id != id.Value), token))
                     return Error<WorkShiftDto>("Shift code already exists.", 409);
                 if (row != null && !request.IsActive && await db.EmployeeShiftAssignments.AnyAsync(x => x.TenantId == user.TenantId &&

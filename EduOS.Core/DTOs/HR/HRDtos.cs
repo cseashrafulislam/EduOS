@@ -15,7 +15,7 @@ public class SaveOrganizationUnitRequestDto
 {
     public long? ParentId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string? Code { get; set; }
     public bool IsActive { get; set; } = true;
     public string? RowVersion { get; set; }
 }
@@ -33,7 +33,7 @@ public class DesignationDto
 public class SaveDesignationRequestDto
 {
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string? Code { get; set; }
     public int Rank { get; set; }
     public bool IsActive { get; set; } = true;
     public string? RowVersion { get; set; }
@@ -54,7 +54,7 @@ public class WorkShiftDto
 public class SaveWorkShiftRequestDto
 {
     [Required, MaxLength(100)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string? Code { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
     [Range(0, 240)] public int GraceMinutes { get; set; }

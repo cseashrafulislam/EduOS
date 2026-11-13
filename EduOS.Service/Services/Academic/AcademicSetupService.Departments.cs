@@ -2,6 +2,7 @@ using EduOS.Core.Common;
 using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using Microsoft.EntityFrameworkCore;
+using EduOS.Service.Services.Platform;
 
 namespace EduOS.Service.Services.Academic;
 
@@ -41,15 +42,17 @@ public sealed partial class AcademicSetupService
     {
         if (!CanManageDepartments()) return Task.FromResult(Denied<AcademicDepartmentDto>());
         if (!ValidDepartment(request))
-            return Task.FromResult(Error<AcademicDepartmentDto>("Valid department name, code and description are required."));
+            return Task.FromResult(Error<AcademicDepartmentDto>("Valid department name and description are required."));
         return ExecuteWriteAsync("create academic department", async () =>
         {
             var tenant = _currentUser.TenantId;
-            var code = NormalizeCode(request.Code);
             var name = request.Name.Trim();
             var description = Trim(request.Description);
+            // Existing integration clients may submit a legacy code; standard creation omits it.
+            var suppliedCode = string.IsNullOrWhiteSpace(request.Code) ? null : NormalizeCode(request.Code);
             var existing = await _departments.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant && x.Code == code && !x.IsDeleted, ct);
+                x.TenantId == tenant && !x.IsDeleted &&
+                (x.Code == suppliedCode || (suppliedCode == null && x.Name == name)), ct);
             if (existing != null)
             {
                 if (existing.Name != name || existing.Description != description ||
@@ -60,7 +63,8 @@ public sealed partial class AcademicSetupService
             }
             var row = new AcademicDepartment
             {
-                TenantId = tenant, Code = code, Name = name, Description = description,
+                TenantId = tenant, Code = suppliedCode ?? InternalCode.New("ADP", 30),
+                Name = name, Description = description,
                 IsActive = request.IsActive, CreatedBy = _currentUser.UserId
             };
             await _departments.AddAsync(row);
@@ -88,7 +92,7 @@ public sealed partial class AcademicSetupService
             if (row == null) return Error<AcademicDepartmentDto>("Department not found.", 404);
             var name = request.Name.Trim();
             var description = Trim(request.Description);
-            if (row.Code != NormalizeCode(request.Code))
+            if (!string.IsNullOrWhiteSpace(request.Code) && row.Code != NormalizeCode(request.Code))
                 return Error<AcademicDepartmentDto>("Department code cannot be changed.", 409);
             if (row.Name == name && row.Description == description && row.IsActive == request.IsActive)
                 return ApiResponse<AcademicDepartmentDto>.SuccessResponse(
@@ -112,8 +116,8 @@ public sealed partial class AcademicSetupService
 
     private static bool ValidDepartment(SaveAcademicDepartmentRequestDto? request) =>
         request != null && !string.IsNullOrWhiteSpace(request.Name) &&
-        request.Name.Trim().Length <= 150 && !string.IsNullOrWhiteSpace(request.Code) &&
-        request.Code.Trim().Length <= 30 &&
+        request.Name.Trim().Length <= 150 &&
+        (request.Code == null || request.Code.Trim().Length <= 30) &&
         (request.Description == null || request.Description.Length <= 500);
 
     private static AcademicDepartmentDto MapDepartment(AcademicDepartment row) => new()
