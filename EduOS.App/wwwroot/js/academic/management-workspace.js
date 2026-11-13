@@ -29,6 +29,8 @@
         if (panel) {
             panel.shell.classList.add('is-expanded');
             panel.button.setAttribute('aria-expanded', 'true');
+            panel.button.classList.remove('btn-primary');
+            panel.button.classList.add('btn-outline-secondary');
             panel.button.textContent = bn ? 'বন্ধ করুন' : 'Close';
         }
         if (focus) {
@@ -42,6 +44,8 @@
         if (panel) {
             panel.shell.classList.remove('is-expanded');
             panel.button.setAttribute('aria-expanded', 'false');
+            panel.button.classList.remove('btn-outline-secondary');
+            panel.button.classList.add('btn-primary');
             panel.button.textContent = panel.title;
         }
     }
@@ -55,7 +59,7 @@
         const title = bn ? pair[1] : pair[0];
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'btn btn-sm btn-outline-primary';
+        button.className = 'btn btn-sm btn-primary';
         button.setAttribute('aria-controls', id);
         button.setAttribute('aria-expanded', 'false');
         button.textContent = title;
@@ -76,6 +80,13 @@
         });
     }
     Object.entries(headings).forEach(([id, title]) => enhance(id, title));
+    // Keep Refresh beside the primary Add action, not in a separate blank toolbar.
+    // Move the existing button, retaining its registered event handler and ID.
+    if (root.id === 'academicManagement') {
+        const refresh = document.getElementById('academicRefresh');
+        const activeBar = root.querySelector('section[data-section]:not(.d-none) .academic-editor-bar');
+        if (refresh && activeBar) activeBar.append(refresh);
+    }
     // Existing list-edit handlers populate the same form. Reveal BEFORE their click
     // handlers call scrollIntoView; the original save/validation logic remains intact.
     const editorsByTable = {
