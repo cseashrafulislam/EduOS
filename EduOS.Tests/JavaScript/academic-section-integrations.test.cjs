@@ -18,7 +18,7 @@ test('enrollment, admission, promotion, readmission and import do not silently l
         assert.ok(read(file).includes(expected), file);
     const policy = read('EduOS.Service/Services/Academic/AcademicSectionPlacementPolicy.cs');
     assert.match(policy, /Select a specific academic section/);
-    assert.match(policy, /x.TenantId == tenantId && x.AcademicBatchId == batchId/);
+    assert.match(policy, /x.TenantId == tenantId && x.CampusId == campusId && x.AcademicLevelId == academicLevelId/);
 });
 
 test('attendance roster and routine collision use section identity', () => {
@@ -35,7 +35,7 @@ test('attendance roster and routine collision use section identity', () => {
 test('section page and linked academic workflows expose separate visible selectors', () => {
     const pairs = [
         ['EduOS.App/Views/AcademicManagement/SectionRegister.cshtml',
-            'EduOS.App/wwwroot/js/academic/section-register.js', 'sectionBatch'],
+            'EduOS.App/wwwroot/js/academic/section-register.js', 'sectionLevel'],
         ['EduOS.App/Views/EnrollmentManagement/Index.cshtml',
             'EduOS.App/wwwroot/js/students/enrollment-management.js', 'enrollmentSection'],
         ['EduOS.App/Views/StudentProgressions/Index.cshtml',
