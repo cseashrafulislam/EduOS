@@ -237,11 +237,7 @@
             x => x.name, x => x.code,
             x => find('programs', x.academicProgramId)?.name || '', x => x.levelNo
         ]);
-        table('sectionRows', catalog.batches, [
-            x => x.name, x => x.code, x => findCampus(x.campusId)?.name || '',
-            x => findYear(x.academicYearId)?.name || '',
-            x => find('levels', x.academicLevelId)?.name || '', x => x.capacity
-        ]);
+
 
     }
     async function reload() {
