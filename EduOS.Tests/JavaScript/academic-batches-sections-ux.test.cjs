@@ -45,6 +45,17 @@ test('Section read access supports authorized admission staff without broadening
     assert.match(service, /x\.TenantId == tenant && !x\.IsDeleted/);
 });
 
+test('Batch capacity may decrease only when enrollment and independent section limits allow it', () => {
+    const service = read('EduOS.Service/Services/Academic/AcademicSetupService.Batches.cs');
+    const ui = read('EduOS.App/wwwroot/js/academic/batches.js');
+    assert.match(service, /request\.Capacity < row\.Capacity/);
+    assert.match(service, /occupied > request\.Capacity/);
+    assert.match(service, /!x\.IsLegacyDefault && !x\.IsDeleted && x\.Capacity > request\.Capacity/);
+    assert.match(service, /serializable: true/);
+    assert.match(ui, /el\('batchEditCapacity'\)\.min = '0'/);
+    assert.doesNotMatch(ui, /Capacity cannot decrease/);
+});
+
 test('Generated unused section cleanup preserves every referenced academic and fee record', () => {
     const migration = read('EduOS.Persistence/Migrations/20261113030000_PruneUnusedBatchGeneratedSections.cs');
     assert.match(migration, /IsLegacyDefault = 1/);
