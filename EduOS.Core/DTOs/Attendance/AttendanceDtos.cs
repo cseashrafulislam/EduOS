@@ -175,7 +175,6 @@ public sealed class StudentAttendanceSectionChoiceDto
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public int Capacity { get; set; }
-    public bool IsLegacyDefault { get; set; }
 }
 
 public sealed class StudentAttendanceRosterDto
