@@ -1,53 +1,72 @@
-# EduOS Academic Batch / Academic Section rollout gate
+# EduOS Academic Batches vs Academic Sections — clean model and rollout
 
-**Branch:** `Ashraful`. **Schema migration:** `20261113010000_AcademicSectionFoundation` + `20261113030000_PruneUnusedBatchGeneratedSections` + `20261113040000_RemoveAcademicSectionLegacyDefault`.
+Branch: `Ashraful`. Required latest migration: `20261113050000_DecoupleSectionsFromBatches`.
 
-## Contract
+## Canonical ownership
 
-- `AcademicBatches` remains the cohort/master record and retains existing `AcademicBatchId` in all dependent modules.
-- `AcademicSections` stores an explicit, tenant-scoped Section within the Batch.
-- Historical migrations are retained unchanged. The old foundation migration may have generated placeholder sections. The next cleanup deletes only unreferenced placeholders; the final migration **refuses to drop `IsLegacyDefault`** if any generated section remains referenced. Reconcile those records explicitly rather than lose historical links.
-- `IsLegacyDefault` does not exist in the active Section entity, API, DTO, EF model, or final database schema. Batches and Sections are permanent first-class settings. One active Section can be selected unambiguously; multiple require a specific Section selection, and zero Sections require an explicit setup step.
-- Enrollment and stock/financial actions are never changed by a Section edit.
-- `StudentEnrollments`, `SubjectOfferings`, `AttendanceSessions`, `ResultPublications` and `FeeStructures` have nullable additive `AcademicSectionId`.
+- `AcademicLevels` is the Class/Grade master, e.g. Class One.
+- `AcademicSections` is a permanent group under **Tenant + Campus + Class/Grade**.
+  Example: Class One → A, B, C. **No Academic Batch is required to create a Section.**
+- `AcademicBatches` is a separately managed admission cohort/intake for workflows that
+  use it, e.g. CSE intake 2026 or HSC 2026–2028.
+- Never store `AcademicBatchId` in `AcademicSections`; class/campus is its single
+  authoritative scope.
+- `AcademicSectionId` in Enrollment, Offering, Attendance, Result and Fee records
+  denotes the class group. Existing cohort-based transactions also store their
+  `AcademicBatchId` for intake history, **not** to define a Section.
+- `IsLegacyDefault` is not part of the current entity, schema or API.
 
-## Pre-deployment and release sequence
+## Database migration and empty development database
 
-1. Take and verify a restorable SQL Server backup. Record the exact commit being deployed, previous migration state, and tenant count.
-2. Run .NET restore/build and **the full solution tests** against the exact commit. For example:
-   `dotnet test EduOS.sln --configuration Release` (use the repository's actual solution filename if different).
-3. Run the JavaScript regression tests:
-   `node --test EduOS.Tests/JavaScript/academic-section-contract.test.cjs EduOS.Tests/JavaScript/academic-section-integrations.test.cjs EduOS.Tests/JavaScript/academic-batches-sections-ux.test.cjs`.
-4. Apply EF SQL Server migrations in staging first. Inspect generated SQL/EF migration history, duplicate indexes and index locks. Rehearse against a restored production-size database.
-5. Run `scripts/migrations/validate-academic-section-scope.sql` in staging and production read-only. Investigate any missing/mismatched section IDs. Never automatically infer a Section from Batch. The final migration aborts if referenced generated placeholders remain; reconcile historical data with a reviewed plan, not a blind delete.
-6. Release the server application and frontend together; clear/version static asset caches. Inspect `/AcademicManagement/Batches`, `/AcademicManagement/Sections`, Section CRUD and permissions. Check concurrent client versions against the additive API. Confirm `/AcademicManagement/Batches` and `/AcademicManagement/Sections` are distinct, neither UI displays a “Legacy” label, the batch register links to its own sections, and admission roles can read tenant-scoped section choices but cannot mutate section settings.
-7. Repeat the exact-commit SQL Server integration, permission and UI/browser smoke suites before general enablement.
+The older migration files have already been committed to the branch. They must remain
+versioned to prevent a migration-history mismatch on any database that has run them.
+The final migration adds CampusId/AcademicLevelId, verifies the scoped data, drops
+Section.AcademicBatchId and adds unique index `TenantId, CampusId, AcademicLevelId, Code`
+for non-deleted sections. It blocks ambiguous duplicate codes and unresolvable class
+ownership rather than guessing.
 
-## Minimum acceptance and negative tests
+**The database has no previous business data per current requirement.** That simplifies
+reconciliation, but do not infer whether EF migration history is empty. If resetting
+the *development* database is explicitly intended, back up any useful configuration,
+users, subscriptions or auth data before dropping it; otherwise apply outstanding
+migrations in order. Never reset a production tenant database automatically.
 
-| Scenario | Required outcome |
-| --- | --- |
-| Batch and Section creation | Separate table IDs; Section validates active parent Batch, tenant and normalized unique code |
-| Batch capacity correction | Lower only if the new capacity covers active enrollments and every independent section capacity |
-| Repeated create request | Same key and body returns prior Section; different body conflicts |
-| Stale update/delete | Conflict without loss of current values |
-| Delete used Section | Blocked; audited deletion allowed only when no dependent work references it |
-| Cross-tenant Section ID | 403/404/409, never appears in another tenant's list or changes another tenant's data |
-| Admission / running entry / enrollment | Explicit selected Section persisted; mismatched Section blocked |
-| Promotion / readmission | Section validated under target Batch, capacity serialized; previous Enrollment remains immutable |
-| Student Import | Multi-section Batch without selected placement blocks instead of silently assigning |
-| Attendance | Section-specific roster and sessions, no posting of another Section's student |
-| Routine | Separate Sections can run simultaneously; teacher/room collisions still blocked |
-| Exam / Results | Subject offering shows Section, mark roster resolves its original enrollment; published history not rewritten |
-| Existing academic history | Backfilled Section identity, no altered historic Batch IDs, counts and reports unchanged |
-| Forms | No duplicate fields, clear empty/error/success states, mobile and bilingual checks |
-| Performance | Server paging, tenant/index filtering and no unbounded lookups |
-| Operations | Migration/rollback rehearsed; latest commit's workflow runs and integration results recorded |
+## UI and API
 
-## Rollback safety
+- `/AcademicManagement/Batches`: admission cohort maintenance.
+- `/AcademicManagement/Sections`: **Campus → Class/Grade → Section name/code,
+  capacity, Active, display order**; independent CRUD.
+- GET `/api/academic-sections?campusId=...&academicLevelId=...` lists scoped sections.
+- GET with `academicBatchId` is a compatibility search shortcut: it resolves the
+  batch's Campus/Class, but does not imply section ownership.
+- Student Add displays Batch (current enrollment cohort context) and a separate
+  class Section selector and posts both identifiers.
 
-The foundation migration is additive; the final marker removal is intentionally destructive **only to the obsolete column**, and aborts if referenced generated sections remain. **Never run Down or delete `AcademicSections` after users have entered data**; that would destroy new Sections and references. For a post-write issue, disable the new UI/API, roll back application code only after checking its compatibility with the retained schema, and reconcile data before resuming. No automatic destructive rollback is authorized.
+## Important remaining scope: batch-optional enrollment
 
-## QA evidence
+The *Section master is independent*, but the older Student Enrollment, Admission,
+Attendance, Routine, Fee and Exam APIs still use a nonnullable cohort/batch context.
+Making the **entire institution** work with no Academic Batch requires a separate
+integrity-first change to StudentEnrollment/SubjectOffering and downstream endpoints.
+Do **not** solve this by inventing a batch automatically or by renaming Batch to Section.
+Until that change is completed, use an actual cohort where the current enrollment
+workflow requires it; Section CRUD itself never requires one.
 
-Source-contract checks and JavaScript syntax checks are useful preliminary signals, **not** proof of successful .NET compilation, SQL migration, browser acceptance, tenant-level integration, or production readiness. No deployment is authorized without those recorded results.
+## Verification gate
+
+1. `dotnet restore EduOS.slnx`
+2. `dotnet build EduOS.slnx -c Release`
+3. `dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release`
+4. `node --test EduOS.Tests/JavaScript/academic-section-contract.test.cjs
+   EduOS.Tests/JavaScript/academic-section-integrations.test.cjs
+   EduOS.Tests/JavaScript/academic-batches-sections-ux.test.cjs`
+5. Check migration parity with `dotnet ef migrations has-pending-model-changes
+   --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext`.
+6. Run `scripts/migrations/validate-academic-section-scope.sql` read-only in staging.
+7. Browser checks: campus/class dropdown, Class One Sections A/B/C without batch,
+   duplicate-code conflict, create/edit/delete guard, mobile, Bengali, cross-tenant
+   permission, student/attendance Section selection, concurrency, stale forms.
+8. Do not claim production QA until all checks are recorded for the exact commit.
+
+The assistant-side source/JS checks are **not** evidence of successful .NET build,
+SQL migration, or real-browser testing.
