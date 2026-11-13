@@ -250,17 +250,17 @@
             <h2 class="h5">Academic Batches</h2>
             <div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-sm btn-outline-primary" href="/AcademicManagement/Sections">Manage Academic Sections</a><span class="small text-muted align-self-center">Batch = optional intake/cohort. Section = class group within a campus and class.</span></div>
             <p class="small text-muted">Create a cohort/intake here only when required. Academic Sections are maintained independently under Campus + Class; creating a Section never requires a Batch.</p>
-            <form id="sectionForm" class="row g-2 align-items-end mb-3">
-                <div class="col-md-3"><label for="sectionCampus" class="form-label">Campus *</label><select id="sectionCampus" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="sectionYear" class="form-label">Academic year *</label><select id="sectionYear" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="sectionProgram" class="form-label">Programme *</label><select id="sectionProgram" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="sectionLevel" class="form-label">Class / Grade *</label><select id="sectionLevel" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="sectionTerm" class="form-label">Term (optional)</label><select id="sectionTerm" class="form-select"></select></div>
-                <div class="col-md-3"><label for="sectionName" class="form-label">Batch name *</label><input id="sectionName" class="form-control" maxlength="150" required placeholder="HSC 2026–2028" /></div>
-                <div class="col-md-3"><label for="sectionCode" class="form-label">Code *</label><input id="sectionCode" class="form-control" maxlength="50" required placeholder="HSC-26" /></div>
-                <div class="col-md-2"><label for="sectionCapacity" class="form-label">Capacity</label><input id="sectionCapacity" class="form-control" type="number" min="0" max="100000" value="40" /></div>
-                <div class="col-md-3"><label for="sectionStart" class="form-label">Batch start *</label><input id="sectionStart" type="date" class="form-control" required /></div>
-                <div class="col-md-3"><label for="sectionEnd" class="form-label">Batch end *</label><input id="sectionEnd" type="date" class="form-control" required /></div>
+            <form id="batchCreateForm" class="row g-2 align-items-end mb-3">
+                <div class="col-md-3"><label for="batchCreateCampus" class="form-label">Campus *</label><select id="batchCreateCampus" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateYear" class="form-label">Academic year *</label><select id="batchCreateYear" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateProgram" class="form-label">Programme *</label><select id="batchCreateProgram" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateLevel" class="form-label">Class / Grade *</label><select id="batchCreateLevel" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateTerm" class="form-label">Term (optional)</label><select id="batchCreateTerm" class="form-select"></select></div>
+                <div class="col-md-3"><label for="batchCreateName" class="form-label">Batch name *</label><input id="batchCreateName" class="form-control" maxlength="150" required placeholder="HSC 2026–2028" /></div>
+                <div class="col-md-3"><label for="batchCreateCode" class="form-label">Code *</label><input id="batchCreateCode" class="form-control" maxlength="50" required placeholder="HSC-26" /></div>
+                <div class="col-md-2"><label for="batchCreateCapacity" class="form-label">Capacity</label><input id="batchCreateCapacity" class="form-control" type="number" min="0" max="100000" value="40" /></div>
+                <div class="col-md-3"><label for="batchCreateStart" class="form-label">Batch start *</label><input id="batchCreateStart" type="date" class="form-control" required /></div>
+                <div class="col-md-3"><label for="batchCreateEnd" class="form-label">Batch end *</label><input id="batchCreateEnd" type="date" class="form-control" required /></div>
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Batch</button></div>
             </form>
             <hr />
