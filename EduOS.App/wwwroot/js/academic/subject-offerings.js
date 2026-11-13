@@ -65,7 +65,7 @@
         for (const row of visible) {
             const tr = document.createElement('tr');
             cell(tr, row.code); cell(tr, sections.find(x => x.id === row.academicSectionId)?.name ||
-                (row.academicSectionId ? '#' + row.academicSectionId : 'Legacy'));
+                (row.academicSectionId ? '#' + row.academicSectionId : 'Batch-wide'));
             cell(tr, row.subjectName + ' (' + row.subjectCode + ')');
             cell(tr, row.capacity);
             cell(tr, row.pendingSeats); cell(tr, row.allocatedSeats); cell(tr, row.reservedSeats);
@@ -186,7 +186,7 @@
             return '"' + safe.replace(/"/g, '""') + '"';
         };
         const rows = [['Code','Section','Subject','Capacity','Pending','Allocated','Reserved','Available','Over Capacity','Mode','Active'], ...visible.map(x =>
-            [x.code,sections.find(s => s.id === x.academicSectionId)?.name || 'Legacy',
+            [x.code,sections.find(s => s.id === x.academicSectionId)?.name || 'Batch-wide',
                 x.subjectName,x.capacity,x.pendingSeats,x.allocatedSeats,x.reservedSeats,
                 x.seatsRemaining,x.isOverCapacity,x.deliveryMode,x.isActive])];
         const csv = '\uFEFF' + rows.map(x => x.map(escape).join(',')).join('\r\n');
