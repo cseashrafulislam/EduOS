@@ -54,7 +54,7 @@ public sealed class AuthSessionMiddleware(RequestDelegate next)
         if (context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() != null)
         {
             context.User = new ClaimsPrincipal(new ClaimsIdentity());
-            await _next(context);
+            await next(context);
             return;
         }
 
