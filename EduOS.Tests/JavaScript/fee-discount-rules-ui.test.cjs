@@ -43,3 +43,12 @@ test('denied API errors never echo backend messages and no direct finance mutati
  assert.doesNotMatch(js,/result\?\.message|json\?\.message|result\.message/);
  assert.doesNotMatch(js,/\/invoices\/generate|\/payments|\/journals|\/stock/);
 });
+
+test('compact rule page has no duplicate shell title or decorative refresh, but retains failure recovery',()=>{
+ assert.doesNotMatch(razor,/<h1\b/i);
+ assert.doesNotMatch(razor,/discountRuleRefresh/);
+ assert.doesNotMatch(js,/discountRuleRefresh/);
+ assert.match(js,/Retry loading/);
+ assert.match(js,/state\.page=1;\s*await load\(\)/);
+ assert.match(js,/notice\('danger',err\.message\)/);
+});
