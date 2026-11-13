@@ -122,10 +122,13 @@ public class AcademicBatch : BaseTenantEntity
     public int DisplayOrder { get; set; }
 }
 
-/// <summary>Section within a cohort/batch. Legacy rows represent previous batch-as-section records.</summary>
+/// <summary>Permanent class/grade group within a campus, independent of admission cohorts.</summary>
 public class AcademicSection : BaseTenantEntity
 {
-    public long AcademicBatchId { get; set; }
+    public long CampusId { get; set; }
+    public long AcademicLevelId { get; set; }
+    // Compatibility reference for historical imported sections; never required for new sections.
+    public long? AcademicBatchId { get; set; }
     public Guid? ClientRequestId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
