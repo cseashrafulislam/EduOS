@@ -36,6 +36,7 @@ public sealed class StudentQuickEntryService(
             db.CurrentTenantId != user.TenantId)
             return ApiResponse<RunningStudentCreatedDto>.ErrorResponse("Student creation is not authorized.", 403);
         if (request == null || request.ClientRequestId == Guid.Empty || request.AcademicBatchId <= 0 ||
+            request.AcademicSectionId is null or <= 0 ||
             request.AcademicCurriculumId <= 0 || request.AdmissionDate == default ||
             request.EnrollmentDate == default || request.AdmissionDate > request.EnrollmentDate ||
             request.DateOfBirth.HasValue && request.DateOfBirth.Value > request.AdmissionDate ||
@@ -67,6 +68,7 @@ public sealed class StudentQuickEntryService(
                     if (existing == null || existing.AdmissionApplicantId.HasValue ||
                         existing.FullName != name || existing.AdmissionDate != request.AdmissionDate ||
                         replay.AcademicBatchId != request.AcademicBatchId ||
+                        replay.AcademicSectionId != request.AcademicSectionId ||
                         replay.AcademicCurriculumId != request.AcademicCurriculumId ||
                         replay.RollNo != roll || replay.EnrollmentDate != request.EnrollmentDate ||
                         existing.Phone != phone || existing.DateOfBirth != request.DateOfBirth ||
@@ -101,7 +103,7 @@ public sealed class StudentQuickEntryService(
 
                 var batch = await db.AcademicBatches.FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive && !x.IsDeleted, token);
-                if (batch == null) throw new RejectEntry("Academic section is no longer available.");
+                if (batch == null) throw new RejectEntry("Academic batch is no longer available.");
                 var now = clock.GetUtcNow().UtcDateTime;
 
                 // Same batch write mutex/order as the canonical enrollment, admission and import paths.
