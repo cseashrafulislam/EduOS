@@ -861,6 +861,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("AcademicBatchId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<DateOnly>("AttendanceDate")
                         .HasColumnType("date");
 
@@ -1613,6 +1616,9 @@ namespace EduOS.Persistence.Migrations
                     b.Property<long?>("AcademicBatchId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("AcademicSectionId")
+                        .HasColumnType("bigint");
+
                     b.Property<long>("AcademicCurriculumId")
                         .HasColumnType("bigint");
 
@@ -1906,6 +1912,9 @@ namespace EduOS.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
                     b.Property<long?>("AcademicBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("AcademicSectionId")
                         .HasColumnType("bigint");
 
                     b.Property<long?>("AcademicTermId")
@@ -5226,6 +5235,9 @@ namespace EduOS.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
                     b.Property<long?>("AcademicBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("AcademicSectionId")
                         .HasColumnType("bigint");
 
                     b.Property<long>("AssessmentId")
