@@ -54,6 +54,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Verify Academic Management UX on all 11 routes
+        run: node --test EduOS.Tests/JavaScript/academic-management-workspace-polish.test.cjs EduOS.Tests/JavaScript/academic-navigation-workspaces.test.cjs EduOS.Tests/JavaScript/academic-batches-sections-ux.test.cjs
+
       - name: Validate JavaScript UI and workflow contracts
         run: node --test EduOS.Tests/JavaScript/*.test.cjs
 
