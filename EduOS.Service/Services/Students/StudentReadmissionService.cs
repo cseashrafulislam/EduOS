@@ -196,7 +196,8 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                     (batch.EndDate.HasValue && batch.EndDate.Value<today))
                     return Fail<StudentReadmissionResultDto>("Target batch is not eligible for this campus/program.",409);
                 var sectionPlacement=await AcademicSectionPlacementPolicy.ResolveAsync(
-                    _db.AcademicSections,tenant,batch.Id,request.TargetAcademicSectionId,token);
+                    _db.AcademicSections,tenant,batch.CampusId,batch.AcademicLevelId,
+                    request.TargetAcademicSectionId,token);
                 if(sectionPlacement.Error!=null)
                     return Fail<StudentReadmissionResultDto>(sectionPlacement.Error,409);
                 var year=await _years.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x=>
