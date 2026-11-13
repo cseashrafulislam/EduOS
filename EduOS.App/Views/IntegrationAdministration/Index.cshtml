@@ -34,8 +34,10 @@
                     <small class="text-muted">Leave blank on edit to retain existing protected secret. Never displayed after save.</small></div>
                 <div class="col-md-3"><label class="form-label" for="iaWebhookActive">Status</label>
                     <select id="iaWebhookActive" class="form-select"><option value="true">Active configuration</option><option value="false">Inactive</option></select></div>
-                <div class="col-md-4 d-flex align-items-center"><label class="form-check-label">
-                    <input id="iaWebhookClear" class="form-check-input" type="checkbox" /> Clear secret (inactive only)</label></div>
+                <div class="col-md-4 d-flex align-items-center"><div class="form-check">
+                    <input id="iaWebhookClear" class="form-check-input" type="checkbox" />
+                    <label for="iaWebhookClear" class="form-check-label">Clear secret (inactive only)</label>
+                </div></div>
             </div>
             <div class="mt-3 d-flex gap-2"><button class="btn btn-primary" type="submit">Save webhook</button>
                 <button id="iaWebhookReset" type="button" class="btn btn-outline-secondary">Reset</button></div>

@@ -63,11 +63,11 @@
                     @if (selected?.IsSensitive == true)
                     {
                         <input type="hidden" name="IsSensitive" value="true" />
-                        <label class="form-check-label mb-2"><input id="tsSensitive" type="checkbox" class="form-check-input" checked disabled /> @(bn ? "সুরক্ষিত (লক)" : "Sensitive (locked)")</label>
+                        <div class="form-check"><input id="tsSensitive" type="checkbox" class="form-check-input" checked disabled /><label for="tsSensitive" class="form-check-label">@(bn ? "সুরক্ষিত (লক)" : "Sensitive (locked)")</label></div>
                     }
                     else
                     {
-                        <label class="form-check-label mb-2"><input id="tsSensitive" name="IsSensitive" type="checkbox" value="true" class="form-check-input" /> @(bn ? "সুরক্ষিত মান" : "Sensitive / protected")</label>
+                        <div class="form-check"><input id="tsSensitive" name="IsSensitive" type="checkbox" value="true" class="form-check-input" /><label for="tsSensitive" class="form-check-label">@(bn ? "সুরক্ষিত মান" : "Sensitive / protected")</label></div>
                     }
                 </div>
                 <div class="col-12"><label for="tsValue" class="form-label">@(bn ? "মান" : "Value")</label>
