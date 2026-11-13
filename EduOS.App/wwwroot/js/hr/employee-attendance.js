@@ -26,7 +26,7 @@ async function api(url,method='GET',body){
 function handleError(error){
  if([401,403].includes(error.statusCode)){
   accessRevoked=true;++searchSeq;++loadSeq;++historySeq;
-  exportedRows=[];$('Export').disabled=true;$('Rows').replaceChildren();$('HistoryRows').replaceChildren();
+  exportedRows=[];$('Export').disabled=true;$('Print').disabled=true;$('Rows').replaceChildren();$('HistoryRows').replaceChildren();
   for(const id of ['Employee','FilterEmployee'])$(id).replaceChildren(new Option('Access unavailable',''));
   forms.record.reset();forms.correction.reset();guards.record?.markClean();guards.correction?.markClean();
   $('CorrectionCard').classList.add('d-none');$('HistoryCard').classList.add('d-none');root.inert=true;
@@ -58,7 +58,7 @@ async function employees(){
 function stateFields(){const active=[1,3].includes(Number($('State').value));for(const id of ['In','Out','Ot']){$(id).disabled=!active;if(!active)$(id).value=id==='Ot'?'0':'';}}
 async function load(){
  if(accessRevoked)return;
- const seq=++loadSeq;exportedRows=[];$('Export').disabled=true;
+ const seq=++loadSeq;exportedRows=[];$('Export').disabled=true;$('Print').disabled=true;
  const q=new URLSearchParams({fromDate:$('From').value,toDate:$('To').value,page:String(page),pageSize:'25'});
  if($('FilterEmployee').value)q.set('employeeReference',$('FilterEmployee').value);
  let data;
@@ -68,7 +68,7 @@ async function load(){
   q.get('fromDate')!==$('From').value||q.get('toDate')!==$('To').value||
   (q.get('employeeReference')||'')!==$('FilterEmployee').value)return;
  pages=Math.max(1,data.totalPages||1);$('Page').textContent='Page '+page+' of '+pages+' · '+data.totalCount+' records';$('Prev').disabled=page<=1;$('Next').disabled=page>=pages;
- exportedRows=(data.items||[]).map(r=>({...r}));$('Export').disabled=!exportedRows.length;
+ exportedRows=(data.items||[]).map(r=>({...r}));$('Export').disabled=!exportedRows.length;$('Print').disabled=!exportedRows.length;
  const body=$('Rows');body.replaceChildren();if(!data.items?.length){empty(body,8,'No attendance records.');return;}
  for(const row of data.items){const tr=document.createElement('tr');
  [row.attendanceDate,row.employeeCode+' — '+row.employeeName,statuses[row.state]||row.state,row.inTime?.slice(0,5),row.outTime?.slice(0,5),row.overtimeHours,row.remarks].forEach(x=>tr.append(td(x)));
@@ -95,6 +95,12 @@ function csvCell(value){
  if(/^[\s\uFEFF]*[=+@-]/u.test(s))s="'"+s;
  return '"'+s.replace(/"/g,'""')+'"';
 }
+$('Print').addEventListener('click',()=>{
+ if(accessRevoked||busy||!exportedRows.length)return;
+ document.body.classList.add('employee-attendance-print-mode');
+ try{window.print();}finally{document.body.classList.remove('employee-attendance-print-mode');}
+});
+window.addEventListener('afterprint',()=>document.body.classList.remove('employee-attendance-print-mode'));
 $('Export').addEventListener('click',()=>{
  if(accessRevoked||busy||!exportedRows.length)return;
  const headings=['Date','Employee code','Employee name','Status','In','Out','Overtime hours','Remarks'];
