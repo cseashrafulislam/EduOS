@@ -38,7 +38,7 @@ function fixture(kind) {
         '<body><main class="page-body">' + content + '</main></body></html>';
 }
 function rect(page, selector) {
-    return page.locator(selector).boundingBox();
+    return page.locator(selector).first().boundingBox();
 }
 async function run() {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
