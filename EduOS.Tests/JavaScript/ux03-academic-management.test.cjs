@@ -12,14 +12,14 @@ const mainScript = read('EduOS.App/wwwroot/js/academic/management.js');
 const offeringScript = read('EduOS.App/wwwroot/js/academic/subject-offerings.js');
 
 function setup() {
-    const formIds = ['yearForm', 'termForm', 'programForm', 'levelForm', 'sectionForm',
+    const formIds = ['yearForm', 'termForm', 'programForm', 'levelForm', 'batchCreateForm',
         'subjectForm', 'curriculumForm', 'curriculumSubjectForm'];
     const values = new Map(Object.entries({
         yearStart: '2026-01-01', yearEnd: '2026-12-31', yearName: '2026', yearCode: '26',
         yearId: '', yearVersion: '', yearCampus: '', yearCycle: '1',
-        sectionCampus: '1', sectionYear: '10', sectionTerm: '', sectionProgram: '20',
-        sectionLevel: '30', sectionStart: '2026-01-01', sectionEnd: '2026-12-31',
-        sectionName: 'A', sectionCode: 'A', sectionCapacity: '40'
+        batchCreateCampus: '1', batchCreateYear: '10', batchCreateTerm: '', batchCreateProgram: '20',
+        batchCreateLevel: '30', batchCreateStart: '2026-01-01', batchCreateEnd: '2026-12-31',
+        batchCreateName: 'A', batchCreateCode: 'A', batchCreateCapacity: '40'
     }));
     const nodes = new Map();
     const guards = new Map();
@@ -126,19 +126,19 @@ test('response from an old session cannot clear the academic editor', async () =
 
 test('uncertain section POST retains idempotency token until any input changes', async () => {
     const ctx = setup();
-    const form = ctx.nodes.get('sectionForm');
+    const form = ctx.nodes.get('batchCreateForm');
     const name = { value: 'A', checked: false };
     form.elements.push(name);
     ctx.setApi(() => { throw Error('network timeout'); });
-    await ctx.dispatch('sectionForm');
-    await ctx.dispatch('sectionForm');
+    await ctx.dispatch('batchCreateForm');
+    await ctx.dispatch('batchCreateForm');
     assert.equal(ctx.requests.length, 2);
     const key1 = JSON.parse(ctx.requests[0][1].body).clientRequestId;
     const key2 = JSON.parse(ctx.requests[1][1].body).clientRequestId;
     assert.equal(key1, key2);
     name.value = 'B';
-    ctx.values.set('sectionName', 'B');
-    await ctx.dispatch('sectionForm');
+    ctx.values.set('batchCreateName', 'B');
+    await ctx.dispatch('batchCreateForm');
     const key3 = JSON.parse(ctx.requests[2][1].body).clientRequestId;
     assert.notEqual(key3, key1);
     assert.equal(form.resets, 0, 'failed write does not erase the draft');
