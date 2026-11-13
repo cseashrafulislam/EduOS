@@ -29,12 +29,12 @@ public sealed class StudentsController : ControllerBase
     // No guardian, contact, global Person, historical or cross-tenant data.
     [HttpGet("export-page")]
     public async Task<IActionResult> ExportPage([FromQuery] StudentDirectoryQueryDto query,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, [FromQuery] bool includeSection = false)
     {
         var result = await _service.GetPageAsync(query, cancellationToken);
         if (!result.Success || result.Data == null)
             return StatusCode(result.StatusCode, result);
-        var csv = EduOS.App.Reporting.StudentDirectoryCsvWriter.Write(result.Data.Items);
+        var csv = EduOS.App.Reporting.StudentDirectoryCsvWriter.Write(result.Data.Items, includeSection: includeSection);
         return File(csv, "text/csv; charset=utf-8", $"students-page-{result.Data.Page}.csv");
     }
 

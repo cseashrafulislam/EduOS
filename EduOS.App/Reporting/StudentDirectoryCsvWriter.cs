@@ -10,7 +10,8 @@ namespace EduOS.App.Reporting;
 /// </summary>
 public static class StudentDirectoryCsvWriter
 {
-    public static byte[] Write(IReadOnlyList<StudentDirectoryListItemDto> rows, CultureInfo? culture = null)
+    public static byte[] Write(IReadOnlyList<StudentDirectoryListItemDto> rows, CultureInfo? culture = null,
+        bool includeSection = false)
     {
         ArgumentNullException.ThrowIfNull(rows);
         if (rows.Count > 100)
@@ -18,17 +19,24 @@ public static class StudentDirectoryCsvWriter
 
         var csv = new StringBuilder("\uFEFF");
         var bangla = (culture ?? CultureInfo.CurrentUICulture).TwoLetterISOLanguageName == "bn";
+        // The default 7-column CSV is a stable contract for existing consumers.
+        // The newer UI explicitly opts in to the Section-aware 8-column projection.
         csv.AppendLine(bangla
-            ? "শিক্ষার্থী কোড,পূর্ণ নাম,রোল,শিক্ষাবর্ষ,শ্রেণি,শাখা,ব্যাচ,অবস্থা"
-            : "Student Code,Full Name,Roll,Academic Year,Level,Section,Batch,Status");
+            ? (includeSection ? "শিক্ষার্থী কোড,পূর্ণ নাম,রোল,শিক্ষাবর্ষ,শ্রেণি,শাখা,ব্যাচ,অবস্থা"
+                              : "শিক্ষার্থী কোড,পূর্ণ নাম,রোল,শিক্ষাবর্ষ,শ্রেণি,ব্যাচ,অবস্থা")
+            : (includeSection ? "Student Code,Full Name,Roll,Academic Year,Level,Section,Batch,Status"
+                              : "Student Code,Full Name,Roll,Academic Year,Level,Batch,Status"));
         foreach (var row in rows)
         {
-            csv.AppendJoin(",", new[]
+            var values = new List<string>
             {
                 Cell(row.StudentCode), Cell(row.FullName), Cell(row.RollNo),
-                Cell(row.AcademicYear), Cell(row.AcademicLevelName),
-                Cell(row.AcademicSectionName), Cell(row.AcademicBatchName), Cell(row.Status)
-            });
+                Cell(row.AcademicYear), Cell(row.AcademicLevelName)
+            };
+            if (includeSection) values.Add(Cell(row.AcademicSectionName));
+            values.Add(Cell(row.AcademicBatchName));
+            values.Add(Cell(row.Status));
+            csv.AppendJoin(",", values);
             csv.AppendLine();
         }
         return Encoding.UTF8.GetBytes(csv.ToString());

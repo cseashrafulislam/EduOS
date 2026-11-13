@@ -217,7 +217,9 @@
         const request = state.listRequest;
         button.disabled = true;
         try {
-            const response = await fetch('/api/students/export-page?' + directoryParams(), {
+            const exportParams = directoryParams();
+            exportParams.set('includeSection', 'true');
+            const response = await fetch('/api/students/export-page?' + exportParams, {
                 method: 'GET', cache: 'no-store', credentials: 'same-origin',
                 headers: { Accept: 'text/csv' }
             });

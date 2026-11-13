@@ -35,12 +35,19 @@ public sealed class StudentDirectoryExportTests
         Assert.Contains("\"'@external\"", text);
         Assert.Contains("\"Class, Six\"", text);
         Assert.Contains("\"A\"\"B\"", text);
-        Assert.Contains("A/শাখা", text);
+        Assert.DoesNotContain("A/শাখা", text);
+        Assert.StartsWith("\uFEFFStudent Code,Full Name,Roll,Academic Year,Level,Batch,Status", text);
+        var sectionAware = Encoding.UTF8.GetString(StudentDirectoryCsvWriter.Write(rows, includeSection: true));
+        Assert.StartsWith("\uFEFFStudent Code,Full Name,Roll,Academic Year,Level,Section,Batch,Status", sectionAware);
+        Assert.Contains("A/শাখা", sectionAware);
         Assert.DoesNotContain("5678", text);
         Assert.DoesNotContain("Guardian", text);
         var bangla = Encoding.UTF8.GetString(StudentDirectoryCsvWriter.Write(rows, new CultureInfo("bn-BD")));
         Assert.StartsWith("\uFEFFশিক্ষার্থী কোড,পূর্ণ নাম,রোল", bangla);
         Assert.Contains("\"'=HYPERLINK", bangla);
+        var banglaWithSection = Encoding.UTF8.GetString(StudentDirectoryCsvWriter.Write(
+            rows, new CultureInfo("bn-BD"), includeSection: true));
+        Assert.StartsWith("\uFEFFশিক্ষার্থী কোড,পূর্ণ নাম,রোল,শিক্ষাবর্ষ,শ্রেণি,শাখা,ব্যাচ,অবস্থা", banglaWithSection);
         Assert.Throws<ArgumentOutOfRangeException>(() => StudentDirectoryCsvWriter.Write(
             Enumerable.Range(0, 101).Select(_ => new StudentDirectoryListItemDto()).ToArray()));
     }
@@ -66,7 +73,12 @@ public sealed class StudentDirectoryExportTests
         Assert.Equal("students-page-2.csv", file.FileDownloadName);
         Assert.Equal("text/csv; charset=utf-8", file.ContentType);
         Assert.Contains("STU-21", Encoding.UTF8.GetString(file.FileContents));
-        service.Verify(x => x.GetPageAsync(query, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.StartsWith("\uFEFFStudent Code,Full Name,Roll,Academic Year,Level,Batch,Status",
+            Encoding.UTF8.GetString(file.FileContents));
+        var opted = Assert.IsType<FileContentResult>(await controller.ExportPage(query, CancellationToken.None, true));
+        Assert.StartsWith("\uFEFFStudent Code,Full Name,Roll,Academic Year,Level,Section,Batch,Status",
+            Encoding.UTF8.GetString(opted.FileContents));
+        service.Verify(x => x.GetPageAsync(query, It.IsAny<CancellationToken>()), Times.Exactly(2));
 
         service.Setup(x => x.GetPageAsync(query, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ApiResponse<PagedResult<StudentDirectoryListItemDto>>.ErrorResponse(
@@ -88,6 +100,7 @@ public sealed class StudentDirectoryExportTests
         Assert.Contains("credentials: 'same-origin'", js);
         Assert.Contains("cache: 'no-store'", js);
         Assert.Contains("directoryParams()", js);
+        Assert.Contains("exportParams.set('includeSection', 'true')", js);
         Assert.DoesNotContain("innerHTML", js);
     }
 
