@@ -74,9 +74,25 @@ public sealed partial class AcademicSetupService
                 return ApiResponse<AcademicBatchDto>.SuccessResponse(MapBatch(row), "Academic batch already has these settings.");
             if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, expected))
                 return Error<AcademicBatchDto>("Academic batch changed concurrently. Reload before saving.", 409);
-            // Without enrollment reconciliation, never reduce capacity or deactivate a live section.
+            // A cohort's capacity can be corrected when no enrolled students or
+            // independently managed section would exceed the new limit.
+            // The surrounding serializable transaction protects this check from
+            // concurrent enrollment and section-capacity changes.
             if (request.Capacity < row.Capacity)
-                return Error<AcademicBatchDto>("Batch capacity reduction requires enrollment reconciliation.", 409);
+            {
+                var occupied = await _enrollments.GetQueryable().AsNoTracking()
+                    .CountAsync(x => x.TenantId == tenant && x.AcademicBatchId == row.Id &&
+                        x.IsCurrent && x.State == EduOS.Core.Enums.Domain.EnrollmentState.Active &&
+                        !x.IsDeleted, ct);
+                if (occupied > request.Capacity)
+                    return Error<AcademicBatchDto>("Batch capacity cannot be below current enrollment (" +
+                        occupied + ").", 409);
+                if (_sections != null && await _sections.GetQueryable().AsNoTracking()
+                    .AnyAsync(x => x.TenantId == tenant && x.AcademicBatchId == row.Id &&
+                        !x.IsLegacyDefault && !x.IsDeleted && x.Capacity > request.Capacity, ct))
+                    return Error<AcademicBatchDto>(
+                        "Batch capacity cannot be smaller than an existing section capacity.", 409);
+            }
             row.Name = name;
             row.Capacity = request.Capacity;
             row.DisplayOrder = request.DisplayOrder;
