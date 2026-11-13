@@ -256,21 +256,55 @@
             recovery: ['Check existing programme codes, parent selection and campus scope; reload the current version after a conflict.', 'আগের প্রোগ্রাম কোড, মূল প্রোগ্রাম নির্বাচন ও ক্যাম্পাস যাচাই করুন; সংঘাতে বর্তমান সংস্করণ রিফ্রেশ করুন।'],
             related: [['/AcademicManagement/Departments', 'Departments', 'বিভাগ'], ['/AcademicManagement/Sections', 'Sections', 'শাখা']]
         },
-        '/academicmanagement/sections/index': {
-            version: 1, reviewed: true,
-            title: ['Sections / Cohorts', 'শাখা / ব্যাচ'],
-            purpose: ['Create academic batches tied to a campus, year, programme and grade.', 'ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম ও গ্রেডের সঙ্গে যুক্ত শাখা/ব্যাচ তৈরি করুন।'],
-            before: ['TenantAdmin access and completed campus, year and programme/level setup.', 'TenantAdmin অনুমতি এবং ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম ও শ্রেণির সেটআপ সম্পন্ন থাকতে হবে।'],
+        '/academicmanagement/batches/index': {
+            version: 2, reviewed: true,
+            title: ['Academic Batches', 'একাডেমিক ব্যাচ'],
+            purpose: ['Create and maintain each admission cohort once; sections are managed separately within a batch.',
+                'প্রতিটি ভর্তি ব্যাচ একবার তৈরি ও পরিচালনা করুন; শাখা ওই ব্যাচের অধীনে আলাদাভাবে পরিচালিত হয়।'],
+            before: ['TenantAdmin access, campus, academic year, programme and class/grade must exist.',
+                'TenantAdmin অনুমতি, ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম এবং শ্রেণি থাকতে হবে।'],
             steps: [
-                ['Select campus, year, programme, class and optional term.', 'ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম, শ্রেণি এবং প্রযোজ্য টার্ম বাছুন।'],
-                ['Enter section name/code, capacity and dates; select Add Section.', 'শাখার নাম, কোড, আসনসংখ্যা ও তারিখ লিখে Add Section চাপুন।'],
-                ['Search the section register and edit only the permitted name, capacity increase or display order.', 'শাখার তালিকায় খুঁজুন; শুধু অনুমোদিত নাম, আসন বৃদ্ধি বা প্রদর্শনক্রম বদলান।']
+                ['Select campus, academic year, programme, class and optional term.',
+                    'ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম, শ্রেণি এবং প্রযোজ্য টার্ম নির্বাচন করুন।'],
+                ['Enter batch name and code, capacity and dates; choose Add Batch.',
+                    'ব্যাচের নাম, কোড, ধারণক্ষমতা ও তারিখ দিয়ে Add Batch চাপুন।'],
+                ['Find the saved batch in the register; choose Sections to manage its teaching groups.',
+                    'তালিকায় ব্যাচ খুঁজে Sections দিয়ে ওই ব্যাচের শ্রেণিশাখা পরিচালনা করুন।']
             ],
-            example: ['Example: add Grade 9 A at Campus 1 for Academic 2026 with capacity 40.', 'উদাহরণ: Campus 1-এ Academic 2026-এর Grade 9 A শাখা ৪০ আসনসহ তৈরি করুন।'],
-            result: ['The section becomes an available academic batch for later student/subject workflows.', 'শাখাটি পরবর্তী শিক্ষার্থী ও বিষয় ব্যবস্থাপনায় একাডেমিক ব্যাচ হিসেবে পাওয়া যায়।'],
-            rules: ['Campus, year, programme, class, dates and code cannot be edited here; reducing capacity or closing a used section needs separate enrollment-safe reconciliation.', 'এখানে ক্যাম্পাস, শিক্ষাবর্ষ, প্রোগ্রাম, শ্রেণি, তারিখ ও কোড বদলানো যায় না; আসন কমানো বা ব্যবহৃত শাখা বন্ধে আলাদা ভর্তি-নিরাপদ সমন্বয় প্রয়োজন।'],
-            recovery: ['Check required parent selections and dates; review the register before retrying a save after network uncertainty.', 'প্রয়োজনীয় মূল নির্বাচন ও তারিখ দেখুন; নেটওয়ার্কে ফল অনিশ্চিত হলে আবার সংরক্ষণের আগে তালিকা যাচাই করুন।'],
-            related: [['/AcademicManagement/Years', 'Academic Years', 'শিক্ষাবর্ষ'], ['/AcademicManagement/Offerings', 'Subject Offerings', 'বিষয় অফার']]
+            example: ['Create HSC 2026–2028 (HSC-26) for the verified campus and intake dates.',
+                'যাচাইকৃত ক্যাম্পাস ও ভর্তির তারিখ দিয়ে HSC 2026–2028 (HSC-26) ব্যাচ তৈরি করুন।'],
+            result: ['One batch is available for admission cohort tracking, while Sections A/B are saved separately.',
+                'ভর্তি ব্যাচ আলাদাভাবে সংরক্ষিত হয় এবং A/B শাখা পৃথকভাবে রাখা যায়।'],
+            rules: ['Batch codes and academic scope are protected. Changing a batch does not automatically change existing section or student placements.',
+                'ব্যাচের কোড ও একাডেমিক পরিসর সুরক্ষিত; ব্যাচ পরিবর্তন করলে আগের শাখা বা শিক্ষার্থীর অবস্থান নিজে নিজে বদলায় না।'],
+            recovery: ['If Save fails, check the required parent records, allowed dates and existing code; reload before retrying a concurrent edit.',
+                'সংরক্ষণ ব্যর্থ হলে ক্যাম্পাস, তারিখ ও আগের কোড যাচাই করুন; একই সঙ্গে এডিট হলে রিফ্রেশ করে পুনরায় চেষ্টা করুন।'],
+            related: [['/AcademicManagement/Sections', 'Academic Sections', 'শাখা'], ['/AcademicManagement/Years', 'Academic Years', 'শিক্ষাবর্ষ']]
+        },
+        '/academicmanagement/sections/index': {
+            version: 2, reviewed: true,
+            title: ['Academic Sections', 'একাডেমিক শাখা'],
+            purpose: ['Create distinct teaching groups under a selected batch; attendance, routine and exam offerings are section-aware.',
+                'নির্বাচিত ব্যাচের অধীনে আলাদা শ্রেণিশাখা তৈরি করুন; উপস্থিতি, রুটিন ও পরীক্ষার বিষয় শাখাভিত্তিক।'],
+            before: ['TenantAdmin access and at least one active Academic Batch.',
+                'TenantAdmin অনুমতি ও অন্তত একটি সক্রিয় একাডেমিক ব্যাচ থাকতে হবে।'],
+            steps: [
+                ['Find or select the correct Academic Batch, or arrive through the batch register Sections shortcut.',
+                    'সঠিক একাডেমিক ব্যাচ খুঁজে নিন অথবা ব্যাচ তালিকার Sections লিংক ব্যবহার করুন।'],
+                ['Enter Section name, code and capacity. Additional settings are optional.',
+                    'শাখার নাম, কোড ও আসনসংখ্যা লিখুন; অতিরিক্ত সেটিংস ঐচ্ছিক।'],
+                ['Save Section; select Edit for allowed changes or Delete only when the section has no linked records.',
+                    'Save Section চাপুন; সংশোধন করতে Edit অথবা কোনো সংযুক্ত রেকর্ড না থাকলে Delete করুন।']
+            ],
+            example: ['Under batch HSC 2026–2028, create Science – A (SCI-A), then Science – B (SCI-B) as separate sections.',
+                'HSC 2026–2028 ব্যাচের অধীনে Science – A (SCI-A) এবং Science – B (SCI-B) আলাদা শাখা তৈরি করুন।'],
+            result: ['Students and subject offerings can select the section without duplicating the parent batch.',
+                'শিক্ষার্থী ও বিষয় অফারিংয়ের জন্য ব্যাচ পুনরায় তৈরি না করেই শাখা নির্বাচন করা যায়।'],
+            rules: ['Section must belong to an active batch. Section capacity cannot exceed batch capacity; linked historical sections cannot be deleted.',
+                'শাখা সক্রিয় ব্যাচের অধীনে থাকবে; ধারণক্ষমতা ব্যাচের বেশি হবে না এবং ব্যবহৃত শাখার ইতিহাস মুছতে পারবেন না।'],
+            recovery: ['If a batch is missing, search by name/code or create it in Academic Batches. Reload to resolve concurrent edits.',
+                'ব্যাচ না পেলে নাম/কোড দিয়ে খুঁজুন অথবা Academic Batches-এ তৈরি করুন; একযোগে এডিটের সংঘাতে রিফ্রেশ করুন।'],
+            related: [['/AcademicManagement/Batches', 'Academic Batches', 'ব্যাচ'], ['/AcademicManagement/Offerings', 'Subject Offerings', 'বিষয় অফারিং']]
         },
         '/academicmanagement/rooms/index': {
             version: 1, reviewed: true,
