@@ -147,7 +147,8 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             if (_sections == null)
                 return Error<StudentEnrollmentDto>("Academic section service unavailable.", 503);
             var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
-                _sections.GetQueryable(), tenant, batch.Id, request.AcademicSectionId, ct);
+                _sections.GetQueryable(), tenant, batch.CampusId, batch.AcademicLevelId,
+                request.AcademicSectionId, ct);
             if (placement.Error != null)
                 return Error<StudentEnrollmentDto>(placement.Error, 409);
             var sectionId = placement.SectionId!.Value;
