@@ -18,6 +18,14 @@
     padding-bottom: 1rem !important;
     color: var(--academic-ink);
 }
+/* Override Bootstrap's .py-4 !important (the zero-specificity :where rule alone cannot).
+   Content starts directly below the shared page header without a second blank band. */
+#academicManagement,
+#academicSectionsPage,
+#prerequisiteWorkspace {
+    padding-top: 0 !important;
+    padding-bottom: 1rem !important;
+}
 /* The app shell already pads its main area: no second top gutter on setup pages. */
 .page-body:has(> :is(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace)) {
     padding-top: .65rem;
