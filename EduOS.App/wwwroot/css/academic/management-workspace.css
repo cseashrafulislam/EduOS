@@ -208,8 +208,8 @@
     background: transparent;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-shell.is-expanded .academic-editor-bar {
-    padding-bottom: .48rem;
-    margin-bottom: .65rem;
+    padding-bottom: .35rem;
+    margin-bottom: .4rem;
     border-bottom: 1px solid var(--academic-line);
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-form-actions {
@@ -332,6 +332,10 @@
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form {
     padding: 0;
     margin: 0 !important;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form.row {
+    --bs-gutter-x: .75rem;
+    --bs-gutter-y: .55rem;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form[hidden] {
     display: none !important;
