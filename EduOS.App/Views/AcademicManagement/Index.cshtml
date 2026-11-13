@@ -310,10 +310,12 @@
                 <div class="col-md-2"><label for="curriculumCode" class="form-label">Code *</label><input id="curriculumCode" maxlength="50" class="form-control" required /></div>
                 <div class="col-md-2"><label for="curriculumVersion" class="form-label">Version *</label><input id="curriculumVersion" type="number" min="1" value="1" class="form-control" required /></div>
                 <div class="col-md-2"><label for="curriculumFrom" class="form-label">Effective from *</label><input id="curriculumFrom" type="date" class="form-control" required /></div>
-                <div class="col-md-3 d-flex align-items-end"><label class="form-check"><input id="curriculumCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current curriculum</span></label></div>
-                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Create Curriculum</button></div>
+                <div class="col-12 academic-curriculum-actions">
+                    <label class="form-check academic-check-control" for="curriculumCurrent"><input id="curriculumCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current curriculum</span></label>
+                    <button type="submit" class="btn btn-primary academic-curriculum-create">Create Curriculum</button>
+                </div>
             </form>
-            <div class="mb-3"><a asp-controller="AcademicManagement" asp-action="Prerequisites" class="btn btn-outline-primary">Manage Subject Prerequisites</a></div>
+            <div class="academic-curriculum-related"><a asp-controller="AcademicManagement" asp-action="Prerequisites" class="btn btn-outline-primary">Manage Subject Prerequisites</a></div>
             <h3 class="visually-hidden">Add subject to an existing curriculum</h3>
             <form id="curriculumSubjectForm" class="row g-2 align-items-end mb-4">
                 <div class="col-md-3"><label for="curriculumSelection" class="form-label">Curriculum *</label><select id="curriculumSelection" class="form-select" required></select></div>
@@ -349,7 +351,7 @@
                 <div class="col-md-2"><label for="offeringCode" class="form-label">Offering code *</label><input id="offeringCode" maxlength="50" class="form-control" required /></div>
                 <div class="col-md-2"><label for="offeringCapacity" class="form-label">Capacity *</label><input id="offeringCapacity" type="number" min="1" max="100000" class="form-control" required /></div>
                 <div class="col-md-2"><label for="offeringDelivery" class="form-label">Delivery</label><select id="offeringDelivery" class="form-select"><option value="1">On campus</option><option value="2">Online live</option><option value="3">Self-paced</option><option value="4">Hybrid</option></select></div>
-                <div class="col-md-2 d-flex align-items-end"><label class="form-check"><input id="offeringActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">Active</span></label></div>
+                <div class="col-md-2 academic-check-cell"><label class="form-check academic-check-control"><input id="offeringActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">Active</span></label></div>
                 <div class="col-md-4 d-flex gap-2"><button id="offeringSave" type="submit" class="btn btn-primary">Create Offering</button><button id="offeringCancel" type="button" class="btn btn-outline-secondary">Clear</button></div>
             </form>
             <div id="offeringMessage" role="status" aria-live="polite" class="small text-muted mb-2"></div>
