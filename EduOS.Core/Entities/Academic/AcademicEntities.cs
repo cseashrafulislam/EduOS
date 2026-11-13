@@ -127,8 +127,6 @@ public class AcademicSection : BaseTenantEntity
 {
     public long CampusId { get; set; }
     public long AcademicLevelId { get; set; }
-    // Compatibility reference for historical imported sections; never required for new sections.
-    public long? AcademicBatchId { get; set; }
     public Guid? ClientRequestId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
