@@ -52,7 +52,7 @@
                     <summary class="text-muted">@(bn ? "গণনা সম্পর্কিত তথ্য" : "About these metrics")</summary>
                     <div class="small text-muted mt-1">
                         @(bn ? "শিক্ষার্থী, কর্মী ও ক্যাম্পাসের দৈনিক সংখ্যা snapshot; user seat ও সংরক্ষিত ফাইলের ব্যবহার live। দিনে সর্বোচ্চ একটি snapshot, স্বয়ংক্রিয় ক্যাপচারের জন্য worker চালু থাকা প্রয়োজন। পুরোনো storage snapshot অসম্পূর্ণ হতে পারে; SMS ও email গণনা করা হয় না। CSV-তে সর্বোচ্চ ৩৬৬ দিনের সংরক্ষিত তথ্য পাওয়া যাবে।" :
-                            "Student, employee and campus counts are daily snapshots; user seats and committed file storage are live. Only one snapshot is saved per institution-local day; automatic capture depends on the background worker. Older storage snapshots may be incomplete; SMS and email are not metered. CSV exports cover up to 366 saved days.")
+                            "Student, employee and campus snapshots are not live; user seats and committed file storage are live. Only one snapshot is saved per institution-local day; automatic capture depends on the background worker. Older storage snapshots may be incomplete; SMS and email are not metered. CSV exports cover up to 366 saved days.")
                     </div>
                 </details>
             </div>
