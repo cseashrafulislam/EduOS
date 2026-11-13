@@ -1008,6 +1008,10 @@
                         <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
                         <span>@(currentCulture == "bn-BD" ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing")</span>
                     </a>
+                    <a class="nav-link @ActiveFor("/UsageHistory")" href="/UsageHistory/Index">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "ব্যবহারের ইতিহাস" : "Institution Usage History")</span>
+                    </a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
