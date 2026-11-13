@@ -287,7 +287,7 @@ public sealed class TeacherResourceService(EduOSDbContext db, ICurrentUserServic
                 join offering in db.SubjectOfferings.AsNoTracking() on new { plan.TenantId, Id = plan.SubjectOfferingId }
                     equals new { offering.TenantId, offering.Id }
                 join batch in db.AcademicBatches.AsNoTracking() on new { offering.TenantId, Id = offering.AcademicBatchId }
-                    equals new { batch.TenantId, batch.Id }
+                    equals new { batch.TenantId, Id = (long?)batch.Id }
                 where plan.TenantId == Tenant && plan.PublicId == request.LessonPlanReference.Value &&
                     plan.EmployeeId == authorId && !plan.IsDeleted && !offering.IsDeleted &&
                     batch.CampusId == request.CampusId && !batch.IsDeleted

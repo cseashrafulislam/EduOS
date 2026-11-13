@@ -90,7 +90,7 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
             from enrollment in _db.StudentEnrollments.IgnoreQueryFilters().AsNoTracking()
             join batch in _db.AcademicBatches.IgnoreQueryFilters().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.AcademicBatchId }
-                equals new { batch.TenantId, batch.Id }
+                equals new { batch.TenantId, Id = (long?)batch.Id }
             join summary in _db.StudentResultSummaries.IgnoreQueryFilters().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.Id }
                 equals new { summary.TenantId, Id = summary.StudentEnrollmentId }
@@ -228,7 +228,7 @@ public sealed class PublicCertificateVerificationService : IPublicCertificateVer
                 equals new { enrollment.TenantId, Id = enrollment.StudentId }
             join batch in _db.AcademicBatches.IgnoreQueryFilters().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.AcademicBatchId }
-                equals new { batch.TenantId, batch.Id }
+                equals new { batch.TenantId, Id = (long?)batch.Id }
             join summary in _db.StudentResultSummaries.IgnoreQueryFilters().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.Id }
                 equals new { summary.TenantId, Id = summary.StudentEnrollmentId }

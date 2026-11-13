@@ -18,7 +18,7 @@ public sealed partial class AssessmentAdministrationService
             join exam in _assessments.GetQueryable().AsNoTracking()
                 on new { pub.TenantId, Id = pub.AssessmentId } equals new { exam.TenantId, exam.Id }
             join batch in _batches.GetQueryable().AsNoTracking()
-                on new { pub.TenantId, Id = pub.AcademicBatchId } equals new { batch.TenantId, batch.Id }
+                on new { pub.TenantId, Id = pub.AcademicBatchId } equals new { batch.TenantId, Id = (long?)batch.Id }
             where pub.TenantId == tenant && !pub.IsDeleted && !exam.IsDeleted && !batch.IsDeleted &&
                 (pub.State == ResultPublicationState.Published || pub.State == ResultPublicationState.Withdrawn) &&
                 exam.CampusId == batch.CampusId && exam.AcademicYearId == batch.AcademicYearId
@@ -57,7 +57,7 @@ public sealed partial class AssessmentAdministrationService
             join exam in _assessments.GetQueryable().AsNoTracking()
                 on new { pub.TenantId, Id = pub.AssessmentId } equals new { exam.TenantId, exam.Id }
             join batch in _batches.GetQueryable().AsNoTracking()
-                on new { pub.TenantId, Id = pub.AcademicBatchId } equals new { batch.TenantId, batch.Id }
+                on new { pub.TenantId, Id = pub.AcademicBatchId } equals new { batch.TenantId, Id = (long?)batch.Id }
             where pub.TenantId == tenant && pub.Id == publicationId && !pub.IsDeleted &&
                 !exam.IsDeleted && !batch.IsDeleted &&
                 (pub.State == ResultPublicationState.Published || pub.State == ResultPublicationState.Withdrawn) &&

@@ -19,7 +19,7 @@ public sealed partial class AssessmentAdministrationService
                 equals new { exam.TenantId, exam.Id }
             join batch in _batches.GetQueryable().AsNoTracking()
                 on new { publication.TenantId, Id = publication.AcademicBatchId }
-                equals new { batch.TenantId, batch.Id }
+                equals new { batch.TenantId, Id = (long?)batch.Id }
             where publication.TenantId == tenant && publication.Id == publicationId &&
                 !publication.IsDeleted && !exam.IsDeleted && !batch.IsDeleted &&
                 exam.CampusId == batch.CampusId && exam.AcademicYearId == batch.AcademicYearId &&

@@ -22,7 +22,7 @@ public sealed partial class AssessmentAdministrationService
                 equals new { enrollment.TenantId, enrollment.Id }
             join batch in _batches.GetQueryable().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.AcademicBatchId }
-                equals new { batch.TenantId, batch.Id }
+                equals new { batch.TenantId, Id = (long?)batch.Id }
             join campus in _campuses.GetQueryable().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.CampusId }
                 equals new { campus.TenantId, campus.Id }
@@ -83,7 +83,7 @@ public sealed partial class AssessmentAdministrationService
                 equals new { student.TenantId, student.Id }
             join batch in _batches.GetQueryable().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.AcademicBatchId }
-                equals new { batch.TenantId, batch.Id }
+                equals new { batch.TenantId, Id = (long?)batch.Id }
             join campus in _campuses.GetQueryable().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.CampusId }
                 equals new { campus.TenantId, campus.Id }
@@ -127,7 +127,7 @@ public sealed partial class AssessmentAdministrationService
                 equals new { template.TenantId, template.Id }
             join batch in _batches.GetQueryable().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.AcademicBatchId }
-                equals new { batch.TenantId, batch.Id }
+                equals new { batch.TenantId, Id = (long?)batch.Id }
             join campus in _campuses.GetQueryable().AsNoTracking()
                 on new { enrollment.TenantId, Id = enrollment.CampusId }
                 equals new { campus.TenantId, campus.Id }
