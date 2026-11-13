@@ -60,9 +60,13 @@ public sealed class AcademicSectionFoundation : Migration
             migrationBuilder.AddColumn<long>("AcademicSectionId", table, type: "bigint", nullable: true);
             migrationBuilder.CreateIndex("IX_" + table + "_TenantId_AcademicSectionId", table,
                 new[] { "TenantId", "AcademicSectionId" });
-            migrationBuilder.AddForeignKey("FK_" + table + "_AcademicSections_TenantId_AcademicSectionId",
-                table, new[] { "TenantId", "AcademicSectionId" }, "AcademicSections",
-                new[] { "TenantId", "Id" }, onDelete: ReferentialAction.Restrict);
+            migrationBuilder.AddForeignKey(
+                name: "FK_" + table + "_AcademicSections_TenantId_AcademicSectionId",
+                table: table,
+                columns: new[] { "TenantId", "AcademicSectionId" },
+                principalTable: "AcademicSections",
+                principalColumns: new[] { "TenantId", "Id" },
+                onDelete: ReferentialAction.Restrict);
         }
 
         // Preserve every old batch-as-section as one immutable compatibility section.
