@@ -5,9 +5,8 @@ namespace EduOS.Service.Services.Academic;
 
 /// <summary>
 /// One authoritative section-placement validation shared by admission,
-/// promotion, readmission and import. Never choose between multiple sections.
-/// Existing pre-split batch-only callers remain compatible when no explicit
-/// section has been configured.
+/// promotion, readmission and import. Auto-select only a single active section;
+/// never guess when multiple choices exist.
 /// </summary>
 public static class AcademicSectionPlacementPolicy
 {
@@ -31,12 +30,14 @@ public static class AcademicSectionPlacementPolicy
             return (selected.Id, selected.Capacity, null);
         }
         var choices = await scoped.OrderBy(x => x.Id).Take(2)
-            .Select(x => new { x.Id, x.Capacity, x.IsLegacyDefault }).ToListAsync(ct);
+            .Select(x => new { x.Id, x.Capacity }).ToListAsync(ct);
         if (choices.Count == 0)
-            return (null, 0, null); // Pre-section compatibility: no section was set up.
-        if (choices.Count == 1 && choices[0].IsLegacyDefault)
-            return (choices[0].Id, choices[0].Capacity, null);
-        return (null, 0, "Select a specific academic section for this batch.");
+            return (null, 0, "Create an academic section for this batch before assigning students.");
+        if (choices.Count > 1)
+            return (null, 0, "Select a specific academic section for this batch.");
+        if (choices[0].Capacity <= 0)
+            return (null, 0, "The only active section has no capacity.");
+        return (choices[0].Id, choices[0].Capacity, null);
     }
 
     public static async Task<bool> CapacityAvailableAsync(
