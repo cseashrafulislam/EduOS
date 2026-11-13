@@ -39,7 +39,7 @@ async function loadQuota() {
             : "No currently effective subscription. ")
             + (snapshot ? "Saved usage as of " + snapshot + " (not live)." :
                 "No saved usage snapshot yet. Capture today's usage to compare limits.")
-            + " User seats and committed file storage are live; student, employee and campus figures come from the saved snapshot.";
+            + " Current user/student/employee/storage rows are live; daily snapshot rows are historical.";
         for (const metric of [data.currentUserSeats, data.currentStudents,
             data.currentEmployees, ...(data.metrics || [])].filter(Boolean)) {
             const tr = document.createElement("tr");
