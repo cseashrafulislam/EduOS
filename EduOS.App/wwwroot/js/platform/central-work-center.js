@@ -18,7 +18,7 @@
     };
     let page = 1, lastPage = 1, request = 0, pending = null;
     let currentItems = [], currentScope = '', resultReady = false;
-    let currentCounts = [];
+    let currentCounts = [], campusNames = new Map();
     const initialTenant = document.body?.dataset.authTenantId;
     const initialSession = document.body?.dataset.authSessionReference;
     const sameSession = () => initialTenant === document.body?.dataset.authTenantId &&
@@ -39,7 +39,14 @@
     if (Object.hasOwn(sourceRoutes, initialSource)) source.value = initialSource;
     if (['newest', 'oldest'].includes(initialOrder)) order.value = initialOrder;
     if (initialReference.length <= 80) reference.value = initialReference;
-    if (/^[1-9][0-9]{0,8}$/.test(initialCampus)) byId('cwcCampus').value = initialCampus;
+    if (/^[1-9][0-9]{0,8}$/.test(initialCampus)) {
+        // Keep a validated deep-linked choice until the authorized campus list arrives.
+        const selected = document.createElement('option');
+        selected.value = initialCampus;
+        selected.textContent = bn ? 'নির্বাচিত ক্যাম্পাস' : 'Selected campus';
+        byId('cwcCampus').appendChild(selected);
+        byId('cwcCampus').value = initialCampus;
+    }
     if (['10', '25', '50'].includes(initialSize)) pageSize.value = initialSize;
     if (Number.isSafeInteger(initialPage) && initialPage > 0 && initialPage <= 10000) page = initialPage;
     function saveLocation() {
@@ -73,6 +80,28 @@
         const printButton = byId('cwcPrint');
         if (printButton) printButton.disabled = !available || currentItems.length === 0;
     }
+    function renderCampusOptions(options) {
+        if (!Array.isArray(options)) return;
+        const chooser = byId('cwcCampus');
+        const selected = chooser.value.trim();
+        const all = document.createElement('option');
+        all.value = '';
+        all.textContent = bn ? 'সব ক্যাম্পাস' : 'All campuses';
+        chooser.replaceChildren(all);
+        campusNames = new Map();
+        for (const entry of options) {
+            if (!entry || !Number.isSafeInteger(entry.id) || entry.id <= 0 ||
+                typeof entry.name !== 'string' || !entry.name.trim()) continue;
+            const name = entry.name.trim();
+            campusNames.set(entry.id, name);
+            const option = document.createElement('option');
+            option.value = String(entry.id);
+            option.textContent = name + (typeof entry.code === 'string' && entry.code.trim()
+                ? ' (' + entry.code.trim() + ')' : '');
+            chooser.appendChild(option);
+        }
+        chooser.value = !selected || campusNames.has(Number(selected)) ? selected : '';
+    }
     function renderSummary(data) {
         const host = byId('cwcSummary');
         if (!host) return;
@@ -85,29 +114,29 @@
             host.appendChild(note);
             return;
         }
-        for (const entry of currentCounts) {
-            const column = document.createElement('div');
-            column.className = 'col-12 col-sm-6 col-xl-3';
+        const allCount = currentCounts.reduce((total, item) => total + item.count, 0);
+        const tiles = [{ source: '', count: allCount }, ...currentCounts];
+        for (const entry of tiles) {
             const button = document.createElement('button');
             button.type = 'button';
-            button.className = 'btn btn-outline-primary w-100 h-100 text-start p-3';
+            button.className = 'cwc-summary-card';
             button.setAttribute('aria-pressed', String(source.value === entry.source));
             const label = document.createElement('span');
-            label.className = 'd-block small';
-            label.textContent = names[entry.source];
+            label.className = 'cwc-summary-label';
+            label.textContent = entry.source ? names[entry.source] :
+                (bn ? 'সব অপেক্ষমাণ কাজ' : 'All pending work');
             const count = document.createElement('strong');
-            count.className = 'd-block fs-4';
+            count.className = 'cwc-summary-count';
             count.textContent = String(entry.count);
             button.append(label, count);
             button.addEventListener('click', () => {
-                if (loading || !sameSession()) return;
+                if (loading || !sameSession() || source.value === entry.source) return;
                 source.value = entry.source;
                 page = 1;
                 load();
             });
             button.disabled = loading;
-            column.appendChild(button);
-            host.appendChild(column);
+            host.appendChild(button);
         }
     }
     function render(data) {
@@ -115,15 +144,17 @@
         body.replaceChildren();
         const result = data.pending;
         currentItems = result.items.slice();
+        renderCampusOptions(data.campusOptions);
         renderSummary(data);
         resultReady = true;
         lastPage = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
         page = result.page;
-        byId('cwcScope').textContent = (bn ? 'অনুমোদিত উৎস: ' : 'Authorized sources: ') +
-            [data.inventoryIncluded ? (bn ? 'ইনভেন্টরি' : 'Inventory') : null,
-             data.facilitiesIncluded ? (bn ? 'ফ্যাসিলিটিজ' : 'Facilities') : null,
-             data.financeIncluded ? (bn ? 'ফাইন্যান্স' : 'Finance') : null]
-                .filter(Boolean).join(', ') || (bn ? 'অনুমোদিত কাজ নেই' : 'No entitled sources');
+        const allowed = [data.inventoryIncluded ? (bn ? 'ইনভেন্টরি' : 'Inventory') : null,
+            data.facilitiesIncluded ? (bn ? 'ফ্যাসিলিটিজ' : 'Facilities') : null,
+            data.financeIncluded ? (bn ? 'ফাইন্যান্স' : 'Finance') : null].filter(Boolean);
+        byId('cwcScope').textContent = allowed.length
+            ? (bn ? 'অনুমোদিত উৎস: ' : 'Authorized sources: ') + allowed.join(', ')
+            : (bn ? 'অনুমোদিত কাজ নেই' : 'No entitled sources');
         byId('cwcPage').textContent = `${result.page} / ${lastPage} (${result.totalCount})`;
         currentScope = byId('cwcScope').textContent;
         updateActions();
@@ -138,8 +169,16 @@
             const row = document.createElement('tr');
             cell(row, names[item.source] || item.source);
             cell(row, item.reference);
-            cell(row, item.campusId == null ? (bn ? 'প্রতিষ্ঠানব্যাপী' : 'Institution-wide') : item.campusId);
-            cell(row, item.state);
+            cell(row, item.campusId == null ? (bn ? 'প্রতিষ্ঠানব্যাপী' : 'Institution-wide') :
+                (campusNames.get(Number(item.campusId)) || (bn ? 'ক্যাম্পাস #' : 'Campus #') + item.campusId));
+            const stateCell = document.createElement('td');
+            const state = document.createElement('span');
+            state.className = 'cwc-state' + (item.state === 'CancelRequested' ? ' cwc-state-cancel' : '');
+            state.textContent = item.state === 'CancelRequested'
+                ? (bn ? 'বাতিলের অনুরোধ' : 'Cancel requested')
+                : item.state === 'Submitted' ? (bn ? 'জমা দেওয়া' : 'Submitted') : item.state;
+            stateCell.appendChild(state);
+            row.appendChild(stateCell);
             const instant = new Date(item.submittedAtUtc);
             cell(row, Number.isFinite(instant.getTime()) ? instant.toLocaleString() : '');
             const action = document.createElement('td');
@@ -325,6 +364,16 @@
     if (retryButton) retryButton.addEventListener('click', () => { if (!loading && sameSession()) load(); });
     byId('cwcFilters').addEventListener('submit', event => {
         event.preventDefault(); page = 1; load();
+    });
+    byId('cwcClear')?.addEventListener('click', () => {
+        if (loading || !sameSession()) return;
+        source.value = '';
+        reference.value = '';
+        byId('cwcCampus').value = '';
+        order.value = 'oldest';
+        pageSize.value = '25';
+        page = 1;
+        load();
     });
     source.addEventListener('change', () => { page = 1; load(); });
     pageSize.addEventListener('change', () => { page = 1; load(); });
