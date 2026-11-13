@@ -167,7 +167,11 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                     AcademicProgramId = program.Id, AcademicLevelId = level.Id,
                     Code = "COHORT", Name = "Cohort", Capacity = 3
                 };
-                setup.Add(batch);
+                setup.AddRange(batch, new AcademicSection
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicLevelId = level.Id,
+                    Name = "Section A", Code = "A", Capacity = batch.Capacity
+                });
                 await setup.SaveChangesAsync();
                 batchId = batch.Id;
             }
@@ -209,6 +213,7 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             setup.SubjectOfferings.Add(new SubjectOffering
             {
                 TenantId = tenantId, AcademicBatchId = batch.Id, AcademicYearId = batch.AcademicYearId,
+                AcademicSectionId = setup.AcademicSections.Single(x => x.AcademicLevelId == batch.AcademicLevelId).Id,
                 CurriculumSubjectId = required.Id, Code = "HIST-REQ", Capacity = 3
             });
             await setup.SaveChangesAsync();
@@ -315,7 +320,11 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                     AcademicProgramId = program.Id, AcademicLevelId = level.Id,
                     Name = "One Seat", Code = "SEAT-1", Capacity = 1
                 };
-                setup.Add(batch);
+                setup.AddRange(batch, new AcademicSection
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicLevelId = level.Id,
+                    Name = "Section A", Code = "A", Capacity = batch.Capacity
+                });
                 await setup.SaveChangesAsync();
                 batchId = batch.Id;
             }
@@ -505,7 +514,11 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                     AcademicProgramId = program.Id, AcademicLevelId = level.Id,
                     Name = "Last Seat", Code = "TARGET", Capacity = 1
                 };
-                setup.AddRange(oldBatch, targetBatch);
+                setup.AddRange(oldBatch, targetBatch, new AcademicSection
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicLevelId = level.Id,
+                    Name = "Section A", Code = "A", Capacity = 2
+                });
                 await setup.SaveChangesAsync();
                 targetBatchId = targetBatch.Id;
 
@@ -699,7 +712,11 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                     AcademicProgramId = program.Id, AcademicLevelId = level.Id,
                     Name = "Last Seat", Code = "TARGET", Capacity = 1
                 };
-                setup.AddRange(oldBatch, targetBatch);
+                setup.AddRange(oldBatch, targetBatch, new AcademicSection
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicLevelId = level.Id,
+                    Name = "Section A", Code = "A", Capacity = 2
+                });
                 await setup.SaveChangesAsync();
                 targetBatchId = targetBatch.Id;
                 var person = new Person { FullName = "Exited Learner " + suffix };
@@ -911,12 +928,17 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                     AcademicLevelId = level.Id, SubjectId = subject.Id,
                     CreditHours = 4m, IsOptional = false
                 };
-                setup.AddRange(batch, required);
+                var section = new AcademicSection
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicLevelId = level.Id,
+                    Name = "Section A", Code = "A", Capacity = 1
+                };
+                setup.AddRange(batch, required, section);
                 await setup.SaveChangesAsync();
                 batchId = batch.Id;
                 setup.Add(new SubjectOffering
                 {
-                    TenantId = tenantId, AcademicBatchId = batch.Id,
+                    TenantId = tenantId, AcademicBatchId = batch.Id, AcademicSectionId = section.Id,
                     CurriculumSubjectId = required.Id, AcademicYearId = year.Id,
                     Code = "MATH-1", Capacity = 1
                 });
@@ -1021,7 +1043,8 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<Subject>(db), new GenericRepository<SubjectPrerequisite>(db),
             new GenericRepository<RoutineEntry>(db), new GenericRepository<RoutineTimeSlot>(db),
             new GenericRepository<Room>(db), db, new TestAdmin(tenant, userId),
-            TimeProvider.System, NullLogger<AcademicEnrollmentService>.Instance);
+            TimeProvider.System, NullLogger<AcademicEnrollmentService>.Instance,
+            new GenericRepository<AcademicSection>(db));
 
 
     [Fact]
@@ -1032,7 +1055,7 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..12];
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        long tenantId, adminId, campusId, batchId;
+        long tenantId, adminId, campusId, batchId, admissionSectionId;
         Guid applicationReference;
         string applicationVersion;
 
@@ -1098,9 +1121,14 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
                     AcademicProgramId = program.Id, AcademicLevelId = level.Id,
                     Title = "Admissions", Code = "INTAKE", State = AdmissionFormState.Published
                 };
-                setup.AddRange(batch, form);
+                var admissionSection = new AcademicSection
+                {
+                    TenantId = tenantId, CampusId = campus.Id, AcademicLevelId = level.Id,
+                    Name = "Section A", Code = "A", Capacity = 1
+                };
+                setup.AddRange(batch, form, admissionSection);
                 await setup.SaveChangesAsync();
-                batchId = batch.Id;
+                batchId = batch.Id; admissionSectionId = admissionSection.Id;
                 var application = new AdmissionApplicant
                 {
                     TenantId = tenantId, AdmissionIntakeFormId = form.Id,
@@ -1123,7 +1151,8 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
 
         var admitRequest = new AdmitAdmissionApplicationDto
         {
-            AcademicBatchId = batchId, Roll = "01", RowVersion = applicationVersion
+            AcademicBatchId = batchId, AcademicSectionId = admissionSectionId,
+            Roll = "01", RowVersion = applicationVersion
         };
         var importId = Guid.NewGuid();
         var csv = "SourceKey,StudentCode,FullName,CampusId,AcademicBatchId,RollNo,GuardianName,GuardianPhone,GuardianSourceKey\n" +
@@ -1224,7 +1253,8 @@ public sealed class SqlServerStudentImportConcurrencyIntegrationTests
             new GenericRepository<AcademicBatch>(db),
             new GenericRepository<AcademicCurriculum>(db),
             db, new TestAdmin(tenant, userId), TimeProvider.System,
-            NullLogger<StudentPromotionService>.Instance);
+            NullLogger<StudentPromotionService>.Instance,
+            new GenericRepository<AcademicSection>(db));
 
     private static async Task<long> CampusIdAsync(
         DbContextOptions<EduOSDbContext> options, long tenant, long batch)

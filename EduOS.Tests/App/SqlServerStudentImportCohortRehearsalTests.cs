@@ -386,7 +386,11 @@ public sealed class SqlServerStudentImportCohortRehearsalTests
                 AcademicProgramId = program.Id, AcademicLevelId = level.Id,
                 Name = "Synthetic Cohort", Code = "COHORT", Capacity = capacity
             };
-            db.Add(batch);
+            db.AddRange(batch, new AcademicSection
+            {
+                TenantId = tenant.Id, CampusId = campus.Id, AcademicLevelId = level.Id,
+                Name = "Section A", Code = "A", Capacity = capacity
+            });
             await db.SaveChangesAsync();
             campusId = campus.Id; batchId = batch.Id;
         }
