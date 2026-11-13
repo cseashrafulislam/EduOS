@@ -21,8 +21,11 @@ public sealed class AcademicSectionsController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] long? academicBatchId, [FromQuery] string? search,
-        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default) =>
-        ToAction(await _service.ListAsync(academicBatchId, search, page, pageSize, ct));
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
+        [FromQuery] long? campusId = null, [FromQuery] long? academicLevelId = null,
+        CancellationToken ct = default) =>
+        ToAction(await _service.ListAsync(academicBatchId, search, page, pageSize, ct,
+            campusId, academicLevelId));
 
     [HttpGet("{id:long}")]
     public async Task<IActionResult> Get(long id, CancellationToken ct) =>
