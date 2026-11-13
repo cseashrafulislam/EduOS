@@ -5,17 +5,20 @@ using EduOS.Core.DTOs.Academic;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Academic;
 
-/// <summary>Tenant-scoped teaching sections owned by one academic batch.</summary>
+/// <summary>Campus/class Section administration, independent of admission cohorts.</summary>
 public sealed class AcademicSectionService
 {
     private readonly IGenericRepository<AcademicSection> _sections;
     private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicLevel>? _levels;
+    private readonly IGenericRepository<Campus>? _campuses;
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<SubjectOffering> _offerings;
     private readonly IGenericRepository<AttendanceSession> _attendance;
@@ -32,10 +35,14 @@ public sealed class AcademicSectionService
         IGenericRepository<AttendanceSession> attendance,
         IGenericRepository<ResultPublication> publications,
         IGenericRepository<FeeStructure> fees,
-        ICurrentUserService user, IUnitOfWork uow)
+        ICurrentUserService user, IUnitOfWork uow,
+        IGenericRepository<AcademicLevel>? levels = null,
+        IGenericRepository<Campus>? campuses = null)
     {
         _sections = sections;
         _batches = batches;
+        _levels = levels;
+        _campuses = campuses;
         _enrollments = enrollments;
         _offerings = offerings;
         _attendance = attendance;
@@ -51,11 +58,13 @@ public sealed class AcademicSectionService
     private bool Allowed => _user.IsAuthenticated && _user.IsTenantAdmin && _user.TenantId > 0;
     private static ApiResponse<T> Error<T>(string message, int code = 400) =>
         ApiResponse<T>.ErrorResponse(message, code);
-    private static AcademicSectionDto Map(AcademicSection section, string batchName = "") => new()
+    private static AcademicSectionDto Map(AcademicSection section, string campusName = "", string levelName = "") => new()
     {
         Id = section.Id,
-        AcademicBatchId = section.AcademicBatchId,
-        AcademicBatchName = batchName,
+        CampusId = section.CampusId,
+        AcademicLevelId = section.AcademicLevelId,
+        CampusName = campusName,
+        AcademicLevelName = levelName,
         Name = section.Name,
         Code = section.Code,
         Capacity = section.Capacity,
@@ -65,17 +74,33 @@ public sealed class AcademicSectionService
     };
 
     public async Task<ApiResponse<PagedResult<AcademicSectionDto>>> ListAsync(
-        long? academicBatchId, string? search, int page, int pageSize, CancellationToken ct)
+        long? academicBatchId, string? search, int page, int pageSize, CancellationToken ct,
+        long? campusId = null, long? academicLevelId = null)
     {
         if (!CanRead) return Error<PagedResult<AcademicSectionDto>>("Section administration requires tenant administrator access.", 403);
-        if (academicBatchId is <= 0 || page < 1 || pageSize is < 1 or > 100 ||
+        if (academicBatchId is <= 0 || campusId is <= 0 || academicLevelId is <= 0 ||
+            page < 1 || pageSize is < 1 or > 100 ||
             search?.Length > 80 || (long)(page - 1) * pageSize > int.MaxValue)
             return Error<PagedResult<AcademicSectionDto>>("Invalid section filters.");
         var tenant = _user.TenantId;
         var query = _sections.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenant && !x.IsDeleted);
         if (academicBatchId.HasValue)
-            query = query.Where(x => x.AcademicBatchId == academicBatchId.Value);
+        {
+            // Compatibility: old batch-specific consumers get sections for that
+            // batch's campus/class, without making the Section owned by the batch.
+            var cohort = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                x.TenantId == tenant && x.Id == academicBatchId.Value && !x.IsDeleted, ct);
+            if (cohort == null)
+                return Error<PagedResult<AcademicSectionDto>>("Academic batch not found.", 404);
+            if (campusId.HasValue && campusId != cohort.CampusId ||
+                academicLevelId.HasValue && academicLevelId != cohort.AcademicLevelId)
+                return Error<PagedResult<AcademicSectionDto>>("Batch and class filters conflict.", 409);
+            campusId = cohort.CampusId;
+            academicLevelId = cohort.AcademicLevelId;
+        }
+        if (campusId.HasValue) query = query.Where(x => x.CampusId == campusId.Value);
+        if (academicLevelId.HasValue) query = query.Where(x => x.AcademicLevelId == academicLevelId.Value);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var prefix = search.Trim();
@@ -84,14 +109,21 @@ public sealed class AcademicSectionService
         var count = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.Name).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct);
-        var batchIds = rows.Select(x => x.AcademicBatchId).Distinct().ToArray();
-        var names = await _batches.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && batchIds.Contains(x.Id))
-            .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var campusIds = rows.Select(x => x.CampusId).Distinct().ToArray();
+        var levelIds = rows.Select(x => x.AcademicLevelId).Distinct().ToArray();
+        var campusNames = _campuses == null ? new Dictionary<long, string>() :
+            await _campuses.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && campusIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var levelNames = _levels == null ? new Dictionary<long, string>() :
+            await _levels.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenant && levelIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Name, ct);
         return ApiResponse<PagedResult<AcademicSectionDto>>.SuccessResponse(new PagedResult<AcademicSectionDto>
         {
             Page = page, PageSize = pageSize, TotalCount = count,
-            Items = rows.Select(x => Map(x, names.GetValueOrDefault(x.AcademicBatchId) ?? "")).ToList()
+            Items = rows.Select(x => Map(x, campusNames.GetValueOrDefault(x.CampusId) ?? "",
+                levelNames.GetValueOrDefault(x.AcademicLevelId) ?? "")).ToList()
         });
     }
 
@@ -103,17 +135,21 @@ public sealed class AcademicSectionService
         var row = await _sections.GetQueryable().AsNoTracking()
             .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == id && !x.IsDeleted, ct);
         if (row == null) return Error<AcademicSectionDto>("Section not found.", 404);
-        var batchName = await _batches.GetQueryable().AsNoTracking()
-            .Where(x => x.TenantId == tenant && x.Id == row.AcademicBatchId)
-            .Select(x => x.Name).FirstOrDefaultAsync(ct);
-        return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(row, batchName ?? ""));
+        var campusName = _campuses == null ? "" : await _campuses.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.Id == row.CampusId)
+            .Select(x => x.Name).FirstOrDefaultAsync(ct) ?? "";
+        var levelName = _levels == null ? "" : await _levels.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.Id == row.AcademicLevelId)
+            .Select(x => x.Name).FirstOrDefaultAsync(ct) ?? "";
+        return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(row, campusName, levelName));
     }
 
     public async Task<ApiResponse<AcademicSectionDto>> CreateAsync(
         CreateAcademicSectionRequestDto request, CancellationToken ct)
     {
         if (!Allowed) return Error<AcademicSectionDto>("Section administration requires tenant administrator access.", 403);
-        if (request == null || request.ClientRequestId == Guid.Empty || request.AcademicBatchId <= 0 ||
+        if (request == null || request.ClientRequestId == Guid.Empty ||
+            request.CampusId <= 0 || request.AcademicLevelId <= 0 ||
             string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code) ||
             request.Name.Trim().Length > 150 || request.Code.Trim().Length > 50 ||
             request.Capacity is < 0 or > 100000 || request.DisplayOrder < 0)
@@ -129,32 +165,37 @@ public sealed class AcademicSectionService
                     .FirstOrDefaultAsync(x => x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, token);
                 if (replay != null)
                 {
-                    if (replay.AcademicBatchId != request.AcademicBatchId || replay.Name != name ||
+                    if (replay.CampusId != request.CampusId ||
+                        replay.AcademicLevelId != request.AcademicLevelId || replay.Name != name ||
                         replay.Code != code || replay.Capacity != request.Capacity ||
                         replay.DisplayOrder != request.DisplayOrder || replay.IsActive != request.IsActive ||
                         replay.IsDeleted)
                         return Error<AcademicSectionDto>("Request ID already used for another section.", 409);
                     return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(replay), "Section already saved.");
                 }
-                var batch = await _batches.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Id == request.AcademicBatchId &&
-                        x.IsActive && !x.IsDeleted, token);
-                if (batch == null) return Error<AcademicSectionDto>("Active academic batch not found.", 404);
-                if (request.Capacity > batch.Capacity)
-                    return Error<AcademicSectionDto>("Section capacity exceeds academic batch capacity.", 409);
+                if (_campuses == null || _levels == null)
+                    return Error<AcademicSectionDto>("Section master data service unavailable.", 503);
+                var campus = await _campuses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == request.CampusId && x.IsActive && !x.IsDeleted, token);
+                var level = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Id == request.AcademicLevelId && x.IsActive && !x.IsDeleted, token);
+                if (campus == null || level == null)
+                    return Error<AcademicSectionDto>("Active campus or class not found.", 404);
                 if (await _sections.GetQueryable().AnyAsync(x => x.TenantId == tenant &&
-                    x.AcademicBatchId == batch.Id && x.Code == code && !x.IsDeleted, token))
-                    return Error<AcademicSectionDto>("Section code already exists in this batch.", 409);
+                    x.CampusId == campus.Id && x.AcademicLevelId == level.Id &&
+                    x.Code == code && !x.IsDeleted, token))
+                    return Error<AcademicSectionDto>("This class already has the selected section code.", 409);
                 var row = new AcademicSection
                 {
-                    TenantId = tenant, AcademicBatchId = batch.Id, ClientRequestId = request.ClientRequestId,
+                    TenantId = tenant, CampusId = campus.Id, AcademicLevelId = level.Id,
+                    AcademicBatchId = null, ClientRequestId = request.ClientRequestId,
                     Name = name, Code = code, Capacity = request.Capacity,
                     IsActive = request.IsActive, DisplayOrder = request.DisplayOrder,
                     CreatedBy = _user.UserId, CreatedAt = DateTime.UtcNow
                 };
                 await _sections.AddAsync(row);
                 await _uow.SaveChangesAsync(token);
-                return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(row, batch.Name), "Section created.");
+                return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(row, campus.Name, level.Name), "Section created.");
             }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException)
@@ -208,10 +249,8 @@ public sealed class AcademicSectionService
                     if (await ReferencedAsync(id, tenant, token))
                         return Error<AcademicSectionDto>("Section has linked transactions; change capacity/status through controlled reconciliation.", 409);
                 }
-                var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == row.AcademicBatchId, token);
-                if (batch == null || request.Capacity > batch.Capacity)
-                    return Error<AcademicSectionDto>("Section capacity exceeds its parent academic batch.", 409);
+                // Section capacity belongs to the class group, not to an optional cohort.
+                // The update cannot change Campus/Class; moving students requires a controlled transfer.
                 row.Name = name;
                 row.Capacity = request.Capacity;
                 row.DisplayOrder = request.DisplayOrder;
@@ -220,7 +259,7 @@ public sealed class AcademicSectionService
                 row.UpdatedBy = _user.UserId;
                 _sections.Update(row);
                 await _uow.SaveChangesAsync(token);
-                return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(row, batch.Name), "Section saved.");
+                return ApiResponse<AcademicSectionDto>.SuccessResponse(Map(row), "Section saved.");
             }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateConcurrencyException)
