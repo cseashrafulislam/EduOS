@@ -4,7 +4,7 @@ const root=document.getElementById('employeeAttendanceRoot');if(!root)return;
 const $=id=>document.getElementById('employeeAttendance'+id);
 const token=document.querySelector('meta[name="request-verification-token"]')?.content;
 const statuses={1:'Present',2:'Absent',3:'Late',4:'Leave',5:'Excused'};
-let page=1,pages=1,busy=false,accessRevoked=false,searchSeq=0,loadSeq=0,historySeq=0,
+let exportedRows=[],page=1,pages=1,busy=false,accessRevoked=false,searchSeq=0,loadSeq=0,historySeq=0,
     selectedHistory=null,requestKey=null,requestSignature='',lastPosted=null,previousState='';
 const forms={record:$('Form'),correction:$('CorrectionForm')},guards={};
 for(const [name,form] of Object.entries(forms))
@@ -26,7 +26,7 @@ async function api(url,method='GET',body){
 function handleError(error){
  if([401,403].includes(error.statusCode)){
   accessRevoked=true;++searchSeq;++loadSeq;++historySeq;
-  $('Rows').replaceChildren();$('HistoryRows').replaceChildren();
+  exportedRows=[];$('Export').disabled=true;$('Rows').replaceChildren();$('HistoryRows').replaceChildren();
   for(const id of ['Employee','FilterEmployee'])$(id).replaceChildren(new Option('Access unavailable',''));
   forms.record.reset();forms.correction.reset();guards.record?.markClean();guards.correction?.markClean();
   $('CorrectionCard').classList.add('d-none');$('HistoryCard').classList.add('d-none');root.inert=true;
@@ -58,7 +58,7 @@ async function employees(){
 function stateFields(){const active=[1,3].includes(Number($('State').value));for(const id of ['In','Out','Ot']){$(id).disabled=!active;if(!active)$(id).value=id==='Ot'?'0':'';}}
 async function load(){
  if(accessRevoked)return;
- const seq=++loadSeq;
+ const seq=++loadSeq;exportedRows=[];$('Export').disabled=true;
  const q=new URLSearchParams({fromDate:$('From').value,toDate:$('To').value,page:String(page),pageSize:'25'});
  if($('FilterEmployee').value)q.set('employeeReference',$('FilterEmployee').value);
  let data;
@@ -68,6 +68,7 @@ async function load(){
   q.get('fromDate')!==$('From').value||q.get('toDate')!==$('To').value||
   (q.get('employeeReference')||'')!==$('FilterEmployee').value)return;
  pages=Math.max(1,data.totalPages||1);$('Page').textContent='Page '+page+' of '+pages+' · '+data.totalCount+' records';$('Prev').disabled=page<=1;$('Next').disabled=page>=pages;
+ exportedRows=(data.items||[]).map(r=>({...r}));$('Export').disabled=!exportedRows.length;
  const body=$('Rows');body.replaceChildren();if(!data.items?.length){empty(body,8,'No attendance records.');return;}
  for(const row of data.items){const tr=document.createElement('tr');
  [row.attendanceDate,row.employeeCode+' — '+row.employeeName,statuses[row.state]||row.state,row.inTime?.slice(0,5),row.outTime?.slice(0,5),row.overtimeHours,row.remarks].forEach(x=>tr.append(td(x)));
@@ -88,6 +89,24 @@ async function load(){
   }catch(error){if(seq===historySeq)handleError(error);}});
  action.append(correct,history);tr.append(action);body.append(tr);}
 }
+function csvCell(value){
+ let s=String(value??'');
+ // Spreadsheet programs can execute formulas even in quoted CSV fields.
+ if(/^[\\s\\uFEFF]*[=+@-]/u.test(s))s="'"+s;
+ return '"'+s.replace(/"/g,'""')+'"';
+}
+$('Export').addEventListener('click',()=>{
+ if(accessRevoked||busy||!exportedRows.length)return;
+ const headings=['Date','Employee code','Employee name','Status','In','Out','Overtime hours','Remarks'];
+ const lines=[headings,...exportedRows.map(r=>[
+  r.attendanceDate,r.employeeCode,r.employeeName,statuses[r.state]||r.state,
+  r.inTime?.slice(0,5),r.outTime?.slice(0,5),r.overtimeHours,r.remarks
+ ])].map(row=>row.map(csvCell).join(','));
+ const blob=new Blob(['\\uFEFF'+lines.join('\\r\\n')],{type:'text/csv;charset=utf-8'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='employee-attendance-page-'+page+'.csv';
+ document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
 $('Date').value=localDate(new Date());$('To').value=$('Date').value;
 $('From').value=localDate(new Date(Date.now()-14*86400000));stateFields();
 guards.record?.markClean();guards.correction?.markClean();
