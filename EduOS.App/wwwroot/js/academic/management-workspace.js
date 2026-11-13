@@ -80,6 +80,16 @@
         });
     }
     Object.entries(headings).forEach(([id, title]) => enhance(id, title));
+    // Attach related navigation to the editor toggle. Avoid a standalone toolbar
+    // that adds an entire empty row above the Sections / Batches directory.
+    const relatedId = root.id === 'academicSectionsPage' ? 'sectionCreateForm' :
+        root.dataset.activeFeature === 'sections' ? 'batchCreateForm' : null;
+    const related = root.querySelector('.academic-related-link');
+    const relatedBar = relatedId && panels.get(relatedId)?.shell.querySelector('.academic-editor-bar');
+    if (related && relatedBar) {
+        relatedBar.prepend(related);
+        relatedBar.classList.add('academic-editor-bar--split');
+    }
     // Keep curriculum navigation beside the subject mapping action rather than
     // occupying a separate full-width row. The link remains usable without JS.
     const curriculumRelated = root.querySelector('.academic-curriculum-related');
