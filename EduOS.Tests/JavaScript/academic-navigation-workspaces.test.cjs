@@ -13,7 +13,7 @@ const { guideFor } = require('../../EduOS.App/wwwroot/js/platform/page-context-h
 const { groupFor, categoryFor, scoreActive } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
 const features = {
     Departments: 'departments', Years: 'years', Terms: 'terms', Classes: 'classes',
-    Sections: 'sections', Rooms: 'rooms', Subjects: 'subjects',
+    Batches: 'sections', Rooms: 'rooms', Subjects: 'subjects',
     Curricula: 'curricula', Offerings: 'offerings'
 };
 
@@ -33,6 +33,14 @@ test('nine academic routes have one visible editor each, not an in-page tab fore
         assert.equal(categoryFor('setup', 'academic-setup', url), action === 'Offerings' ? 'operations' : 'settings');
         assert.ok(scoreActive(url, url) > 9000);
     }
+});
+
+test('independent Academic Sections retain their own first-class route and form', () => {
+    assert.match(controller, /IActionResult Sections\(\) => View\("SectionRegister"\)/);
+    assert.match(layout, /Action: "Sections"/);
+    assert.match(read('EduOS.App/Views/AcademicManagement/SectionRegister.cshtml'), /id="sectionCreateForm"/);
+    assert.equal(groupFor('setup', '/AcademicManagement/Sections'), 'academic-setup');
+    assert.equal(categoryFor('setup', 'academic-setup', '/AcademicManagement/Sections'), 'settings');
 });
 
 test('class/track/subject scripts initialize from authorized route without removed tab nodes', () => {
