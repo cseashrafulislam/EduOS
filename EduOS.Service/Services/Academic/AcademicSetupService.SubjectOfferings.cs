@@ -33,13 +33,7 @@ public sealed partial class AcademicSetupService
                         !offering.IsDeleted && !mapping.IsDeleted && !subject.IsDeleted
                     select new { offering, mapping, subject };
         if (academicSectionId.HasValue)
-        {
-            var legacy = _sections != null && await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.Id == academicSectionId.Value &&
-                x.AcademicBatchId == academicBatchId && x.IsLegacyDefault && !x.IsDeleted, ct);
-            query = query.Where(x => x.offering.AcademicSectionId == academicSectionId.Value ||
-                legacy && x.offering.AcademicSectionId == null);
-        }
+            query = query.Where(x => x.offering.AcademicSectionId == academicSectionId.Value);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -101,24 +95,15 @@ public sealed partial class AcademicSetupService
             var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive && !x.IsDeleted, ct);
             if (batch == null) return Error<SubjectOfferingDto>("Active academic batch not found.", 404);
-            if (_sections == null && request.AcademicSectionId.HasValue)
+            if (_sections == null)
                 return Error<SubjectOfferingDto>("Academic section service unavailable.", 503);
-            var section = request.AcademicSectionId.HasValue && _sections != null
-                ? await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.AcademicSectionId.Value &&
-                    x.AcademicBatchId == batch.Id && x.IsActive && !x.IsDeleted, ct)
-                : null;
-            if (request.AcademicSectionId.HasValue && section == null)
-                return Error<SubjectOfferingDto>("Section does not belong to this active batch.", 409);
-            // New cohorts must select a real section. Legacy batch-as-section callers may
-            // keep writing unscoped offerings while they migrate to dedicated sections.
-            if (!request.AcademicSectionId.HasValue && _sections != null &&
-                !await _sections.GetQueryable().AsNoTracking()
-                .AnyAsync(x => x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
-                    x.IsLegacyDefault && !x.IsDeleted, ct))
-                return Error<SubjectOfferingDto>("Select a section for this academic batch.", 409);
-            if (section != null && (section.Capacity == 0 || request.Capacity > section.Capacity))
+            var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
+                _sections.GetQueryable(), tenant, batch.Id, request.AcademicSectionId, ct);
+            if (placement.Error != null)
+                return Error<SubjectOfferingDto>(placement.Error, 409);
+            if (request.Capacity > placement.Capacity)
                 return Error<SubjectOfferingDto>("Offering capacity exceeds section capacity.", 409);
+            var sectionId = placement.SectionId!.Value;
             if (batch.AcademicYearId != request.AcademicYearId ||
                 batch.AcademicTermId != request.AcademicTermId ||
                 batch.Capacity <= 0 || request.Capacity > batch.Capacity)
@@ -168,12 +153,11 @@ public sealed partial class AcademicSetupService
             var existing = await _offerings.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && !x.IsDeleted &&
                 (x.Code == code || (x.CurriculumSubjectId == mapping.Id &&
-                    (x.AcademicSectionId == request.AcademicSectionId ||
-                     section != null && section.IsLegacyDefault && x.AcademicSectionId == null)))).ToListAsync(ct);
+                    x.AcademicSectionId == sectionId))).ToListAsync(ct);
             if (existing.Count > 0)
             {
                 var same = existing.Count == 1 && existing[0].CurriculumSubjectId == mapping.Id &&
-                    existing[0].Code == code && existing[0].AcademicSectionId == request.AcademicSectionId &&
+                    existing[0].Code == code && existing[0].AcademicSectionId == sectionId &&
                     existing[0].Capacity == request.Capacity &&
                     existing[0].DeliveryMode == request.DeliveryMode && existing[0].IsActive == request.IsActive;
                 if (!same) return Error<SubjectOfferingDto>("Batch already has this curriculum subject or offering code with different settings.", 409);
@@ -184,7 +168,7 @@ public sealed partial class AcademicSetupService
             var row = new SubjectOffering
             {
                 TenantId = tenant, PublicId = Guid.NewGuid(), AcademicBatchId = batch.Id,
-                AcademicSectionId = request.AcademicSectionId, CurriculumSubjectId = mapping.Id, AcademicYearId = year.Id,
+                AcademicSectionId = sectionId, CurriculumSubjectId = mapping.Id, AcademicYearId = year.Id,
                 AcademicTermId = batch.AcademicTermId, Code = code,
                 Capacity = request.Capacity, DeliveryMode = request.DeliveryMode,
                 IsActive = request.IsActive, CreatedBy = _currentUser.UserId
