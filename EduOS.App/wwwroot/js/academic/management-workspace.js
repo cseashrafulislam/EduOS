@@ -80,6 +80,15 @@
         });
     }
     Object.entries(headings).forEach(([id, title]) => enhance(id, title));
+    // Keep curriculum navigation beside the subject mapping action rather than
+    // occupying a separate full-width row. The link remains usable without JS.
+    const curriculumRelated = root.querySelector('.academic-curriculum-related');
+    const mappingBar = document.getElementById('curriculumSubjectForm')
+        ?.closest('.academic-editor-shell')?.querySelector('.academic-editor-bar');
+    if (curriculumRelated && mappingBar) {
+        mappingBar.prepend(curriculumRelated);
+        mappingBar.classList.add('academic-editor-bar--split');
+    }
     // Existing list-edit handlers populate the same form. Reveal BEFORE their click
     // handlers call scrollIntoView; the original save/validation logic remains intact.
     const editorsByTable = {
