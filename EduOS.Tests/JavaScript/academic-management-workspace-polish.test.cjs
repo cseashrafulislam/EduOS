@@ -45,7 +45,21 @@ test('Academic Years and Terms start close to the shared header without a nested
     assert.match(css, /padding-top:\s*0 !important;/);
     assert.match(css, /\.academic-editor-shell\.is-expanded\s*\{/);
     assert.match(css, /\.academic-editor-bar\s*\{/);
-    assert.match(css, /border:\s*0;\s*border-radius:\s*0;\s*margin:\s*0 0 \.75rem;/);
+    assert.match(css, /border:\s*0;\s*border-radius:\s*0;\s*margin:\s*0 0 \.4rem;/);
+});
+
+test('Sections and Batches use a single compact action row without separate empty cards', () => {
+    const cardCount = (sections.match(/class="card (?:shadow-sm border-0|border-0 shadow-sm)/g) || []).length;
+    assert.equal(cardCount, 1, 'Sections should have only one outer directory card');
+    assert.doesNotMatch(sections, /<div class="academic-actions">/);
+    assert.doesNotMatch(index, /Manage Academic Sections<\/a><\/div>/);
+    assert.match(index, /class="btn btn-sm btn-outline-secondary academic-related-link" href="\/AcademicManagement\/Sections"/);
+    assert.match(sections, /class="btn btn-sm btn-outline-secondary academic-related-link"/);
+    assert.match(sections, /class="academic-directory"/);
+    assert.match(script, /relatedBar\.prepend\(related\)/);
+    assert.match(script, /relatedBar\.classList\.add\('academic-editor-bar--split'\)/);
+    assert.match(css, /#academicSectionsPage > \.card > \.card-body > \.academic-directory/);
+    assert.match(css, /\.academic-editor-shell\.is-expanded\s*\{[\s\S]*?border:\s*0/);
 });
 
 test('Term date inputs, current checkbox and action buttons have independent responsive grid cells', () => {
