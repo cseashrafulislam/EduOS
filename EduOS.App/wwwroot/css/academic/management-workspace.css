@@ -1,3 +1,10 @@
+/* These are setup/configuration screens: do not offer per-page voice capture.
+   The text-based Page Assistant remains accessible. */
+#pageAssistantVoice,
+#pageAssistantVoiceStatus {
+    display: none !important;
+}
+
 /* Academic Management: directory-first, shared across all 11 canonical setup routes.
    Uses workspace tokens; does not change form IDs, API wiring or server permissions. */
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) {
