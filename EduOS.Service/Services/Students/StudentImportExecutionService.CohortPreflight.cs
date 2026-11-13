@@ -146,7 +146,7 @@ public sealed partial class StudentImportExecutionService
                     .Select(x => new { BatchId = x.Key, Count = x.Count() })
                     .ToListAsync(cancellationToken);
                 foreach (var count in occupied)
-                    occupancy.Add(count.BatchId, count.Count);
+                    if (count.BatchId.HasValue) occupancy.Add(count.BatchId.Value, count.Count);
             }
             // Reconcile committed source identities without a global Person lookup.
             // Bounded, tenant-indexed SQL lookups; no private identity values in errors.

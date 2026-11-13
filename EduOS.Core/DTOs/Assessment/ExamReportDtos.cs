@@ -86,7 +86,7 @@ public sealed class ExamReportSubjectDto
 public sealed class ExamReportScopeDto
 {
     public long AssessmentId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public string AssessmentName { get; set; } = string.Empty;
     public string AcademicBatchName { get; set; } = string.Empty;
 }
