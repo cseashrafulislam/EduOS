@@ -1,9 +1,9 @@
 @{
     ViewData["Title"] = "Employee Attendance";
 }
-<section class="container-fluid py-3" id="employeeAttendanceRoot">
+<section class="container-fluid py-1" id="employeeAttendanceRoot">
     <header class="d-flex flex-wrap align-items-center justify-content-between mb-3 gap-2">
-        <div><h2>Employee Attendance</h2><p class="text-muted mb-0">Institution-wide manual register with immutable correction history. Tenant administrators only.</p></div>
+        <div class="small text-muted">Record attendance and review audited corrections</div>
         <a href="/HR/Index" class="btn btn-outline-secondary">HR Administration</a>
     </header>
     <div id="employeeAttendanceAlert" class="d-none" role="alert" tabindex="-1"></div>
@@ -18,7 +18,7 @@
         <form id="employeeAttendanceForm" class="row g-2 align-items-end">
             <div class="col-lg-4"><label class="form-label" for="employeeAttendanceEmployee">Employee</label><select id="employeeAttendanceEmployee" class="form-select" required><option value="">Choose employee</option></select></div>
             <div class="col-lg-2"><label class="form-label" for="employeeAttendanceDate">Date</label><input type="date" id="employeeAttendanceDate" class="form-control" required /></div>
-            <div class="col-lg-2"><label class="form-label" for="employeeAttendanceState">Status</label><select id="employeeAttendanceState" class="form-select"><option value="1">Present</option><option value="2">Absent</option><option value="3">Late</option><option value="4">Leave</option><option value="5">Excused</option></select></div>
+            <div class="col-lg-2"><label class="form-label" for="employeeAttendanceState">Status</label><select id="employeeAttendanceState" class="form-select" required><option value="" selected disabled>Choose status</option><option value="1">Present</option><option value="2">Absent</option><option value="3">Late</option><option value="4">Leave</option><option value="5">Excused</option></select></div>
             <div class="col-lg-2"><label class="form-label" for="employeeAttendanceIn">In</label><input type="time" id="employeeAttendanceIn" class="form-control" /></div>
             <div class="col-lg-2"><label class="form-label" for="employeeAttendanceOut">Out</label><input type="time" id="employeeAttendanceOut" class="form-control" /></div>
             <div class="col-lg-2"><label class="form-label" for="employeeAttendanceOt">Overtime hours</label><input type="number" min="0" max="24" step="0.01" value="0" id="employeeAttendanceOt" class="form-control" /></div>
