@@ -76,7 +76,7 @@
         top.classList.add('academic-page-top');
         const title = top.querySelector('h1, h2');
         const note = config[feature];
-        if (title && note && !top.querySelector('.academic-intro')) {
+        if (title && note && root.id !== 'academicSectionsPage' && !top.querySelector('.academic-intro')) {
             const p = document.createElement('p');
             p.className = 'academic-intro';
             p.textContent = bn ? note.bn : note.en;
