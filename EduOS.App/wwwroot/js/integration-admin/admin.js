@@ -20,7 +20,7 @@ function csv(v){return text(v).split(",").map(x=>x.trim()).filter(Boolean);}
 function when(v){return v?new Date(v).toLocaleString():"—";}
 function pagination(prefix,page,pages){$(prefix+"Page").textContent="Page "+page+" / "+Math.max(1,pages);$(prefix+"Prev").disabled=page<=1;$(prefix+"Next").disabled=page>=pages;}
 function resetWebhook(){ $("iaWebhookForm").reset();$("iaWebhookId").value="";$("iaWebhookVersion").value="";$("iaWebhookSecret").value="";$("iaWebhookClear").checked=false; }
-function editWebhook(row){$("iaWebhookId").value=row.id;$("iaWebhookVersion").value=row.rowVersion;$("iaWebhookName").value=row.name;$("iaWebhookUrl").value=row.url;$("iaWebhookEvents").value=(row.eventCodes||[]).join(", ");$("iaWebhookSecret").value="";$("iaWebhookActive").value=String(row.isActive);$("iaWebhookClear").checked=false;$("iaWebhookName").focus();}
+function editWebhook(row){$("iaWebhookEditor").open=true;$("iaWebhookAdd").setAttribute("aria-expanded","true");$("iaWebhookId").value=row.id;$("iaWebhookVersion").value=row.rowVersion;$("iaWebhookName").value=row.name;$("iaWebhookUrl").value=row.url;$("iaWebhookEvents").value=(row.eventCodes||[]).join(", ");$("iaWebhookSecret").value="";$("iaWebhookActive").value=String(row.isActive);$("iaWebhookClear").checked=false;$("iaWebhookName").focus();}
 async function loadWebhooks(){
  const version=++webhookLoadVersion, page=state.webhookPage;
  const d=await api("/webhooks?page="+page+"&pageSize=20");
@@ -34,12 +34,13 @@ async function loadWebhooks(){
   actions.append(" ",button("Deliveries",()=>{state.deliveryId=row.id;state.deliveryPage=1;$("iaDeliveryFor").textContent="— "+row.name;loadDeliveries().catch(e=>notice(e.message));}));
   tbody.append(tr);
  }
+ if(!state.webhooks.length){const tr=document.createElement("tr"),td=cell(tr,"No webhook endpoints yet. Add a secure HTTPS endpoint to begin.");td.colSpan=6;tbody.append(tr);}
  pagination("iaWebhook",state.webhookPage,state.webhookPages);
 }
 async function loadDeliveries(){
  const version=++deliveryLoadVersion, endpointId=state.deliveryId, page=state.deliveryPage;
  const tbody=$("iaDeliveryRows");tbody.replaceChildren();
- if(!endpointId){pagination("iaDelivery",1,1);return;}
+ if(!endpointId){const tr=document.createElement("tr"),td=cell(tr,"Select a webhook endpoint to view deliveries.");td.colSpan=7;tbody.append(tr);pagination("iaDelivery",1,1);return;}
  const d=await api("/webhooks/"+endpointId+"/deliveries?page="+page+"&pageSize=20");
  if(version!==deliveryLoadVersion || endpointId!==state.deliveryId || page!==state.deliveryPage)return;
  state.deliveryPages=d.totalPages||1;
@@ -49,6 +50,7 @@ async function loadDeliveries(){
   cell(tr,when(row.lastAttemptAt));cell(tr,when(row.nextAttemptAt));cell(tr,row.failureReason);
   tbody.append(tr);
  }
+ if(!d.items?.length){const tr=document.createElement("tr"),td=cell(tr,"No deliveries for this endpoint.");td.colSpan=7;tbody.append(tr);}
  pagination("iaDelivery",state.deliveryPage,state.deliveryPages);
 }
 async function loadCredentials(){
@@ -69,6 +71,7 @@ async function loadCredentials(){
   },"btn btn-outline-danger btn-sm"));
   tbody.append(tr);
  }
+ if(!state.credentials.length){const tr=document.createElement("tr"),td=cell(tr,"No API credentials created yet.");td.colSpan=7;tbody.append(tr);}
  pagination("iaCredential",state.credentialPage,state.credentialPages);
 }
 $("iaWebhookForm").addEventListener("submit",async e=>{
@@ -76,11 +79,18 @@ $("iaWebhookForm").addEventListener("submit",async e=>{
  const request={name:text($("iaWebhookName").value),url:text($("iaWebhookUrl").value),secret:$("iaWebhookSecret").value||null,clearSecret:$("iaWebhookClear").checked,eventCodes:csv($("iaWebhookEvents").value),isActive:$("iaWebhookActive").value==="true",rowVersion:id?$("iaWebhookVersion").value:null};
  if(!request.name||!request.url||!request.eventCodes.length){notice("Name, HTTPS URL and event codes are required.");return;}
  savingWebhook=true;
- try{await api(id?"/webhooks/"+id:"/webhooks",id?"PUT":"POST",request);resetWebhook();notice("Webhook configuration saved.","success");await loadWebhooks();}
+ try{await api(id?"/webhooks/"+id:"/webhooks",id?"PUT":"POST",request);resetWebhook();$("iaWebhookEditor").open=false;notice("Webhook configuration saved.","success");await loadWebhooks();}
  catch(err){notice(err.message);}
  finally{savingWebhook=false;}
 });
 $("iaWebhookReset").addEventListener("click",resetWebhook);
+$("iaWebhookAdd").addEventListener("click",()=>{
+ resetWebhook();
+ $("iaWebhookEditor").open=true;
+ $("iaWebhookAdd").setAttribute("aria-expanded","true");
+ $("iaWebhookName").focus();
+});
+$("iaWebhookEditor").addEventListener("toggle",()=>$("iaWebhookAdd").setAttribute("aria-expanded",String($("iaWebhookEditor").open)));
 $("iaCredentialForm").addEventListener("submit",async e=>{
  e.preventDefault();if(creatingCredential)return;const expiry=$("iaCredentialExpiry").value;
  const expiryDate=expiry?new Date(expiry):null;
