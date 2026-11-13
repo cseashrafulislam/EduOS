@@ -73,10 +73,10 @@
                 catch (error) { if (sameSession()) notice(error.message, true); }
                 finally { edit.disabled = false; }
             });
-            const sections = text('a', 'Sections');
+            const sections = text('a', 'Class Sections');
             sections.href = '/AcademicManagement/Sections?academicBatchId=' + encodeURIComponent(String(row.id));
             sections.className = 'btn btn-sm btn-outline-secondary ms-2';
-            sections.setAttribute('aria-label', 'Manage sections in ' + row.name);
+            sections.setAttribute('aria-label', 'View sections for the class of ' + row.name);
             action.append(edit, sections); tr.append(action); body.append(tr);
         });
         el('batchPageStatus').textContent = total + ' batch(es) · page ' + page +
