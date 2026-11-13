@@ -578,7 +578,7 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
         var batchIds = batches.Select(x => x.Id).ToArray();
         var offerings = await _offerings.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-            batchIds.Contains(x.AcademicBatchId) && requiredIds.Contains(x.CurriculumSubjectId))
+            x.AcademicBatchId.HasValue && batchIds.Contains(x.AcademicBatchId.Value) && requiredIds.Contains(x.CurriculumSubjectId))
             .Select(x => new { x.Id, x.AcademicBatchId, x.AcademicYearId,
                 x.CurriculumSubjectId, x.Capacity }).ToListAsync(token);
         var offeringIds = offerings.Select(x => x.Id).ToArray();

@@ -89,7 +89,7 @@ public sealed partial class LmsWorkflowService
         foreach (var (enrollment, academic) in matched)
         {
             if (!years.TryGetValue(academic.AcademicYearId, out var year) ||
-                !batches.TryGetValue(academic.AcademicBatchId, out var batch) ||
+                !(!academic.AcademicBatchId.HasValue || !batches.TryGetValue(academic.AcademicBatchId.Value, out var batch)) ||
                 !curricula.TryGetValue(academic.AcademicCurriculumId, out var curriculum) ||
                 batch.CampusId != academic.CampusId ||
                 batch.AcademicYearId != academic.AcademicYearId ||

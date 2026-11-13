@@ -84,7 +84,7 @@ public sealed partial class StudentImportExecutionService
         foreach (var chunk in batchIds.Chunk(200))
             offerings.AddRange(await _offerings.GetQueryable().AsNoTracking()
                 .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-                    chunk.Contains(x.AcademicBatchId) &&
+                    x.AcademicBatchId.HasValue && chunk.Contains(x.AcademicBatchId.Value) &&
                     subjectIds.Contains(x.CurriculumSubjectId)).ToListAsync(token));
         var offeringIds = offerings.Select(x => x.Id).ToArray();
         var reservations = new Dictionary<long, int>();

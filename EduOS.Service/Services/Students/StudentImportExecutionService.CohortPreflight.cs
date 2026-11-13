@@ -141,7 +141,7 @@ public sealed partial class StudentImportExecutionService
                 var occupied = await _enrollments.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
                         x.State == EduOS.Core.Enums.Domain.EnrollmentState.Active &&
-                        chunk.Contains(x.AcademicBatchId))
+                        x.AcademicBatchId.HasValue && chunk.Contains(x.AcademicBatchId.Value))
                     .GroupBy(x => x.AcademicBatchId)
                     .Select(x => new { BatchId = x.Key, Count = x.Count() })
                     .ToListAsync(cancellationToken);

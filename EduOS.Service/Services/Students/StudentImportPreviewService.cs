@@ -148,11 +148,12 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
                 foreach (var batch in active) batches.Add(batch.Id, batch);
                 var counts = await _enrollments.GetQueryable().AsNoTracking()
                     .Where(x => x.TenantId == tenant && !x.IsDeleted && x.IsCurrent &&
-                        x.State == EnrollmentState.Active && chunk.Contains(x.AcademicBatchId))
+                        x.State == EnrollmentState.Active && x.AcademicBatchId.HasValue && chunk.Contains(x.AcademicBatchId.Value))
                     .GroupBy(x => x.AcademicBatchId)
                     .Select(g => new { BatchId = g.Key, Count = g.Count() })
                     .ToListAsync(cancellationToken);
-                foreach (var count in counts) occupied.Add(count.BatchId, count.Count);
+                foreach (var count in counts)
+                    if (count.BatchId.HasValue) occupied.Add(count.BatchId.Value, count.Count);
             }
             var allowedCampuses = new HashSet<long>();
             foreach (var chunk in campusIds.Chunk(200))
@@ -201,7 +202,7 @@ public sealed class StudentImportPreviewService : IStudentImportPreviewService
             foreach (var chunk in batchIds.Chunk(200))
                 activeOfferings.AddRange(await _offerings.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && !x.IsDeleted && x.IsActive &&
-                    chunk.Contains(x.AcademicBatchId) && requiredIds.Contains(x.CurriculumSubjectId))
+                    x.AcademicBatchId.HasValue && chunk.Contains(x.AcademicBatchId.Value) && requiredIds.Contains(x.CurriculumSubjectId))
                     .ToListAsync(cancellationToken));
             var offeringIds = activeOfferings.Select(x => x.Id).ToArray();
             var reservedSeats = new Dictionary<long, int>();

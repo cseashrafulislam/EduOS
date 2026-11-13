@@ -157,7 +157,7 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
             !en.IsDeleted && en.EnrolledAt <= row.EndsAt &&
             ((en.State == CourseEnrollmentState.Active && course.IsActive &&
               academic.Any(a => a.IsCurrent && a.State == EnrollmentState.Active &&
-                  currentBatches.Contains(a.AcademicBatchId) &&
+                  a.AcademicBatchId.HasValue && currentBatches.Contains(a.AcademicBatchId.Value) &&
                   (!en.StudentEnrollmentId.HasValue || en.StudentEnrollmentId == a.Id))) ||
              (en.State == CourseEnrollmentState.Completed && isRecording &&
               en.CompletedAt.HasValue && en.CompletedAt.Value >= row.EndsAt &&
@@ -167,7 +167,7 @@ public sealed class LmsLiveClassService : ILmsLiveClassService
                    a.State == EnrollmentState.Active) &&
                   a.AcademicProgramId == course.AcademicProgramId &&
                   a.EnrollmentDate <= from && (!a.EndDate.HasValue || a.EndDate.Value >= from) &&
-                  historicBatches.Contains(a.AcademicBatchId) &&
+                  a.AcademicBatchId.HasValue && historicBatches.Contains(a.AcademicBatchId.Value) &&
                   _batches.GetQueryable().Any(batch => batch.TenantId == tenant &&
                       batch.Id == a.AcademicBatchId && !batch.IsDeleted &&
                       batch.CampusId == a.CampusId && batch.AcademicYearId == a.AcademicYearId) &&
