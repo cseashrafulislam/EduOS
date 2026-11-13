@@ -5,8 +5,10 @@ namespace EduOS.Core.DTOs.Academic;
 public sealed class AcademicSectionDto
 {
     public long Id { get; set; }
-    public long AcademicBatchId { get; set; }
-    public string AcademicBatchName { get; set; } = string.Empty;
+    public long CampusId { get; set; }
+    public long AcademicLevelId { get; set; }
+    public string CampusName { get; set; } = string.Empty;
+    public string AcademicLevelName { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;
     public int Capacity { get; set; }
@@ -19,7 +21,8 @@ public sealed class CreateAcademicSectionRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public bool IsActive { get; set; } = true;
-    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long CampusId { get; set; }
+    [Range(1, long.MaxValue)] public long AcademicLevelId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Range(0, 100000)] public int Capacity { get; set; }
