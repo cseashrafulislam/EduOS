@@ -10,8 +10,12 @@
         <div>
             <p class="small text-muted mb-1">@(bn ? "একাডেমিক ব্যবস্থাপনা / সেটিংস" : "Academic Management / Settings")</p>
             <h1 class="h4 mb-0 fw-bold">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</h1>
+            <p class="small text-muted mb-0">@(bn ? "প্রতিটি ব্যাচের অধীনে এক বা একাধিক শাখা রাখুন। শিক্ষার্থীর উপস্থিতি, ক্লাস রুটিন ও পরীক্ষার বিষয় শাখা অনুযায়ী পরিচালিত হবে।" : "Create teaching groups within a batch. Attendance, class routine and subject offerings use the selected section.")</p>
         </div>
-        <button id="sectionRefresh" type="button" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary" href="/AcademicManagement/Batches">@(bn ? "ব্যাচ ব্যবস্থাপনা" : "Manage Batches")</a>
+            <button id="sectionRefresh" type="button" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
+        </div>
     </div>
     <div id="sectionNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="card border-0 shadow-sm mb-3">
@@ -31,6 +35,7 @@
                     </select>
                 </div>
             </form>
+            <p id="sectionBatchHint" class="small text-muted mb-3">@(bn ? "প্রথমে একটি একাডেমিক ব্যাচ নির্বাচন করুন। ব্যাচ না থাকলে ব্যাচ ব্যবস্থাপনা থেকে তৈরি করুন।" : "Select an existing Academic Batch. If none exists, create one in Manage Batches first.")</p>
             <form id="sectionCreateForm" class="row g-3 align-items-end">
                 <input id="sectionId" type="hidden" />
                 <input id="sectionVersion" type="hidden" />
@@ -46,13 +51,20 @@
                     <label for="sectionCapacity" class="form-label">@(bn ? "ধারণক্ষমতা" : "Capacity") *</label>
                     <input id="sectionCapacity" class="form-control" type="number" min="0" max="100000" value="40" required />
                 </div>
-                <div class="col-md-2">
-                    <label for="sectionOrder" class="form-label">@(bn ? "ক্রম" : "Order")</label>
-                    <input id="sectionOrder" class="form-control" type="number" min="0" value="0" required />
-                </div>
-                <div class="col-md-2">
-                    <label for="sectionActive" class="form-label">@(bn ? "অবস্থা" : "Status")</label>
-                    <select id="sectionActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select>
+                <div class="col-12">
+                    <details id="sectionAdvanced" class="border rounded p-3 bg-body-tertiary">
+                        <summary class="small fw-semibold">@(bn ? "আরও সেটিংস (ঐচ্ছিক)" : "Additional settings (optional)")</summary>
+                        <div class="row g-3 mt-1">
+                            <div class="col-md-3">
+                                <label for="sectionOrder" class="form-label">@(bn ? "প্রদর্শনের ক্রম" : "Display order")</label>
+                                <input id="sectionOrder" class="form-control" type="number" min="0" value="0" required />
+                            </div>
+                            <div class="col-md-3">
+                                <label for="sectionActive" class="form-label">@(bn ? "অবস্থা" : "Status")</label>
+                                <select id="sectionActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select>
+                            </div>
+                        </div>
+                    </details>
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2">
                     <button id="sectionSave" class="btn btn-primary" type="submit">@(bn ? "শাখা যোগ করুন" : "Add Section")</button>
