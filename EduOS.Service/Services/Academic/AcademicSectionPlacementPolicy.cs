@@ -11,20 +11,20 @@ namespace EduOS.Service.Services.Academic;
 public static class AcademicSectionPlacementPolicy
 {
     public static async Task<(long? SectionId, int Capacity, string? Error)> ResolveAsync(
-        IQueryable<AcademicSection> sections, long tenantId, long batchId,
-        long? requestedSectionId, CancellationToken ct = default)
+        IQueryable<AcademicSection> sections, long tenantId, long campusId,
+        long academicLevelId, long? requestedSectionId, CancellationToken ct = default)
     {
-        if (tenantId <= 0 || batchId <= 0 || requestedSectionId is <= 0)
-            return (null, 0, "Invalid tenant, academic batch or section.");
+        if (tenantId <= 0 || campusId <= 0 || academicLevelId <= 0 || requestedSectionId is <= 0)
+            return (null, 0, "Invalid tenant, campus, class or section.");
         var scoped = sections.AsNoTracking().Where(x =>
-            x.TenantId == tenantId && x.AcademicBatchId == batchId &&
+            x.TenantId == tenantId && x.CampusId == campusId && x.AcademicLevelId == academicLevelId &&
             x.IsActive && !x.IsDeleted);
         if (requestedSectionId.HasValue)
         {
             var selected = await scoped.Where(x => x.Id == requestedSectionId.Value)
                 .Select(x => new { x.Id, x.Capacity }).FirstOrDefaultAsync(ct);
             if (selected == null)
-                return (null, 0, "Selected section does not belong to this active academic batch.");
+                return (null, 0, "Selected section does not belong to this campus and class.");
             if (selected.Capacity <= 0)
                 return (null, 0, "Selected section has no capacity.");
             return (selected.Id, selected.Capacity, null);
@@ -32,9 +32,9 @@ public static class AcademicSectionPlacementPolicy
         var choices = await scoped.OrderBy(x => x.Id).Take(2)
             .Select(x => new { x.Id, x.Capacity }).ToListAsync(ct);
         if (choices.Count == 0)
-            return (null, 0, "Create an academic section for this batch before assigning students.");
+            return (null, 0, "Create an academic section for this class before assigning students.");
         if (choices.Count > 1)
-            return (null, 0, "Select a specific academic section for this batch.");
+            return (null, 0, "Select a specific academic section for this class.");
         if (choices[0].Capacity <= 0)
             return (null, 0, "The only active section has no capacity.");
         return (choices[0].Id, choices[0].Capacity, null);
