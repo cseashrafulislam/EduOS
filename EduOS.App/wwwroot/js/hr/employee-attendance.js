@@ -98,7 +98,7 @@ function csvCell(value){
 $('Print').addEventListener('click',()=>{
  if(accessRevoked||busy||!exportedRows.length)return;
  document.body.classList.add('employee-attendance-print-mode');
- try{window.print();}finally{document.body.classList.remove('employee-attendance-print-mode');}
+ try{window.print();}catch(error){document.body.classList.remove('employee-attendance-print-mode');handleError(error);}
 });
 window.addEventListener('afterprint',()=>document.body.classList.remove('employee-attendance-print-mode'));
 $('Export').addEventListener('click',()=>{
