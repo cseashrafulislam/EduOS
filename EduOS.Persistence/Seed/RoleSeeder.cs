@@ -13,6 +13,13 @@ public static class RoleSeeder
         "Counselor", "SafeguardingOfficer"
     };
 
+    // Read-only identity name catalog; the setup picks only safe institution
+    // defaults, never assigns platform roles or a user permission.
+    public static IReadOnlyList<string> BuiltInRoleNames { get; } = Array.AsReadOnly(DefaultRoles);
+    public static IReadOnlyList<string> InstitutionSetupRoles { get; } = Array.AsReadOnly(
+        DefaultRoles.Where(name => name is not ("SuperAdmin" or "TenantAdmin" or "Admin" or "SafeguardingOfficer"))
+            .ToArray());
+
     public static async Task SeedAsync(RoleManager<ApplicationRole> roleManager)
     {
         ArgumentNullException.ThrowIfNull(roleManager);

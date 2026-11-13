@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
 using EduOS.Core.Entities.Finance;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Accounting;
 using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Enums.Domain;
@@ -104,8 +105,62 @@ public sealed class SmartSetupServiceTests
     private static ApplySmartSetupRequestDto Request(Fixture f, params string[] modules) => new()
     {
         ClientRequestId = Guid.NewGuid(), InstitutionTypeId = f.InstitutionType,
-        TemplateVersion = "2026.11.3", Confirmed = true, Modules = modules.ToList()
+        TemplateVersion = "2026.11.4", Confirmed = true, Modules = modules.ToList()
     };
+
+    [Fact]
+    public async Task Role_presets_create_only_scoped_definitions_and_are_idempotent()
+    {
+        await using var f = await Open(modules: ["CORE_ADMIN"]);
+        var preview = await f.Service.PreviewAsync();
+        Assert.True(preview.Success, preview.Message);
+        var roles = preview.Data!.Modules.Single(x => x.Code == "ROLES");
+        Assert.True(roles.IsAvailable);
+        Assert.True(roles.SupportsSafeApply);
+        Assert.Equal(12, roles.Entries.Count);
+        Assert.Contains(roles.Entries, x => x.Name == "Teacher" && x.Status == "Missing");
+        Assert.DoesNotContain(roles.Entries, x => x.Name is "TenantAdmin" or "SuperAdmin" or "Admin");
+        var request = Request(f, "ROLES");
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "Teacher" }];
+        var applied = await f.Service.ApplyAsync(request);
+        Assert.True(applied.Success, applied.Message);
+        Assert.Equal(1, applied.Data!.CreatedCount);
+        var created = await f.Db.Roles.SingleAsync(x => x.TenantId == f.Tenant);
+        Assert.Equal("Teacher", created.Name);
+        Assert.False(created.IsSystemRole);
+        Assert.Empty(await f.Db.UserRoles.ToListAsync());
+        Assert.Empty(await f.Db.RolePermissions.ToListAsync());
+        Assert.True((await f.Service.ApplyAsync(request)).Success);
+        Assert.Single(await f.Db.Roles.Where(x => x.TenantId == f.Tenant).ToListAsync());
+        Assert.Equal("Existing", (await f.Service.PreviewAsync()).Data!.Modules
+            .Single(x => x.Code == "ROLES").Entries.Single(x => x.Name == "Teacher").Status);
+    }
+
+    [Fact]
+    public async Task Role_setup_blocks_privileged_and_unknown_rows_without_partial_writes()
+    {
+        await using var f = await Open(modules: ["CORE_ADMIN"]);
+        var request = Request(f, "ROLES");
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "TenantAdmin" }];
+        Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "SuperAdmin" }];
+        Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "Teacher" },
+            new() { Module = "ROLES", Kind = "Role", Code = "INVENTED" }];
+        Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
+        Assert.Empty(await f.Db.Roles.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Role_setup_is_denied_when_core_admin_is_disabled_or_institution_is_changed()
+    {
+        await using var f = await Open(modules: ["ACADEMIC"]);
+        Assert.False((await f.Service.PreviewAsync()).Data!.Modules.Single(x => x.Code == "ROLES").IsAvailable);
+        Assert.Equal(403, (await f.Service.ApplyAsync(Request(f, "ROLES"))).StatusCode);
+        Assert.Empty(await f.Db.Roles.ToListAsync());
+        f.Http.Items["TenantId"] = f.Tenant + 1;
+        Assert.Equal(403, (await f.Service.PreviewAsync()).StatusCode);
+    }
 
     [Fact]
     public async Task All_reviewed_master_defaults_are_additive_idempotent_and_audited()

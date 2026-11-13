@@ -156,6 +156,13 @@ public sealed class SmartSetupReadinessService(
                     "/AccountingSetup/Index",
                     await db.AccountingPeriods.AsNoTracking().AnyAsync(x => x.TenantId == tenant && !x.IsClosed, ct));
                 break;
+            case "ROLES":
+                Add(row, "INSTITUTION_ROLE", "Institution role templates", "প্রতিষ্ঠানের রোল",
+                    "/TenantUsers/Index",
+                    await db.Roles.AsNoTracking().AnyAsync(x =>
+                        x.TenantId == tenant && x.IsActive && !x.IsSystemRole &&
+                        x.NormalizedName != "TENANTADMIN" && x.NormalizedName != "SUPERADMIN", ct));
+                break;
             case "HR":
                 Add(row, "HR_DEPARTMENT", "Organization units", "বিভাগ",
                     "/HrSetup/Index",

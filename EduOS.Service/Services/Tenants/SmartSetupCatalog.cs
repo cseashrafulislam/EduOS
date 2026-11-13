@@ -1,11 +1,12 @@
 using EduOS.Core.Enums.Domain;
+using EduOS.Persistence.Seed;
 
 namespace EduOS.Service.Services.Tenants;
 
 /// <summary>Versioned, reviewed defaults only. No prices, balances, dates, permissions or financial postings.</summary>
 internal static class SmartSetupCatalog
 {
-    internal const string Version = "2026.11.3";
+    internal const string Version = "2026.11.4";
     internal sealed record Seed(string Module, string Kind, string Code, string Name,
         FeeFrequencyType? Frequency = null, AccountType? AccountType = null,
         bool IsGroup = false, string? ParentCode = null, SalaryComponentType? SalaryType = null,
@@ -48,6 +49,8 @@ internal static class SmartSetupCatalog
             "Only fee-head names are prepared. Amounts, fee structures, receivables and ledger mapping remain unset."),
         new("FINANCE", "Accounting", "হিসাবরক্ষণ", "/AccountingSetup/Index", true,
             "Creates only reviewed BDT ledger groups and basic posting-account labels. No cash designation, banking, opening balances, postings or tax rules."),
+        new("ROLES", "Institution roles", "প্রতিষ্ঠানের রোল", "/TenantUsers/Index", true,
+            "Only tenant-scoped definitions are created; no users, permissions or owner access are assigned."),
         new("HR", "HR master data", "মানবসম্পদ", "/HrSetup/Index", true,
             "Designations and organization units only; no employees, salaries, contracts or leave balances."),
         new("PAYROLL", "Payroll setup", "বেতন ব্যবস্থাপনা", "/PayrollSalaryComponents/Index", true,
@@ -75,6 +78,7 @@ internal static class SmartSetupCatalog
     // UI setup groups are not always the same as licensed ProductModule codes.
     internal static string AccessModule(string sectionCode) => sectionCode switch
     {
+        "ROLES" => "CORE_ADMIN",
         "FEES" => "FINANCE",
         "ASSESSMENT" => "EXAM",
         "PAYROLL" => "HR",
@@ -102,6 +106,9 @@ internal static class SmartSetupCatalog
             foreach (var (code, name) in entries)
                 target.Add(new(module, kind, code, name));
         }
+        // Canonical tenant role names; global Identity roles are never assigned.
+        foreach (var name in RoleSeeder.InstitutionSetupRoles)
+            list.Add(new Seed("ROLES", "Role", name, name));
         // Academic medium is deliberately 1–2 real options, not 12 fabricated languages.
         if (bangladesh && (school || college))
             list.Add(new("ACADEMIC", "Medium", "BANGLA", "Bangla"));

@@ -209,6 +209,7 @@
                     checkCell.append(check);
                     row.append(checkCell);
                     const labels = {
+                        Role: tr('Institution role', 'প্রতিষ্ঠানের রোল'),
                         Medium: tr('Medium', 'মাধ্যম'),
                         Subject: tr('Subject', 'বিষয়'),
                         GradeScheme: tr('Grade scheme', 'গ্রেডিং পদ্ধতি'),
@@ -394,7 +395,7 @@
             state.selected.clear();
             el('smartSetupConfirm').checked = false;
             const tables = {
-                Medium: 'Mediums', Subject: 'Subjects', GradeScheme: 'GradeSchemes + GradeRules',
+                Role: 'Institution Roles', Medium: 'Mediums', Subject: 'Subjects', GradeScheme: 'GradeSchemes + GradeRules',
                 Account: 'Accounts', SalaryComponent: 'SalaryComponents',
                 OrganizationUnit: 'OrganizationUnits',
                 Designation: 'Designations', FeeHead: 'FeeHeads',

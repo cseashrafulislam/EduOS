@@ -9,6 +9,7 @@ using EduOS.Core.Entities.Payroll;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.Finance;
 using EduOS.Core.Entities.HR;
+using EduOS.Core.Entities.Auth;
 using EduOS.Core.Entities.Inventory;
 using EduOS.Core.Entities.Library;
 using EduOS.Core.Entities.Communication;
@@ -290,6 +291,7 @@ public sealed class SmartSetupService(
                             : seed.AccountType + " · Under " + seed.ParentCode + " · Posting",
                         "SalaryComponent" => seed.SalaryType + " · taxable flag: " +
                             (seed.IsTaxable ? "Yes" : "No") + " (review before payroll)",
+                        "Role" => "Tenant role · no user or permission assigned",
                         "Subject" => "Subject master only · no curriculum allocation",
                         _ => null
                     },
@@ -313,6 +315,14 @@ public sealed class SmartSetupService(
             var names = entries.Select(x => x.Name).ToArray();
             switch (kind)
             {
+                case "Role":
+                    var normalizedCodes = codes.Select(x => x.ToUpperInvariant()).ToArray();
+                    all.AddRange(await db.Roles.IgnoreQueryFilters().AsNoTracking()
+                        .Where(x => x.TenantId == tenant &&
+                            (normalizedCodes.Contains(x.NormalizedName!) || names.Contains(x.Name!)))
+                        .Select(x => new Existing("Role", x.Name ?? "", x.Name ?? "",
+                            x.IsActive && !x.IsDeleted && !x.IsSystemRole)).ToListAsync(ct));
+                    break;
                 case "Medium":
                     all.AddRange(await db.Mediums.IgnoreQueryFilters().AsNoTracking().Where(x => x.TenantId == tenant &&
                         (codes.Contains(x.Code) || names.Contains(x.Name)))
@@ -441,6 +451,20 @@ public sealed class SmartSetupService(
         var tenant = user.TenantId;
         switch (row.Kind)
         {
+            case "Role":
+                // The row is rechecked against the reviewed catalog in the same
+                // serializable transaction; never insert grants or unscoped roles.
+                if (!EduOS.Persistence.Seed.RoleSeeder.InstitutionSetupRoles.Contains(row.Name, StringComparer.Ordinal) ||
+                    row.Code != row.Name)
+                    throw new SetupConflict("Selected role is not an approved institution template.");
+                db.Roles.Add(new ApplicationRole
+                {
+                    TenantId = tenant, Name = row.Name, NormalizedName = row.Name.ToUpperInvariant(),
+                    Description = row.Name + " role", IsSystemRole = false,
+                    IsActive = true, CreatedAt = now,
+                    ConcurrencyStamp = Guid.NewGuid().ToString("D")
+                });
+                break;
             case "Medium":
                 db.Mediums.Add(new Medium
                 {
