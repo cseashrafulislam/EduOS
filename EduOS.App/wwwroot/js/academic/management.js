@@ -71,14 +71,14 @@
     const find = (key, id) => state.catalog?.[key]?.find(v => v.id === Number(id));
     const findYear = id => state.years.find(v => v.id === Number(id));
     const findCampus = id => state.campuses.find(v => v.id === Number(id));
-    function levelsForSection() {
-        const programId = idOf('sectionProgram');
-        options('sectionLevel', enabled(state.catalog?.levels).filter(v =>
+    function levelsForBatch() {
+        const programId = idOf('batchCreateProgram');
+        options('batchCreateLevel', enabled(state.catalog?.levels).filter(v =>
             !programId || v.academicProgramId === programId), 'Select class / grade');
     }
-    function termsForSection() {
-        const yearId = idOf('sectionYear');
-        options('sectionTerm', enabled(state.terms).filter(v =>
+    function termsForBatch() {
+        const yearId = idOf('batchCreateYear');
+        options('batchCreateTerm', enabled(state.terms).filter(v =>
             !yearId || v.academicYearId === yearId), 'No term', undefined, true);
     }
     function levelsForCurriculum() {
@@ -91,13 +91,13 @@
         options('programCampus', enabled(state.campuses), 'No campus restriction', undefined, true);
         options('termYear', enabled(state.years), 'Select year');
         options('levelProgram', enabled(state.catalog.programs), 'Select programme');
-        options('sectionCampus', enabled(state.campuses), 'Select campus');
-        options('sectionYear', enabled(state.years), 'Select year');
-        options('sectionProgram', enabled(state.catalog.programs), 'Select programme');
+        options('batchCreateCampus', enabled(state.campuses), 'Select campus');
+        options('batchCreateYear', enabled(state.years), 'Select year');
+        options('batchCreateProgram', enabled(state.catalog.programs), 'Select programme');
         options('curriculumProgram', enabled(state.catalog.programs), 'Select programme');
         options('curriculumSelection', enabled(state.catalog.curricula), 'Select curriculum');
         options('mappingSubject', enabled(state.catalog.subjects), 'Select subject');
-        levelsForSection(); termsForSection(); levelsForCurriculum();
+        levelsForBatch(); termsForBatch(); levelsForCurriculum();
     }
     function table(id, items, columns, actions) {
         const target = el(id);
@@ -263,8 +263,8 @@
     // The server selects one coherent feature surface per authorized route.
     // Do not let a client-side tab switch expose a different editor without
     // navigating to its canonical, bookmarkable feature URL.
-    el('sectionProgram').addEventListener('change', levelsForSection);
-    el('sectionYear').addEventListener('change', termsForSection);
+    el('batchCreateProgram').addEventListener('change', levelsForBatch);
+    el('batchCreateYear').addEventListener('change', termsForBatch);
     el('curriculumSelection').addEventListener('change', levelsForCurriculum);
     el('allocationCampuses').addEventListener('change', syncAllocationPrimary);
     el('allocationAllowAll').addEventListener('change', syncAllocationPrimary);
