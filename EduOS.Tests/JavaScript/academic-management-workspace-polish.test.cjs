@@ -26,16 +26,21 @@ test('global app header is the only Academic Management page title on all eleven
     }
     assert.doesNotMatch(script, /academic-intro|insertAdjacentElement\('afterend'/);
     assert.doesNotMatch(css, /academic-page-top|academic-intro/);
-    assert.match(index, /id="academicRefresh"/);
+    assert.doesNotMatch(index, /id="academicRefresh"/);
+    assert.doesNotMatch(sections, /id="sectionRefresh"/);
+    assert.match(sections, /id="sectionFilterButton"/);
+    assert.match(prerequisites, /id="prerequisiteRefresh"[^>]*>Search<\/button>/);
     assert.match(sections, /href="\/AcademicManagement\/Batches"/);
     assert.match(prerequisites, /asp-action="Curricula"/);
 });
 
 test('Academic Years and Terms start close to the shared header without a nested empty editor', () => {
-    assert.match(index, /id="academicRefresh"/);
-    assert.match(script, /section\[data-section\]:not\(\.d-none\) \.academic-editor-bar/);
-    assert.match(script, /activeBar\.append\(refresh\)/);
-    assert.match(script, /root\.querySelector\('\.academic-actions'\)\?\.remove\(\)/);
+    assert.doesNotMatch(index, /id="academicRefresh"/);
+    assert.doesNotMatch(sections, /id="sectionRefresh"/);
+    assert.match(sections, /id="sectionFilterButton"/);
+    assert.match(prerequisites, /id="prerequisiteRefresh"[^>]*>Search<\/button>/);
+    assert.doesNotMatch(script, /academicRefresh|sectionRefresh|activeBar\.append\(refresh\)/);
+    assert.match(script, /Object\.entries\(headings\)\.forEach/);
     assert.match(css, /\.page-body:has\(> :is\(#academicManagement/);
     assert.match(css, /padding-top:\s*0 !important;/);
     assert.match(css, /\.academic-editor-shell\.is-expanded\s*\{/);
@@ -78,6 +83,19 @@ test('all eleven Academic Management sidebar pages share one scoped progressive 
     assert.match(sections, /id="sectionCreateForm"/);
     assert.match(prerequisites, /id="prerequisiteForm"/);
     assert.doesNotMatch(script, /speechRecognition|SpeechRecognition|mediaDevices|microphone/i);
+});
+
+test('Academic Management has no manual Refresh buttons or handlers', () => {
+    const management = read('EduOS.App/wwwroot/js/academic/management.js');
+    const sectionsJs = read('EduOS.App/wwwroot/js/academic/section-register.js');
+    for (const [file, text] of [['shared nine pages', index], ['sections', sections], ['prerequisites', prerequisites]]) {
+        assert.doesNotMatch(text, />(?:Refresh|রিফ্রেশ)<\/button>/, file + ' contains a visible Refresh action');
+    }
+    assert.doesNotMatch(management, /academicRefresh/);
+    assert.doesNotMatch(sectionsJs, /sectionRefresh/);
+    assert.doesNotMatch(script, /academicRefresh/);
+    assert.match(management, /reload\(\)\.catch\(e => notice\(e\.message, true\)\)/);
+    assert.match(sectionsJs, /loadOptions\(\)\.then\(load\)/);
 });
 
 test('Academic editor disclosure retains existing DOM form and opens before list edit', () => {
