@@ -1,0 +1,1122 @@
+{
+  "schemaVersion": 1,
+  "inventoryDate": "2026-11-14",
+  "branch": "Ashraful",
+  "sourceFiles": [
+    "EduOS.App/Views/Shared/_Layout.cshtml",
+    "EduOS.App/wwwroot/js/sidebar-navigation.js",
+    "EduOS.App/Authorization/V2RolePortalNavigation.cs"
+  ],
+  "layoutBlobSha": "0efd0ffff289bf79651c08c396d3cc5b888a26cd",
+  "counts": {
+    "sidebarMenuGroups": 25,
+    "canonicalRoutes": 204,
+    "groupedSections": 4,
+    "roleConditionalRoutes": 9,
+    "workstreams": 5
+  },
+  "caveats": [
+    "Route inventory is the union of server-defined sidebar links across roles and entitled modules, not the number visible to any one user.",
+    "Each listed route's linked create/edit/detail/status pages must be included in the relevant page's UX+final QA.",
+    "Actual implemented availability, roles and route operations must be verified before marking a page complete.",
+    "A sidebar change requires updating this manifest, ensuring old verified checks remain valid, and rebalancing only with reviewed ownership."
+  ],
+  "lanes": [
+    {
+      "id": "A",
+      "title": "Platform, Institution & Academic Setup",
+      "groupCount": 11,
+      "routeCount": 41,
+      "groups": [
+        "platform:other",
+        "platform:institutions",
+        "platform:features",
+        "platform:subscriptions",
+        "platform:governance",
+        "setup:other",
+        "setup:access",
+        "setup:institution",
+        "setup:subscription",
+        "setup:work-center",
+        "setup:academic-setup"
+      ],
+      "routes": [
+        {
+          "path": "/Dashboard/Admin",
+          "menuGroup": "platform:other",
+          "source": "static"
+        },
+        {
+          "path": "/PlatformTenants/Index",
+          "menuGroup": "platform:institutions",
+          "source": "static"
+        },
+        {
+          "path": "/PlatformCatalogAdministration/Index",
+          "menuGroup": "platform:institutions",
+          "source": "static"
+        },
+        {
+          "path": "/PlatformFeatureAdministration/Index",
+          "menuGroup": "platform:features",
+          "source": "static"
+        },
+        {
+          "path": "/PlatformProductModuleAdministration/Index",
+          "menuGroup": "platform:features",
+          "source": "static"
+        },
+        {
+          "path": "/PlatformInstitutionModulePresets/Index",
+          "menuGroup": "platform:features",
+          "source": "static"
+        },
+        {
+          "path": "/PlatformModuleFeatures/Index",
+          "menuGroup": "platform:features",
+          "source": "static"
+        },
+        {
+          "path": "/SubscriptionPlanAdministration/Index",
+          "menuGroup": "platform:subscriptions",
+          "source": "static"
+        },
+        {
+          "path": "/LegalDocuments/Index",
+          "menuGroup": "platform:governance",
+          "source": "static"
+        },
+        {
+          "path": "/SubscriptionPaymentHistory/Index",
+          "menuGroup": "platform:subscriptions",
+          "source": "static"
+        },
+        {
+          "path": "/Account/PaymentVerification",
+          "menuGroup": "platform:subscriptions",
+          "source": "static"
+        },
+        {
+          "path": "/Dashboard/Index",
+          "menuGroup": "setup:other",
+          "source": "static"
+        },
+        {
+          "path": "/CentralWorkCenter/Index",
+          "menuGroup": "setup:work-center",
+          "source": "static"
+        },
+        {
+          "path": "/TenantUsers/Index",
+          "menuGroup": "setup:access",
+          "source": "static"
+        },
+        {
+          "path": "/TenantPermissionOverrides/Index",
+          "menuGroup": "setup:access",
+          "source": "static"
+        },
+        {
+          "path": "/TenantDomains/Index",
+          "menuGroup": "setup:institution",
+          "source": "static"
+        },
+        {
+          "path": "/TenantTerminology/Index",
+          "menuGroup": "setup:institution",
+          "source": "static"
+        },
+        {
+          "path": "/TenantSettings/Index",
+          "menuGroup": "setup:institution",
+          "source": "static"
+        },
+        {
+          "path": "/SmartSetup/Index",
+          "menuGroup": "setup:institution",
+          "source": "static"
+        },
+        {
+          "path": "/NumberSeries/Index",
+          "menuGroup": "setup:institution",
+          "source": "static"
+        },
+        {
+          "path": "/TenantModules/Index",
+          "menuGroup": "setup:institution",
+          "source": "static"
+        },
+        {
+          "path": "/SubscriptionBilling/Index",
+          "menuGroup": "setup:subscription",
+          "source": "static"
+        },
+        {
+          "path": "/UsageHistory/Index",
+          "menuGroup": "setup:subscription",
+          "source": "static"
+        },
+        {
+          "path": "/IntegrationAdministration/Index",
+          "menuGroup": "setup:institution",
+          "source": "static"
+        },
+        {
+          "path": "/InstitutionManagement/Profile",
+          "menuGroup": "setup:institution",
+          "source": "razor-array"
+        },
+        {
+          "path": "/InstitutionManagement/Campuses",
+          "menuGroup": "setup:institution",
+          "source": "razor-array"
+        },
+        {
+          "path": "/InstitutionManagement/Regional",
+          "menuGroup": "setup:institution",
+          "source": "razor-array"
+        },
+        {
+          "path": "/InstitutionManagement/Branding",
+          "menuGroup": "setup:institution",
+          "source": "razor-array"
+        },
+        {
+          "path": "/InstitutionManagement/Subdomain",
+          "menuGroup": "setup:institution",
+          "source": "razor-array"
+        },
+        {
+          "path": "/InstitutionManagement/History",
+          "menuGroup": "setup:institution",
+          "source": "razor-array"
+        },
+        {
+          "path": "/AcademicManagement/Years",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Terms",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Departments",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Classes",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Batches",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Sections",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Rooms",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Subjects",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Curricula",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Prerequisites",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AcademicManagement/Offerings",
+          "menuGroup": "setup:academic-setup",
+          "source": "razor-action"
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "title": "Students, Admissions, Attendance & Library",
+      "groupCount": 4,
+      "routeCount": 42,
+      "groups": [
+        "academics:learners",
+        "academics:portal",
+        "academics:operations",
+        "management:library"
+      ],
+      "routes": [
+        {
+          "path": "/StudentPortal/Index",
+          "menuGroup": "academics:portal",
+          "source": "static"
+        },
+        {
+          "path": "/StudentSupport/Scholarships",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/StudentSupport/Counseling",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/StudentSubjects/Index",
+          "menuGroup": "academics:portal",
+          "source": "static"
+        },
+        {
+          "path": "/Admissions/Forms",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/Admissions/Offers",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/Students/Index",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/Students/Create",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/StudentLifecycle/Index",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/StudentDocuments/Index",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/StudentGuardians/Index",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/StudentTransferRequests/Index#destinationInbox",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/EnrollmentManagement/Index",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/Alumni/Index",
+          "menuGroup": "academics:portal",
+          "source": "static"
+        },
+        {
+          "path": "/LearnerIdentities/Index",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/LearnerIdentities/AccessHistory",
+          "menuGroup": "academics:learners",
+          "source": "static"
+        },
+        {
+          "path": "/AcademicRoutines/Index",
+          "menuGroup": "academics:operations",
+          "source": "static"
+        },
+        {
+          "path": "/AcademicInstruction/Index",
+          "menuGroup": "academics:operations",
+          "source": "static"
+        },
+        {
+          "path": "/AcademicCalendar/Index",
+          "menuGroup": "academics:operations",
+          "source": "static"
+        },
+        {
+          "path": "/StudentLeaves/Index",
+          "menuGroup": "academics:operations",
+          "source": "static"
+        },
+        {
+          "path": "/Attendance/Register",
+          "menuGroup": "academics:operations",
+          "source": "static"
+        },
+        {
+          "path": "/Attendance/Reports",
+          "menuGroup": "academics:operations",
+          "source": "static"
+        },
+        {
+          "path": "/Attendance/Corrections",
+          "menuGroup": "academics:operations",
+          "source": "static"
+        },
+        {
+          "path": "/Admissions/NewApplication",
+          "menuGroup": "academics:learners",
+          "source": "razor-array"
+        },
+        {
+          "path": "/Admissions/Applications",
+          "menuGroup": "academics:learners",
+          "source": "razor-array"
+        },
+        {
+          "path": "/Admissions/AssessmentSetup",
+          "menuGroup": "academics:learners",
+          "source": "razor-array"
+        },
+        {
+          "path": "/Admissions/Merit",
+          "menuGroup": "academics:learners",
+          "source": "razor-array"
+        },
+        {
+          "path": "/StudentImports/Index",
+          "menuGroup": "academics:learners",
+          "source": "razor-array"
+        },
+        {
+          "path": "/StudentReadmissions/Index",
+          "menuGroup": "academics:learners",
+          "source": "razor-array"
+        },
+        {
+          "path": "/StudentProgressions/Index",
+          "menuGroup": "academics:learners",
+          "source": "razor-array"
+        },
+        {
+          "path": "/Library/Index",
+          "menuGroup": "management:library",
+          "source": "static"
+        },
+        {
+          "path": "/Library/Study",
+          "menuGroup": "management:library",
+          "source": "static"
+        },
+        {
+          "path": "/offline-study.html",
+          "menuGroup": "management:library",
+          "source": "static"
+        },
+        {
+          "path": "/Library/StudyAssistant",
+          "menuGroup": "management:library",
+          "source": "static"
+        },
+        {
+          "path": "/Library/Reservations",
+          "menuGroup": "management:library",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Library/Branches",
+          "menuGroup": "management:library",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Library/Overdue",
+          "menuGroup": "management:library",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Library/Conditions",
+          "menuGroup": "management:library",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Library/Integrity",
+          "menuGroup": "management:library",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Library/Liabilities",
+          "menuGroup": "management:library",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Library/Circulation",
+          "menuGroup": "management:library",
+          "source": "role-module-dynamic"
+        },
+        {
+          "path": "/Library/Digital",
+          "menuGroup": "management:library",
+          "source": "role-module-dynamic"
+        }
+      ]
+    },
+    {
+      "id": "C",
+      "title": "Learning, Exams, Research & Accreditation",
+      "groupCount": 4,
+      "routeCount": 38,
+      "groups": [
+        "academics:learning",
+        "academics:assessments",
+        "academics:research",
+        "academics:accreditation"
+      ],
+      "routes": [
+        {
+          "path": "/ResearchProposals/Index",
+          "menuGroup": "academics:research",
+          "source": "static"
+        },
+        {
+          "path": "/ResearchGrants/Index",
+          "menuGroup": "academics:research",
+          "source": "static"
+        },
+        {
+          "path": "/Accreditation/Index",
+          "menuGroup": "academics:accreditation",
+          "source": "static"
+        },
+        {
+          "path": "/Accreditation/Obe",
+          "menuGroup": "academics:accreditation",
+          "source": "static"
+        },
+        {
+          "path": "/Learning/Index",
+          "menuGroup": "academics:learning",
+          "source": "static"
+        },
+        {
+          "path": "/Learning/StudyPlan",
+          "menuGroup": "academics:learning",
+          "source": "static"
+        },
+        {
+          "path": "/TeacherStudio/Index",
+          "menuGroup": "academics:learning",
+          "source": "static"
+        },
+        {
+          "path": "/TeacherStudio/Public",
+          "menuGroup": "academics:learning",
+          "source": "static"
+        },
+        {
+          "path": "/TeacherStudio/AdaptiveGoals",
+          "menuGroup": "academics:learning",
+          "source": "static"
+        },
+        {
+          "path": "/TeacherStudio/Cpd",
+          "menuGroup": "academics:learning",
+          "source": "static"
+        },
+        {
+          "path": "/TeacherStudio/CpdReview",
+          "menuGroup": "academics:learning",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/ComponentMarks",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/Omr",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/SubjectCompletions",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/AssessmentComponents",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/AssessmentSchedules",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/GradeSchemes",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/CertificateTemplates",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/Certificates",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/AssessmentAdministration/Transcripts",
+          "menuGroup": "academics:assessments",
+          "source": "static"
+        },
+        {
+          "path": "/Learning/Quizzes",
+          "menuGroup": "academics:learning",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Learning/LiveClasses",
+          "menuGroup": "academics:learning",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Learning/CourseContent",
+          "menuGroup": "academics:learning",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Learning/AssignmentFiles",
+          "menuGroup": "academics:learning",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Learning/Certificates",
+          "menuGroup": "academics:learning",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/Marks",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/MarkReviews",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/Results",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/Publications",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/Setup",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/Attempts",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/ResultRescrutiny",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/ResultFollowUp",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/GradeDistribution",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/ExamReports",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/AssessmentAdministration/AdmitCards",
+          "menuGroup": "academics:assessments",
+          "source": "razor-action"
+        },
+        {
+          "path": "/Learning/CourseCompletions",
+          "menuGroup": "academics:learning",
+          "source": "role-module-dynamic"
+        },
+        {
+          "path": "/Learning/MySubmissions",
+          "menuGroup": "academics:learning",
+          "source": "role-module-dynamic"
+        }
+      ]
+    },
+    {
+      "id": "D",
+      "title": "Finance, Inventory, Communication & Audit",
+      "groupCount": 4,
+      "routeCount": 39,
+      "groups": [
+        "management:finance",
+        "management:inventory",
+        "management:communication",
+        "management:governance"
+      ],
+      "routes": [
+        {
+          "path": "/FeeDiscountRules/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/AdmissionCashReceipts/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/FeeReceivablesAging/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/FeeHeadAccounting/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/AccountingSetup/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/AccountingJournals/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/InstitutionBudgets/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/AccountingReports/Index",
+          "menuGroup": "management:finance",
+          "source": "static"
+        },
+        {
+          "path": "/InventoryCatalog/Index",
+          "menuGroup": "management:inventory",
+          "source": "static"
+        },
+        {
+          "path": "/InventoryMovements/FacilityFinance",
+          "menuGroup": "management:inventory",
+          "source": "static"
+        },
+        {
+          "path": "/AssetLifecycle/Index",
+          "menuGroup": "management:inventory",
+          "source": "static"
+        },
+        {
+          "path": "/AuditLogs/Index",
+          "menuGroup": "management:governance",
+          "source": "static"
+        },
+        {
+          "path": "/ImportHistory/Index",
+          "menuGroup": "management:governance",
+          "source": "static"
+        },
+        {
+          "path": "/CommunicationWorkspace/Index",
+          "menuGroup": "management:communication",
+          "source": "static"
+        },
+        {
+          "path": "/CommunicationAdministration/Index",
+          "menuGroup": "management:communication",
+          "source": "static"
+        },
+        {
+          "path": "/CustomFields/Index",
+          "menuGroup": "management:communication",
+          "source": "static"
+        },
+        {
+          "path": "/DocumentAdministration/Index",
+          "menuGroup": "management:communication",
+          "source": "static"
+        },
+        {
+          "path": "/FeeOperations/Structures",
+          "menuGroup": "management:finance",
+          "source": "razor-action"
+        },
+        {
+          "path": "/FeeOperations/Billing",
+          "menuGroup": "management:finance",
+          "source": "razor-action"
+        },
+        {
+          "path": "/FeeOperations/Ledger",
+          "menuGroup": "management:finance",
+          "source": "razor-action"
+        },
+        {
+          "path": "/StudentInvoicePosting/Index",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/StudentPaymentPosting/Index",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FeeDueCalendar/Index",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FeeInstallmentProjection/Index",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FeeInstallmentPlans/Index",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FeeInvoiceCoverage/Index",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FeeDiscountAttributionReview/Index",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/Policies",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/StudentAdjustments",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/FineRegister",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/Refunds",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/HostelClearances",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/TransportClearances",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/ReservationPreflight",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/FinanceAdjustments/DiscountAwards",
+          "menuGroup": "management:finance",
+          "source": "razor-array"
+        },
+        {
+          "path": "/InventoryMovements/Transactions",
+          "menuGroup": "management:inventory",
+          "source": "razor-action"
+        },
+        {
+          "path": "/InventoryMovements/Adjustments",
+          "menuGroup": "management:inventory",
+          "source": "razor-action"
+        },
+        {
+          "path": "/InventoryMovements/StockCounts",
+          "menuGroup": "management:inventory",
+          "source": "razor-action"
+        },
+        {
+          "path": "/InventoryMovements/Reports",
+          "menuGroup": "management:inventory",
+          "source": "razor-action"
+        }
+      ]
+    },
+    {
+      "id": "E",
+      "title": "HR, Payroll, Campus Operations & Career",
+      "groupCount": 3,
+      "routeCount": 44,
+      "groups": [
+        "management:people",
+        "management:campus",
+        "academics:career"
+      ],
+      "routes": [
+        {
+          "path": "/CareerEmployers/Index",
+          "menuGroup": "academics:career",
+          "source": "static"
+        },
+        {
+          "path": "/CareerOpportunities/Index",
+          "menuGroup": "academics:career",
+          "source": "static"
+        },
+        {
+          "path": "/CareerPlacements/Index",
+          "menuGroup": "academics:career",
+          "source": "static"
+        },
+        {
+          "path": "/EmployeeAttendance/Index",
+          "menuGroup": "management:people",
+          "source": "static"
+        },
+        {
+          "path": "/LeaveEntitlements/Index",
+          "menuGroup": "management:people",
+          "source": "static"
+        },
+        {
+          "path": "/PayrollOperations/Index",
+          "menuGroup": "management:people",
+          "source": "static"
+        },
+        {
+          "path": "/FacilityCosts/Index",
+          "menuGroup": "management:campus",
+          "source": "static"
+        },
+        {
+          "path": "/FacilityWorkOrders/Index",
+          "menuGroup": "management:campus",
+          "source": "static"
+        },
+        {
+          "path": "/FacilitySpaces/Index",
+          "menuGroup": "management:campus",
+          "source": "static"
+        },
+        {
+          "path": "/HostelOperations/Index",
+          "menuGroup": "management:campus",
+          "source": "static"
+        },
+        {
+          "path": "/TransportOperations/Index",
+          "menuGroup": "management:campus",
+          "source": "static"
+        },
+        {
+          "path": "/OperationsInsights/Index",
+          "menuGroup": "management:campus",
+          "source": "static"
+        },
+        {
+          "path": "/EmployeePortal/Index",
+          "menuGroup": "management:people",
+          "source": "static"
+        },
+        {
+          "path": "/HrSetup/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/HR/Directory",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/HR/Leaves",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/HrEmployeeRecords/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/HR/ShiftAssignments",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/HR/CampusAssignments",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/HR/BankAccounts",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/EmployeeContracts/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/Recruitment/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollSalaryStructures/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollSalaryComponents/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollBonuses/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollLoanRegister/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/LoanDisbursement/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/LoanRecovery/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollSalaryStatement/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollReconciliation/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollJournalPosting/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/PayrollPaymentPosting/Index",
+          "menuGroup": "management:people",
+          "source": "razor-array"
+        },
+        {
+          "path": "/HostelOperations/Applications",
+          "menuGroup": "management:campus",
+          "source": "razor-action"
+        },
+        {
+          "path": "/HostelOperations/Setup",
+          "menuGroup": "management:campus",
+          "source": "razor-action"
+        },
+        {
+          "path": "/HostelOperations/Allocations",
+          "menuGroup": "management:campus",
+          "source": "razor-action"
+        },
+        {
+          "path": "/HostelOperations/Reports",
+          "menuGroup": "management:campus",
+          "source": "razor-action"
+        },
+        {
+          "path": "/TransportOperations/Setup",
+          "menuGroup": "management:campus",
+          "source": "razor-action"
+        },
+        {
+          "path": "/TransportOperations/Assignments",
+          "menuGroup": "management:campus",
+          "source": "razor-action"
+        },
+        {
+          "path": "/TransportOperations/Reports",
+          "menuGroup": "management:campus",
+          "source": "razor-action"
+        },
+        {
+          "path": "/hostel/guardian-stays/print",
+          "menuGroup": "management:campus",
+          "source": "role-module-dynamic"
+        },
+        {
+          "path": "/hostel/my-history/print",
+          "menuGroup": "management:campus",
+          "source": "role-module-dynamic"
+        },
+        {
+          "path": "/TransportOperations/Family",
+          "menuGroup": "management:campus",
+          "source": "role-module-dynamic"
+        },
+        {
+          "path": "/TransportOperations/Trips",
+          "menuGroup": "management:campus",
+          "source": "role-module-dynamic"
+        },
+        {
+          "path": "/TransportOperations/DriverTrips",
+          "menuGroup": "management:campus",
+          "source": "role-module-dynamic"
+        }
+      ]
+    }
+  ]
+}
