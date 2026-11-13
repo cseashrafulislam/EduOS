@@ -6,23 +6,21 @@
 }
 <div class="container-fluid py-4" id="prerequisiteWorkspace">
     @Html.AntiForgeryToken()
-    <div class="academic-actions">
-        <a class="btn btn-sm btn-outline-secondary" asp-controller="AcademicManagement" asp-action="Curricula">@(bn ? "পাঠ্যক্রমে ফিরুন" : "Back to Curriculum")</a>
-    </div>
     <div id="prerequisiteNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
-        <div class="row g-2 align-items-end">
-            <div class="col-lg-5"><label for="prerequisiteCurriculum" class="form-label">Curriculum version</label><select id="prerequisiteCurriculum" class="form-select"></select></div>
-            <div class="col-lg-4"><label for="prerequisiteCatalogSearch" class="form-label">Find curriculum (prefix)</label><input id="prerequisiteCatalogSearch" class="form-control" maxlength="100" placeholder="Name or code" /></div>
-            <div class="col-lg-3"><button id="prerequisiteLoadCatalog" type="button" class="btn btn-outline-primary w-100">Load curriculum catalog</button></div>
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteCurriculum" class="form-label">Curriculum version</label><select id="prerequisiteCurriculum" class="form-select"></select></div>
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteCatalogSearch" class="form-label">Find curriculum</label><input id="prerequisiteCatalogSearch" class="form-control" maxlength="100" placeholder="Name or code" /></div>
+            <div class="col-6 col-xl-2"><button id="prerequisiteLoadCatalog" type="button" class="btn btn-outline-primary w-100">Load catalog</button></div>
+            <div class="col-6 col-xl-2"><a class="btn btn-outline-secondary academic-back-button w-100" asp-controller="AcademicManagement" asp-action="Curricula"><span aria-hidden="true">←</span> @(bn ? "পাঠ্যক্রমে ফিরুন" : "Back to Curriculum")</a></div>
         </div>
     </div></div>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
         <form id="prerequisiteForm" class="row g-2 align-items-end">
-            <div class="col-lg-4"><label for="prerequisiteSubject" class="form-label">Subject</label><select id="prerequisiteSubject" class="form-select" required></select></div>
-            <div class="col-lg-4"><label for="prerequisiteRequired" class="form-label">Required prior subject</label><select id="prerequisiteRequired" class="form-select" required></select></div>
-            <div class="col-lg-2"><label class="form-check"><input id="prerequisiteMandatory" type="checkbox" class="form-check-input" checked /> <span class="form-check-label">Mandatory</span></label></div>
-            <div class="col-lg-2"><button type="submit" class="btn btn-primary w-100">Add link</button></div>
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteSubject" class="form-label">Subject</label><select id="prerequisiteSubject" class="form-select" required></select></div>
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteRequired" class="form-label">Required prior subject</label><select id="prerequisiteRequired" class="form-select" required></select></div>
+            <div class="col-6 col-xl-2 academic-check-cell"><label class="form-check academic-check-control"><input id="prerequisiteMandatory" type="checkbox" class="form-check-input" checked /><span class="form-check-label">Mandatory</span></label></div>
+            <div class="col-6 col-xl-2"><button type="submit" class="btn btn-primary w-100">Add link</button></div>
         </form>
     </div></div>
     <div class="card border-0 shadow-sm"><div class="card-body">
