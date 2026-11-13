@@ -1695,6 +1695,9 @@ public class EduOSDbContext :
         modelBuilder.Entity<SubjectOffering>().HasIndex(x => new { x.TenantId, x.AcademicBatchId, x.AcademicYearId, x.AcademicSectionId, x.CurriculumSubjectId })
             .IsUnique().HasFilter("[IsDeleted] = 0");
         UniqueTenant<StudentEnrollment>(modelBuilder, nameof(StudentEnrollment.ClientRequestId));
+        // Retain the already-deployed year lookup index. EF would otherwise
+        // discard it in favour of the longer section/roll unique index.
+        modelBuilder.Entity<StudentEnrollment>().HasIndex(x => new { x.TenantId, x.AcademicYearId });
         modelBuilder.Entity<StudentEnrollment>().HasIndex(x => new { x.TenantId, x.StudentId })
             .IsUnique().HasFilter("[IsCurrent] = 1 AND [IsDeleted] = 0");
         modelBuilder.Entity<StudentEnrollment>().HasIndex(x => new { x.TenantId, x.AcademicYearId, x.AcademicSectionId, x.RollNo })
@@ -1778,6 +1781,13 @@ public class EduOSDbContext :
         UniqueTenant<StudentAssessmentMark>(modelBuilder, nameof(StudentAssessmentMark.AssessmentSubjectId), nameof(StudentAssessmentMark.StudentSubjectRegistrationId));
         UniqueTenant<StudentAssessmentComponentMark>(modelBuilder, nameof(StudentAssessmentComponentMark.AssessmentComponentId), nameof(StudentAssessmentComponentMark.StudentAssessmentMarkId));
         UniqueTenant<ResultPublication>(modelBuilder, nameof(ResultPublication.AssessmentId), nameof(ResultPublication.AcademicBatchId), nameof(ResultPublication.AcademicSectionId), nameof(ResultPublication.VersionNo));
+        // Preserve the deployed unfiltered SQL Server unique constraint.
+        // SQL Server indexes treat NULL as a duplicate key value, so the
+        // optional batch/section combinations remain unique per version.
+        // The provider's automatic nullable-index filter would weaken that rule.
+        modelBuilder.Entity<ResultPublication>()
+            .HasIndex(x => new { x.TenantId, x.AssessmentId, x.AcademicBatchId, x.AcademicSectionId, x.VersionNo })
+            .HasFilter(null);
         UniqueTenant<StudentResultSummary>(modelBuilder, nameof(StudentResultSummary.ResultPublicationId), nameof(StudentResultSummary.StudentEnrollmentId));
         UniqueTenant<CertificateTemplate>(modelBuilder, nameof(CertificateTemplate.Code));
         UniqueTenant<CertificateIssue>(modelBuilder, nameof(CertificateIssue.CertificateNumber));

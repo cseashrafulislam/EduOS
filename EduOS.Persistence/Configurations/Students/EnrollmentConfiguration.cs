@@ -10,8 +10,6 @@ public sealed class EnrollmentConfiguration : IEntityTypeConfiguration<StudentEn
     {
         builder.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
         builder.HasIndex(x => new { x.TenantId, x.StudentId, x.AcademicYearId, x.AcademicTermId });
-        builder.HasIndex(x => new { x.TenantId, x.AcademicBatchId, x.RollNo })
-            .IsUnique().HasFilter("[IsDeleted] = 0 AND [IsActive] = 1");
         builder.HasIndex(x => new { x.TenantId, x.StudentId })
             .IsUnique().HasFilter("[IsDeleted] = 0 AND [IsCurrent] = 1");
     }
