@@ -1,45 +1,89 @@
-@{ ViewData["Title"] = "Institution Usage History"; }
-<div class="container-fluid py-3">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-        <h2>Institution Usage History</h2>
-        <a href="/IntegrationAdministration/Index" class="btn btn-outline-secondary btn-sm">Back to Integration Administration</a>
-    </div>
-    <p class="text-muted small">Daily institution-timezone snapshots; duplicate captures retain the original counts. Historical storage snapshots predating metering may be zero even when files existed. SMS and email remain unmetered.</p>
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "প্রতিষ্ঠানের ব্যবহারের ইতিহাস" : "Institution Usage History";
+}
+<section id="usageHistoryWorkspace" class="container-fluid py-2">
+    @* The application shell supplies the page title; no duplicate heading or Refresh button. *@
     @Html.AntiForgeryToken()
-    <section class="card mb-3" aria-labelledby="uhQuotaTitle">
-        <div class="card-body">
-            <h3 id="uhQuotaTitle" class="h5">Subscription quota comparison</h3>
-            <p class="text-muted small mb-2">Student, employee and campus snapshots are not live. User seats and committed file storage are live; zero plan limits mean unlimited.</p>
-            <div id="uhQuotaInfo" role="status" aria-live="polite">Loading quota comparison...</div>
-            <div class="table-responsive mt-2"><table class="table table-sm">
-                <thead><tr><th>Resource</th><th>Usage</th><th>Plan limit</th><th>Utilization</th><th>Status</th></tr></thead>
-                <tbody id="uhQuotaRows"></tbody>
-            </table></div>
+    <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+        <p class="text-muted small mb-0">@(bn ? "দৈনিক ব্যবহার, সাবস্ক্রিপশন সীমা ও সংরক্ষিত ইতিহাস" : "Daily usage, subscription limits and recorded history")</p>
+        <a href="/SubscriptionBilling/Index" class="btn btn-outline-secondary btn-sm">@(bn ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing")</a>
+    </div>
+    <section class="card border-0 shadow-sm mb-2" aria-labelledby="uhQuotaTitle">
+        <div class="card-body p-3">
+            <h2 id="uhQuotaTitle" class="h6 fw-semibold mb-1">@(bn ? "সাবস্ক্রিপশন কোটা" : "Subscription quota")</h2>
+            <div id="uhQuotaInfo" role="status" aria-live="polite" class="small text-muted mb-2">@(bn ? "কোটা লোড হচ্ছে…" : "Loading quota comparison…")</div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead><tr>
+                        <th>@(bn ? "রিসোর্স" : "Resource")</th>
+                        <th>@(bn ? "ব্যবহার" : "Usage")</th>
+                        <th>@(bn ? "প্ল্যান সীমা" : "Plan limit")</th>
+                        <th>@(bn ? "শতকরা" : "Utilization")</th>
+                        <th>@(bn ? "অবস্থা" : "Status")</th>
+                    </tr></thead>
+                    <tbody id="uhQuotaRows"></tbody>
+                </table>
+            </div>
         </div>
     </section>
-    <div class="alert alert-secondary" role="status" id="uhAutomationStatus" aria-live="polite">Checking automatic daily capture status...</div>
-    <p class="text-muted small">The background worker checks each active, onboarded institution once per hour and saves at most one snapshot per institution-local day. A missing snapshot can still be captured manually. Automatic capture depends on the background worker running.</p>
-    <button id="uhCapture" type="button" class="btn btn-primary mb-3">Capture today's usage</button>
-    <button id="uhRefresh" type="button" class="btn btn-outline-secondary mb-3">Refresh</button>
-    <form method="get" action="/api/usage-history/export" class="row g-2 align-items-end mb-3">
-        <div class="col-sm-3"><label class="form-label" for="uhFrom">Export from (local day)</label><input id="uhFrom" name="fromDate" type="date" class="form-control" /></div>
-        <div class="col-sm-3"><label class="form-label" for="uhTo">Export through (local day)</label><input id="uhTo" name="toDate" type="date" class="form-control" /></div>
-        <div class="col-sm-3"><button type="submit" class="btn btn-outline-primary">Export CSV</button></div>
-        <div class="col-12 small text-muted">Exports up to 366 days of saved counts; historical storage, SMS and email are excluded.</div>
-    </form>
-    <div id="uhStatus" role="status" aria-live="polite" class="small mb-3 text-muted"></div>
-    <div class="card"><div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-sm table-striped">
-                <thead><tr><th>Local day</th><th>Active students</th><th>Active employees</th><th>Active campuses</th></tr></thead>
-                <tbody id="uhRows"></tbody>
-            </table>
+    <section class="card border-0 shadow-sm" aria-labelledby="uhHistoryTitle">
+        <div class="card-body p-3">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <h2 id="uhHistoryTitle" class="h6 fw-semibold mb-0">@(bn ? "দৈনিক ব্যবহারের ইতিহাস" : "Daily usage history")</h2>
+                <button id="uhCapture" type="button" class="btn btn-primary btn-sm">@(bn ? "আজকের ব্যবহার সংরক্ষণ" : "Capture today's usage")</button>
+            </div>
+            <div id="uhAutomationStatus" class="small text-muted border rounded px-2 py-2 mb-2" role="status" aria-live="polite">@(bn ? "দৈনিক ক্যাপচার স্ট্যাটাস যাচাই হচ্ছে…" : "Checking daily capture status…")</div>
+            <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-2">
+                <form method="get" action="/api/usage-history/export" class="row g-2 align-items-end flex-grow-1" aria-label="@(bn ? "ব্যবহারের ইতিহাস এক্সপোর্ট" : "Export usage history")">
+                    <div class="col-6 col-md-auto">
+                        <label class="form-label" for="uhFrom">@(bn ? "শুরু" : "From")</label>
+                        <input id="uhFrom" name="fromDate" type="date" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-6 col-md-auto">
+                        <label class="form-label" for="uhTo">@(bn ? "শেষ" : "To")</label>
+                        <input id="uhTo" name="toDate" type="date" class="form-control form-control-sm" />
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-outline-primary btn-sm">@(bn ? "CSV ডাউনলোড" : "Export CSV")</button>
+                    </div>
+                </form>
+                <details class="small">
+                    <summary class="text-muted">@(bn ? "গণনা সম্পর্কিত তথ্য" : "About these metrics")</summary>
+                    <div class="small text-muted mt-1">
+                        @(bn ? "শিক্ষার্থী, কর্মী ও ক্যাম্পাসের দৈনিক সংখ্যা snapshot; user seat ও সংরক্ষিত ফাইলের ব্যবহার live। দিনে সর্বোচ্চ একটি snapshot, স্বয়ংক্রিয় ক্যাপচারের জন্য worker চালু থাকা প্রয়োজন। পুরোনো storage snapshot অসম্পূর্ণ হতে পারে; SMS ও email গণনা করা হয় না। CSV-তে সর্বোচ্চ ৩৬৬ দিনের সংরক্ষিত তথ্য পাওয়া যাবে।" :
+                            "Student, employee and campus counts are daily snapshots; user seats and committed file storage are live. Only one snapshot is saved per institution-local day; automatic capture depends on the background worker. Older storage snapshots may be incomplete; SMS and email are not metered. CSV exports cover up to 366 saved days.")
+                    </div>
+                </details>
+            </div>
+            <div id="uhStatus" role="status" aria-live="polite" class="small mb-2 text-muted"></div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead><tr>
+                        <th>@(bn ? "দিন" : "Local day")</th>
+                        <th>@(bn ? "সক্রিয় শিক্ষার্থী" : "Active students")</th>
+                        <th>@(bn ? "সক্রিয় কর্মী" : "Active employees")</th>
+                        <th>@(bn ? "সক্রিয় ক্যাম্পাস" : "Active campuses")</th>
+                    </tr></thead>
+                    <tbody id="uhRows"></tbody>
+                </table>
+            </div>
+            <nav class="d-flex align-items-center gap-2 mt-2" aria-label="@(bn ? "ব্যবহারের ইতিহাস পৃষ্ঠা" : "Usage history pages")">
+                <button id="uhPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগের" : "Previous")</button>
+                <span id="uhPage" class="small text-muted" aria-live="polite"></span>
+                <button id="uhNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
+            </nav>
         </div>
-        <div class="d-flex gap-2 align-items-center">
-            <button id="uhPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
-            <span id="uhPage"></span>
-            <button id="uhNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
-        </div>
-    </div></div>
-</div>
+    </section>
+</section>
+<style>
+    #usageHistoryWorkspace .card { border-radius: .7rem; }
+    #usageHistoryWorkspace .table { font-size: .82rem; }
+    #usageHistoryWorkspace .table thead th { background: var(--bs-tertiary-bg, #f8fafc); color: var(--bs-secondary-color, #64748b); font-weight: 600; white-space: nowrap; }
+    #usageHistoryWorkspace .table-responsive { scrollbar-width: thin; }
+    #usageHistoryWorkspace .form-label { margin-bottom: .2rem; font-size: .78rem; font-weight: 600; }
+    #usageHistoryWorkspace details summary { cursor: pointer; }
+    #usageHistoryWorkspace details summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    @@media (max-width: 575.98px) { #usageHistoryWorkspace table { min-width: 510px; } }
+</style>
 @section Scripts { <script src="~/js/usage-history/index.js" asp-append-version="true"></script> }
