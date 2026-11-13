@@ -43,11 +43,9 @@
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .card > .card-body {
     padding: clamp(1rem, 1.7vw, 1.5rem);
 }
+/* Route title is already rendered in the page header; do not repeat it in the card. */
 #academicManagement > section[data-section] > .card-body > h2:first-child {
-    margin: 0 0 .65rem;
-    font-size: 1.03rem;
-    font-weight: 750;
-    letter-spacing: -.015em;
+    display: none;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) h2,
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) h3 {
