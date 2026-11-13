@@ -188,7 +188,7 @@ public sealed class AcademicSectionService
                 var row = new AcademicSection
                 {
                     TenantId = tenant, CampusId = campus.Id, AcademicLevelId = level.Id,
-                    AcademicBatchId = null, ClientRequestId = request.ClientRequestId,
+                    ClientRequestId = request.ClientRequestId,
                     Name = name, Code = code, Capacity = request.Capacity,
                     IsActive = request.IsActive, DisplayOrder = request.DisplayOrder,
                     CreatedBy = _user.UserId, CreatedAt = DateTime.UtcNow
