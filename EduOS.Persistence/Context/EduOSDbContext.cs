@@ -2493,9 +2493,6 @@ public class EduOSDbContext :
                 .IsUnique().HasFilter("[IsDeleted] = 0");
             b.HasIndex(x => new { x.TenantId, x.ClientRequestId })
                 .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
-            b.HasIndex(x => new { x.TenantId, x.AcademicBatchId })
-                .IsUnique().HasFilter("[IsLegacyDefault] = 1 AND [IsDeleted] = 0")
-                .HasDatabaseName("UX_AcademicSections_LegacyDefault");
             b.ToTable(t => t.HasCheckConstraint("CK_AcademicSections_Capacity", "[Capacity] BETWEEN 0 AND 100000"));
         });
         modelBuilder.Entity<AcademicBatch>().ToTable(t =>
