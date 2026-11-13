@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using System.Security.Cryptography;
 using System.Text;
 using EduOS.Persistence.Context;
+using EduOS.Persistence.Seed;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -51,7 +52,8 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
     private long TenantId => _current.TenantId;
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Institution administrator access is required.", 403);
     private IQueryable<ApplicationRole> LocalRoles => _db.Roles.IgnoreQueryFilters()
-        .Where(x => x.TenantId == TenantId && !x.IsDeleted && !x.IsSystemRole);
+        .Where(x => x.TenantId == TenantId && !x.IsDeleted && !x.IsSystemRole &&
+            x.NormalizedName != "TENANTADMIN" && x.NormalizedName != "SUPERADMIN");
 
     public async Task<ApiResponse<PagedResult<TenantUserListItemDto>>> GetMembersAsync(
         int page, int pageSize, string? search, CancellationToken ct = default)
@@ -137,6 +139,47 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
         return ApiResponse<IReadOnlyList<TenantRoleDto>>.SuccessResponse(result);
     }
 
+    public async Task<ApiResponse<IReadOnlyList<BuiltInInstitutionRoleDto>>> GetBuiltInRolesAsync(
+        CancellationToken ct = default)
+    {
+        if (!CanManage) return Denied<IReadOnlyList<BuiltInInstitutionRoleDto>>();
+        var local = await _db.Roles.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => x.TenantId == TenantId)
+            .Select(x => new { x.NormalizedName, x.IsActive, x.IsDeleted })
+            .ToListAsync(ct);
+        IReadOnlyList<BuiltInInstitutionRoleDto> result = RoleSeeder.BuiltInRoleNames
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .Select(name =>
+            {
+                var existing = local.FirstOrDefault(x => x.NormalizedName == name.ToUpperInvariant());
+                return new BuiltInInstitutionRoleDto
+                {
+                    Name = name,
+                    IsEnabled = existing != null && !existing.IsDeleted,
+                    IsActive = existing != null && existing.IsActive && !existing.IsDeleted,
+                    IsDeleted = existing?.IsDeleted == true,
+                    IsOwnerManaged = name.Equals("TenantAdmin", StringComparison.OrdinalIgnoreCase),
+                    IsPlatformOnly = name.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                };
+            }).ToArray();
+        return ApiResponse<IReadOnlyList<BuiltInInstitutionRoleDto>>.SuccessResponse(result);
+    }
+
+    public async Task<ApiResponse<TenantRoleDto>> EnableBuiltInRoleAsync(
+        string name, CancellationToken ct = default)
+    {
+        if (!CanManage) return Denied<TenantRoleDto>();
+        var canonical = RoleSeeder.BuiltInRoleNames.FirstOrDefault(x =>
+            x.Equals(name?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (canonical == null)
+            return ApiResponse<TenantRoleDto>.ErrorResponse("Unknown built-in institution role.", 400);
+        if (canonical is "TenantAdmin" or "SuperAdmin")
+            return ApiResponse<TenantRoleDto>.ErrorResponse(
+                "TenantAdmin is owner-managed and SuperAdmin is platform-only.", 403);
+        return await CreateTenantRoleCoreAsync(canonical, canonical + " role",
+            "TenantBuiltInRoleEnabled", "Built-in role enabled for this institution.", ct);
+    }
+
     public async Task<ApiResponse<IReadOnlyList<TenantPermissionDto>>> GetPermissionsAsync(CancellationToken ct = default)
     {
         if (!CanManage) return Denied<IReadOnlyList<TenantPermissionDto>>();
@@ -158,17 +201,31 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
         if (request == null || string.IsNullOrWhiteSpace(request.Name))
             return ApiResponse<TenantRoleDto>.ErrorResponse("Role name is required.", 400);
         var name = request.Name.Trim();
-        if (name.Length is < 2 or > 100 ||
-            name.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase))
-            return ApiResponse<TenantRoleDto>.ErrorResponse("Reserved or invalid role name.", 400);
+        if (name.Length is < 2 or > 100)
+            return ApiResponse<TenantRoleDto>.ErrorResponse("Invalid role name.", 400);
+        if (RoleSeeder.BuiltInRoleNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+            return ApiResponse<TenantRoleDto>.ErrorResponse(
+                name.Equals("TenantAdmin", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase)
+                    ? "TenantAdmin and SuperAdmin are reserved; neither can be created here."
+                    : "This is a built-in role. Enable it from the built-in roles list instead.", 409);
+        return await CreateTenantRoleCoreAsync(name, request.Description?.Trim(),
+            "TenantRoleCreated", "Institution role created.", ct);
+    }
+
+    private async Task<ApiResponse<TenantRoleDto>> CreateTenantRoleCoreAsync(
+        string name, string? description, string auditAction, string successMessage,
+        CancellationToken ct)
+    {
         var normalized = name.ToUpperInvariant();
-        if (await LocalRoles.AnyAsync(x => x.NormalizedName == normalized, ct))
-            return ApiResponse<TenantRoleDto>.ErrorResponse("This institution already has that role.", 409);
+        if (await _db.Roles.IgnoreQueryFilters().AsNoTracking().AnyAsync(x =>
+            x.TenantId == TenantId && x.NormalizedName == normalized, ct))
+            return ApiResponse<TenantRoleDto>.ErrorResponse(
+                "This institution already has that role; inactive or deleted roles require an administrator review.", 409);
         var role = new ApplicationRole
         {
             TenantId = TenantId, Name = name, NormalizedName = normalized,
-            Description = request.Description?.Trim(),
-            IsSystemRole = false, IsActive = true
+            Description = description, IsSystemRole = false, IsActive = true
         };
         _db.Roles.Add(role);
         try
@@ -179,22 +236,23 @@ public sealed partial class TenantUserAdministrationService : ITenantUserAdminis
                 _db.AuditLogs.Add(new AuditLog
                 {
                     TenantId = TenantId, UserId = _current.UserId,
-                    Action = "TenantRoleCreated", EntityName = nameof(ApplicationRole),
+                    Action = auditAction, EntityName = nameof(ApplicationRole),
                     EntityId = role.Id, NewValue = JsonSerializer.Serialize(new { role.Name, role.Description })
                 });
                 await _db.SaveChangesAsync(tx);
                 return true;
-            }, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException)
         {
-            return ApiResponse<TenantRoleDto>.ErrorResponse("Could not create role. It may already exist.", 409);
+            return ApiResponse<TenantRoleDto>.ErrorResponse(
+                "Could not create role. It may already exist.", 409);
         }
         return ApiResponse<TenantRoleDto>.SuccessResponse(new TenantRoleDto
         {
             Id = role.Id, Name = role.Name!, Description = role.Description,
             IsActive = true, ConcurrencyStamp = role.ConcurrencyStamp ?? ""
-        }, "Institution role created.");
+        }, successMessage);
     }
 
     public async Task<ApiResponse<bool>> UpdateRoleAsync(

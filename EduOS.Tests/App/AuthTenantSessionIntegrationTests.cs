@@ -38,6 +38,25 @@ public sealed class AuthTenantSessionIntegrationTests
     }
 
     [Fact]
+    public async Task Reserved_tenant_admin_name_cannot_grant_nonowner_access()
+    {
+        await using var db = Db();
+        db.Roles.AddRange(
+            new ApplicationRole { Id = 1, TenantId = 100, Name = "TenantAdmin",
+                NormalizedName = "TENANTADMIN", IsActive = true },
+            new ApplicationRole { Id = 2, TenantId = null, Name = "TenantAdmin",
+                NormalizedName = "TENANTADMIN", IsActive = true });
+        db.UserRoles.AddRange(
+            new IdentityUserRole<long> { UserId = 50, RoleId = 1 },
+            new IdentityUserRole<long> { UserId = 50, RoleId = 2 });
+        await db.SaveChangesAsync();
+        Assert.DoesNotContain("TenantAdmin",
+            await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, false, 1));
+        Assert.Contains("TenantAdmin",
+            await TenantRoleResolver.GetTenantRolesAsync(db, 50, 100, true, 1));
+    }
+
+    [Fact]
     public async Task Membership_ownership_grants_admin_only_for_selected_institution()
     {
         await using var db = Db();

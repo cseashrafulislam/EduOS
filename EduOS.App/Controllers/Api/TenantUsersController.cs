@@ -60,6 +60,20 @@ public sealed class TenantUsersController(ITenantUserAdministrationService servi
         return StatusCode(r.StatusCode, r);
     }
 
+    [HttpGet("role-catalog")]
+    public async Task<IActionResult> BuiltInRoles(CancellationToken ct)
+    {
+        var r = await service.GetBuiltInRolesAsync(ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
+    [HttpPost("role-catalog/{name}/enable")]
+    public async Task<IActionResult> EnableBuiltInRole(string name, CancellationToken ct)
+    {
+        var r = await service.EnableBuiltInRoleAsync(name, ct);
+        return StatusCode(r.StatusCode, r);
+    }
+
     [HttpGet("permissions")]
     public async Task<IActionResult> Permissions(CancellationToken ct)
     {

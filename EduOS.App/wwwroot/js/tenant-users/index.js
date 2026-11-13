@@ -3,7 +3,7 @@
     const root = document.getElementById('tenantUsersApp');
     if (!root) return;
     const $ = id => document.getElementById(id);
-    const state = { page: 1, pageSize: 20, total: 0, members: [], roles: [], permissions: [], selected: null,
+    const state = { page: 1, pageSize: 20, total: 0, members: [], roles: [], builtIns: [], permissions: [], selected: null,
         historyPage: 1, historyTotal: 0 };
     const endpoint = '/api/tenant-users';
     const bn = document.documentElement.lang.toLowerCase().startsWith('bn');
@@ -46,9 +46,14 @@
     }
 
     async function loadCatalog() {
-        const [roles, permissions] = await Promise.all([request('/roles'), request('/permissions')]);
+        const [roles, permissions, builtIns] = await Promise.all([
+            request('/roles'), request('/permissions'), request('/role-catalog')
+        ]);
         state.roles = roles;
         state.permissions = permissions;
+        state.builtIns = builtIns;
+        renderBuiltInRoles();
+        validateCustomRole();
         const invitationRoles = $('inviteRole');
         const invitationSelected = invitationRoles.value;
         invitationRoles.replaceChildren(new Option('No initial role', ''));
@@ -65,6 +70,53 @@
         if (roles.some(x => String(x.id) === selected)) selector.value = selected;
         renderPermissions();
         if (state.selected) renderMemberEditor();
+    }
+
+    function validateCustomRole() {
+        const name = $('newRoleName').value.trim();
+        const existing = state.builtIns.find(x => x.name.toLowerCase() === name.toLowerCase());
+        const hint = $('newRoleHint');
+        hint.textContent = existing
+            ? t('Built-in role: use the list above. TenantAdmin and SuperAdmin cannot be created.',
+                'বিল্ট-ইন রোল: ওপরে Enable ব্যবহার করুন। TenantAdmin/SuperAdmin তৈরি করা যাবে না।')
+            : t('Use Enable above for a built-in role.', 'বিল্ট-ইন রোল হলে ওপরে Enable ব্যবহার করুন।');
+        hint.classList.toggle('text-danger', Boolean(existing));
+        $('createRoleButton').disabled = Boolean(existing);
+    }
+
+    function renderBuiltInRoles() {
+        const rows = $('builtInRoleRows');
+        rows.replaceChildren();
+        for (const item of state.builtIns) {
+            const tr = document.createElement('tr');
+            tr.append(textNode('td', item.name, 'small fw-semibold'));
+            const status = item.isPlatformOnly
+                ? t('Platform only', 'প্ল্যাটফর্মের জন্য')
+                : item.isOwnerManaged
+                    ? t('Owner-managed', 'প্রতিষ্ঠান মালিক')
+                    : item.isDeleted
+                        ? t('Needs review', 'যাচাই প্রয়োজন')
+                        : item.isEnabled
+                            ? item.isActive ? t('Enabled', 'সক্রিয়') : t('Inactive', 'নিষ্ক্রিয়')
+                            : t('Not enabled', 'চালু নয়');
+            tr.append(textNode('td', status, 'small text-muted'));
+            const action = document.createElement('td');
+            action.className = 'text-end';
+            if (!item.isPlatformOnly && !item.isOwnerManaged && !item.isEnabled && !item.isDeleted) {
+                const button = textNode('button', t('Enable', 'চালু করুন'), 'btn btn-sm btn-outline-primary');
+                button.type = 'button';
+                button.addEventListener('click', () => submit(button, async () => {
+                    await request('/role-catalog/' + encodeURIComponent(item.name) + '/enable',
+                        { method: 'POST', body: '{}' });
+                    await loadCatalog();
+                    message(t('Institution role enabled; no users or permissions were assigned.',
+                        'রোল চালু হয়েছে; কোনো ব্যবহারকারী বা অনুমতি বরাদ্দ হয়নি।'));
+                }));
+                action.append(button);
+            }
+            tr.append(action);
+            rows.append(tr);
+        }
     }
 
     async function loadInviteCampuses() {
@@ -310,9 +362,6 @@
         e.preventDefault(); state.page = 1;
         try { await loadMembers(); } catch (error) { message(error.message, true); }
     });
-    $('refreshUsers').addEventListener('click', async () => {
-        try { await loadMembers(); } catch (error) { message(error.message, true); }
-    });
     $('prevMembers').addEventListener('click', async () => {
         if (state.page <= 1) return; state.page--;
         try { await loadMembers(); } catch (error) { message(error.message, true); }
@@ -335,8 +384,14 @@
         });
     });
 
+    $('newRoleName').addEventListener('input', validateCustomRole);
     $('createTenantRoleForm').addEventListener('submit', async e => {
         e.preventDefault();
+        if ($('createRoleButton').disabled) {
+            message(t('This built-in role already exists; use Enable instead.',
+                'এই বিল্ট-ইন রোলটি আগে থেকেই আছে; Enable ব্যবহার করুন।'), true);
+            return;
+        }
         await submit(e.submitter, async () => {
             await request('/roles', { method: 'POST', body: JSON.stringify({
                 name: $('newRoleName').value.trim(),

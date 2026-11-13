@@ -27,6 +27,7 @@ public static class TenantRoleResolver
                                   on assignment.RoleId equals role.Id
                               where assignment.UserId == userId && role.IsActive && !role.IsDeleted &&
                                     role.Name != null && role.NormalizedName != "SUPERADMIN" &&
+                                    role.NormalizedName != "TENANTADMIN" &&
                                     (role.TenantId == tenantId ||
                                      (institutionMembershipCount == 1 && role.TenantId == null && !role.IsSystemRole))
                               select role.Name!).Distinct().ToListAsync();

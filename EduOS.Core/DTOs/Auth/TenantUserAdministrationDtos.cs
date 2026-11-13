@@ -29,6 +29,16 @@ public sealed class TenantRoleDto
     public IReadOnlyList<long> PermissionIds { get; set; } = Array.Empty<long>();
 }
 
+public sealed class BuiltInInstitutionRoleDto
+{
+    public string Name { get; set; } = "";
+    public bool IsEnabled { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsDeleted { get; set; }
+    public bool IsOwnerManaged { get; set; }
+    public bool IsPlatformOnly { get; set; }
+}
+
 public sealed class TenantPermissionDto
 {
     public long Id { get; set; }

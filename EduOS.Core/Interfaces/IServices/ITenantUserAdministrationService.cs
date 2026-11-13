@@ -7,6 +7,8 @@ public interface ITenantUserAdministrationService
 {
     Task<ApiResponse<PagedResult<TenantUserListItemDto>>> GetMembersAsync(int page, int pageSize, string? search, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<TenantRoleDto>>> GetRolesAsync(CancellationToken ct = default);
+    Task<ApiResponse<IReadOnlyList<BuiltInInstitutionRoleDto>>> GetBuiltInRolesAsync(CancellationToken ct = default);
+    Task<ApiResponse<TenantRoleDto>> EnableBuiltInRoleAsync(string name, CancellationToken ct = default);
     Task<ApiResponse<IReadOnlyList<TenantPermissionDto>>> GetPermissionsAsync(CancellationToken ct = default);
     Task<ApiResponse<TenantRoleDto>> CreateRoleAsync(TenantRoleCreateRequestDto request, CancellationToken ct = default);
     Task<ApiResponse<bool>> UpdateRoleAsync(long roleId, TenantRoleUpdateRequestDto request, CancellationToken ct = default);

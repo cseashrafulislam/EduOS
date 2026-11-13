@@ -21,6 +21,58 @@ namespace EduOS.Tests.App;
 public sealed class TenantUserAdministrationTests
 {
     [Fact]
+    public async Task Built_in_role_catalog_lists_reserved_owner_and_platform_roles_without_assignable_ids()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        var service = Service(db, access.User, access.Email);
+        var catalog = await service.GetBuiltInRolesAsync();
+        Assert.True(catalog.Success, catalog.Message);
+        Assert.True(catalog.Data!.Single(x => x.Name == "TenantAdmin").IsOwnerManaged);
+        Assert.True(catalog.Data.Single(x => x.Name == "SuperAdmin").IsPlatformOnly);
+        Assert.Contains(catalog.Data, x => x.Name == "Teacher" && !x.IsEnabled);
+        Assert.Equal(403, (await service.EnableBuiltInRoleAsync("TenantAdmin")).StatusCode);
+        Assert.Equal(403, (await service.EnableBuiltInRoleAsync("SuperAdmin")).StatusCode);
+        Assert.Equal(400, (await service.EnableBuiltInRoleAsync("Invented")).StatusCode);
+        Assert.Empty(db.Roles);
+    }
+
+    [Fact]
+    public async Task Built_in_role_must_be_enabled_once_and_cannot_be_recreated_as_custom()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        var service = Service(db, access.User, access.Email);
+        Assert.Equal(409, (await service.CreateRoleAsync(new TenantRoleCreateRequestDto { Name = " teacher " })).StatusCode);
+        Assert.Equal(409, (await service.CreateRoleAsync(new TenantRoleCreateRequestDto { Name = "TenantAdmin" })).StatusCode);
+        Assert.Equal(409, (await service.CreateRoleAsync(new TenantRoleCreateRequestDto { Name = "admin" })).StatusCode);
+        var created = await service.EnableBuiltInRoleAsync("teacher");
+        Assert.True(created.Success, created.Message);
+        Assert.Equal("Teacher", created.Data!.Name);
+        Assert.Equal(access.User.Object.TenantId, (await db.Roles.SingleAsync()).TenantId);
+        Assert.Empty(db.UserRoles);
+        Assert.Empty(db.RolePermissions);
+        Assert.Equal(409, (await service.EnableBuiltInRoleAsync("Teacher")).StatusCode);
+        Assert.Single(await db.Roles.ToListAsync());
+        var catalog = await service.GetBuiltInRolesAsync();
+        Assert.True(catalog.Data!.Single(x => x.Name == "Teacher").IsActive);
+    }
+
+    [Fact]
+    public async Task Existing_tenant_admin_name_is_never_listed_as_assignable_tenant_role()
+    {
+        var access = ContextFor(100, isAdmin: true);
+        await using var db = access.Db;
+        await SeedSystemRolesAsync(db, access.Accessor,
+            new ApplicationRole { TenantId = 100, Name = "TenantAdmin",
+                NormalizedName = "TENANTADMIN", IsActive = true });
+        var service = Service(db, access.User, access.Email);
+        Assert.Empty((await service.GetRolesAsync()).Data!);
+        Assert.Equal(409, (await service.CreateRoleAsync(
+            new TenantRoleCreateRequestDto { Name = "TenantAdmin" })).StatusCode);
+    }
+
+    [Fact]
     public async Task Roles_only_list_matching_institution_and_reserved_name_is_rejected()
     {
         var access = ContextFor(100, isAdmin: true);
