@@ -6,9 +6,8 @@
 }
 <div class="container-fluid py-4" id="prerequisiteWorkspace">
     @Html.AntiForgeryToken()
-    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-        <div><h1 class="h4 mb-0">@(bn ? "বিষয়ের পূর্বশর্ত" : "Subject prerequisites")</h1></div>
-        <a class="btn btn-outline-secondary" asp-controller="AcademicManagement" asp-action="Curricula">@(bn ? "পাঠ্যক্রমে ফিরুন" : "Back to Curriculum")</a>
+    <div class="academic-actions">
+        <a class="btn btn-sm btn-outline-secondary" asp-controller="AcademicManagement" asp-action="Curricula">@(bn ? "পাঠ্যক্রমে ফিরুন" : "Back to Curriculum")</a>
     </div>
     <div id="prerequisiteNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
