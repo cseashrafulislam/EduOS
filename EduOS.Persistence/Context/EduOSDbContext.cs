@@ -2490,6 +2490,10 @@ public class EduOSDbContext :
             t.HasCheckConstraint("CK_AcademicCalendarEvent_DateRange", "[EndDate] >= [StartDate]"));
         modelBuilder.Entity<AcademicSection>(b =>
         {
+            // Preserve the deployed campus lookup index; EF otherwise considers it
+            // redundant under the longer campus/class/code index and flags model drift.
+            b.HasIndex(x => new { x.TenantId, x.CampusId })
+                .HasDatabaseName("IX_AcademicSections_TenantId_CampusId");
             b.HasIndex(x => new { x.TenantId, x.CampusId, x.AcademicLevelId, x.Code })
                 .IsUnique().HasFilter("[IsDeleted] = 0")
                 .HasDatabaseName("UX_AcademicSections_Campus_Level_Code");
