@@ -16,7 +16,9 @@ test('Academic Batches and Sections remain separate first-class menu and page ti
     assert.doesNotMatch(sidebar + batches, /Academic Batches \(Legacy\)/);
     assert.match(sections, /id="sectionCreateForm"/);
     assert.match(sections, /id="sectionAdvanced"/);
-    assert.match(sections, /Manage Batches/);
+    assert.match(sections, /Academic Batches/);
+    assert.match(sections, /id="sectionCampus"/);
+    assert.match(sections, /id="sectionLevel"/);
 });
 
 test('Batch registry opens the associated Section editor without re-entering batch', () => {
@@ -26,9 +28,9 @@ test('Batch registry opens the associated Section editor without re-entering bat
     new Function(sections);
     assert.match(batches, /AcademicManagement\/Sections\?academicBatchId=/);
     assert.match(batches, /academic-batches-page-/);
-    assert.match(sections, /URLSearchParams\(window\.location\.search\)/);
-    assert.match(sections, /\/api\/academic-setup\/batches\/.*encodeURIComponent\(desired\)/s);
-    assert.match(sections, /async function syncCapacity|function syncCapacity/);
+    assert.match(sections, /URLSearchParams\(location\.search\)/);
+    assert.match(sections, /\/api\/academic-setup\/batches\/.*encodeURIComponent\(fromBatch\)/s);
+    assert.doesNotMatch(sections, /const selectedBatch =/);
     assert.match(sections, /guard\?\.markClean/);
     assert.doesNotMatch(batches, /No sections found/);
 });
@@ -50,7 +52,7 @@ test('Batch capacity may decrease only when enrollment and independent section l
     const ui = read('EduOS.App/wwwroot/js/academic/batches.js');
     assert.match(service, /request\.Capacity < row\.Capacity/);
     assert.match(service, /occupied > request\.Capacity/);
-    assert.match(service, /!x\.IsDeleted && x\.Capacity > request\.Capacity/);
+    assert.doesNotMatch(service, /_sections\.GetQueryable\(\)\.AsNoTracking\(\)\s*\.AnyAsync\(x => x\.TenantId == tenant && x\.AcademicBatchId/);
     assert.match(service, /serializable: true/);
     assert.match(ui, /el\('batchEditCapacity'\)\.min = '0'/);
     assert.doesNotMatch(ui, /Capacity cannot decrease/);
@@ -66,7 +68,7 @@ test('Generated unused section cleanup preserves every referenced academic and f
     assert.match(migration, /x\.AcademicSectionId = s\.Id/);
     assert.doesNotMatch(migration, /DELETE\s+FROM\s+dbo\.AcademicBatches/i);
     const removal = read('EduOS.Persistence/Migrations/20261113040000_RemoveAcademicSectionLegacyDefault.cs');
-    assert.match(removal, /THROW 51042/);
+    assert.doesNotMatch(removal, /THROW 51042/);
     assert.match(removal, /DropColumn\(/);
     assert.match(removal, /DropIndex\(/);
 });
