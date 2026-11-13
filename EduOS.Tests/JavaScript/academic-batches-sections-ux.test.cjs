@@ -50,7 +50,7 @@ test('Batch capacity may decrease only when enrollment and independent section l
     const ui = read('EduOS.App/wwwroot/js/academic/batches.js');
     assert.match(service, /request\.Capacity < row\.Capacity/);
     assert.match(service, /occupied > request\.Capacity/);
-    assert.match(service, /!x\.IsLegacyDefault && !x\.IsDeleted && x\.Capacity > request\.Capacity/);
+    assert.match(service, /!x\.IsDeleted && x\.Capacity > request\.Capacity/);
     assert.match(service, /serializable: true/);
     assert.match(ui, /el\('batchEditCapacity'\)\.min = '0'/);
     assert.doesNotMatch(ui, /Capacity cannot decrease/);
@@ -65,6 +65,10 @@ test('Generated unused section cleanup preserves every referenced academic and f
     assert.match(migration, /x\.TenantId = s\.TenantId/);
     assert.match(migration, /x\.AcademicSectionId = s\.Id/);
     assert.doesNotMatch(migration, /DELETE\s+FROM\s+dbo\.AcademicBatches/i);
+    const removal = read('EduOS.Persistence/Migrations/20261113040000_RemoveAcademicSectionLegacyDefault.cs');
+    assert.match(removal, /THROW 51042/);
+    assert.match(removal, /DropColumn\(/);
+    assert.match(removal, /DropIndex\(/);
 });
 
 test('Section-aware workspaces and bilingual manuals are parseable', () => {
