@@ -183,16 +183,15 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                     assignment.EffectiveFrom <= attendanceDate &&
                     (!assignment.EffectiveTo.HasValue || assignment.EffectiveTo >= attendanceDate)
                 select offering.AcademicSectionId;
-            query = query.Where(x => assignedSections.Contains(x.Id) ||
-                x.IsLegacyDefault && assignedSections.Contains(null));
+            query = query.Where(x => assignedSections.Contains(x.Id));
         }
         var count = await query.CountAsync(ct);
-        var rows = await query.OrderBy(x => x.IsLegacyDefault).ThenBy(x => x.Name)
+        var rows = await query.OrderBy(x => x.Name)
             .ThenBy(x => x.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new StudentAttendanceSectionChoiceDto
             {
                 Id = x.Id, AcademicBatchId = x.AcademicBatchId, Name = x.Name,
-                Code = x.Code, Capacity = x.Capacity, IsLegacyDefault = x.IsLegacyDefault
+                Code = x.Code, Capacity = x.Capacity
             }).ToListAsync(ct);
         return ApiResponse<PagedResult<StudentAttendanceSectionChoiceDto>>.SuccessResponse(
             new PagedResult<StudentAttendanceSectionChoiceDto>
@@ -229,13 +228,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 SubjectCode = subject.Code, SubjectName = subject.Name
             };
         if (academicSectionId.HasValue)
-        {
-            var legacy = _sections != null && await _sections.GetQueryable().AsNoTracking()
-                .AnyAsync(x => x.TenantId == tenant && x.Id == academicSectionId.Value &&
-                    x.AcademicBatchId == academicBatchId && x.IsLegacyDefault, ct);
-            query = query.Where(x => x.AcademicSectionId == academicSectionId.Value ||
-                legacy && x.AcademicSectionId == null);
-        }
+            query = query.Where(x => x.AcademicSectionId == academicSectionId.Value);
         if (!_user.IsTenantAdmin && !_user.IsInRole("Principal") && !_user.IsInRole("VicePrincipal"))
         {
             var assignedIds = from assignment in _instructors.GetQueryable().AsNoTracking()
@@ -335,9 +328,6 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
             request.SubjectOfferingId, ct);
         if (selectedSection.Error != null) return Error<StudentAttendanceRosterDto>(selectedSection.Error, 409);
         var tenant = _user.TenantId;
-        var legacyDefault = selectedSection.Id.HasValue && _sections != null &&
-            await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.Id == selectedSection.Id.Value && x.IsLegacyDefault, ct);
         // The existing unique (TenantId, ClientRequestId) index prevents two writers from
         // creating different sessions for the same scope without a shared schema migration.
         var scopeKey = FormattableString.Invariant(
@@ -351,8 +341,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var existing = await _sessions.GetQueryable().AsNoTracking().Where(x =>
                     x.TenantId == tenant && x.AcademicBatchId == request.AcademicBatchId &&
                     x.AttendanceDate == request.AttendanceDate && x.SubjectOfferingId == request.SubjectOfferingId &&
-                    (x.AcademicSectionId == selectedSection.Id ||
-                     legacyDefault && x.AcademicSectionId == null) && !x.IsDeleted).OrderBy(x => x.Id).Take(2).ToListAsync(token);
+                    x.AcademicSectionId == selectedSection.Id && !x.IsDeleted).OrderBy(x => x.Id).Take(2).ToListAsync(token);
                 if (existing.Count > 1)
                     return Error<StudentAttendanceRosterDto>("Multiple attendance sessions exist for this scope. Resolve before writing.", 409);
                 if (existing.Count == 0)
@@ -408,17 +397,12 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
 
                 var requested = request.Students.Select(x => x.StudentEnrollmentReference).ToArray();
-                var legacy = session.AcademicSectionId.HasValue && _sections != null &&
-                    await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
-                        x.TenantId == _user.TenantId && x.Id == session.AcademicSectionId.Value &&
-                        x.IsLegacyDefault, token);
                 var enrollments = await (from enrollment in _enrollments.GetQueryable().AsNoTracking()
                     join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
                     join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
                     where enrollment.TenantId == _user.TenantId && student.TenantId == _user.TenantId &&
                         enrollment.AcademicBatchId == session.AcademicBatchId &&
-                        (session.AcademicSectionId == null || enrollment.AcademicSectionId == session.AcademicSectionId ||
-                         legacy && enrollment.AcademicSectionId == null) &&
+                        session.AcademicSectionId.HasValue && enrollment.AcademicSectionId == session.AcademicSectionId &&
                         enrollment.State == EnrollmentState.Active && enrollment.IsCurrent &&
                         student.StatusCode == "Active" && batch.TenantId == _user.TenantId &&
                         enrollment.CampusId == batch.CampusId && requested.Contains(enrollment.PublicId)
@@ -813,14 +797,9 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         int page = 1, int pageSize = 2000, long? sectionId = null)
     {
         var tenant = _user.TenantId;
-        var legacy = sectionId.HasValue && _sections != null &&
-            await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.Id == sectionId.Value && x.AcademicBatchId == batchId &&
-                x.IsLegacyDefault, ct);
         var session = await _sessions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.AcademicBatchId == batchId && x.AttendanceDate == date &&
-            x.SubjectOfferingId == offeringId && (x.AcademicSectionId == sectionId ||
-                legacy && x.AcademicSectionId == null) && !x.IsDeleted, ct);
+            x.SubjectOfferingId == offeringId && x.AcademicSectionId == sectionId && !x.IsDeleted, ct);
         var eligible = from enrollment in _enrollments.GetQueryable().AsNoTracking()
             join student in _students.GetQueryable().AsNoTracking() on enrollment.StudentId equals student.Id
             join batch in _batches.GetQueryable().AsNoTracking() on enrollment.AcademicBatchId equals batch.Id
@@ -833,8 +812,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 enrollment.AcademicSectionId, StudentReference = student.PublicId,
                 student.StudentCode, student.FullName };
         if (sectionId.HasValue)
-            eligible = eligible.Where(x => x.AcademicSectionId == sectionId.Value ||
-                legacy && x.AcademicSectionId == null);
+            eligible = eligible.Where(x => x.AcademicSectionId == sectionId.Value);
         if (offeringId.HasValue)
         {
             var subjectId = offeringId.Value;
@@ -926,7 +904,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
     private async Task<(long? Id, string? Error)> ResolveSectionAsync(
         long batchId, long? requestedSectionId, long? subjectOfferingId, CancellationToken ct)
     {
-        if (_sections == null) return (requestedSectionId, null);
+        if (_sections == null) return (null, "Academic section service unavailable.");
         if (requestedSectionId is <= 0) return (null, "Academic section ID is invalid.");
         var tenant = _user.TenantId;
         long? offeringSectionId = null;
@@ -946,19 +924,17 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
         }
         if (!requestedSectionId.HasValue)
         {
-            var hasExplicitSections = await _sections.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicBatchId == batchId &&
-                !x.IsLegacyDefault && x.IsActive && !x.IsDeleted, ct);
-            if (hasExplicitSections && !subjectOfferingId.HasValue)
-                return (null, "Select an academic section for class attendance.");
-            return (null, null);
+            var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
+                _sections.GetQueryable(), tenant, batchId, null, ct);
+            if (placement.Error != null) return (null, placement.Error);
+            requestedSectionId = placement.SectionId;
         }
         var section = await _sections.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == requestedSectionId.Value &&
             x.AcademicBatchId == batchId && x.IsActive && !x.IsDeleted, ct);
         if (section == null) return (null, "Academic section not found for this batch.");
-        if (subjectOfferingId.HasValue && !offeringSectionId.HasValue && !section.IsLegacyDefault)
-            return (null, "Legacy subject offering is not valid for this section.");
+        if (subjectOfferingId.HasValue && !offeringSectionId.HasValue)
+            return (null, "A subject offering must belong to an academic section.");
         return (section.Id, null);
     }
 
