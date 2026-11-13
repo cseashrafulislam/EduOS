@@ -513,7 +513,7 @@ public sealed partial class AssessmentAdministrationService : IAssessmentAdminis
             x.TenantId == _user.TenantId && x.PublicId == request.AssessmentReference && !x.IsDeleted, ct);
         if (exam == null) return Error<ResultPublicationDto>("Assessment not found.", 404);
         var scope = await ScopeAsync(new AssessmentScopeDto
-        { AssessmentId = exam.Id, AcademicBatchId = request.AcademicBatchId }, ct);
+        { AssessmentId = exam.Id, AcademicBatchId = request.AcademicBatchId ?? 0 }, ct);
         if (scope == null) return Error<ResultPublicationDto>("Selected batch is outside assessment scope.", 409);
         try
         {

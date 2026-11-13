@@ -14,7 +14,7 @@ public sealed partial class AssessmentAdministrationService
             (x.State == ResultPublicationState.Published ||
              x.State == ResultPublicationState.Withdrawn));
 
-    private Task<bool> HasFinalizedPublicationAsync(long assessmentId, long batchId,
+    private Task<bool> HasFinalizedPublicationAsync(long assessmentId, long? batchId,
         CancellationToken ct) =>
         FinalizedPublications(assessmentId).AnyAsync(x => x.AcademicBatchId == batchId, ct);
 
