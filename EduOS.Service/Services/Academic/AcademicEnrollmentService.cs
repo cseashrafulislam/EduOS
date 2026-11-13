@@ -13,7 +13,7 @@ using System.Data;
 
 namespace EduOS.Service.Services.Academic;
 
-public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
+public sealed partial class AcademicEnrollmentService : IAcademicEnrollmentService
 {
     private readonly IGenericRepository<StudentEnrollment> _enrollments;
     private readonly IGenericRepository<StudentSubjectRegistration> _registrations;
@@ -108,6 +108,8 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
         CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<StudentEnrollmentDto>());
+        if (request != null && request.AcademicBatchId == null)
+            return EnrollInSectionAsync(request, ct);
         if (request == null || request.ClientRequestId == Guid.Empty || request.StudentReference == Guid.Empty ||
             request.AcademicBatchId <= 0 || request.AcademicCurriculumId <= 0 || string.IsNullOrWhiteSpace(request.RollNo) ||
             request.RollNo.Trim().Length > 50 || request.Remarks?.Length > 500)
@@ -205,6 +207,13 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
             lockedBatch.UpdatedBy = _user.UserId;
             _batches.Update(lockedBatch);
             await _uow.SaveChangesAsync(ct);
+            // Reserve section capacity across Batch and non-Batch enrollment flows.
+            var lockedSection = await _sections.GetQueryable().FirstAsync(x =>
+                x.TenantId == tenant && x.Id == sectionId && x.IsActive && !x.IsDeleted, ct);
+            lockedSection.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+            lockedSection.UpdatedBy = _user.UserId;
+            _sections.Update(lockedSection);
+            await _uow.SaveChangesAsync(ct);
             var occupied = await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
                 x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, ct);
@@ -214,9 +223,10 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 _enrollments.GetQueryable(), tenant, sectionId, placement.Capacity, ct))
                 throw new BatchAllocationException("Academic section capacity has been reached.");
             if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x =>
-                x.TenantId == tenant && x.AcademicBatchId == batch.Id && x.RollNo == roll &&
+                x.TenantId == tenant && x.AcademicYearId == batch.AcademicYearId &&
+                x.AcademicSectionId == sectionId && x.RollNo == roll &&
                 x.IsCurrent && !x.IsDeleted, ct))
-                throw new BatchAllocationException("Roll already assigned in this academic batch.");
+                throw new BatchAllocationException("Roll already assigned in this academic section/year.");
 
             // Every mandatory registration consumes one seat in its subject offering.
             // The surrounding SERIALIZABLE transaction protects these predicate counts
@@ -283,7 +293,8 @@ public sealed class AcademicEnrollmentService : IAcademicEnrollmentService
                 join item in _curriculumSubjects.GetQueryable().AsNoTracking() on offer.CurriculumSubjectId equals item.Id
                 where offer.TenantId == tenant && item.TenantId == tenant && offer.IsActive && item.IsActive &&
                     !offer.IsDeleted && !item.IsDeleted && offer.PublicId == request.SubjectOfferingReference && offer.AcademicBatchId == enrollment.AcademicBatchId &&
-                    offer.AcademicYearId == enrollment.AcademicYearId && item.IsOptional &&
+                    offer.AcademicYearId == enrollment.AcademicYearId &&
+                    offer.AcademicSectionId == enrollment.AcademicSectionId && item.IsOptional &&
                     item.AcademicCurriculumId == enrollment.AcademicCurriculumId &&
                     item.AcademicLevelId == enrollment.AcademicLevelId
                 select new { offer.Id, offer.Capacity, item.CreditHours, item.SubjectId }).FirstOrDefaultAsync(ct);
