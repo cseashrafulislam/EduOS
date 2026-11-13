@@ -6,12 +6,10 @@
 }
 <div id="academicSectionsPage" class="container-fluid py-4">
     @Html.AntiForgeryToken()
-    <div class="academic-actions">
-        <a href="/AcademicManagement/Batches" class="btn btn-sm btn-outline-secondary">@(bn ? "একাডেমিক ব্যাচ" : "Academic Batches")</a>
-    </div>
     <div id="sectionNotice" class="alert d-none" role="status" aria-live="polite"></div>
-    <div class="card shadow-sm border-0 mb-3">
+    <div class="card shadow-sm border-0">
         <div class="card-body">
+            <a href="/AcademicManagement/Batches" class="btn btn-sm btn-outline-secondary academic-related-link">@(bn ? "একাডেমিক ব্যাচ" : "Academic Batches")</a>
             <form id="sectionCreateForm" class="row g-3 align-items-end">
                 <input type="hidden" id="sectionId" />
                 <input type="hidden" id="sectionVersion" />
@@ -55,13 +53,9 @@
                     </details>
                 </div>
             </form>
-        </div>
-    </div>
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
-
-                <div class="d-flex flex-wrap gap-2">
+            <div class="academic-directory">
+                <div class="d-flex flex-wrap gap-2 align-items-center academic-directory-search">
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
                     <input id="sectionFilter" class="form-control" maxlength="80" aria-label="Search sections" placeholder="Name / Code" />
                     <button id="sectionFilterButton" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button>
                 </div>
@@ -81,6 +75,7 @@
                 <button id="sectionPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
                 <span id="sectionPageStatus" class="small text-muted" aria-live="polite"></span>
                 <button id="sectionNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            </div>
             </div>
         </div>
     </div>
