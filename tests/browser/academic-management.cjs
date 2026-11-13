@@ -329,7 +329,7 @@ async function main() {
 
         await openFeature('terms');
         await page.locator('#termName').fill('First Term');
-        await page.locator('#termCode').fill('T1');
+        assert.equal(await page.locator('#termCode').isVisible(), false);
         await page.locator('#termStart').fill('2026-01-01');
         await page.locator('#termEnd').fill('2026-05-30');
         await page.locator('#termForm button[type="submit"]').click();

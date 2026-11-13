@@ -74,7 +74,7 @@
         await api('/api/institution-onboarding/academic-year', { method: 'POST',
             body: JSON.stringify({
                 id: idOf('yearId'), rowVersion: field('yearVersion') || null,
-                name: field('yearName'), code: field('yearCode').toUpperCase(),
+                name: field('yearName'), code: idOf('yearId') ? field('yearCode').toUpperCase() : null,
                 campusId: idOf('yearCampus'), cycleType: Number(field('yearCycle')),
                 startDate, endDate, isCurrent: checked('yearCurrent'), isActive: true
             })
@@ -90,7 +90,7 @@
             body: JSON.stringify({
                 id: idOf('termId'), rowVersion: field('termVersion') || null,
                 academicYearId: year.id, name: field('termName'),
-                code: field('termCode') || null, startDate, endDate,
+                code: idOf('termId') ? (field('termCode') || null) : null, startDate, endDate,
                 isCurrent: checked('termCurrent'), isActive: true, displayOrder: 0
             })
         });

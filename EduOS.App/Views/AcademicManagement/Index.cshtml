@@ -42,8 +42,8 @@
         <div class="card-body">
             <form id="yearForm" class="row g-3 mb-3">
                 <input id="yearId" type="hidden" /><input id="yearVersion" type="hidden" />
-                <div class="col-lg-3"><label for="yearName" class="form-label">Name *</label><input id="yearName" class="form-control" maxlength="100" required placeholder="Academic 2026" /></div>
-                <div class="col-lg-2"><label for="yearCode" class="form-label">Code *</label><input id="yearCode" class="form-control" maxlength="30" required placeholder="2026" /></div>
+                <div class="col-lg-5"><label for="yearName" class="form-label">Name *</label><input id="yearName" class="form-control" maxlength="100" required placeholder="Academic 2026" /></div>
+                <input id="yearCode" type="hidden" />
                 <div class="col-lg-3"><label for="yearCampus" class="form-label">Campus</label><select id="yearCampus" class="form-select"></select></div>
                 <div class="col-lg-2"><label for="yearStart" class="form-label">Start date *</label><input id="yearStart" type="date" class="form-control" required /></div>
                 <div class="col-lg-2"><label for="yearEnd" class="form-label">End date *</label><input id="yearEnd" type="date" class="form-control" required /></div>
@@ -58,9 +58,9 @@
         <div class="card-body">
             <form id="termForm" class="row g-3 mb-3">
                 <input id="termId" type="hidden" /><input id="termVersion" type="hidden" />
-                <div class="col-md-4"><label for="termYear" class="form-label">Academic year *</label><select id="termYear" class="form-select" required></select></div>
-                <div class="col-md-4"><label for="termName" class="form-label">Term name *</label><input id="termName" class="form-control" maxlength="100" required /></div>
-                <div class="col-md-4"><label for="termCode" class="form-label">Code</label><input id="termCode" class="form-control" maxlength="30" /></div>
+                <div class="col-md-6"><label for="termYear" class="form-label">Academic year *</label><select id="termYear" class="form-select" required></select></div>
+                <div class="col-md-6"><label for="termName" class="form-label">Term name *</label><input id="termName" class="form-control" maxlength="100" required /></div>
+                <input id="termCode" type="hidden" />
                 <div class="col-md-4"><label for="termStart" class="form-label">Start date *</label><input id="termStart" type="date" class="form-control" required /></div>
                 <div class="col-md-4"><label for="termEnd" class="form-label">End date *</label><input id="termEnd" type="date" class="form-control" required /></div>
                 <div class="col-md-4 academic-check-cell"><label class="form-check academic-check-control"><input id="termCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current term</span></label></div>
