@@ -52,6 +52,9 @@ partial class EduOSDbContextModelSnapshot
         {
             b.Property<long?>("AcademicSectionId").HasColumnType("bigint");
             b.HasIndex("TenantId", "AcademicSectionId");
+            // Required for the remaining optional Batch FK lookup after
+            // removing the invalid legacy Batch/Roll uniqueness mapping.
+            b.HasIndex("TenantId", "AcademicBatchId");
         });
         modelBuilder.Entity("EduOS.Core.Entities.Academic.SubjectOffering", b =>
         {
