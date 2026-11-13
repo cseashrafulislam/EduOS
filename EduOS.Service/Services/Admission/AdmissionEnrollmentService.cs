@@ -363,7 +363,8 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         cancellationToken);
                     if (batch == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
                     var sectionPlacement = await AcademicSectionPlacementPolicy.ResolveAsync(
-                        _db.AcademicSections, tenant, batch.Id, request.AcademicSectionId, cancellationToken);
+                        _db.AcademicSections, tenant, batch.CampusId, batch.AcademicLevelId,
+                        request.AcademicSectionId, cancellationToken);
                     if (sectionPlacement.Error != null)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse(sectionPlacement.Error, 409);
                     if (request.AcademicTrackId.HasValue && request.AcademicTrackId != batch.AcademicTrackId)
