@@ -137,7 +137,7 @@
         validDates(startDate, endDate);
         if (startDate < year.startDate || endDate > year.endDate ||
             (term && (startDate < term.startDate || endDate > term.endDate)))
-            throw new Error('Section dates must stay within the selected year / term.');
+            throw new Error('Batch dates must stay within the selected academic year / term.');
         await api('/api/academic-setup/batches', { method: 'POST', body: JSON.stringify({
             clientRequestId: requestId(form), campusId, academicYearId: year.id,
             academicTermId: term?.id || null, academicProgramId: program.id,
@@ -147,7 +147,7 @@
             startDate, endDate, deliveryMode: 1,
             isDefault: false, isActive: true, displayOrder: 0
         }) });
-    }, 'Section created.'));
+    }, 'Academic Batch created.'));
     el('subjectForm').addEventListener('submit', event => submit(event, async () => {
         await api('/api/academic-setup/subjects', { method: 'POST', body: JSON.stringify({
             name: field('subjectName'), code: field('subjectCode').toUpperCase(),
