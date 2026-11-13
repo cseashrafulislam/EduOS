@@ -87,11 +87,6 @@ public sealed partial class AcademicSetupService
                 if (occupied > request.Capacity)
                     return Error<AcademicBatchDto>("Batch capacity cannot be below current enrollment (" +
                         occupied + ").", 409);
-                if (_sections != null && await _sections.GetQueryable().AsNoTracking()
-                    .AnyAsync(x => x.TenantId == tenant && x.AcademicBatchId == row.Id &&
-                        !x.IsDeleted && x.Capacity > request.Capacity, ct))
-                    return Error<AcademicBatchDto>(
-                        "Batch capacity cannot be smaller than an existing section capacity.", 409);
             }
             row.Name = name;
             row.Capacity = request.Capacity;
