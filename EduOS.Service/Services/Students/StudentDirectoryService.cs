@@ -26,6 +26,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
     private readonly IGenericRepository<AcademicTerm> _terms;
     private readonly IGenericRepository<AcademicLevel> _levels;
     private readonly IGenericRepository<AcademicBatch> _batches;
+    private readonly IGenericRepository<AcademicSection>? _sections;
     private readonly IGenericRepository<AcademicTrack> _tracks;
     private readonly IGenericRepository<Campus> _campuses;
     private readonly ICurrentUserService _currentUser;
@@ -43,7 +44,8 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         IGenericRepository<AcademicTrack> tracks,
         IGenericRepository<Campus> campuses,
         ICurrentUserService currentUser,
-        ILogger<StudentDirectoryService> logger)
+        ILogger<StudentDirectoryService> logger,
+        IGenericRepository<AcademicSection>? sections = null)
     {
         _students = students;
         _enrollments = enrollments;
@@ -53,6 +55,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         _terms = terms;
         _levels = levels;
         _batches = batches;
+        _sections = sections;
         _tracks = tracks;
         _campuses = campuses;
         _currentUser = currentUser;
@@ -194,6 +197,10 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                 AcademicYear = e != null ? lookups.YearNames.GetValueOrDefault(e.AcademicYearId) ?? string.Empty : string.Empty,
                 AcademicLevelName = e != null ? lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty : string.Empty,
                 AcademicBatchName = e != null ? lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty : string.Empty,
+                AcademicSectionName = e?.AcademicSectionId is long sectionId &&
+                    lookups.SectionNames.TryGetValue(sectionId, out var section) &&
+                    section.CampusId == e.CampusId && section.AcademicLevelId == e.AcademicLevelId
+                    ? section.Name : null,
                 Status = x.StatusCode
             };
         }).ToList();
@@ -221,6 +228,10 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             AcademicYear = current != null ? lookups.YearNames.GetValueOrDefault(current.AcademicYearId) ?? string.Empty : string.Empty,
             AcademicLevelName = current != null ? lookups.LevelNames.GetValueOrDefault(current.AcademicLevelId) ?? string.Empty : string.Empty,
             AcademicBatchName = current != null ? lookups.BatchNames.GetValueOrDefault(current.AcademicBatchId) ?? string.Empty : string.Empty,
+            AcademicSectionName = current?.AcademicSectionId is long currentSectionId &&
+                lookups.SectionNames.TryGetValue(currentSectionId, out var currentSection) &&
+                currentSection.CampusId == current.CampusId && currentSection.AcademicLevelId == current.AcademicLevelId
+                ? currentSection.Name : null,
             Status = student.StatusCode,
             DateOfBirth = student.DateOfBirth,
             Gender = student.Gender ?? string.Empty,
@@ -256,6 +267,10 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                 Campus = lookups.CampusNames.GetValueOrDefault(e.CampusId),
                 AcademicLevelName = lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty,
                 AcademicBatchName = lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty,
+                AcademicSectionName = e.AcademicSectionId is long entrySectionId &&
+                    lookups.SectionNames.TryGetValue(entrySectionId, out var entrySection) &&
+                    entrySection.CampusId == e.CampusId && entrySection.AcademicLevelId == e.AcademicLevelId
+                    ? entrySection.Name : null,
                 AcademicTrackName = e.AcademicTrackId.HasValue ? lookups.TrackNames.GetValueOrDefault(e.AcademicTrackId.Value) : null,
                 RollNo = e.RollNo,
                 EnrollmentDate = e.EnrollmentDate,
@@ -272,6 +287,8 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         var termIds = rows.Where(x => x.AcademicTermId.HasValue).Select(x => x.AcademicTermId!.Value).Distinct().ToArray();
         var levelIds = rows.Select(x => x.AcademicLevelId).Distinct().ToArray();
         var batchIds = rows.Select(x => x.AcademicBatchId).Distinct().ToArray();
+        var sectionIds = rows.Where(x => x.AcademicSectionId.HasValue)
+            .Select(x => x.AcademicSectionId!.Value).Distinct().ToArray();
         var trackIds = rows.Where(x => x.AcademicTrackId.HasValue).Select(x => x.AcademicTrackId!.Value).Distinct().ToArray();
         var campusIds = rows.Select(x => x.CampusId).Distinct().ToArray();
 
@@ -283,12 +300,18 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             .Where(x => x.TenantId == tenantId && levelIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
         var batches = batchIds.Length == 0 ? new Dictionary<long, string>() : await _batches.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && batchIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+        var sections = sectionIds.Length == 0 || _sections == null
+            ? new Dictionary<long, SectionLabel>()
+            : await _sections.GetQueryable().AsNoTracking()
+                .Where(x => x.TenantId == tenantId && sectionIds.Contains(x.Id) && !x.IsDeleted)
+                .Select(x => new { x.Id, x.Name, x.CampusId, x.AcademicLevelId })
+                .ToDictionaryAsync(x => x.Id, x => new SectionLabel(x.Name, x.CampusId, x.AcademicLevelId), cancellationToken);
         var tracks = trackIds.Length == 0 ? new Dictionary<long, string>() : await _tracks.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && trackIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
         var campuses = campusIds.Length == 0 ? new Dictionary<long, string>() : await _campuses.GetQueryable().AsNoTracking()
             .Where(x => x.TenantId == tenantId && campusIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
 
-        return new EnrollmentLookups(years, terms, levels, batches, tracks, campuses);
+        return new EnrollmentLookups(years, terms, levels, batches, sections, tracks, campuses);
     }
 
     private bool CanRead() => _currentUser.IsAuthenticated && _currentUser.TenantId > 0 &&
@@ -303,11 +326,14 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
         return new string('•', value.Length - visible) + value[^visible..];
     }
 
+    private sealed record SectionLabel(string Name, long CampusId, long AcademicLevelId);
+
     private sealed record EnrollmentLookups(
         IReadOnlyDictionary<long, string> YearNames,
         IReadOnlyDictionary<long, string> TermNames,
         IReadOnlyDictionary<long, string> LevelNames,
         IReadOnlyDictionary<long, string> BatchNames,
+        IReadOnlyDictionary<long, SectionLabel> SectionNames,
         IReadOnlyDictionary<long, string> TrackNames,
         IReadOnlyDictionary<long, string> CampusNames);
 }

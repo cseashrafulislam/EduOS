@@ -24,6 +24,7 @@ public class StudentDirectoryListItemDto
     public string AcademicYear { get; set; } = string.Empty;
     public string AcademicLevelName { get; set; } = string.Empty;
     public string AcademicBatchName { get; set; } = string.Empty;
+    public string? AcademicSectionName { get; set; }
     public string Status { get; set; } = string.Empty;
 }
 
@@ -47,6 +48,7 @@ public class StudentDirectoryEnrollmentDto
     public string? Campus { get; set; }
     public string AcademicLevelName { get; set; } = string.Empty;
     public string AcademicBatchName { get; set; } = string.Empty;
+    public string? AcademicSectionName { get; set; }
     public string? AcademicTrackName { get; set; }
     public string RollNo { get; set; } = string.Empty;
     public DateOnly EnrollmentDate { get; set; }

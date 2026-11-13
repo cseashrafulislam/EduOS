@@ -45,7 +45,7 @@ public sealed class StudentEnrollmentHistoryQueryService(
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new
             {
-                x.PublicId, x.CampusId, x.AcademicBatchId, x.RollNo, x.RegistrationNo,
+                x.PublicId, x.CampusId, x.AcademicBatchId, x.AcademicSectionId, x.RollNo, x.RegistrationNo,
                 x.EnrollmentDate, x.EndDate, x.State, x.IsCurrent, x.RowVersion,
                 BatchCode = db.AcademicBatches
                     .Where(b => b.TenantId == tenant && b.Id == x.AcademicBatchId &&
@@ -55,6 +55,10 @@ public sealed class StudentEnrollmentHistoryQueryService(
                     .Where(b => b.TenantId == tenant && b.Id == x.AcademicBatchId &&
                                 b.CampusId == x.CampusId)
                     .Select(b => b.Name).FirstOrDefault(),
+                SectionName = db.AcademicSections
+                    .Where(s => s.TenantId == tenant && s.Id == x.AcademicSectionId &&
+                                s.CampusId == x.CampusId && s.AcademicLevelId == x.AcademicLevelId)
+                    .Select(s => s.Name).FirstOrDefault(),
                 CurriculumName = db.AcademicCurriculums
                     .Where(c => c.TenantId == tenant && c.Id == x.AcademicCurriculumId)
                     .Select(c => c.Name).FirstOrDefault()
@@ -65,6 +69,7 @@ public sealed class StudentEnrollmentHistoryQueryService(
             EnrollmentReference = x.PublicId, CampusId = x.CampusId,
             AcademicBatchId = x.AcademicBatchId, BatchCode = x.BatchCode ?? string.Empty,
             BatchName = x.BatchName ?? string.Empty,
+            AcademicSectionId = x.AcademicSectionId, SectionName = x.SectionName,
             CurriculumName = x.CurriculumName ?? string.Empty,
             RollNo = x.RollNo, RegistrationNo = x.RegistrationNo,
             EnrollmentDate = x.EnrollmentDate, EndDate = x.EndDate,

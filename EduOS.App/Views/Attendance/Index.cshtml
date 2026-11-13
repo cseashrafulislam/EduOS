@@ -28,7 +28,7 @@
             <div class="col-md-3"><label class="form-label" for="attendanceBatchSearch">@(bn ? "ব্যাচ খুঁজুন" : "Find academic batch")</label>
                 <div class="input-group"><input id="attendanceBatchSearch" class="form-control" maxlength="100" placeholder="Name, code, year or level" />
                     <button id="attendanceBatchFind" class="btn btn-outline-secondary" type="button">@(bn ? "খুঁজুন" : "Search")</button></div></div>
-            <div class="col-md-4"><label class="form-label" for="sectionId">@(bn ? "একাডেমিক ব্যাচ / শাখা" : "Academic batch / section")</label>
+            <div class="col-md-4"><label class="form-label" for="sectionId">@(bn ? "একাডেমিক ব্যাচ" : "Academic batch")</label>
                 <select id="sectionId" class="form-select" required disabled><option value="">Loading authorized batches…</option></select>
                 <div class="d-flex justify-content-between align-items-center mt-1">
                     <button id="attendanceBatchPrevious" class="btn btn-sm btn-outline-secondary" type="button" disabled>Previous</button>

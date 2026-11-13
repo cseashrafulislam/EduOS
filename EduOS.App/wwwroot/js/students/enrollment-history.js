@@ -5,7 +5,7 @@
     const el = id => document.getElementById(id);
     const state = { reference: null, page: 1, totalPages: 0, pending: 0 };
     const pageSize = 20;
-    const columns = ['enrollmentDate', 'endDate', 'batchName', 'rollNo', 'state'];
+    const columns = ['enrollmentDate', 'endDate', 'batchName', 'sectionName', 'rollNo', 'state'];
     function setStatus(value, error = false) {
         const node = el('enrollmentHistoryStatus');
         node.textContent = value;
@@ -21,7 +21,7 @@
         el('enrollmentHistoryNext').disabled = !data.hasNextPage;
         if (!data.items?.length) {
             const tr = document.createElement('tr'), td = document.createElement('td');
-            td.colSpan = 5;
+            td.colSpan = 6;
             td.textContent = 'No enrollment history on this page.';
             tr.append(td); body.append(tr);
             return;
@@ -31,7 +31,7 @@
             for (const field of columns) {
                 const td = document.createElement('td');
                 const value = field === 'batchName'
-                    ? ((item.batchName || 'Catalog unavailable') + (item.batchCode ? ' (' + item.batchCode + ')' : ''))
+                    ? ((item.batchName || (item.academicBatchId ? 'Catalog unavailable' : '—')) + (item.batchCode ? ' (' + item.batchCode + ')' : ''))
                     : field === 'state' ? (item.state + (item.isCurrent ? ' (Current)' : ''))
                     : item[field];
                 td.textContent = value == null || value === '' ? '—' : String(value);
@@ -56,7 +56,7 @@
             if (!response.ok || payload?.success !== true)
                 throw new Error(payload?.message || 'History unavailable.');
             render(payload.data);
-            setStatus('Enrollment records use original roll and campus. Batch names are current catalog labels.');
+            setStatus('Enrollment records use original roll and campus. Batch and Section names are current catalog labels.');
         } catch (error) {
             if (request !== state.pending || reference !== state.reference) return;
             el('enrollmentHistoryRows').replaceChildren();

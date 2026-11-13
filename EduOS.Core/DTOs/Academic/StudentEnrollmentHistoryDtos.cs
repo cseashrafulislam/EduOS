@@ -8,6 +8,8 @@ public sealed class StudentEnrollmentHistoryRowDto
     public long AcademicBatchId { get; set; }
     public string BatchCode { get; set; } = string.Empty;
     public string BatchName { get; set; } = string.Empty;
+    public long? AcademicSectionId { get; set; }
+    public string? SectionName { get; set; }
     public string CurriculumName { get; set; } = string.Empty;
     public string RollNo { get; set; } = string.Empty;
     public string? RegistrationNo { get; set; }

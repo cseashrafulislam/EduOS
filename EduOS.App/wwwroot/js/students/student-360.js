@@ -16,6 +16,7 @@
         enrollment: {
             url: '/api/academic-enrollments/students/' + encodeURIComponent(reference) + '/history',
             columns: [['enrollmentDate', 'Date', 'তারিখ'], ['batchName', 'Batch', 'ব্যাচ'],
+                ['sectionName', 'Section', 'শাখা'],
                 ['rollNo', 'Roll', 'রোল'], ['state', 'State', 'অবস্থা'], ['isCurrent', 'Current', 'বর্তমান']]
         },
         lifecycle: {
@@ -148,7 +149,7 @@
             const d = json.data, host = $('s360Identity');
             const body = document.createElement('div'); body.className = 'card-body';
             const title = node('h2', d.fullNameBangla || d.fullName); title.className = 'h5';
-            const summary = node('p', [d.studentCode, d.academicLevelName, d.academicBatchName, d.status]
+            const summary = node('p', [d.studentCode, d.academicLevelName, d.academicSectionName, d.academicBatchName, d.status]
                 .filter(Boolean).join(' · ')); summary.className = 'mb-0 text-muted';
             body.append(title, summary); host.replaceChildren(body);
             profileReady = true;
