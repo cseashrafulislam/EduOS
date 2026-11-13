@@ -180,7 +180,8 @@ public sealed class StudentPromotionService : IStudentPromotionService
             var sectionPlacement = _sections == null
                 ? (SectionId: (long?)null, Capacity: 0, Error: (string?)null)
                 : await AcademicSectionPlacementPolicy.ResolveAsync(_sections.GetQueryable(),
-                    tenant, batch.Id, request.TargetAcademicSectionId, ct);
+                    tenant, batch.CampusId, batch.AcademicLevelId,
+                    request.TargetAcademicSectionId, ct);
             if (sectionPlacement.Error != null) return Error(sectionPlacement.Error, 409);
             if (targetYear.Id == sourceYear.Id || targetYear.StartDate <= sourceYear.StartDate)
                 return Error("Progression must target a later academic year.", 409);
