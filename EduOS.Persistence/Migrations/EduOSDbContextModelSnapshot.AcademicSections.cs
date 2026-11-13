@@ -13,7 +13,6 @@ partial class EduOSDbContextModelSnapshot
         {
             b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
             SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-            b.Property<long?>("AcademicBatchId").HasColumnType("bigint");
             b.Property<long>("CampusId").HasColumnType("bigint");
             b.Property<long>("AcademicLevelId").HasColumnType("bigint");
             b.Property<int>("Capacity").HasColumnType("int");
@@ -33,10 +32,8 @@ partial class EduOSDbContextModelSnapshot
             b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
             b.Property<long?>("UpdatedBy").HasColumnType("bigint");
             b.HasKey("Id");
-            b.HasIndex("TenantId", "AcademicBatchId", "Code")
-                .IsUnique().HasFilter("[AcademicBatchId] IS NOT NULL AND [IsDeleted] = 0");
             b.HasIndex("TenantId", "CampusId", "AcademicLevelId", "Code")
-                .IsUnique().HasFilter("[AcademicBatchId] IS NULL AND [IsDeleted] = 0")
+                .IsUnique().HasFilter("[IsDeleted] = 0")
                 .HasDatabaseName("UX_AcademicSections_Campus_Level_Code");
             b.HasIndex("TenantId", "ClientRequestId")
                 .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
@@ -75,10 +72,6 @@ partial class EduOSDbContextModelSnapshot
             b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
                 .WithMany().HasForeignKey("TenantId")
                 .OnDelete(DeleteBehavior.Restrict).IsRequired();
-            b.HasOne("EduOS.Core.Entities.Academic.AcademicBatch", null)
-                .WithMany().HasForeignKey("TenantId", "AcademicBatchId")
-                .HasPrincipalKey("TenantId", "Id")
-                .OnDelete(DeleteBehavior.Restrict);
             b.HasOne("EduOS.Core.Entities.SaaS.Campus", null)
                 .WithMany().HasForeignKey("TenantId", "CampusId")
                 .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict).IsRequired();
