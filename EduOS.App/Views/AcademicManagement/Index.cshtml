@@ -19,12 +19,8 @@
 }
 <div id="academicManagement" class="container-fluid py-4" data-active-feature="@(section)">
     @Html.AntiForgeryToken()
-    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
-        <div>
-
-            <h1 class="h4 fw-bold mb-0">@(bn ? feature.Bn : feature.En)</h1>
-        </div>
-        <button id="academicRefresh" type="button" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
+    <div class="academic-actions">
+        <button id="academicRefresh" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
     </div>
     <div id="academicNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <section data-section="departments" class="card border-0 shadow-sm @(section == "departments" ? "" : "d-none")">
