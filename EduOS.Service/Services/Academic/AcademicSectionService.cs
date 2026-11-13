@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace EduOS.Service.Services.Academic;
 
-/// <summary>Explicit sections owned by an academic batch. Legacy compatibility rows are immutable.</summary>
+/// <summary>Tenant-scoped teaching sections owned by one academic batch.</summary>
 public sealed class AcademicSectionService
 {
     private readonly IGenericRepository<AcademicSection> _sections;
@@ -59,7 +59,6 @@ public sealed class AcademicSectionService
         Name = section.Name,
         Code = section.Code,
         Capacity = section.Capacity,
-        IsLegacyDefault = section.IsLegacyDefault,
         IsActive = section.IsActive,
         DisplayOrder = section.DisplayOrder,
         RowVersion = Convert.ToBase64String(section.RowVersion)
@@ -198,8 +197,6 @@ public sealed class AcademicSectionService
                 var row = await _sections.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == id && !x.IsDeleted, token);
                 if (row == null) return Error<AcademicSectionDto>("Section not found.", 404);
-                if (row.IsLegacyDefault)
-                    return Error<AcademicSectionDto>("Legacy section metadata is managed through its existing batch record.", 409);
                 var name = request.Name.Trim();
                 if (row.Name == name && row.Capacity == request.Capacity &&
                     row.DisplayOrder == request.DisplayOrder && row.IsActive == request.IsActive)
@@ -247,7 +244,6 @@ public sealed class AcademicSectionService
                     x.TenantId == tenant && x.Id == id, token);
                 if (row == null) return Error<bool>("Section not found.", 404);
                 if (row.IsDeleted) return ApiResponse<bool>.SuccessResponse(true, "Section already removed.");
-                if (row.IsLegacyDefault) return Error<bool>("Historical section cannot be deleted.", 409);
                 if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, expected))
                     return Error<bool>("Section changed. Reload before deleting.", 409);
                 if (await ReferencedAsync(id, tenant, token))
