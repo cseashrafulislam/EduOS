@@ -248,7 +248,8 @@ public sealed partial class StudentImportExecutionService : IStudentImportExecut
                 foreach (var batch in batches)
                 {
                     var placement = await AcademicSectionPlacementPolicy.ResolveAsync(
-                        _db.AcademicSections, tenant, batch.Id, null, token);
+                        _db.AcademicSections, tenant, batch.CampusId, batch.AcademicLevelId,
+                        null, token);
                     if (placement.Error != null)
                         return ApiResponse<StudentImportExecutionDto>.ErrorResponse(
                             "Academic batch " + batch.Code + ": " + placement.Error +
