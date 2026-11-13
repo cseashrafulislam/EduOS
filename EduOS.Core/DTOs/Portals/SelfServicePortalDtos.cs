@@ -18,7 +18,7 @@ public sealed class PortalEnrollmentHistoryDto
     public long CampusId { get; set; }
     public long AcademicYearId { get; set; }
     public long AcademicLevelId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public string RollNo { get; set; } = string.Empty;
     public string? RegistrationNo { get; set; }
     public DateOnly EnrollmentDate { get; set; }

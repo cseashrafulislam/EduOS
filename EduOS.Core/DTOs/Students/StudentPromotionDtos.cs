@@ -43,7 +43,7 @@ public sealed class StudentPromotionResultDto
     public StudentProgressionDecisionType Decision { get; set; }
     public long AcademicYearId { get; set; }
     public long AcademicLevelId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public long? AcademicTrackId { get; set; }
     public string Roll { get; set; } = string.Empty;
@@ -60,8 +60,8 @@ public sealed class StudentPromotionHistoryDto
     public long ToAcademicYearId { get; set; }
     public long FromAcademicLevelId { get; set; }
     public long ToAcademicLevelId { get; set; }
-    public long FromAcademicBatchId { get; set; }
-    public long ToAcademicBatchId { get; set; }
+    public long? FromAcademicBatchId { get; set; }
+    public long? ToAcademicBatchId { get; set; }
     public long? FromAcademicTrackId { get; set; }
     public long? ToAcademicTrackId { get; set; }
     public string FromRoll { get; set; } = string.Empty;

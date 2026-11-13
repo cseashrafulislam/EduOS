@@ -30,7 +30,7 @@ public sealed class StudentReadmissionResultDto
 {
     public Guid StudentReference { get; set; }
     public Guid EnrollmentReference { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long? AcademicSectionId { get; set; }
     public string Roll { get; set; } = "";
     public string Status { get; set; } = "Active";

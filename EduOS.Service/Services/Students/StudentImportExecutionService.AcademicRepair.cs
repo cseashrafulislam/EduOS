@@ -327,7 +327,7 @@ public sealed partial class StudentImportExecutionService
             if (!registrations.Any(x => x.StudentEnrollmentId == enrollment.Id &&
                 x.SubjectOfferingId == matches[0].Id))
                 missing.Add(new MissingAcademicRegistration(rowsByStudent[enrollment.StudentId],
-                    enrollment.Id, enrollment.AcademicBatchId, matches[0].Id, subject.CreditHours));
+                    enrollment.Id, enrollment.AcademicBatchId.GetValueOrDefault(), matches[0].Id, subject.CreditHours));
         }
         if (missing.Count > 2000)
             return ApiResponse<AcademicRepairPlan>.ErrorResponse("Repair exceeds the 2,000-registration limit.", 409);

@@ -196,7 +196,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                 MaskedMobile = MaskMobile(x.Phone),
                 AcademicYear = e != null ? lookups.YearNames.GetValueOrDefault(e.AcademicYearId) ?? string.Empty : string.Empty,
                 AcademicLevelName = e != null ? lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty : string.Empty,
-                AcademicBatchName = e != null ? lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty : string.Empty,
+                AcademicBatchName = e != null ? lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId ?? 0) ?? string.Empty : string.Empty,
                 AcademicSectionName = e?.AcademicSectionId is long sectionId &&
                     lookups.SectionNames.TryGetValue(sectionId, out var section) &&
                     section.CampusId == e.CampusId && section.AcademicLevelId == e.AcademicLevelId
@@ -227,7 +227,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
             MaskedMobile = MaskMobile(student.Phone),
             AcademicYear = current != null ? lookups.YearNames.GetValueOrDefault(current.AcademicYearId) ?? string.Empty : string.Empty,
             AcademicLevelName = current != null ? lookups.LevelNames.GetValueOrDefault(current.AcademicLevelId) ?? string.Empty : string.Empty,
-            AcademicBatchName = current != null ? lookups.BatchNames.GetValueOrDefault(current.AcademicBatchId) ?? string.Empty : string.Empty,
+            AcademicBatchName = current != null ? lookups.BatchNames.GetValueOrDefault(current.AcademicBatchId ?? 0) ?? string.Empty : string.Empty,
             AcademicSectionName = current?.AcademicSectionId is long currentSectionId &&
                 lookups.SectionNames.TryGetValue(currentSectionId, out var currentSection) &&
                 currentSection.CampusId == current.CampusId && currentSection.AcademicLevelId == current.AcademicLevelId
@@ -266,7 +266,7 @@ public sealed class StudentDirectoryService : IStudentDirectoryService
                 AcademicTerm = e.AcademicTermId.HasValue ? lookups.TermNames.GetValueOrDefault(e.AcademicTermId.Value) : null,
                 Campus = lookups.CampusNames.GetValueOrDefault(e.CampusId),
                 AcademicLevelName = lookups.LevelNames.GetValueOrDefault(e.AcademicLevelId) ?? string.Empty,
-                AcademicBatchName = lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId) ?? string.Empty,
+                AcademicBatchName = lookups.BatchNames.GetValueOrDefault(e.AcademicBatchId ?? 0) ?? string.Empty,
                 AcademicSectionName = e.AcademicSectionId is long entrySectionId &&
                     lookups.SectionNames.TryGetValue(entrySectionId, out var entrySection) &&
                     entrySection.CampusId == e.CampusId && entrySection.AcademicLevelId == e.AcademicLevelId

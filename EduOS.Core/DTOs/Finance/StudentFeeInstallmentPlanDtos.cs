@@ -101,7 +101,7 @@ public sealed class StudentFeeInstallmentPlanDto
     public string StudentCode { get; set; } = string.Empty;
     public string StudentName { get; set; } = string.Empty;
     public long CampusId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public long FeeStructureId { get; set; }
     public DateOnly StartMonth { get; set; }
     public DateOnly EndMonth { get; set; }
