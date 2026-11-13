@@ -6,6 +6,7 @@ on:
       - 'EduOS.App/Views/AcademicManagement/**'
       - 'EduOS.App/wwwroot/js/academic/management*.js'
       - 'EduOS.App/wwwroot/css/academic/management-workspace.css'
+      - 'EduOS.Tests/JavaScript/academic-management-workspace-polish.test.cjs'
       - 'EduOS.App/Controllers/AcademicManagementController.cs'
       - 'EduOS.App/Views/Attendance/**'
       - 'EduOS.App/Views/StudentLeaves/**'
