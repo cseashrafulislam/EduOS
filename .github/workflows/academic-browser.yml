@@ -51,6 +51,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify academic checkbox and navigation responsive layout in Chromium
         run: node tests/browser/academic-management-layout.cjs
+      - name: Verify Academic Sections/Batches compact layout in Chromium
+        run: node tests/browser/academic-sections-compact-layout.cjs
       - name: Exercise academic management browser UI
         run: node tests/browser/academic-management.cjs
       - name: Exercise authenticated transcript issue and revocation UI
