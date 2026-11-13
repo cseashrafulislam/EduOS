@@ -5,6 +5,7 @@ using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Entities.HR;
 using EduOS.Persistence.Context;
+using EduOS.Service.Services.Academic;
 using EduOS.Core.Enums.Domain;
 using EduOS.Core.Interfaces;
 using EduOS.Core.Interfaces.IRepositories;
