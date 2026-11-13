@@ -65,6 +65,9 @@ jobs:
             echo "::endgroup::"
           fi
 
+      - name: Test stale-session login recovery
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AuthSessionRedirectLoopTests" --logger "console;verbosity=normal"
+
       - name: Setup Node.js for UI contracts
         uses: actions/setup-node@v4
         with:

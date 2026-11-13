@@ -39,6 +39,29 @@ public sealed class AuthSessionRedirectLoopTests
     }
 
     [Fact]
+    public async Task Revoked_registry_cookie_can_reauthenticate_without_clearing_a_newer_cookie()
+    {
+        await using var db = Db();
+        var sid = await AuthSessionRegistry.CreateAsync(db, 51, 25, "", "", false);
+        Assert.True(await AuthSessionRegistry.RevokeAsync(db, 51, sid));
+        var request = Request("/Account/Login", "GET", true, sid);
+        var reached = false;
+        var middleware = new AuthSessionMiddleware(context =>
+        {
+            reached = true;
+            Assert.False(context.User.Identity?.IsAuthenticated == true);
+            return Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(request, db);
+
+        Assert.True(reached);
+        Assert.Equal(StatusCodes.Status200OK, request.Response.StatusCode);
+        Assert.False(request.Response.Headers.ContainsKey("Set-Cookie"));
+        Assert.False(request.Response.Headers.ContainsKey("Location"));
+    }
+
+    [Fact]
     public async Task Malformed_tenant_claim_does_not_block_anonymous_login()
     {
         await using var db = Db();
