@@ -16,7 +16,7 @@ public sealed partial class AcademicSetupService
         if (page < 1 || pageSize is < 1 or > 100 || search?.Length > 80 ||
             campusId is <= 0 || academicYearId is <= 0 ||
             (long)(page - 1) * pageSize > int.MaxValue)
-            return Error<PagedResult<AcademicBatchDto>>("Invalid section search, filters or page.");
+            return Error<PagedResult<AcademicBatchDto>>("Invalid academic batch search, filters or page.");
         var tenant = _currentUser.TenantId;
         var query = _batches.GetQueryable().AsNoTracking().Where(x =>
             x.TenantId == tenant && !x.IsDeleted);
@@ -39,11 +39,11 @@ public sealed partial class AcademicSetupService
     public async Task<ApiResponse<AcademicBatchDto>> GetBatchAsync(long id, CancellationToken ct = default)
     {
         if (!CanManageDepartments()) return Denied<AcademicBatchDto>();
-        if (id <= 0) return Error<AcademicBatchDto>("Valid section ID is required.");
+        if (id <= 0) return Error<AcademicBatchDto>("Valid academic batch ID is required.");
         var tenant = _currentUser.TenantId;
         var row = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
             x.TenantId == tenant && x.Id == id && !x.IsDeleted, ct);
-        if (row == null) return Error<AcademicBatchDto>("Section not found.", 404);
+        if (row == null) return Error<AcademicBatchDto>("Academic batch not found.", 404);
         var mapped = await MapBatchNamesAsync([row], ct);
         return ApiResponse<AcademicBatchDto>.SuccessResponse(mapped[0]);
     }
@@ -55,28 +55,28 @@ public sealed partial class AcademicSetupService
         if (id <= 0 || request == null || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length > 150 || request.Capacity is < 0 or > 100000 ||
             request.DisplayOrder < 0)
-            return Task.FromResult(Error<AcademicBatchDto>("Invalid section name, capacity or order."));
+            return Task.FromResult(Error<AcademicBatchDto>("Invalid academic batch name, capacity or order."));
         byte[] expected;
         try { expected = Convert.FromBase64String(request.RowVersion ?? string.Empty); }
-        catch (FormatException) { return Task.FromResult(Error<AcademicBatchDto>("Invalid section version.")); }
+        catch (FormatException) { return Task.FromResult(Error<AcademicBatchDto>("Invalid academic batch version.")); }
         if (expected.Length != 8)
-            return Task.FromResult(Error<AcademicBatchDto>("Valid section version is required."));
-        return ExecuteWriteAsync("update academic section metadata", async () =>
+            return Task.FromResult(Error<AcademicBatchDto>("Valid academic batch version is required."));
+        return ExecuteWriteAsync("update academic batch metadata", async () =>
         {
             var tenant = _currentUser.TenantId;
             var row = await _batches.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == id && !x.IsDeleted, ct);
-            if (row == null) return Error<AcademicBatchDto>("Section not found.", 404);
+            if (row == null) return Error<AcademicBatchDto>("Academic batch not found.", 404);
             var name = request.Name.Trim();
             // Replayed identical requests do not mutate audit fields or require a new row version.
             if (row.Name == name && row.Capacity == request.Capacity &&
                 row.DisplayOrder == request.DisplayOrder)
-                return ApiResponse<AcademicBatchDto>.SuccessResponse(MapBatch(row), "Section already has these settings.");
+                return ApiResponse<AcademicBatchDto>.SuccessResponse(MapBatch(row), "Academic batch already has these settings.");
             if (!CryptographicOperations.FixedTimeEquals(row.RowVersion, expected))
-                return Error<AcademicBatchDto>("Section changed concurrently. Reload before saving.", 409);
+                return Error<AcademicBatchDto>("Academic batch changed concurrently. Reload before saving.", 409);
             // Without enrollment reconciliation, never reduce capacity or deactivate a live section.
             if (request.Capacity < row.Capacity)
-                return Error<AcademicBatchDto>("Capacity reduction requires enrollment reconciliation.", 409);
+                return Error<AcademicBatchDto>("Batch capacity reduction requires enrollment reconciliation.", 409);
             row.Name = name;
             row.Capacity = request.Capacity;
             row.DisplayOrder = request.DisplayOrder;
@@ -101,7 +101,7 @@ public sealed partial class AcademicSetupService
             row.UpdatedBy = _currentUser.UserId;
             _batches.Update(row);
             await _unitOfWork.SaveChangesAsync(ct);
-            return ApiResponse<AcademicBatchDto>.SuccessResponse(MapBatch(row), "Section metadata saved.");
+            return ApiResponse<AcademicBatchDto>.SuccessResponse(MapBatch(row), "Academic batch updated.");
         }, serializable: true);
     }
 
