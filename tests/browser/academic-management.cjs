@@ -316,12 +316,12 @@ async function main() {
         await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Current'));
         assert(mutations.some(x => x.path.endsWith('/activate') && x.method === 'PUT'));
         await openFeature('sections');
-        await page.locator('#sectionName').fill('Grade Nine A');
-        await page.locator('#sectionCode').fill('G9-A');
-        await page.locator('#sectionStart').fill('2026-01-10');
-        await page.locator('#sectionEnd').fill('2026-12-20');
-        await page.locator('#sectionForm button[type="submit"]').click();
-        await page.waitForFunction(() => document.querySelector('#sectionRows')?.textContent.includes('Grade Nine A'));
+        await page.locator('#batchCreateName').fill('Grade Nine A');
+        await page.locator('#batchCreateCode').fill('G9-A');
+        await page.locator('#batchCreateStart').fill('2026-01-10');
+        await page.locator('#batchCreateEnd').fill('2026-12-20');
+        await page.locator('#batchCreateForm button[type="submit"]').click();
+        await page.waitForFunction(() => document.querySelector('#batchRegisterRows')?.textContent.includes('Grade Nine A'));
         const section = mutations.find(x => x.path.endsWith('/batches'));
         assert.equal(section.data.academicProgramId, 401);
         assert.equal(section.data.academicLevelId, 501);
