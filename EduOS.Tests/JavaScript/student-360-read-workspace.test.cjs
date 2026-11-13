@@ -92,7 +92,7 @@ test('F10 subject registration history reuses tenant-authorized bounded canonica
 
 test('F10 CSV export neutralizes spreadsheet formulas after invisible or whitespace prefixes', () => {
     const js = read('EduOS.App/wwwroot/js/students/student-360.js');
-    const match = js.match(/    function csvCell\\(value\\) \\{([\\s\\S]*?)\\n    \\}/);
+    const match = js.match(/    function csvCell\(value\) \{([\s\S]*?)\n    \}/);
     assert.ok(match, 'CSV serializer must exist');
     const csvCell = new Function('value', match[1]);
     const payloads = ['=1+1', '  =1+1', String.fromCharCode(9) + '=1+1',
