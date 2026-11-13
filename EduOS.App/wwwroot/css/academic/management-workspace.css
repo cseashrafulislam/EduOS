@@ -183,7 +183,7 @@
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-shell {
     border: 0;
     border-radius: 0;
-    margin: 0 0 .75rem;
+    margin: 0 0 .4rem;
     background: transparent;
     overflow: visible;
 }
@@ -201,15 +201,15 @@
     min-height: 2.55rem;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-shell.is-expanded {
-    border: 1px solid var(--academic-line);
-    border-radius: .72rem;
-    padding: .85rem .95rem 1rem;
-    margin-bottom: 1rem;
-    background: var(--academic-paper);
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: .7rem;
+    background: transparent;
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-shell.is-expanded .academic-editor-bar {
-    padding-bottom: .7rem;
-    margin-bottom: .75rem;
+    padding-bottom: .48rem;
+    margin-bottom: .65rem;
     border-bottom: 1px solid var(--academic-line);
 }
 :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-form-actions {
@@ -239,9 +239,37 @@
 #academicManagement .academic-curriculum-related .btn {
     min-height: 2.55rem;
 }
-#academicManagement .academic-editor-bar--split {
+:where(#academicManagement, #academicSectionsPage) .academic-editor-bar--split {
     justify-content: space-between;
-    gap: .75rem;
+    gap: .55rem;
+}
+:where(#academicManagement, #academicSectionsPage) .academic-editor-bar--split .academic-related-link {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: normal;
+}
+#academicSectionsPage > .card > .card-body > .academic-directory {
+    margin-top: .55rem;
+}
+#academicSectionsPage .academic-directory-search {
+    margin-bottom: .6rem;
+}
+#academicSectionsPage .academic-directory-search .form-control {
+    width: min(100%, 270px);
+}
+#academicSectionsPage .academic-directory-search .d-flex {
+    flex: 1 1 260px;
+}
+#academicSectionsPage .academic-directory-search .d-flex > .form-control {
+    flex: 1 1 150px;
+    min-width: 0;
+}
+#academicSectionsPage .academic-editor-shell.is-expanded,
+#academicManagement .academic-editor-shell.is-expanded {
+    border: 0;
+    padding: 0;
 }
 #academicManagement .academic-curriculum-related {
     min-width: 0;
@@ -337,6 +365,16 @@
     #academicManagement .academic-editor-bar--split > button {
         width: 100%;
     }
+    #academicSectionsPage .academic-editor-bar--split {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+    #academicSectionsPage .academic-editor-bar--split > :is(.btn,button) {
+        flex: 1 1 145px;
+    }
+    #academicSectionsPage .academic-directory-search .d-flex > button {
+        min-width: 80px;
+    }
     #prerequisiteWorkspace .academic-back-button {
         line-height: 1.25;
         overflow-wrap: anywhere;
@@ -351,7 +389,7 @@
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form { padding: 0; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table-responsive > .table { min-width: 620px; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-bar { align-items: center; }
-    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-shell.is-expanded { padding: .75rem; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-shell.is-expanded { padding: 0; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-form-actions { justify-content: stretch; }
     :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-form-actions > .btn { flex: 1 1 8rem; }
 }
