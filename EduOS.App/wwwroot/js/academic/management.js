@@ -305,24 +305,5 @@
             if (sameSession()) notice(committed ? 'Campus allocation saved, but the display failed.' : error.message, true);
         } finally { allocationSaving = false; submit.disabled = false; form.inert = false; }
     });
-    el('academicRefresh').addEventListener('click', () => {
-        if (!sameSession()) return;
-        const dirty = [...formGuards].filter(([, item]) => item?.isDirty());
-        if (dirty.length && !confirm('Discard unsaved academic form changes and refresh?')) return;
-        for (const [id, item] of dirty) {
-            const form = el(id);
-            form.reset();
-            if (id === 'yearForm' || id === 'termForm') {
-                const kind = id.slice(0, -4);
-                el(kind + 'Id').value = '';
-                el(kind + 'Version').value = '';
-            }
-            if (id === 'programAllocationForm') form.classList.add('d-none');
-            delete form.dataset.requestId;
-            delete form.dataset.requestFingerprint;
-            item.markClean();
-        }
-        reload().then(() => notice('Academic setup refreshed.')).catch(e => notice(e.message, true));
-    });
     reload().catch(e => notice(e.message, true));
 })();
