@@ -1,62 +1,138 @@
 @model EduOS.App.Controllers.WebhookTestWorkspaceVm
 @using EduOS.Core.Enums.Domain
-@{ ViewData["Title"] = "Webhook Test Delivery"; }
-<div class="container py-3">
-<h2>Webhook Test Delivery</h2>
-<a href="/IntegrationAdministration/Index">Integration Administration</a>
-<p>Administrator-initiated signed HTTPS test delivery. Automatic dispatch remains disabled.</p>
-@if (TempData["WebhookNotice"] is string message) { <div class="alert alert-info">@message</div> }
-@if (Model.Error != null) { <div class="alert alert-warning">@Model.Error</div> }
-<form asp-action="Index" method="get">
-<label for="endpointId">Endpoint</label>
-<select id="endpointId" name="endpointId" class="form-select">
-@foreach (var endpoint in Model.Endpoints.Items)
-{
-<option value="@endpoint.Id" selected="@(endpoint.Id == Model.EndpointId)">@endpoint.Name</option>
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "ওয়েবহুক পরীক্ষামূলক ডেলিভারি" : "Webhook Test Delivery";
 }
-</select>
-<button type="submit" class="btn btn-outline-primary">Load</button>
-</form>
-@if (Model.EndpointId.HasValue && Model.Endpoints.Items.Any(x => x.Id == Model.EndpointId && x.IsActive && x.HasSecret))
-{
-<form asp-action="Test" method="post" data-confirm-webhook>
-@Html.AntiForgeryToken()
-<input type="hidden" name="endpointId" value="@Model.EndpointId" />
-<input type="hidden" name="clientRequestId" value="@Guid.NewGuid()" />
-<button type="submit" class="btn btn-primary mt-2">Send signed test</button>
-</form>
-}
-<div class="my-2">
-@if (Model.EndpointPage > 1) { <a asp-action="Index" asp-route-endpointPage="@(Model.EndpointPage - 1)">Previous endpoints</a> }
-<span>Page @Model.EndpointPage / @Math.Max(1, Model.Endpoints.TotalPages)</span>
-@if (Model.EndpointPage < Model.Endpoints.TotalPages) { <a asp-action="Index" asp-route-endpointPage="@(Model.EndpointPage + 1)">Next endpoints</a> }
-</div>
-<table class="table table-striped">
-<thead><tr><th>Event</th><th>State</th><th>Attempts</th><th>Failure</th><th>Retry</th></tr></thead>
-<tbody>
-@foreach (var delivery in Model.Deliveries.Items)
-{
-<tr>
-<td>@delivery.EventCode</td><td>@delivery.State</td><td>@delivery.AttemptCount</td><td>@delivery.FailureReason</td>
-<td>
-@if (delivery.EventCode == "WEBHOOK.TEST" && delivery.AttemptCount < 3 && (delivery.State == WebhookDeliveryState.Failed ||
- (delivery.State == WebhookDeliveryState.Pending && delivery.NextAttemptAt <= DateTime.UtcNow)))
-{
-<form asp-action="Retry" method="post" data-confirm-webhook>
-@Html.AntiForgeryToken()
-<input type="hidden" name="endpointId" value="@Model.EndpointId" />
-<input type="hidden" name="deliveryId" value="@delivery.Id" />
-<input type="hidden" name="expectedAttemptCount" value="@delivery.AttemptCount" />
-<input type="hidden" name="clientRequestId" value="@Guid.NewGuid()" />
-<button type="submit" class="btn btn-outline-warning btn-sm">Retry</button>
-</form>
-}
-</td>
-</tr>
-}
-</tbody>
-</table>
-@if (Model.DeliveryPage > 1) { <a asp-action="Index" asp-route-endpointId="@Model.EndpointId" asp-route-deliveryPage="@(Model.DeliveryPage - 1)">Previous deliveries</a> }
-@if (Model.DeliveryPage < Model.Deliveries.TotalPages) { <a asp-action="Index" asp-route-endpointId="@Model.EndpointId" asp-route-deliveryPage="@(Model.DeliveryPage + 1)">Next deliveries</a> }
-</div>
+<section id="webhookTestWorkspace" class="container-fluid py-2">
+    @* Title is supplied by the shared page header. This is a technical child of Integration Administration. *@
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <p class="small text-muted mb-0">@(bn ? "কনফিগার করা HTTPS endpoint-এ স্বাক্ষরিত পরীক্ষামূলক অনুরোধ পাঠান" : "Send a signed test request to a configured HTTPS endpoint")</p>
+        <a href="/IntegrationAdministration/Index" class="btn btn-outline-secondary btn-sm">@(bn ? "ইন্টিগ্রেশন সেটিংসে ফিরুন" : "Back to integrations")</a>
+    </div>
+    <div class="alert alert-warning small py-2 mb-2" role="note">
+        @(bn ? "শুধু Admin-এর অনুরোধে টেস্ট পাঠানো হয়। স্বয়ংক্রিয় ইভেন্ট ডেলিভারি বন্ধ আছে।" : "Manual test delivery only. Automatic event dispatch remains disabled.")
+    </div>
+    @if (TempData["WebhookNotice"] is string message)
+    {
+        <div class="alert @(TempData["WebhookNoticeSuccess"] is bool ok && ok ? "alert-success" : "alert-warning") small py-2" role="status">@message</div>
+    }
+    @if (Model.Error != null)
+    {
+        <div class="alert alert-warning small py-2" role="alert">@Model.Error</div>
+    }
+    <section class="card border-0 shadow-sm mb-2" aria-label="@(bn ? "টেস্ট এন্ডপয়েন্ট" : "Test endpoint")">
+        <div class="card-body p-3">
+            <form asp-action="Index" method="get" class="row g-2 align-items-end mb-2">
+                <div class="col-12 col-md-6 col-xl-5">
+                    <label for="endpointId" class="form-label">@(bn ? "ওয়েবহুক এন্ডপয়েন্ট" : "Webhook endpoint")</label>
+                    <select id="endpointId" name="endpointId" class="form-select form-select-sm">
+                        @foreach (var endpoint in Model.Endpoints.Items)
+                        {
+                            <option value="@endpoint.Id" selected="@(endpoint.Id == Model.EndpointId)">@endpoint.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-outline-primary btn-sm" disabled="@(Model.Endpoints.Items.Count == 0)">@(bn ? "ডেলিভারি দেখুন" : "View deliveries")</button>
+                </div>
+            </form>
+            @if (Model.Endpoints.Items.Count == 0)
+            {
+                <p class="small text-muted mb-2">@(bn ? "কোনো ওয়েবহুক নেই। প্রথমে Integration Administration পেজে একটি endpoint যোগ করুন।" : "No webhook endpoints configured. Add an endpoint in Integration Administration first.")</p>
+            }
+            @if (Model.EndpointId.HasValue && Model.Endpoints.Items.Any(x => x.Id == Model.EndpointId && x.IsActive && x.HasSecret))
+            {
+                <form asp-action="Test" method="post" data-confirm-webhook class="d-flex align-items-center flex-wrap gap-2">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="endpointId" value="@Model.EndpointId" />
+                    <input type="hidden" name="clientRequestId" value="@Guid.NewGuid()" />
+                    <button type="submit" class="btn btn-primary btn-sm">@(bn ? "স্বাক্ষরিত টেস্ট পাঠান" : "Send signed test")</button>
+                    <span class="small text-muted">@(bn ? "Active endpoint ও signing secret প্রয়োজন।" : "Requires an active endpoint with a signing secret.")</span>
+                </form>
+            }
+            else if (Model.EndpointId.HasValue && Model.Endpoints.Items.Any(x => x.Id == Model.EndpointId))
+            {
+                <p class="small text-muted mb-0">@(bn ? "টেস্ট পাঠাতে endpoint Active করুন এবং signing secret দিন।" : "Activate the endpoint and configure its signing secret before sending a test.")</p>
+            }
+            <nav class="d-flex align-items-center gap-2 mt-2" aria-label="@(bn ? "এন্ডপয়েন্ট পৃষ্ঠা" : "Endpoint pages")">
+                @if (Model.EndpointPage > 1)
+                {
+                    <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-endpointPage="@(Model.EndpointPage - 1)">@(bn ? "আগের" : "Previous")</a>
+                }
+                <span class="small text-muted">@(bn ? "এন্ডপয়েন্ট পৃষ্ঠা" : "Endpoint page") @Model.EndpointPage / @Math.Max(1, Model.Endpoints.TotalPages)</span>
+                @if (Model.EndpointPage < Model.Endpoints.TotalPages)
+                {
+                    <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-endpointPage="@(Model.EndpointPage + 1)">@(bn ? "পরের" : "Next")</a>
+                }
+            </nav>
+        </div>
+    </section>
+    <section class="card border-0 shadow-sm" aria-labelledby="webhookDeliveryHeading">
+        <div class="card-body p-3">
+            <h2 id="webhookDeliveryHeading" class="h6 fw-semibold mb-2">@(bn ? "পরীক্ষামূলক ডেলিভারি ইতিহাস" : "Test delivery history")</h2>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead><tr>
+                        <th>@(bn ? "ইভেন্ট" : "Event")</th>
+                        <th>@(bn ? "অবস্থা" : "Status")</th>
+                        <th>@(bn ? "চেষ্টা" : "Attempts")</th>
+                        <th>@(bn ? "ব্যর্থতার কারণ" : "Failure reason")</th>
+                        <th class="text-end">@(bn ? "পুনরায় চেষ্টা" : "Action")</th>
+                    </tr></thead>
+                    <tbody>
+                        @if (Model.Deliveries.Items.Count == 0)
+                        {
+                            <tr><td colspan="5" class="text-muted small">@(bn ? "এই এন্ডপয়েন্টে কোনো ডেলিভারি পাওয়া যায়নি।" : "No deliveries found for this endpoint.")</td></tr>
+                        }
+                        @foreach (var delivery in Model.Deliveries.Items)
+                        {
+                            <tr>
+                                <td>@delivery.EventCode</td>
+                                <td><span class="badge rounded-pill text-bg-light border">@delivery.State</span></td>
+                                <td>@delivery.AttemptCount</td>
+                                <td class="webhook-failure">@delivery.FailureReason</td>
+                                <td class="text-end">
+                                    @if (delivery.EventCode == "WEBHOOK.TEST" && delivery.AttemptCount < 3 &&
+                                        (delivery.State == WebhookDeliveryState.Failed ||
+                                        (delivery.State == WebhookDeliveryState.Pending && delivery.NextAttemptAt <= DateTime.UtcNow)))
+                                    {
+                                        <form asp-action="Retry" method="post" data-confirm-webhook data-confirm-retry>
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="endpointId" value="@Model.EndpointId" />
+                                            <input type="hidden" name="deliveryId" value="@delivery.Id" />
+                                            <input type="hidden" name="expectedAttemptCount" value="@delivery.AttemptCount" />
+                                            <input type="hidden" name="clientRequestId" value="@Guid.NewGuid()" />
+                                            <button type="submit" class="btn btn-outline-warning btn-sm">@(bn ? "Retry" : "Retry")</button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <nav class="d-flex align-items-center gap-2 mt-2" aria-label="@(bn ? "ডেলিভারি পৃষ্ঠা" : "Delivery pages")">
+                @if (Model.DeliveryPage > 1)
+                {
+                    <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-endpointId="@Model.EndpointId" asp-route-deliveryPage="@(Model.DeliveryPage - 1)">@(bn ? "আগের" : "Previous")</a>
+                }
+                <span class="small text-muted">@(bn ? "ডেলিভারি পৃষ্ঠা" : "Delivery page") @Model.DeliveryPage / @Math.Max(1, Model.Deliveries.TotalPages)</span>
+                @if (Model.DeliveryPage < Model.Deliveries.TotalPages)
+                {
+                    <a class="btn btn-outline-secondary btn-sm" asp-action="Index" asp-route-endpointId="@Model.EndpointId" asp-route-deliveryPage="@(Model.DeliveryPage + 1)">@(bn ? "পরের" : "Next")</a>
+                }
+            </nav>
+        </div>
+    </section>
+</section>
+<style>
+    #webhookTestWorkspace .card { border-radius: .7rem; }
+    #webhookTestWorkspace .form-label { font-size: .78rem; font-weight: 600; margin-bottom: .25rem; }
+    #webhookTestWorkspace .table { font-size: .83rem; }
+    #webhookTestWorkspace .table thead th { background: var(--bs-tertiary-bg, #f8fafc); color: var(--bs-secondary-color, #64748b); font-weight: 600; white-space: nowrap; }
+    #webhookTestWorkspace .webhook-failure { overflow-wrap: anywhere; max-width: 420px; }
+    #webhookTestWorkspace .table-responsive { scrollbar-width: thin; }
+    @@media (max-width: 575.98px) { #webhookTestWorkspace table { min-width: 520px; } }
+</style>
 @section Scripts { <script src="~/js/integration-admin/webhook-tests.js" asp-append-version="true"></script> }
