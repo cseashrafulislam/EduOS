@@ -114,22 +114,15 @@
                 tr.appendChild(td);
             }
             const actions = document.createElement('td');
-            if (row.isLegacyDefault) {
-                const managed = document.createElement('span');
-                managed.className = 'small text-muted';
-                managed.textContent = 'Batch-managed section';
-                actions.append(managed);
-            } else {
-                const edit = document.createElement('button');
-                edit.className = 'btn btn-sm btn-outline-primary me-2';
-                edit.type = 'button'; edit.textContent = 'Edit';
-                edit.addEventListener('click', () => beginEdit(row));
-                const remove = document.createElement('button');
-                remove.className = 'btn btn-sm btn-outline-danger';
-                remove.type = 'button'; remove.textContent = 'Delete';
-                remove.addEventListener('click', () => removeSection(row));
-                actions.append(edit, remove);
-            }
+            const edit = document.createElement('button');
+            edit.className = 'btn btn-sm btn-outline-primary me-2';
+            edit.type = 'button'; edit.textContent = 'Edit';
+            edit.addEventListener('click', () => beginEdit(row));
+            const remove = document.createElement('button');
+            remove.className = 'btn btn-sm btn-outline-danger';
+            remove.type = 'button'; remove.textContent = 'Delete';
+            remove.addEventListener('click', () => removeSection(row));
+            actions.append(edit, remove);
             tr.appendChild(actions); body.appendChild(tr);
         }
     }
