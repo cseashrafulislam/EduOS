@@ -320,7 +320,7 @@ public sealed class SmartSetupService(
                     all.AddRange(await db.Roles.IgnoreQueryFilters().AsNoTracking()
                         .Where(x => x.TenantId == tenant &&
                             (normalizedCodes.Contains(x.NormalizedName!) || names.Contains(x.Name!)))
-                        .Select(x => new Existing("Role", x.Name ?? "", x.Name ?? "",
+                        .Select(x => new Existing("Role", x.NormalizedName ?? "", x.Name ?? "",
                             x.IsActive && !x.IsDeleted && !x.IsSystemRole)).ToListAsync(ct));
                     break;
                 case "Medium":
@@ -455,7 +455,7 @@ public sealed class SmartSetupService(
                 // The row is rechecked against the reviewed catalog in the same
                 // serializable transaction; never insert grants or unscoped roles.
                 if (!EduOS.Persistence.Seed.RoleSeeder.InstitutionSetupRoles.Contains(row.Name, StringComparer.Ordinal) ||
-                    row.Code != row.Name)
+                    row.Code != row.Name.ToUpperInvariant())
                     throw new SetupConflict("Selected role is not an approved institution template.");
                 db.Roles.Add(new ApplicationRole
                 {

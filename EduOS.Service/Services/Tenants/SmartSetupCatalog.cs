@@ -108,7 +108,7 @@ internal static class SmartSetupCatalog
         }
         // Canonical tenant role names; global Identity roles are never assigned.
         foreach (var name in RoleSeeder.InstitutionSetupRoles)
-            list.Add(new Seed("ROLES", "Role", name, name));
+            list.Add(new Seed("ROLES", "Role", name.ToUpperInvariant(), name));
         // Academic medium is deliberately 1–2 real options, not 12 fabricated languages.
         if (bangladesh && (school || college))
             list.Add(new("ACADEMIC", "Medium", "BANGLA", "Bangla"));

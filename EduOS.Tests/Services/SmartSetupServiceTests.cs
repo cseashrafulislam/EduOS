@@ -121,7 +121,7 @@ public sealed class SmartSetupServiceTests
         Assert.Contains(roles.Entries, x => x.Name == "Teacher" && x.Status == "Missing");
         Assert.DoesNotContain(roles.Entries, x => x.Name is "TenantAdmin" or "SuperAdmin" or "Admin");
         var request = Request(f, "ROLES");
-        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "Teacher" }];
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "TEACHER" }];
         var applied = await f.Service.ApplyAsync(request);
         Assert.True(applied.Success, applied.Message);
         Assert.Equal(1, applied.Data!.CreatedCount);
@@ -141,11 +141,11 @@ public sealed class SmartSetupServiceTests
     {
         await using var f = await Open(modules: ["CORE_ADMIN"]);
         var request = Request(f, "ROLES");
-        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "TenantAdmin" }];
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "TENANTADMIN" }];
         Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
-        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "SuperAdmin" }];
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "SUPERADMIN" }];
         Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
-        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "Teacher" },
+        request.Entries = [new() { Module = "ROLES", Kind = "Role", Code = "TEACHER" },
             new() { Module = "ROLES", Kind = "Role", Code = "INVENTED" }];
         Assert.Equal(409, (await f.Service.ApplyAsync(request)).StatusCode);
         Assert.Empty(await f.Db.Roles.ToListAsync());
