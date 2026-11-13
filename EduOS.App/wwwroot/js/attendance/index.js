@@ -640,7 +640,7 @@
             el('attendanceAcademicSection').value = String(sectionId);
             acceptedSection = String(sectionId);
         } else {
-            selectOptions('attendanceAcademicSection', [], 'Legacy session / no section');
+            selectOptions('attendanceAcademicSection', [], 'Batch-wide session');
             acceptedSection = '';
         }
         const subject = el('attendanceSubject');
