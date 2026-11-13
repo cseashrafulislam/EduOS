@@ -6,54 +6,6 @@
     root.dataset.academicWorkspaceReady = '1';
     root.classList.add('edu-academic-workspace');
     const bn = document.documentElement.lang.toLowerCase().startsWith('bn');
-    const feature = root.dataset.activeFeature ||
-        (root.id === 'academicSectionsPage' ? 'independentSections' : 'prerequisites');
-    const config = {
-        years: {
-            en: 'Configure each academic year once. Search and update existing years below.',
-            bn: 'শিক্ষাবর্ষ একবার সেট করুন। নিচে আগের শিক্ষাবর্ষ খুঁজুন ও প্রয়োজনমতো সংশোধন করুন.'
-        },
-        terms: {
-            en: 'Keep terms linked to their academic year. Review the register before adding another.',
-            bn: 'টার্মকে সঠিক শিক্ষাবর্ষের অধীনে রাখুন। নতুন টার্মের আগে তালিকা দেখুন।'
-        },
-        departments: {
-            en: 'Maintain a single department directory for all programmes.',
-            bn: 'সব প্রোগ্রামের জন্য একটি বিভাগ তালিকা পরিচালনা করুন।'
-        },
-        classes: {
-            en: 'Manage programmes, classes and optional streams without duplicate setup.',
-            bn: 'ডুপ্লিকেট এন্ট্রি ছাড়াই প্রোগ্রাম, শ্রেণি ও ঐচ্ছিক শাখা পরিচালনা করুন।'
-        },
-        sections: {
-            en: 'Batches are optional intakes; classroom sections are maintained separately.',
-            bn: 'ব্যাচ হলো ঐচ্ছিক ভর্তি গ্রুপ; ক্লাসের শাখা আলাদাভাবে পরিচালিত হয়।'
-        },
-        rooms: {
-            en: 'Find campus rooms, verify capacity, and add new rooms only when needed.',
-            bn: 'ক্যাম্পাসের কক্ষ ও ধারণক্ষমতা দেখুন; প্রয়োজন হলে নতুন কক্ষ যোগ করুন।'
-        },
-        subjects: {
-            en: 'Keep a reusable subject catalog; curriculum versions use these subjects.',
-            bn: 'বিষয়ের একটি পুনর্ব্যবহারযোগ্য তালিকা রাখুন; পাঠ্যক্রমে এগুলো ব্যবহার হবে।'
-        },
-        curricula: {
-            en: 'Version curriculum changes and map subjects without rewriting previous history.',
-            bn: 'পূর্বের ইতিহাস অক্ষত রেখে পাঠ্যক্রমের সংস্করণ ও বিষয় ম্যাপিং করুন।'
-        },
-        offerings: {
-            en: 'Review section and seat availability before creating or editing offerings.',
-            bn: 'বিষয় অফার তৈরি বা সংশোধনের আগে শাখা ও আসনসংখ্যা যাচাই করুন।'
-        },
-        independentSections: {
-            en: 'Academic sections belong to a campus and class, independently of optional batches.',
-            bn: 'শাখা ক্যাম্পাস ও শ্রেণির অধীনে থাকবে; ঐচ্ছিক ব্যাচের ওপর নির্ভর করবে না।'
-        },
-        prerequisites: {
-            en: 'Set prerequisite subjects for a curriculum; avoid circular dependencies.',
-            bn: 'পাঠ্যক্রমের বিষয়ের পূর্বশর্ত ঠিক করুন; চক্রাকার নির্ভরতা এড়িয়ে চলুন।'
-        }
-    };
     const headings = {
         departmentForm: ['Add department', 'নতুন বিভাগ'],
         yearForm: ['Add academic year', 'নতুন শিক্ষাবর্ষ'],
@@ -72,24 +24,15 @@
     };
     const panels = new Map();
     const top = root.querySelector(':scope > div.d-flex, :scope > header, :scope > div[class*="justify-content-between"]');
-    if (top) {
-        top.classList.add('academic-page-top');
-        const title = top.querySelector('h1, h2');
-        const note = config[feature];
-        if (title && note && root.id !== 'academicSectionsPage' && !top.querySelector('.academic-intro')) {
-            const p = document.createElement('p');
-            p.className = 'academic-intro';
-            p.textContent = bn ? note.bn : note.en;
-            title.insertAdjacentElement('afterend', p);
-        }
-    }
+    if (top) top.classList.add('academic-page-top');
+
     function show(form, focus) {
         form.hidden = false;
         const panel = panels.get(form.id);
         if (panel) {
             panel.shell.classList.add('is-expanded');
             panel.button.setAttribute('aria-expanded', 'true');
-            panel.button.textContent = bn ? 'বন্ধ করুন' : 'Close form';
+            panel.button.textContent = bn ? 'বন্ধ করুন' : 'Close';
         }
         if (focus) {
             const field = form.querySelector('input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)');
@@ -102,7 +45,7 @@
         if (panel) {
             panel.shell.classList.remove('is-expanded');
             panel.button.setAttribute('aria-expanded', 'false');
-            panel.button.textContent = bn ? 'ফর্ম খুলুন' : 'Open form';
+            panel.button.textContent = panel.title;
         }
     }
     function enhance(id, pair) {
@@ -112,20 +55,18 @@
         shell.className = 'academic-editor-shell';
         const bar = document.createElement('div');
         bar.className = 'academic-editor-bar';
-        const label = document.createElement('h3');
-        label.className = 'academic-editor-label';
-        label.textContent = bn ? pair[1] : pair[0];
+        const title = bn ? pair[1] : pair[0];
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'btn btn-sm btn-outline-primary';
         button.setAttribute('aria-controls', id);
         button.setAttribute('aria-expanded', 'false');
-        button.textContent = bn ? 'ফর্ম খুলুন' : 'Open form';
-        bar.append(label, button);
+        button.textContent = title;
+        bar.append(button);
         form.parentNode.insertBefore(shell, form);
         shell.append(bar, form);
         form.classList.add('academic-editor-form');
-        panels.set(id, { shell, button });
+        panels.set(id, { shell, button, title });
         const shouldOpen = location.hash === '#' + id ||
             (id === 'sectionCreateForm' && new URLSearchParams(location.search).has('academicBatchId'));
         if (shouldOpen) show(form, false);
