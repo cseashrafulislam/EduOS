@@ -229,7 +229,7 @@
     </section>
     <section data-section="sections" class="card border-0 shadow-sm @(section == "sections" ? "" : "d-none")">
         <div class="card-body">
-            <div class="d-flex flex-wrap gap-2 mb-3"><a class="btn btn-sm btn-outline-primary" href="/AcademicManagement/Sections">Manage Academic Sections</a></div>
+            <a class="btn btn-sm btn-outline-secondary academic-related-link" href="/AcademicManagement/Sections">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</a>
             <form id="batchCreateForm" class="row g-2 align-items-end mb-3">
                 <div class="col-md-3"><label for="batchCreateCampus" class="form-label">Campus *</label><select id="batchCreateCampus" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="batchCreateYear" class="form-label">Academic year *</label><select id="batchCreateYear" class="form-select" required></select></div>
