@@ -134,6 +134,14 @@ public sealed class CentralWorkCenterService(
             FinanceIncluded = finance && !campusId.HasValue,
             Pending = new PagedResult<CentralWorkItemDto> { Page = page, PageSize = pageSize }
         };
+        // The same live campus entitlement used for approval rows drives the filter.
+        // This is display metadata, not a grant of access or another source of truth.
+        result.CampusOptions = await db.Campuses.AsNoTracking()
+            .Where(c => c.TenantId == tenant && c.IsActive && !c.IsDeleted &&
+                visibleCampuses.Contains(c.Id))
+            .OrderBy(c => c.Name).ThenBy(c => c.Id)
+            .Select(c => new CentralWorkCampusDto { Id = c.Id, Name = c.Name, Code = c.Code })
+            .ToListAsync(ct);
         if (pending == null)
             return ApiResponse<CentralWorkCenterPageDto>.SuccessResponse(result);
 
