@@ -85,7 +85,10 @@
     if (root.id === 'academicManagement') {
         const refresh = document.getElementById('academicRefresh');
         const activeBar = root.querySelector('section[data-section]:not(.d-none) .academic-editor-bar');
-        if (refresh && activeBar) activeBar.append(refresh);
+        if (refresh && activeBar) {
+            activeBar.append(refresh);
+            root.querySelector('.academic-actions')?.remove();
+        }
     }
     // Existing list-edit handlers populate the same form. Reveal BEFORE their click
     // handlers call scrollIntoView; the original save/validation logic remains intact.
