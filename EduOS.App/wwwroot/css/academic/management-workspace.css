@@ -1,0 +1,226 @@
+/* Academic Management: directory-first, shared across all 11 canonical setup routes.
+   Uses workspace tokens; does not change form IDs, API wiring or server permissions. */
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) {
+    --academic-line: var(--bs-border-color, #e2e8f0);
+    --academic-paper: var(--bs-body-bg, #fff);
+    --academic-ink: var(--bs-body-color, #0f172a);
+    --academic-subtle: var(--bs-secondary-color, #64748b);
+    max-width: 1512px;
+    margin-inline: auto;
+    padding-top: 1.1rem !important;
+    padding-bottom: 2rem !important;
+    color: var(--academic-ink);
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top {
+    margin-bottom: 1.05rem !important;
+    gap: .8rem;
+    align-items: center;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top h1 {
+    font-size: clamp(1.18rem, 1.6vw, 1.55rem);
+    font-weight: 750;
+    letter-spacing: -.025em;
+    margin: 0 0 .2rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top > div > .small:first-child {
+    font-size: .76rem;
+    letter-spacing: .015em;
+    color: var(--academic-subtle) !important;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-intro {
+    max-width: 72ch;
+    line-height: 1.45;
+    font-size: .86rem;
+    color: var(--academic-subtle);
+    margin: .15rem 0 0;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .card {
+    border: 1px solid var(--academic-line) !important;
+    border-radius: .92rem;
+    background: var(--academic-paper);
+    box-shadow: 0 5px 22px rgba(15, 23, 42, .045) !important;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .card > .card-body {
+    padding: clamp(1rem, 1.7vw, 1.5rem);
+}
+#academicManagement > section[data-section] > .card-body > h2:first-child {
+    margin: 0 0 .65rem;
+    font-size: 1.03rem;
+    font-weight: 750;
+    letter-spacing: -.015em;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) h2,
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) h3 {
+    color: var(--academic-ink);
+    font-weight: 700;
+    letter-spacing: -.01em;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) :is(p.text-muted, .small.text-muted) {
+    line-height: 1.52;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-label {
+    display: inline-block;
+    margin-bottom: .36rem;
+    font-size: .805rem;
+    font-weight: 650;
+    line-height: 1.38;
+    color: var(--academic-ink);
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-control,
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-select {
+    border-radius: .55rem;
+    min-height: 2.55rem;
+    border-color: var(--academic-line);
+    background-color: var(--academic-paper);
+    color: var(--academic-ink);
+    font-size: .9rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-control[readonly],
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-control:disabled,
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-select:disabled {
+    background-color: var(--bs-secondary-bg, #f1f5f9);
+    color: var(--academic-subtle);
+    opacity: 1;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-check {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 2.2rem;
+    padding-left: 0;
+    margin: .15rem .5rem .15rem 0;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-check-input {
+    float: none;
+    flex-shrink: 0;
+    margin: 0;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .form-check-label {
+    font-size: .85rem;
+    line-height: 1.3;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .btn {
+    border-radius: .54rem;
+    font-size: .84rem;
+    font-weight: 600;
+    min-height: 2.35rem;
+    white-space: normal;
+    text-align: center;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .btn-sm {
+    min-height: 2rem;
+    padding: .29rem .65rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .btn:focus-visible,
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) :is(input,select,textarea):focus-visible {
+    outline: 2px solid var(--edu-primary, #1d4ed8);
+    outline-offset: 2px;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--academic-line);
+    border-radius: .72rem;
+    background: var(--academic-paper);
+    margin: .65rem 0 1rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table-responsive > .table {
+    margin: 0;
+    min-width: 600px;
+    --bs-table-bg: transparent;
+    --bs-table-striped-bg: transparent;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table thead th {
+    background: var(--bs-tertiary-bg, #f8fafc);
+    color: var(--academic-subtle);
+    border-bottom: 1px solid var(--academic-line);
+    padding: .8rem .9rem;
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table tbody td {
+    padding: .85rem .9rem;
+    font-size: .845rem;
+    color: var(--academic-ink);
+    vertical-align: middle;
+    border-bottom-color: var(--academic-line);
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table tbody tr:last-child td {
+    border-bottom: 0;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table tbody tr:hover td {
+    background: color-mix(in srgb, var(--edu-primary, #1d4ed8) 3%, var(--academic-paper));
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table td:last-child .btn {
+    margin: .12rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) :is(.alert, [role="alert"]) {
+    border-radius: .7rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-shell {
+    border: 1px solid var(--academic-line);
+    border-radius: .82rem;
+    margin: 1rem 0 1.15rem;
+    background: var(--academic-paper);
+    overflow: clip;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-bar {
+    padding: .65rem .9rem;
+    min-height: 3.25rem;
+    display: flex;
+    gap: .7rem;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bs-tertiary-bg, #f8fafc);
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-label {
+    font-size: .88rem;
+    line-height: 1.3;
+    font-weight: 700;
+    margin: 0;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-bar button {
+    min-height: 2.1rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form {
+    padding: 1rem .95rem 1.1rem;
+    margin: 0 !important;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form[hidden] {
+    display: none !important;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form .col-12,
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form [class*="col-"] {
+    min-width: 0;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) details {
+    border-color: var(--academic-line) !important;
+    border-radius: .6rem;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) details summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+:where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-catalog-note {
+    font-size: .79rem;
+    color: var(--academic-subtle);
+    padding: .45rem .75rem;
+    border-left: 3px solid var(--edu-primary, #1d4ed8);
+    background: color-mix(in srgb, var(--edu-primary, #1d4ed8) 4%, var(--academic-paper));
+    margin-bottom: 1.1rem;
+}
+@media (max-width: 767.98px) {
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) { padding-inline: .65rem !important; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .card > .card-body { padding: .9rem; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top { align-items: flex-start; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-page-top > .btn { width: 100%; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-form { padding: .85rem .75rem 1rem; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .table-responsive > .table { min-width: 620px; }
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) .academic-editor-bar { align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) {
+    :where(#academicManagement, #academicSectionsPage, #prerequisiteWorkspace) * { scroll-behavior: auto !important; transition: none !important; }
+}
