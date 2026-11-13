@@ -12,12 +12,18 @@ test('separate section master and backward-compatible academic batch keys are re
         'class StudentEnrollment : BaseTenantEntity', 'class SubjectOffering : BaseTenantEntity',
         'class AttendanceSession : BaseTenantEntity'])
         assert.ok(model.includes(token), token);
-    assert.match(model, /public class AcademicSection[^]*?AcademicBatchId[^]*?IsLegacyDefault/);
+    assert.match(model, /public class AcademicSection[^]*?AcademicBatchId/);
+    assert.doesNotMatch(model, /IsLegacyDefault/);
     assert.match(model, /public class StudentEnrollment[^]*?AcademicBatchId[^]*?AcademicSectionId/);
     const migration = read('EduOS.Persistence/Migrations/20261113010000_AcademicSectionFoundation.cs');
     assert.match(migration, /CreateTable\(name: "AcademicSections"/);
     assert.match(migration, /FK_AcademicSections_AcademicBatches_TenantId_AcademicBatchId/);
-    assert.match(migration, /IsLegacyDefault = 1/);
+    const removal = read('EduOS.Persistence/Migrations/20261113040000_RemoveAcademicSectionLegacyDefault.cs');
+    assert.match(removal, /DropColumn\(/);
+    assert.match(removal, /DropIndex\(/);
+    assert.match(removal, /THROW 51042/);
+    assert.doesNotMatch(read('EduOS.Persistence/Context/EduOSDbContext.cs'), /IsLegacyDefault/);
+    assert.doesNotMatch(read('EduOS.Persistence/Migrations/EduOSDbContextModelSnapshot.AcademicSections.cs'), /IsLegacyDefault/);
     assert.doesNotMatch(migration, /DropTable\("AcademicBatches"\)/);
 });
 
@@ -34,7 +40,7 @@ test('section UI uses a dedicated tenant-scoped API, safe DOM text and concurren
     assert.match(service, /x.TenantId == tenant/);
     assert.match(service, /FixedTimeEquals/);
     assert.match(service, /ClientRequestId == request.ClientRequestId/);
-    assert.match(service, /IsLegacyDefault/);
+    assert.doesNotMatch(service, /IsLegacyDefault/);
     assert.match(js, /textContent = value/);
     assert.match(js, /RequestVerificationToken: token/);
     assert.match(js, /state.requestId/);
