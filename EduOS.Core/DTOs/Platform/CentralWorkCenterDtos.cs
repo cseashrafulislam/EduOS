@@ -25,10 +25,19 @@ public sealed class CentralWorkCenterPageDto
     // Counts are calculated over the full authorized campus/source query, before paging.
     // Empty collection means no entitled sources; zero counts are genuine known zeros.
     public List<CentralWorkSourceCountDto> SourceCounts { get; set; } = new();
+    // Named, permission-scoped choices for a usable campus filter.
+    public List<CentralWorkCampusDto> CampusOptions { get; set; } = new();
 }
 
 public sealed class CentralWorkSourceCountDto
 {
     public string Source { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+public sealed class CentralWorkCampusDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
 }
