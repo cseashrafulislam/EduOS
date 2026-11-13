@@ -6,101 +6,91 @@
 }
 <div id="academicSectionsPage" class="container-fluid py-4">
     @Html.AntiForgeryToken()
-    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
             <p class="small text-muted mb-1">@(bn ? "একাডেমিক ব্যবস্থাপনা / সেটিংস" : "Academic Management / Settings")</p>
-            <h1 class="h4 mb-0 fw-bold">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</h1>
-            <p class="small text-muted mb-0">@(bn ? "প্রতিটি ব্যাচের অধীনে এক বা একাধিক শাখা রাখুন। শিক্ষার্থীর উপস্থিতি, ক্লাস রুটিন ও পরীক্ষার বিষয় শাখা অনুযায়ী পরিচালিত হবে।" : "Create teaching groups within a batch. Attendance, class routine and subject offerings use the selected section.")</p>
+            <h1 class="h4 fw-bold mb-1">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</h1>
+            <p class="text-muted mb-0">@(bn ? "ক্যাম্পাস ও শ্রেণির অধীনে A, B, C শাখা তৈরি করুন। কোনো ব্যাচ প্রয়োজন নেই।"
+                : "Create A, B or C teaching groups for a class and campus. No academic batch is required.")</p>
         </div>
-        <div class="d-flex gap-2">
-            <a class="btn btn-outline-primary" href="/AcademicManagement/Batches">@(bn ? "ব্যাচ ব্যবস্থাপনা" : "Manage Batches")</a>
-            <button id="sectionRefresh" type="button" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
-        </div>
+        <a href="/AcademicManagement/Batches" class="btn btn-outline-secondary">@(bn ? "একাডেমিক ব্যাচ" : "Academic Batches")</a>
     </div>
     <div id="sectionNotice" class="alert d-none" role="status" aria-live="polite"></div>
-    <div class="card border-0 shadow-sm mb-3">
+    <div class="card shadow-sm border-0 mb-3">
         <div class="card-body">
-            <form id="sectionBatchLookup" class="row g-2 align-items-end mb-3">
-                <div class="col-md-7">
-                    <label class="form-label" for="sectionBatchSearch">@(bn ? "ব্যাচের নাম বা কোড দিয়ে খুঁজুন" : "Search academic batch by name or code")</label>
-                    <input id="sectionBatchSearch" class="form-control" maxlength="80" autocomplete="off" placeholder="HSC 2026" />
-                </div>
-                <div class="col-md-2">
-                    <button id="sectionBatchSearchButton" class="btn btn-outline-primary w-100" type="submit">@(bn ? "খুঁজুন" : "Find batches")</button>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label" for="sectionBatch">@(bn ? "একাডেমিক ব্যাচ" : "Academic Batch") *</label>
-                    <select id="sectionBatch" class="form-select" aria-label="Academic batch">
-                        <option value="">@(bn ? "ব্যাচ বাছাই করুন" : "Select batch")</option>
-                    </select>
-                </div>
-            </form>
-            <p id="sectionBatchHint" class="small text-muted mb-3">@(bn ? "প্রথমে একটি একাডেমিক ব্যাচ নির্বাচন করুন। ব্যাচ না থাকলে ব্যাচ ব্যবস্থাপনা থেকে তৈরি করুন।" : "Select an existing Academic Batch. If none exists, create one in Manage Batches first.")</p>
             <form id="sectionCreateForm" class="row g-3 align-items-end">
-                <input id="sectionId" type="hidden" />
-                <input id="sectionVersion" type="hidden" />
+                <input type="hidden" id="sectionId" />
+                <input type="hidden" id="sectionVersion" />
                 <div class="col-md-4">
-                    <label for="sectionName" class="form-label">@(bn ? "শাখার নাম" : "Section Name") *</label>
+                    <label class="form-label" for="sectionCampus">@(bn ? "ক্যাম্পাস" : "Campus") *</label>
+                    <select id="sectionCampus" class="form-select" required><option value="">@(bn ? "ক্যাম্পাস নির্বাচন" : "Select campus")</option></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="sectionLevel">@(bn ? "শ্রেণি / গ্রেড" : "Class / Grade") *</label>
+                    <select id="sectionLevel" class="form-select" required><option value="">@(bn ? "শ্রেণি নির্বাচন" : "Select class")</option></select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="sectionName">@(bn ? "শাখার নাম" : "Section Name") *</label>
                     <input id="sectionName" class="form-control" maxlength="150" required placeholder="Section A" />
                 </div>
-                <div class="col-md-2">
-                    <label for="sectionCode" class="form-label">@(bn ? "কোড" : "Code") *</label>
+                <div class="col-md-3">
+                    <label class="form-label" for="sectionCode">@(bn ? "কোড" : "Code") *</label>
                     <input id="sectionCode" class="form-control" maxlength="50" required placeholder="A" />
                 </div>
-                <div class="col-md-2">
-                    <label for="sectionCapacity" class="form-label">@(bn ? "ধারণক্ষমতা" : "Capacity") *</label>
+                <div class="col-md-3">
+                    <label class="form-label" for="sectionCapacity">@(bn ? "আসনসংখ্যা" : "Capacity") *</label>
                     <input id="sectionCapacity" class="form-control" type="number" min="0" max="100000" value="40" required />
                 </div>
+                <div class="col-md-6 d-flex gap-2 align-items-end">
+                    <button id="sectionSave" class="btn btn-primary" type="submit">@(bn ? "শাখা যোগ করুন" : "Add Section")</button>
+                    <button id="sectionCancel" class="btn btn-outline-secondary" type="button">@(bn ? "ফর্ম পরিষ্কার" : "Clear")</button>
+                </div>
                 <div class="col-12">
-                    <details id="sectionAdvanced" class="border rounded p-3 bg-body-tertiary">
-                        <summary class="small fw-semibold">@(bn ? "আরও সেটিংস (ঐচ্ছিক)" : "Additional settings (optional)")</summary>
+                    <details id="sectionAdvanced" class="border rounded p-3">
+                        <summary>@(bn ? "অতিরিক্ত সেটিংস (ঐচ্ছিক)" : "Additional settings (optional)")</summary>
                         <div class="row g-3 mt-1">
                             <div class="col-md-3">
-                                <label for="sectionOrder" class="form-label">@(bn ? "প্রদর্শনের ক্রম" : "Display order")</label>
-                                <input id="sectionOrder" class="form-control" type="number" min="0" value="0" required />
+                                <label class="form-label" for="sectionOrder">@(bn ? "ক্রম" : "Display order")</label>
+                                <input id="sectionOrder" type="number" min="0" class="form-control" value="0" />
                             </div>
                             <div class="col-md-3">
-                                <label for="sectionActive" class="form-label">@(bn ? "অবস্থা" : "Status")</label>
+                                <label class="form-label" for="sectionActive">@(bn ? "অবস্থা" : "Status")</label>
                                 <select id="sectionActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select>
                             </div>
                         </div>
                     </details>
-                </div>
-                <div class="col-12 d-flex flex-wrap gap-2">
-                    <button id="sectionSave" class="btn btn-primary" type="submit">@(bn ? "শাখা যোগ করুন" : "Add Section")</button>
-                    <button id="sectionCancel" class="btn btn-outline-secondary" type="button">@(bn ? "ফর্ম খালি করুন" : "Clear")</button>
                 </div>
             </form>
         </div>
     </div>
     <div class="card border-0 shadow-sm">
         <div class="card-body">
-            <div class="row g-2 mb-3 align-items-end">
-                <div class="col-md-6">
-                    <label class="form-label" for="sectionFilter">@(bn ? "শাখা খুঁজুন" : "Search sections")</label>
-                    <input id="sectionFilter" class="form-control" maxlength="80" placeholder="Section or code prefix" />
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
+                <div>
+                    <h2 class="h6 mb-1">@(bn ? "শাখার তালিকা" : "Section Register")</h2>
+                    <p class="small text-muted mb-0">@(bn ? "একই শ্রেণিতে A, B, C আলাদা শাখা হবে।" : "Sections belong to classes, not batches.")</p>
                 </div>
-                <div class="col-md-2">
-                    <button id="sectionFilterButton" type="button" class="btn btn-outline-primary w-100">@(bn ? "খুঁজুন" : "Search")</button>
+                <div class="d-flex flex-wrap gap-2">
+                    <input id="sectionFilter" class="form-control" maxlength="80" aria-label="Search sections" placeholder="Name / Code" />
+                    <button id="sectionFilterButton" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button>
+                    <button id="sectionRefresh" type="button" class="btn btn-outline-secondary">@(bn ? "রিফ্রেশ" : "Refresh")</button>
                 </div>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead><tr>
-                        <th scope="col">@(bn ? "শাখা" : "Section")</th>
-                        <th scope="col">@(bn ? "ব্যাচ" : "Batch")</th>
-                        <th scope="col">@(bn ? "কোড" : "Code")</th>
-                        <th scope="col">@(bn ? "ধারণক্ষমতা" : "Capacity")</th>
-                        <th scope="col">@(bn ? "অবস্থা" : "Status")</th>
-                        <th scope="col">@(bn ? "কার্যক্রম" : "Actions")</th>
+                        <th>@(bn ? "শাখা" : "Section")</th><th>@(bn ? "ক্যাম্পাস" : "Campus")</th>
+                        <th>@(bn ? "শ্রেণি" : "Class")</th><th>@(bn ? "কোড" : "Code")</th>
+                        <th>@(bn ? "আসন" : "Seats")</th><th>@(bn ? "অবস্থা" : "Status")</th>
+                        <th>@(bn ? "কার্যক্রম" : "Actions")</th>
                     </tr></thead>
-                    <tbody id="sectionRows"><tr><td colspan="6" class="text-muted">@(bn ? "তথ্য লোড হচ্ছে…" : "Loading…")</td></tr></tbody>
+                    <tbody id="sectionRows"><tr><td colspan="7" class="text-muted">Loading...</td></tr></tbody>
                 </table>
             </div>
-            <div class="d-flex align-items-center justify-content-between">
-                <button id="sectionPrevious" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগে" : "Previous")</button>
-                <span id="sectionPageStatus" class="small text-muted"></span>
-                <button id="sectionNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরে" : "Next")</button>
+            <div class="d-flex justify-content-between align-items-center">
+                <button id="sectionPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <span id="sectionPageStatus" class="small text-muted" aria-live="polite"></span>
+                <button id="sectionNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
             </div>
         </div>
     </div>
