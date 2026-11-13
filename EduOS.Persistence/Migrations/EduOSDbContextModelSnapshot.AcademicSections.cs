@@ -1,0 +1,114 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
+
+namespace EduOS.Persistence.Migrations;
+
+// Model snapshot parity for the additive AcademicSectionFoundation migration.
+// This is snapshot metadata only: it does not modify data or apply schema changes.
+partial class EduOSDbContextModelSnapshot
+{
+    private static void AddAcademicSectionsSnapshot(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicSection", b =>
+        {
+            b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("bigint");
+            SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+            b.Property<long>("AcademicBatchId").HasColumnType("bigint");
+            b.Property<int>("Capacity").HasColumnType("int");
+            b.Property<Guid?>("ClientRequestId").HasColumnType("uniqueidentifier");
+            b.Property<string>("Code").IsRequired().HasMaxLength(50).HasColumnType("nvarchar(50)");
+            b.Property<DateTime>("CreatedAt").HasColumnType("datetime2");
+            b.Property<long?>("CreatedBy").HasColumnType("bigint");
+            b.Property<DateTime?>("DeletedAt").HasColumnType("datetime2");
+            b.Property<long?>("DeletedBy").HasColumnType("bigint");
+            b.Property<int>("DisplayOrder").HasColumnType("int");
+            b.Property<bool>("IsActive").HasColumnType("bit");
+            b.Property<bool>("IsDeleted").HasColumnType("bit");
+            b.Property<bool>("IsLegacyDefault").HasColumnType("bit");
+            b.Property<string>("Name").IsRequired().HasMaxLength(150).HasColumnType("nvarchar(150)");
+            b.Property<byte[]>("RowVersion").IsConcurrencyToken().IsRequired()
+                .ValueGeneratedOnAddOrUpdate().HasColumnType("rowversion");
+            b.Property<long>("TenantId").HasColumnType("bigint");
+            b.Property<DateTime?>("UpdatedAt").HasColumnType("datetime2");
+            b.Property<long?>("UpdatedBy").HasColumnType("bigint");
+            b.HasKey("Id");
+            b.HasIndex("TenantId", "AcademicBatchId")
+                .IsUnique().HasDatabaseName("UX_AcademicSections_LegacyDefault")
+                .HasFilter("[IsLegacyDefault] = 1 AND [IsDeleted] = 0");
+            b.HasIndex("TenantId", "AcademicBatchId", "Code")
+                .IsUnique().HasFilter("[IsDeleted] = 0");
+            b.HasIndex("TenantId", "ClientRequestId")
+                .IsUnique().HasFilter("[ClientRequestId] IS NOT NULL");
+            b.ToTable("AcademicSections", t =>
+                t.HasCheckConstraint("CK_AcademicSections_Capacity", "[Capacity] BETWEEN 0 AND 100000"));
+        });
+
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.AttendanceSession", b =>
+        {
+            b.Property<long?>("AcademicSectionId").HasColumnType("bigint");
+            b.HasIndex("TenantId", "AcademicSectionId");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.StudentEnrollment", b =>
+        {
+            b.Property<long?>("AcademicSectionId").HasColumnType("bigint");
+            b.HasIndex("TenantId", "AcademicSectionId");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.SubjectOffering", b =>
+        {
+            b.Property<long?>("AcademicSectionId").HasColumnType("bigint");
+            b.HasIndex("TenantId", "AcademicSectionId");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Assessment.ResultPublication", b =>
+        {
+            b.Property<long?>("AcademicSectionId").HasColumnType("bigint");
+            b.HasIndex("TenantId", "AcademicSectionId");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Finance.FeeStructure", b =>
+        {
+            b.Property<long?>("AcademicSectionId").HasColumnType("bigint");
+            b.HasIndex("TenantId", "AcademicSectionId");
+        });
+
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.AcademicSection", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.SaaS.Tenant", "Tenant")
+                .WithMany().HasForeignKey("TenantId")
+                .OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.HasOne("EduOS.Core.Entities.Academic.AcademicBatch", null)
+                .WithMany().HasForeignKey("TenantId", "AcademicBatchId")
+                .HasPrincipalKey("TenantId", "Id")
+                .OnDelete(DeleteBehavior.Restrict).IsRequired();
+            b.Navigation("Tenant");
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.AttendanceSession", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                .WithMany().HasForeignKey("TenantId", "AcademicSectionId")
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.StudentEnrollment", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                .WithMany().HasForeignKey("TenantId", "AcademicSectionId")
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Academic.SubjectOffering", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                .WithMany().HasForeignKey("TenantId", "AcademicSectionId")
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Assessment.ResultPublication", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                .WithMany().HasForeignKey("TenantId", "AcademicSectionId")
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity("EduOS.Core.Entities.Finance.FeeStructure", b =>
+        {
+            b.HasOne("EduOS.Core.Entities.Academic.AcademicSection", null)
+                .WithMany().HasForeignKey("TenantId", "AcademicSectionId")
+                .HasPrincipalKey("TenantId", "Id").OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+}
