@@ -19,6 +19,7 @@ public sealed class AcademicSectionDto
 public sealed class CreateAcademicSectionRequestDto
 {
     public Guid ClientRequestId { get; set; }
+    public bool IsActive { get; set; } = true;
     [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
