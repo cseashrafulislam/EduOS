@@ -13,7 +13,8 @@
         ],
         setup: [
             ['access', 'Users & Access', 'ব্যবহারকারী ও অনুমতি', ['/TenantUsers', '/TenantPermissionOverrides']],
-            ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/SmartSetup', '/NumberSeries', '/TenantModules', '/SubscriptionBilling', '/IntegrationAdministration']],
+            ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/SmartSetup', '/NumberSeries', '/TenantModules', '/IntegrationAdministration']],
+            ['subscription', 'Subscription & Usage', 'সাবস্ক্রিপশন ও ব্যবহার', ['/SubscriptionBilling', '/UsageHistory']],
             ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions']],
             ['work-center', 'Work Center', 'কাজ ও অনুমোদন', ['/CentralWorkCenter']],
             ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
@@ -43,7 +44,7 @@
     // Icons decorate the already server-authorized menu; they grant no access.
     const moduleIcons = {
         platform: { institutions: 'institution', features: 'dashboard', subscriptions: 'finance', governance: 'shield' },
-        setup: { access: 'users', institution: 'institution', enrollment: 'students', 'work-center': 'reports', 'academic-setup': 'calendar' },
+        setup: { access: 'users', institution: 'institution', subscription: 'finance', enrollment: 'students', 'work-center': 'reports', 'academic-setup': 'calendar' },
         academics: { portal: 'book', learners: 'students', career: 'users', research: 'book', accreditation: 'shield',
             learning: 'book', assessments: 'exam', operations: 'attendance' },
         management: { people: 'users', finance: 'finance', inventory: 'reports', campus: 'campus',
@@ -63,8 +64,12 @@
         ],
         'setup:institution': [
             ['settings', 'Settings', 'সেটিংস', ['/InstitutionManagement/Profile', '/InstitutionManagement/Regional', '/InstitutionManagement/Branding', '/InstitutionManagement/Subdomain', '/InstitutionManagement/Index', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/SmartSetup', '/NumberSeries', '/TenantModules']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/InstitutionManagement/Campuses', '/SubscriptionBilling', '/IntegrationAdministration']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/InstitutionManagement/Campuses', '/IntegrationAdministration']],
             ['reports', 'Reports', 'রিপোর্ট', ['/InstitutionManagement/History']]
+        ],
+        'setup:subscription': [
+            ['operations', 'Operations', 'কার্যক্রম', ['/SubscriptionBilling']],
+            ['reports', 'Reports', 'রিপোর্ট', ['/UsageHistory']]
         ],
         'setup:enrollment': [
             ['settings', 'Settings', 'সেটিংস', ['/StudentGuardians', '/StudentDocuments']],
@@ -143,6 +148,8 @@
         '/subscriptionplanadministration/index': 'সাবস্ক্রিপশন প্ল্যান',
         '/legaldocuments/index': 'আইনি প্রকাশনা',
         '/subscriptionpaymenthistory/index': 'পেমেন্ট সমন্বয়ের ইতিহাস',
+        '/integrationadministration/index': 'ইন্টিগ্রেশন পরিচালনা',
+        '/usagehistory/index': 'ব্যবহারের ইতিহাস',
         '/tenantusers/index': 'ব্যবহারকারী ও ভূমিকা',
         '/tenantpermissionoverrides/index': 'সদস্যের বিশেষ অনুমতি',
         '/institutionmanagement/index': 'প্রতিষ্ঠান ও ক্যাম্পাস',
@@ -325,6 +332,9 @@
         const currentBase = current.endsWith('/index') ? current.slice(0, -6) : current;
         const anchor = hash.replace(/^#/, '');
         // MVC default Index routes are aliases, but explicit child routes win.
+        // Webhook tests is a child workflow of Integration Administration; keep its parent selected.
+        if ((currentBase === '/webhooktests' || currentBase === '/webhooktests/index') &&
+            base === '/integrationadministration') return 10000;
         if (base === currentBase) {
             return 10000 + base.length + (linkHash && linkHash === anchor ? 2000 : 0)
                 - (linkHash && linkHash !== anchor ? 100 : 0)
