@@ -27,7 +27,7 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         if (string.IsNullOrWhiteSpace(connection)) return;
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
         var suffix = Guid.NewGuid().ToString("N")[..12];
-        long tenantId, batchId, curriculumId, managerUserId;
+        long tenantId, batchId, sectionId, curriculumId, managerUserId;
         Guid firstStudent, secondStudent;
         await using (var setup = new EduOSDbContext(options))
         {
@@ -78,10 +78,12 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
                 var line = new CurriculumSubject { TenantId = tenantId,
                     AcademicCurriculumId = curriculum.Id, AcademicLevelId = level.Id,
                     SubjectId = subject.Id, IsOptional = false, CreditHours = 4m };
-                setup.AddRange(batch, line);
+                var section = new AcademicSection { TenantId = tenantId, CampusId = campus.Id,
+                    AcademicLevelId = level.Id, Name = "Nine A", Code = "A", Capacity = 1 };
+                setup.AddRange(batch, line, section);
                 await setup.SaveChangesAsync();
-                batchId = batch.Id;
-                setup.SubjectOfferings.Add(new SubjectOffering { TenantId = tenantId, AcademicBatchId = batchId,
+                batchId = batch.Id; sectionId = section.Id;
+                setup.SubjectOfferings.Add(new SubjectOffering { TenantId = tenantId, AcademicBatchId = batchId, AcademicSectionId = sectionId,
                     AcademicYearId = year.Id, CurriculumSubjectId = line.Id, Code = "MATH-9A", Capacity = 1 });
                 await setup.SaveChangesAsync();
             }
@@ -90,13 +92,13 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         var firstRequest = new CreateStudentEnrollmentRequestDto
         {
             ClientRequestId = Guid.NewGuid(), StudentReference = firstStudent,
-            AcademicBatchId = batchId, AcademicCurriculumId = curriculumId,
+            AcademicBatchId = batchId, AcademicSectionId = sectionId, AcademicCurriculumId = curriculumId,
             RollNo = "01", EnrollmentDate = new DateOnly(2026, 9, 21)
         };
         var secondRequest = new CreateStudentEnrollmentRequestDto
         {
             ClientRequestId = Guid.NewGuid(), StudentReference = secondStudent,
-            AcademicBatchId = batchId, AcademicCurriculumId = curriculumId,
+            AcademicBatchId = batchId, AcademicSectionId = sectionId, AcademicCurriculumId = curriculumId,
             RollNo = "02", EnrollmentDate = new DateOnly(2026, 9, 21)
         };
         // Independent contexts start at the same gate to exercise the real SQL
@@ -170,7 +172,8 @@ public sealed class SqlServerEnrollmentAllocationIntegrationTests
         new GenericRepository<RoutineEntry>(db),
         new GenericRepository<RoutineTimeSlot>(db), new GenericRepository<Room>(db),
         db, new TestManager(tenant, managerUserId), TimeProvider.System,
-        NullLogger<AcademicEnrollmentService>.Instance);
+        NullLogger<AcademicEnrollmentService>.Instance,
+        new GenericRepository<AcademicSection>(db));
 
     private sealed class TestManager(long tenantId, long managerUserId) : ICurrentUserService
     {

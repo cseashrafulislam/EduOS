@@ -75,13 +75,16 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
                 var batch = new AcademicBatch { TenantId = tenantId, CampusId = campus.Id,
                     AcademicYearId = year.Id, AcademicProgramId = program.Id,
                     AcademicLevelId = level.Id, Name = "Nine A", Code = "NINE-A", Capacity = 30 };
-                setup.AcademicBatches.Add(batch);
+                var section = new AcademicSection { TenantId = tenantId, CampusId = campus.Id,
+                    AcademicLevelId = level.Id, Name = "Nine A", Code = "A", Capacity = 30 };
+                setup.AddRange(batch, section);
                 await setup.SaveChangesAsync();
                 batchId = batch.Id;
                 var enrollment = new StudentEnrollment { TenantId = tenantId, StudentId = student.Id,
                     CampusId = campus.Id, AcademicYearId = year.Id,
                     AcademicProgramId = program.Id, AcademicLevelId = level.Id,
                     AcademicCurriculumId = curriculum.Id, AcademicBatchId = batch.Id,
+                    AcademicSectionId = section.Id,
                     RollNo = "01", EnrollmentDate = new DateOnly(2026, 1, 1),
                     IsCurrent = true, State = EnrollmentState.Active, ClientRequestId = Guid.NewGuid() };
                 setup.StudentEnrollments.Add(enrollment);
@@ -733,7 +736,8 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
         new GenericRepository<Student>(db), new GenericRepository<AcademicBatch>(db),
         new GenericRepository<AcademicYear>(db), new GenericRepository<Employee>(db),
         new GenericRepository<InstructorAssignment>(db), new GenericRepository<SubjectOffering>(db),
-        db, db, user, TimeProvider.System, NullLogger<StudentAttendanceService>.Instance);
+        db, db, user, TimeProvider.System, NullLogger<StudentAttendanceService>.Instance,
+        new GenericRepository<AcademicSection>(db));
 
     private sealed class Actor(long tenant, long userId, string role) : ICurrentUserService
     {
