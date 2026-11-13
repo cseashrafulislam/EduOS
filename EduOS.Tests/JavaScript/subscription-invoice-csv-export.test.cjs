@@ -24,7 +24,9 @@ test('subscription invoice CSV reuses tenant-owned persisted detail and protects
 test('invoice history downloads CSV without injecting invoice fields into HTML',()=>{
  const view=read('EduOS.App/Views/SubscriptionBilling/Index.cshtml');
  const js=read('EduOS.App/wwwroot/js/subscription-billing/index.js');
- assert.match(view,/Download a tenant-scoped CSV/);
+ // The clean page does not repeat descriptive copy. Verify real invoice surfaces.
+ assert.match(view,/id="sbInvoiceRows"/);
+ assert.match(view,/id="sbInvoiceDetails"/);
  assert.match(js,/button\(t\("Download CSV","CSV ডাউনলোড"\)/);
  assert.match(js,/credentials:"same-origin"/);
  assert.match(js,/cache:"no-store"/);
