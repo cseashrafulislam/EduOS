@@ -8,10 +8,9 @@
     @Html.AntiForgeryToken()
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div>
-            <p class="small text-muted mb-1">@(bn ? "একাডেমিক ব্যবস্থাপনা / সেটিংস" : "Academic Management / Settings")</p>
-            <h1 class="h4 fw-bold mb-1">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</h1>
-            <p class="text-muted mb-0">@(bn ? "ক্যাম্পাস ও শ্রেণির অধীনে A, B, C শাখা তৈরি করুন। কোনো ব্যাচ প্রয়োজন নেই।"
-                : "Create A, B or C teaching groups for a class and campus. No academic batch is required.")</p>
+
+            <h1 class="h4 fw-bold mb-0">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</h1>
+
         </div>
         <a href="/AcademicManagement/Batches" class="btn btn-outline-secondary">@(bn ? "একাডেমিক ব্যাচ" : "Academic Batches")</a>
     </div>
@@ -66,10 +65,7 @@
     <div class="card border-0 shadow-sm">
         <div class="card-body">
             <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
-                <div>
-                    <h2 class="h6 mb-1">@(bn ? "শাখার তালিকা" : "Section Register")</h2>
-                    <p class="small text-muted mb-0">@(bn ? "একই শ্রেণিতে A, B, C আলাদা শাখা হবে।" : "Sections belong to classes, not batches.")</p>
-                </div>
+
                 <div class="d-flex flex-wrap gap-2">
                     <input id="sectionFilter" class="form-control" maxlength="80" aria-label="Search sections" placeholder="Name / Code" />
                     <button id="sectionFilterButton" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button>
