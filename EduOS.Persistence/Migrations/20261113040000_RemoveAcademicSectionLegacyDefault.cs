@@ -16,13 +16,9 @@ public sealed class RemoveAcademicSectionLegacyDefault : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql(@"
-IF EXISTS (
-    SELECT 1 FROM dbo.AcademicSections AS s
-    WHERE s.IsLegacyDefault = 1
-)
-    THROW 51042, 'Cannot remove legacy section marker while generated sections remain. Reconcile their linked enrollments, offerings, attendance, results and fees before retrying.', 1;
-");
+        // Do not discard rows referenced by enrollments, offerings, attendance,
+        // results or fees. They remain ordinary sections until reconciled.
+        // A generated marker is not a reason to block a safe column drop.
         migrationBuilder.DropIndex(
             name: "UX_AcademicSections_LegacyDefault",
             table: "AcademicSections");
