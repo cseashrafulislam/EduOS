@@ -282,7 +282,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.PublicId == request.SubjectOfferingReference && x.IsActive, token);
                 if (offering == null) return Error<InstructorAssignmentDto>("Subject offering not found.", 404);
-                var batch = await GetBatchAsync(offering.AcademicBatchId, token);
+                var batch = await GetBatchAsync(offering.AcademicBatchId ?? 0, token);
                 if (batch == null || batch.AcademicYearId != offering.AcademicYearId)
                     return Error<InstructorAssignmentDto>("Subject offering batch is unavailable.", 409);
                 var employee = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
@@ -490,7 +490,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
             .Where(x => x.TenantId == tenantId && x.AcademicYearId == academicYearId &&
                         x.AcademicTermId == academicTermId && x.IsActive);
         if (IsRestrictedManager())
-            offeringQuery = offeringQuery.Where(x => AllowedManagerBatchIds(tenantId).Contains(x.AcademicBatchId));
+            offeringQuery = offeringQuery.Where(x => x.AcademicBatchId.HasValue && AllowedManagerBatchIds(tenantId).Contains(x.AcademicBatchId.Value));
         var offeringIds = await offeringQuery.OrderBy(x => x.Id)
             .Select(x => x.Id).Take(1000).ToListAsync(cancellationToken);
         var assignmentIds = await _assignments.GetQueryable().AsNoTracking()
@@ -553,7 +553,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
 
         if (IsRestrictedManager())
             entriesQuery = entriesQuery.Where(x =>
-                AllowedManagerBatchIds(tenant).Contains(x.Offering.AcademicBatchId));
+                x.Offering.AcademicBatchId.HasValue && AllowedManagerBatchIds(tenant).Contains(x.Offering.AcademicBatchId.Value));
 
         var total = await entriesQuery.CountAsync(cancellationToken);
         var offset = (page - 1) * pageSize;
@@ -587,7 +587,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
                 var offering = await _offerings.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.PublicId == request.SubjectOfferingReference && x.IsActive, token);
                 if (offering == null) return Error<RoutineEntryDto>("Subject offering not found.", 404);
-                var batch = await GetBatchAsync(offering.AcademicBatchId, token);
+                var batch = await GetBatchAsync(offering.AcademicBatchId ?? 0, token);
                 if (batch == null || batch.AcademicYearId != offering.AcademicYearId)
                     return Error<RoutineEntryDto>("Academic batch is unavailable.", 409);
                 var range = await ResolveEffectiveRangeAsync(batch, offering.AcademicTermId, token);
@@ -796,7 +796,7 @@ public sealed class AcademicRoutineService : IAcademicRoutineService
         var tenant = _currentUser.TenantId;
         return _offerings.GetQueryable().AsNoTracking()
             .AnyAsync(x => x.TenantId == tenant && x.Id == offeringId && !x.IsDeleted &&
-                           AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId), ct);
+                           x.AcademicBatchId.HasValue && AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId.Value), ct);
     }
 
     private async Task<List<long>> GetOfferingIdsAsync(long batchId, long academicYearId, long? termId, CancellationToken cancellationToken) =>

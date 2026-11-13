@@ -59,7 +59,7 @@ public sealed class StudentAttendanceReportService(
                     "Finalized attendance session not found.", 404);
 
             var campusId = await GetAuthorizedCampusIdAsync(
-                tenant, session.AcademicBatchId, cancellationToken);
+                tenant, session.AcademicBatchId ?? 0, cancellationToken);
             if (!campusId.HasValue)
                 return ApiResponse<StudentAttendanceRosterDto>.ErrorResponse(
                     "Finalized attendance session not found.", 404);
@@ -117,7 +117,7 @@ public sealed class StudentAttendanceReportService(
             {
                 Page = page, PageSize = pageSize,
                 TotalPages = total == 0 ? 0 : (total - 1) / pageSize + 1,
-                AttendanceSessionId = session.Id, AcademicBatchId = session.AcademicBatchId,
+                AttendanceSessionId = session.Id, AcademicBatchId = session.AcademicBatchId ?? 0,
                 AcademicSectionId = session.AcademicSectionId,
                 AttendanceDate = session.AttendanceDate, IsFinalized = true,
                 IsHistoricalReadOnly = true,

@@ -8,7 +8,7 @@ public sealed class StudentSubjectHistoryRowDto
 {
     public Guid EnrollmentReference { get; set; }
     public long CampusId { get; set; }
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
     public string RollNo { get; set; } = string.Empty;
     public DateOnly EnrollmentDate { get; set; }
     public string EnrollmentState { get; set; } = string.Empty;

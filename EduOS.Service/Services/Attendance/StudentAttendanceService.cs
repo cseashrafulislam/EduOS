@@ -398,7 +398,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                     return Error<StudentAttendanceRosterDto>("Finalized attendance requires an audited correction.", 409);
                 if (!Matches(session.RowVersion, sessionVersion))
                     return Error<StudentAttendanceRosterDto>("Attendance session was changed. Reload and retry.", 409);
-                var scopeError = await ValidateScopeAsync(session.AcademicBatchId, session.AttendanceDate,
+                var scopeError = await ValidateScopeAsync(session.AcademicBatchId ?? 0, session.AttendanceDate,
                     session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
 
@@ -480,7 +480,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 session.UpdatedBy = _user.UserId;
                 _sessions.Update(session);
                 await _uow.SaveChangesAsync(token);
-                var roster = await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
+                var roster = await ReadRosterAsync(session.AcademicBatchId ?? 0, session.AttendanceDate,
                     session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(roster, "Attendance saved.");
             }, ct);
@@ -508,20 +508,20 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 var session = await _sessions.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == sessionId && !x.IsDeleted, token);
                 if (session == null) return Error<StudentAttendanceRosterDto>("Attendance session not found.", 404);
-                if (!await CanAccessBatchAsync(session.AcademicBatchId, token))
+                if (!await CanAccessBatchAsync(session.AcademicBatchId ?? 0, token))
                     return Error<StudentAttendanceRosterDto>("Attendance session not found.", 404);
                 // Finalization is idempotent: a retry after a lost HTTP response
                 // must return the posted register even if SQL rowversion advanced.
                 if (session.IsFinalized)
                     return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
-                        await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
+                        await ReadRosterAsync(session.AcademicBatchId ?? 0, session.AttendanceDate,
                             session.SubjectOfferingId, token, sectionId: session.AcademicSectionId), "Attendance already finalized.");
                 if (!Matches(session.RowVersion, expected))
                     return Error<StudentAttendanceRosterDto>("Attendance session changed. Reload and retry.", 409);
-                var scopeError = await ValidateScopeAsync(session.AcademicBatchId, session.AttendanceDate,
+                var scopeError = await ValidateScopeAsync(session.AcademicBatchId ?? 0, session.AttendanceDate,
                     session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 if (scopeError != null) return Error<StudentAttendanceRosterDto>(scopeError, 409);
-                var roster = await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
+                var roster = await ReadRosterAsync(session.AcademicBatchId ?? 0, session.AttendanceDate,
                     session.SubjectOfferingId, token, sectionId: session.AcademicSectionId);
                 if (roster.Summary.TotalStudents == 0 || roster.Summary.Unmarked != 0 ||
                     roster.Summary.Marked != roster.Summary.TotalStudents)
@@ -534,7 +534,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 _sessions.Update(session);
                 await _uow.SaveChangesAsync(token);
                 return ApiResponse<StudentAttendanceRosterDto>.SuccessResponse(
-                    await ReadRosterAsync(session.AcademicBatchId, session.AttendanceDate,
+                    await ReadRosterAsync(session.AcademicBatchId ?? 0, session.AttendanceDate,
                         session.SubjectOfferingId, token, sectionId: session.AcademicSectionId), "Attendance finalized.");
             }, System.Data.IsolationLevel.Serializable, ct);
         }
@@ -572,7 +572,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                 if (row == null) return Error<StudentAttendanceDto>("Attendance record not found.", 404);
                 var session = await _sessions.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == _user.TenantId && x.Id == row.AttendanceSessionId && !x.IsDeleted, token);
-                if (session == null || !await CanAccessBatchAsync(session.AcademicBatchId, token))
+                if (session == null || !await CanAccessBatchAsync(session.AcademicBatchId ?? 0, token))
                     return Error<StudentAttendanceDto>("Attendance record not found.", 404);
                 if (!Matches(row.RowVersion, expected))
                     return Error<StudentAttendanceDto>("Attendance record changed. Reload and retry.", 409);
@@ -653,7 +653,7 @@ public sealed class StudentAttendanceService : IStudentAttendanceService
                     enrollment.AcademicBatchId == session.AcademicBatchId &&
                     enrollment.CampusId == batch.CampusId
                 select session.AcademicBatchId).FirstOrDefaultAsync(ct);
-            if (exists <= 0 || !await CanAccessBatchAsync(exists, ct))
+            if (!exists.HasValue || exists.Value <= 0 || !await CanAccessBatchAsync(exists ?? 0, ct))
                 return Error<PagedResult<StudentAttendanceAdjustmentDto>>("Attendance record not found.", 404);
 
             var query = _adjustments.GetQueryable().AsNoTracking().Where(x =>

@@ -393,7 +393,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
                 join offering in _subjectOfferings.GetQueryable().AsNoTracking()
                     on routine.SubjectOfferingId equals offering.Id
                 where routine.TenantId == tenant && offering.TenantId == tenant &&
-                    AllowedManagerBatchIds(tenant).Contains(offering.AcademicBatchId)
+                    offering.AcademicBatchId.HasValue && AllowedManagerBatchIds(tenant).Contains(offering.AcademicBatchId.Value)
                 select routine.Id;
             q = q.Where(x => permittedRoutines.Contains(x.RoutineEntryId));
         }
@@ -582,7 +582,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         {
             var allowedOfferingIds = _subjectOfferings.GetQueryable().AsNoTracking()
                 .Where(x => x.TenantId == tenant &&
-                    AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId))
+                    x.AcademicBatchId.HasValue && AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId.Value))
                 .Select(x => x.Id);
             q = q.Where(x => allowedOfferingIds.Contains(x.SubjectOfferingId));
         }
@@ -916,7 +916,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
             if (!offerings.TryGetValue(entry.SubjectOfferingId, out var offering) ||
                 !curriculum.TryGetValue(offering.CurriculumSubjectId, out var curriculumSubject) ||
                 !subjects.TryGetValue(curriculumSubject.SubjectId, out var subject) ||
-                !batches.TryGetValue(offering.AcademicBatchId, out var batch) ||
+                (!offering.AcademicBatchId.HasValue || !batches.TryGetValue(offering.AcademicBatchId.Value, out var batch)) ||
                 !slots.TryGetValue(entry.RoutineTimeSlotId, out var slot))
                 continue;
 
@@ -1026,7 +1026,7 @@ public sealed class AcademicInstructionService : IAcademicInstructionService
         var tenant = _currentUser.TenantId;
         return _subjectOfferings.GetQueryable().AsNoTracking()
             .AnyAsync(x => x.TenantId == tenant && x.Id == offeringId && !x.IsDeleted &&
-                AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId), ct);
+                x.AcademicBatchId.HasValue && AllowedManagerBatchIds(tenant).Contains(x.AcademicBatchId.Value), ct);
     }
 
     private async Task<bool> CanManageRoutineAsync(long routineId, CancellationToken ct)
