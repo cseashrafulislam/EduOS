@@ -98,6 +98,34 @@ test('Academic Management has no manual Refresh buttons or handlers', () => {
     assert.match(sectionsJs, /loadOptions\(\)\.then\(load\)/);
 });
 
+test('curriculum current status and create action share a clean responsive row', () => {
+    assert.match(index, /id="curriculumForm"[^>]+class="row/);
+    assert.match(index, /class="col-12 academic-curriculum-actions">[\s\S]*?id="curriculumCurrent"[\s\S]*?Create Curriculum/);
+    assert.match(index, /class="academic-curriculum-related"><a asp-controller="AcademicManagement" asp-action="Prerequisites"/);
+    assert.match(script, /mappingBar\.prepend\(curriculumRelated\)/);
+    assert.match(css, /#academicManagement \.academic-curriculum-actions\s*\{[\s\S]*?justify-content:\s*flex-end/);
+    assert.match(css, /@media \(max-width: 575\.98px\)[\s\S]*?#academicManagement \.academic-curriculum-actions\s*\{[\s\S]*?flex-direction:\s*column/);
+});
+test('prerequisite page has no standalone back toolbar and every input has its own grid cell', () => {
+    assert.doesNotMatch(prerequisites, /<div class="academic-actions">/);
+    assert.match(prerequisites, /id="prerequisiteCatalogSearch"/);
+    assert.match(prerequisites, /id="prerequisiteLoadCatalog"/);
+    assert.match(prerequisites, /class="btn btn-outline-secondary academic-back-button w-100"/);
+    assert.match(prerequisites, /asp-action="Curricula"/);
+    assert.match(prerequisites, /class="col-6 col-xl-2 academic-check-cell"><label class="form-check academic-check-control"><input id="prerequisiteMandatory"/);
+    assert.match(prerequisites, /class="col-6 col-xl-2"><button type="submit" class="btn btn-primary w-100">Add link/);
+    assert.match(css, /#prerequisiteWorkspace \.academic-back-button\s*\{[\s\S]*?align-items:\s*center/);
+    assert.match(css, /#prerequisiteWorkspace \.academic-editor-shell\.is-expanded\s*\{[\s\S]*?padding:\s*0/);
+});
+test('academic checkbox surfaces use normal flex alignment and never Bootstrap negative offsets', () => {
+    assert.match(css, /\.form-check\s*\{[\s\S]*?display:\s*inline-flex;[\s\S]*?align-items:\s*center/);
+    assert.match(css, /\.form-check-input\s*\{[\s\S]*?float:\s*none;[\s\S]*?position:\s*static;[\s\S]*?margin:\s*0 !important/);
+    for (const id of ['curriculumCurrent', 'prerequisiteMandatory', 'termCurrent', 'yearCurrent', 'offeringActive']) {
+        const view = id === 'prerequisiteMandatory' ? prerequisites : index;
+        assert.match(view, new RegExp('class="form-check academic-check-control"[^>]*>[\\s\\S]*?<input id="' + id + '"'));
+    }
+});
+
 test('Academic editor disclosure retains existing DOM form and opens before list edit', () => {
     new Function(script);
     const created = [];
