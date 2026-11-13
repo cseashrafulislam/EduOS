@@ -22,12 +22,17 @@ public sealed class AcademicSectionModelContractTests
         Assert.NotNull(sections);
         Assert.Equal("AcademicBatches", batches!.GetTableName());
         Assert.Equal("AcademicSections", sections!.GetTableName());
-        Assert.Contains(sections.GetForeignKeys(), fk =>
-            fk.PrincipalEntityType.ClrType == typeof(AcademicBatch) &&
-            fk.Properties.Select(x => x.Name).SequenceEqual(new[] { "TenantId", "AcademicBatchId" }));
+        Assert.Null(sections.FindProperty("AcademicBatchId"));
+        foreach (var parent in new[] {
+            (Type: typeof(EduOS.Core.Entities.SaaS.Campus), Key: "CampusId"),
+            (Type: typeof(AcademicLevel), Key: "AcademicLevelId")
+        })
+            Assert.Contains(sections.GetForeignKeys(), fk =>
+                fk.PrincipalEntityType.ClrType == parent.Type &&
+                fk.Properties.Select(x => x.Name).SequenceEqual(new[] { "TenantId", parent.Key }));
         Assert.Contains(sections.GetIndexes(), index => index.IsUnique &&
             index.Properties.Select(x => x.Name).SequenceEqual(
-                new[] { "TenantId", "AcademicBatchId", "Code" }));
+                new[] { "TenantId", "CampusId", "AcademicLevelId", "Code" }));
         Assert.True(sections.FindProperty("RowVersion")!.IsConcurrencyToken);
         foreach (var entity in new[]
         {
