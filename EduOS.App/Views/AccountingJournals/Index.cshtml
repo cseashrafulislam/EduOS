@@ -1,5 +1,8 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Institutional Journals";
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    string L(string en, string bd) => bn ? bd : en;
+    ViewData["Title"] = L("Institutional Journals", "প্রতিষ্ঠানের জার্নাল");
     var canWrite = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
 <section class="container-fluid py-2" id="accountingJournals" data-write="@canWrite.ToString().ToLowerInvariant()">
@@ -8,36 +11,36 @@
 <div id="journalNotice" class="alert d-none" role="alert"></div>
 @if (canWrite) {
 <form id="journalForm" class="card card-body mb-2">
-<h2 class="h6 mb-2">New journal</h2>
+<h2 class="h6 mb-2">@L("New journal", "নতুন জার্নাল")</h2>
 <div class="row g-2">
-<div class="col-md-3"><label for="journalDate">Date</label><input id="journalDate" type="date" class="form-control" required /></div>
-<div class="col-md-4"><label for="journalPeriod">Open period</label><select id="journalPeriod" class="form-select" required></select></div>
-<div class="col-md-5"><label for="journalDescription">Description</label><input id="journalDescription" class="form-control" maxlength="1000" /></div>
+<div class="col-md-3"><label for="journalDate">@L("Date", "তারিখ")</label><input id="journalDate" type="date" class="form-control" required /></div>
+<div class="col-md-4"><label for="journalPeriod">@L("Open period", "খোলা হিসাবকাল")</label><select id="journalPeriod" class="form-select" required></select></div>
+<div class="col-md-5"><label for="journalDescription">@L("Description", "বিবরণ")</label><input id="journalDescription" class="form-control" maxlength="1000" /></div>
 </div>
-<div class="table-responsive"><table class="table table-sm mt-2"><thead><tr><th>Account</th><th>Debit BDT</th><th>Credit BDT</th><th>Description</th><th></th></tr></thead><tbody id="journalLineRows"></tbody></table></div>
-<div class="d-flex flex-wrap align-items-center gap-2"><button id="journalAddLine" type="button" class="btn btn-outline-secondary">Add line</button><strong id="journalBalance"></strong><button id="journalSave" type="submit" class="btn btn-primary ms-auto">Create draft</button></div>
+<div class="table-responsive"><table class="table table-sm mt-2"><thead><tr><th>@L("Account", "হিসাবখাতা")</th><th>@L("Debit BDT", "ডেবিট BDT")</th><th>@L("Credit BDT", "ক্রেডিট BDT")</th><th>@L("Description", "বিবরণ")</th><th></th></tr></thead><tbody id="journalLineRows"></tbody></table></div>
+<div class="d-flex flex-wrap align-items-center gap-2"><button id="journalAddLine" type="button" class="btn btn-outline-secondary">@L("Add line", "সারি যোগ করুন")</button><strong id="journalBalance"></strong><button id="journalSave" type="submit" class="btn btn-primary ms-auto">@L("Create draft", "খসড়া তৈরি")</button></div>
 </form>
 }
 <div class="card card-body mb-2">
-<h2 class="h6 mb-2">Journal register</h2>
+<h2 class="h6 mb-2">@L("Journal register", "জার্নাল তালিকা")</h2>
 <form id="journalFilter" class="row g-2 mb-2">
-<div class="col-md-3"><label for="journalFrom">From</label><input id="journalFrom" type="date" class="form-control" required /></div>
-<div class="col-md-3"><label for="journalTo">To</label><input id="journalTo" type="date" class="form-control" required /></div>
-<div class="col-md-2 align-self-end"><button type="submit" class="btn btn-outline-primary">Search</button></div>
+<div class="col-md-3"><label for="journalFrom">@L("From", "শুরু")</label><input id="journalFrom" type="date" class="form-control" required /></div>
+<div class="col-md-3"><label for="journalTo">@L("To", "শেষ")</label><input id="journalTo" type="date" class="form-control" required /></div>
+<div class="col-md-2 align-self-end"><button type="submit" class="btn btn-outline-primary">@L("Search", "খুঁজুন")</button></div>
 </form>
-<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Number</th><th>Date</th><th>Period</th><th>State</th><th>Source</th><th>Debit</th><th>Credit</th><th></th></tr></thead><tbody id="journalRegisterRows"></tbody></table></div>
-<div class="d-flex flex-wrap align-items-center gap-2"><button id="journalPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="journalPage"></span><button id="journalNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+<div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>@L("Number", "নম্বর")</th><th>@L("Date", "তারিখ")</th><th>@L("Period", "হিসাবকাল")</th><th>@L("State", "অবস্থা")</th><th>@L("Source", "উৎস")</th><th>@L("Debit", "ডেবিট")</th><th>@L("Credit", "ক্রেডিট")</th><th></th></tr></thead><tbody id="journalRegisterRows"></tbody></table></div>
+<div class="d-flex flex-wrap align-items-center gap-2"><button id="journalPrev" type="button" class="btn btn-sm btn-outline-secondary">@L("Previous", "আগের")</button><span id="journalPage"></span><button id="journalNext" type="button" class="btn btn-sm btn-outline-secondary">@L("Next", "পরের")</button></div>
 </div>
 <section class="card card-body d-none" id="journalDetailPanel">
-<div class="d-flex justify-content-between"><h5 id="journalDetailTitle"></h5><button id="journalCloseDetail" type="button" class="btn btn-sm btn-outline-secondary">Close</button></div>
+<div class="d-flex justify-content-between"><h5 id="journalDetailTitle"></h5><button id="journalCloseDetail" type="button" class="btn btn-sm btn-outline-secondary">@L("Close", "বন্ধ করুন")</button></div>
 <p id="journalDetailInfo"></p>
-<div class="table-responsive"><table class="table table-sm"><thead><tr><th>#</th><th>Account</th><th>Description</th><th>Debit</th><th>Credit</th></tr></thead><tbody id="journalDetailRows"></tbody><tfoot><tr><th colspan="3">Total</th><th id="journalDetailDebit"></th><th id="journalDetailCredit"></th></tr></tfoot></table></div>
+<div class="table-responsive"><table class="table table-sm"><thead><tr><th>#</th><th>@L("Account", "হিসাবখাতা")</th><th>@L("Description", "বিবরণ")</th><th>@L("Debit", "ডেবিট")</th><th>@L("Credit", "ক্রেডিট")</th></tr></thead><tbody id="journalDetailRows"></tbody><tfoot><tr><th colspan="3">@L("Total", "মোট")</th><th id="journalDetailDebit"></th><th id="journalDetailCredit"></th></tr></tfoot></table></div>
 @if (canWrite) {
-<div class="d-flex flex-wrap gap-2 mb-2"><button id="journalSubmit" type="button" class="btn btn-outline-primary">Submit</button><button id="journalApprove" type="button" class="btn btn-success">Approve</button><button id="journalReject" type="button" class="btn btn-outline-danger">Reject</button><button id="journalPost" type="button" class="btn btn-primary">Post</button></div>
+<div class="d-flex flex-wrap gap-2 mb-2"><button id="journalSubmit" type="button" class="btn btn-outline-primary">@L("Submit", "জমা দিন")</button><button id="journalApprove" type="button" class="btn btn-success">@L("Approve", "অনুমোদন")</button><button id="journalReject" type="button" class="btn btn-outline-danger">@L("Reject", "প্রত্যাখ্যান")</button><button id="journalPost" type="button" class="btn btn-primary">@L("Post", "পোস্ট করুন")</button></div>
 <form id="journalReverseForm" class="row g-2 align-items-end">
-  <div class="col-md-3"><label for="journalReverseDate" class="form-label">Reversal date</label><input id="journalReverseDate" type="date" class="form-control" required /></div>
-  <div class="col-md-6"><label for="journalReverseReason" class="form-label">Reason for reversal</label><input id="journalReverseReason" class="form-control" maxlength="1000" required /></div>
-  <div class="col-md-3"><button type="submit" class="btn btn-warning w-100">Reverse</button></div>
+  <div class="col-md-3"><label for="journalReverseDate" class="form-label">@L("Reversal date", "রিভার্সাল তারিখ")</label><input id="journalReverseDate" type="date" class="form-control" required /></div>
+  <div class="col-md-6"><label for="journalReverseReason" class="form-label">@L("Reason for reversal", "রিভার্সালের কারণ")</label><input id="journalReverseReason" class="form-control" maxlength="1000" required /></div>
+  <div class="col-md-3"><button type="submit" class="btn btn-warning w-100">@L("Reverse", "রিভার্স করুন")</button></div>
 </form>
 }
 </section>

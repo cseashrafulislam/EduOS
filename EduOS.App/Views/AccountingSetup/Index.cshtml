@@ -1,5 +1,8 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Institution Accounting Setup";
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    string L(string en, string bd) => bn ? bd : en;
+    ViewData["Title"] = L("Institution Accounting Setup", "প্রতিষ্ঠানের হিসাব সেটআপ");
     var canWrite = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
     var canReview = User.IsInRole("TenantAdmin");
 }
@@ -8,99 +11,99 @@
     @Html.AntiForgeryToken()
     <div id="accountingNotice" class="alert d-none" role="alert"></div>
     <ul class="nav nav-tabs flex-nowrap overflow-auto mb-2" role="tablist">
-        <li><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#coaPanel">Accounts</button></li>
-        <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#periodPanel">Periods</button></li>
-        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#bankPanel">Banks</button></li> }
-        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#historicalCashPanel">Historical Cash Review</button></li> }
-        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cashFlowPolicyPanel">Cash Flow Classification</button></li> }
+        <li><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#coaPanel">@L("Accounts", "হিসাবসমূহ")</button></li>
+        <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#periodPanel">@L("Periods", "হিসাবকাল")</button></li>
+        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#bankPanel">@L("Banks", "ব্যাংকসমূহ")</button></li> }
+        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#historicalCashPanel">@L("Historical Cash Review", "পুরোনো নগদ হিসাব যাচাই")</button></li> }
+        @if (canWrite) { <li><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cashFlowPolicyPanel">@L("Cash Flow Classification", "নগদ প্রবাহ শ্রেণিবিন্যাস")</button></li> }
     </ul>
     <div class="tab-content">
         <div class="tab-pane fade show active" id="coaPanel">
-            <div class="d-flex gap-2 mb-2"><input id="accountSearch" class="form-control" maxlength="100" placeholder="Code or name" /><button id="accountSearchBtn" class="btn btn-secondary" type="button">Search</button></div>
+            <div class="d-flex gap-2 mb-2"><input id="accountSearch" class="form-control" maxlength="100" placeholder="Code or name" /><button id="accountSearchBtn" class="btn btn-secondary" type="button">@L("Search", "খুঁজুন")</button></div>
             @if (canWrite) {
                 <form id="accountForm" class="card card-body mb-2">
                     <input type="hidden" id="accountId" /><input type="hidden" id="accountVersion" />
                     <div class="row g-2">
                         <input id="accountCode" type="hidden" />
-                        <div class="col-md-5"><label class="form-label" for="accountName">Name</label><input id="accountName" class="form-control" maxlength="200" required /></div>
-                        <div class="col-md-2"><label for="accountType">Type</label><select id="accountType" class="form-select"><option value="1">Asset</option><option value="2">Liability</option><option value="3">Equity</option><option value="4">Income</option><option value="5">Expense</option></select></div>
-                        <div class="col-md-3"><label for="accountParent">Parent group</label><select id="accountParent" class="form-select"><option value="">Root</option></select></div>
+                        <div class="col-md-5"><label class="form-label" for="accountName">@L("Name", "নাম")</label><input id="accountName" class="form-control" maxlength="200" required /></div>
+                        <div class="col-md-2"><label for="accountType">@L("Type", "ধরন")</label><select id="accountType" class="form-select"><option value="1">@L("Asset", "সম্পদ")</option><option value="2">@L("Liability", "দায়")</option><option value="3">@L("Equity", "মূলধন")</option><option value="4">@L("Income", "আয়")</option><option value="5">@L("Expense", "ব্যয়")</option></select></div>
+                        <div class="col-md-3"><label for="accountParent">@L("Parent group", "মূল গ্রুপ")</label><select id="accountParent" class="form-select"><option value="">@L("Root", "মূল")</option></select></div>
                         <div class="col-md-2">
-                            <div class="form-check"><input id="accountGroup" class="form-check-input" type="checkbox" /><label class="form-check-label" for="accountGroup">Group</label></div>
-                            <div class="form-check"><input id="accountActive" class="form-check-input" type="checkbox" checked /><label class="form-check-label" for="accountActive">Active</label></div>
-                            <div class="form-check"><input id="accountCash" class="form-check-input" type="checkbox" /><label class="form-check-label" for="accountCash">Cash in hand</label></div>
+                            <div class="form-check"><input id="accountGroup" class="form-check-input" type="checkbox" /><label class="form-check-label" for="accountGroup">@L("Group", "গ্রুপ")</label></div>
+                            <div class="form-check"><input id="accountActive" class="form-check-input" type="checkbox" checked /><label class="form-check-label" for="accountActive">@L("Active", "সক্রিয়")</label></div>
+                            <div class="form-check"><input id="accountCash" class="form-check-input" type="checkbox" /><label class="form-check-label" for="accountCash">@L("Cash in hand", "হাতে নগদ")</label></div>
                         </div>
                     </div>
-                    <div class="d-flex flex-wrap gap-2 mt-2"><button class="btn btn-primary" type="submit">Save account</button><button id="accountReset" class="btn btn-outline-secondary" type="button">New</button></div>
+                    <div class="d-flex flex-wrap gap-2 mt-2"><button class="btn btn-primary" type="submit">@L("Save account", "হিসাব সংরক্ষণ")</button><button id="accountReset" class="btn btn-outline-secondary" type="button">@L("New", "নতুন")</button></div>
                 </form>
             }
             <p class="small text-muted">Mark new physical cash ledgers explicitly; a bank-linked ledger cannot be cash. Historical cash classification is locked once any journal exists. Existing cash accounts with history require separately audited conversion, not automatic name matching.</p>
-            <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Parent</th><th>Cash</th><th>Group</th><th>Active</th>@if(canWrite){<th>Action</th>}</tr></thead><tbody id="accountRows"></tbody></table></div>
-            <div class="d-flex gap-2"><button id="accountPrev" type="button" class="btn btn-outline-secondary">Previous</button><span id="accountPage"></span><button id="accountNext" type="button" class="btn btn-outline-secondary">Next</button></div>
+            <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>@L("Code", "কোড")</th><th>@L("Name", "নাম")</th><th>@L("Type", "ধরন")</th><th>@L("Parent", "মূল গ্রুপ")</th><th>@L("Cash", "নগদ")</th><th>@L("Group", "গ্রুপ")</th><th>@L("Active", "সক্রিয়")</th>@if(canWrite){<th>@L("Action", "কাজ")</th>}</tr></thead><tbody id="accountRows"></tbody></table></div>
+            <div class="d-flex gap-2"><button id="accountPrev" type="button" class="btn btn-outline-secondary">@L("Previous", "আগের")</button><span id="accountPage"></span><button id="accountNext" type="button" class="btn btn-outline-secondary">@L("Next", "পরের")</button></div>
         </div>
         <div class="tab-pane fade" id="periodPanel">
             @if (canWrite) {
                 <form id="periodForm" class="card card-body mb-2">
                     <input type="hidden" id="periodId" /><input type="hidden" id="periodVersion" />
                     <div class="row g-2">
-                        <div class="col-md-4"><label for="periodName">Name</label><input id="periodName" class="form-control" maxlength="100" required /></div>
-                        <div class="col-md-3"><label for="periodFrom">Start</label><input id="periodFrom" type="date" class="form-control" required /></div>
-                        <div class="col-md-3"><label for="periodTo">End</label><input id="periodTo" type="date" class="form-control" required /></div>
-                        <div class="col-md-2 d-flex align-items-end gap-2"><button class="btn btn-primary" type="submit">Save period</button><button id="periodReset" class="btn btn-outline-secondary" type="button">New</button></div>
+                        <div class="col-md-4"><label for="periodName">@L("Name", "নাম")</label><input id="periodName" class="form-control" maxlength="100" required /></div>
+                        <div class="col-md-3"><label for="periodFrom">@L("Start", "শুরু")</label><input id="periodFrom" type="date" class="form-control" required /></div>
+                        <div class="col-md-3"><label for="periodTo">@L("End", "শেষ")</label><input id="periodTo" type="date" class="form-control" required /></div>
+                        <div class="col-md-2 d-flex align-items-end gap-2"><button class="btn btn-primary" type="submit">@L("Save period", "হিসাবকাল সংরক্ষণ")</button><button id="periodReset" class="btn btn-outline-secondary" type="button">@L("New", "নতুন")</button></div>
                     </div>
                 </form>
             }
             <p class="small text-muted">Period closure reconciles posted journals and refuses to ignore legacy soft-deleted journal headers or lines. Resolve historical discrepancies before closing.</p>
             @if (canWrite) { <div id="periodCloseReadiness" class="alert alert-info d-none" role="status" aria-live="polite"></div> }
-            <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Period</th><th>Start</th><th>End</th><th>Status</th>@if(canWrite){<th>Action</th>}</tr></thead><tbody id="periodRows"></tbody></table></div>
+            <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@L("Period", "হিসাবকাল")</th><th>@L("Start", "শুরু")</th><th>@L("End", "শেষ")</th><th>@L("Status", "অবস্থা")</th>@if(canWrite){<th>@L("Action", "কাজ")</th>}</tr></thead><tbody id="periodRows"></tbody></table></div>
         </div>
         @if (canWrite) {
             <div class="tab-pane fade" id="bankPanel">
                 <form id="bankForm" class="card card-body mb-2">
                     <input type="hidden" id="bankId" /><input type="hidden" id="bankVersion" />
                     <div class="row g-2">
-                        <div class="col-md-4"><label for="bankLedger">Asset ledger</label><select id="bankLedger" class="form-select" required></select></div>
-                        <div class="col-md-4"><label for="bankName">Bank</label><input id="bankName" class="form-control" maxlength="150" required /></div>
-                        <div class="col-md-4"><label for="bankAccountName">Account holder</label><input id="bankAccountName" class="form-control" maxlength="150" required /></div>
-                        <div class="col-md-4"><label for="bankNumber">Account number</label><input id="bankNumber" class="form-control" maxlength="100" required /></div>
-                        <div class="col-md-3"><label for="bankBranch">Branch</label><input id="bankBranch" class="form-control" maxlength="100" /></div>
-                        <div class="col-md-3"><label for="bankRouting">Routing</label><input id="bankRouting" class="form-control" maxlength="100" /></div>
-                        <div class="col-md-2 d-flex align-items-center"><div class="form-check"><input id="bankActive" type="checkbox" class="form-check-input" checked /><label class="form-check-label" for="bankActive">Active</label></div></div>
+                        <div class="col-md-4"><label for="bankLedger">@L("Asset ledger", "সম্পদ খাতা")</label><select id="bankLedger" class="form-select" required></select></div>
+                        <div class="col-md-4"><label for="bankName">@L("Bank", "ব্যাংক")</label><input id="bankName" class="form-control" maxlength="150" required /></div>
+                        <div class="col-md-4"><label for="bankAccountName">@L("Account holder", "হিসাবধারীর নাম")</label><input id="bankAccountName" class="form-control" maxlength="150" required /></div>
+                        <div class="col-md-4"><label for="bankNumber">@L("Account number", "হিসাব নম্বর")</label><input id="bankNumber" class="form-control" maxlength="100" required /></div>
+                        <div class="col-md-3"><label for="bankBranch">@L("Branch", "শাখা")</label><input id="bankBranch" class="form-control" maxlength="100" /></div>
+                        <div class="col-md-3"><label for="bankRouting">@L("Routing", "রাউটিং নম্বর")</label><input id="bankRouting" class="form-control" maxlength="100" /></div>
+                        <div class="col-md-2 d-flex align-items-center"><div class="form-check"><input id="bankActive" type="checkbox" class="form-check-input" checked /><label class="form-check-label" for="bankActive">@L("Active", "সক্রিয়")</label></div></div>
                     </div>
-                    <div class="d-flex flex-wrap gap-2 mt-2"><button class="btn btn-primary" type="submit">Save bank</button><button id="bankReset" class="btn btn-outline-secondary" type="button">New</button></div>
+                    <div class="d-flex flex-wrap gap-2 mt-2"><button class="btn btn-primary" type="submit">@L("Save bank", "ব্যাংক সংরক্ষণ")</button><button id="bankReset" class="btn btn-outline-secondary" type="button">@L("New", "নতুন")</button></div>
                 </form>
-                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Bank</th><th>Account</th><th>Ledger</th><th>Status</th><th>Action</th></tr></thead><tbody id="bankRows"></tbody></table></div>
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@L("Bank", "ব্যাংক")</th><th>Account</th><th>@L("Ledger", "হিসাবখাতা")</th><th>@L("Status", "অবস্থা")</th><th>@L("Action", "কাজ")</th></tr></thead><tbody id="bankRows"></tbody></table></div>
             </div>
             <div class="tab-pane fade" id="historicalCashPanel">
-                <h3 class="h6 mt-2">Audited Historical Cash-in-Hand Designation</h3>
+                <h3 class="h6 mt-2">@L("Audited Historical Cash-in-Hand Designation", "নিরীক্ষিত ঐতিহাসিক নগদ হিসাব নির্ধারণ")</h3>
                 <p class="text-muted small">Only for a cash asset ledger already containing journals. This is a non-monetary classification with independent submitter and TenantAdmin reviewer; no posted journal or balance is modified. Confirm the ledger's actual physical-cash nature against supporting evidence before approval.</p>
                 <form id="historicalCashForm" class="card card-body mb-3">
                     <div class="row g-2 align-items-end">
                         <div class="col-md-4"><label class="form-label" for="historicalCashLedger">Unclassified asset posting ledger</label><select id="historicalCashLedger" class="form-select" required></select></div>
                         <div class="col-md-6"><label class="form-label" for="historicalCashReason">Evidence / justification (20–500 characters)</label><textarea id="historicalCashReason" class="form-control" rows="2" minlength="20" maxlength="500" required></textarea></div>
-                        <div class="col-md-2"><button type="submit" id="historicalCashSubmit" class="btn btn-primary w-100">Submit review</button></div>
+                        <div class="col-md-2"><button type="submit" id="historicalCashSubmit" class="btn btn-primary w-100">@L("Submit review", "যাচাইয়ের জন্য জমা")</button></div>
                     </div>
                 </form>
                 <p id="historicalCashStatus" class="small fw-semibold" role="status" aria-live="polite"></p>
                 <div class="table-responsive"><table class="table table-sm table-striped">
-                    <thead><tr><th>Ledger</th><th>Status</th><th>Evidence</th><th>Submitted by</th><th>Submitted UTC</th><th>Reviewed by</th><th>Review</th></tr></thead>
+                    <thead><tr><th>@L("Ledger", "হিসাবখাতা")</th><th>@L("Status", "অবস্থা")</th><th>@L("Evidence", "প্রমাণ")</th><th>@L("Submitted by", "জমাদানকারী")</th><th>@L("Submitted UTC", "জমার UTC সময়")</th><th>@L("Reviewed by", "যাচাইকারী")</th><th>@L("Review", "যাচাই")</th></tr></thead>
                     <tbody id="historicalCashRows"></tbody>
                 </table></div>
                 <div class="d-flex justify-content-end gap-2 align-items-center mb-3">
-                    <button type="button" id="historicalCashPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button>
+                    <button type="button" id="historicalCashPrev" class="btn btn-outline-secondary btn-sm" disabled>@L("Previous", "আগের")</button>
                     <span id="historicalCashPage" class="small"></span>
-                    <button type="button" id="historicalCashNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                    <button type="button" id="historicalCashNext" class="btn btn-outline-secondary btn-sm" disabled>@L("Next", "পরের")</button>
                 </div>
                 @if (User.IsInRole("TenantAdmin")) {
                     <div id="historicalCashReview" class="card card-body d-none">
-                        <h4 class="h6">Independent approval</h4>
+                        <h4 class="h6">@L("Independent approval", "স্বতন্ত্র অনুমোদন")</h4>
                         <p id="historicalCashReviewTitle" class="small"></p>
                         <label for="historicalCashReviewReason">Review reason (required for rejection)</label>
                         <textarea id="historicalCashReviewReason" class="form-control mb-2" maxlength="500" rows="2"></textarea>
                         <div class="d-flex gap-2">
-                            <button id="historicalCashApprove" type="button" class="btn btn-success">Approve designation</button>
-                            <button id="historicalCashReject" type="button" class="btn btn-outline-danger">Reject request</button>
-                            <button id="historicalCashReviewCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                            <button id="historicalCashApprove" type="button" class="btn btn-success">@L("Approve designation", "শ্রেণিবিন্যাস অনুমোদন")</button>
+                            <button id="historicalCashReject" type="button" class="btn btn-outline-danger">@L("Reject request", "অনুরোধ বাতিল")</button>
+                            <button id="historicalCashReviewCancel" type="button" class="btn btn-outline-secondary">@L("Cancel", "বাতিল")</button>
                         </div>
                     </div>
                 }
@@ -111,52 +114,52 @@
                 <form id="cashFlowRuleForm" class="card card-body mb-3">
                     <div class="row g-2 align-items-end">
                         <div class="col-md-3"><label class="form-label" for="cashFlowRuleAccount">Non-cash GL account</label><select id="cashFlowRuleAccount" class="form-select" required></select></div>
-                        <div class="col-md-2"><label class="form-label" for="cashFlowRuleDate">Effective from</label><input id="cashFlowRuleDate" type="date" class="form-control" required /></div>
-                        <div class="col-md-2"><label class="form-label" for="cashFlowRuleActivity">Activity</label><select id="cashFlowRuleActivity" class="form-select"><option value="Operating">Operating</option><option value="Investing">Investing</option><option value="Financing">Financing</option></select></div>
+                        <div class="col-md-2"><label class="form-label" for="cashFlowRuleDate">@L("Effective from", "কার্যকরের শুরু")</label><input id="cashFlowRuleDate" type="date" class="form-control" required /></div>
+                        <div class="col-md-2"><label class="form-label" for="cashFlowRuleActivity">@L("Activity", "কার্যক্রম")</label><select id="cashFlowRuleActivity" class="form-select"><option value="Operating">@L("Operating", "পরিচালন")</option><option value="Investing">@L("Investing", "বিনিয়োগ")</option><option value="Financing">@L("Financing", "অর্থায়ন")</option></select></div>
                         <div class="col-md-3"><label class="form-label" for="cashFlowRuleReason">Classification evidence (20–500 characters)</label><textarea id="cashFlowRuleReason" class="form-control" rows="2" minlength="20" maxlength="500" required></textarea></div>
-                        <div class="col-md-2"><button id="cashFlowRuleSubmit" type="submit" class="btn btn-primary w-100">Submit for review</button></div>
+                        <div class="col-md-2"><button id="cashFlowRuleSubmit" type="submit" class="btn btn-primary w-100">@L("Submit for review", "যাচাইয়ের জন্য জমা")</button></div>
                     </div>
                 </form>
                 <p id="cashFlowRuleStatus" class="small fw-semibold" role="status" aria-live="polite"></p>
                 <div class="table-responsive"><table class="table table-sm table-striped">
-                    <thead><tr><th>GL account</th><th>Effective</th><th>Activity</th><th>Status</th><th>Evidence</th><th>Maker</th><th>Checker</th><th>Action</th></tr></thead><tbody id="cashFlowRuleRows"></tbody>
+                    <thead><tr><th>@L("GL account", "GL খাতা")</th><th>@L("Effective", "কার্যকর")</th><th>@L("Activity", "কার্যক্রম")</th><th>@L("Status", "অবস্থা")</th><th>@L("Evidence", "প্রমাণ")</th><th>@L("Maker", "প্রস্তুতকারী")</th><th>@L("Checker", "অনুমোদনকারী")</th><th>@L("Action", "কাজ")</th></tr></thead><tbody id="cashFlowRuleRows"></tbody>
                 </table></div>
                 <div class="d-flex justify-content-end align-items-center gap-2">
-                    <button id="cashFlowRulePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="cashFlowRulePage"></span>
-                    <button id="cashFlowRuleNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>Next</button>
+                    <button id="cashFlowRulePrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Previous", "আগের")</button><span id="cashFlowRulePage"></span>
+                    <button id="cashFlowRuleNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Next", "পরের")</button>
                 </div>
                 @if (canReview) {
                     <div id="cashFlowRuleReviewPanel" class="card card-body d-none mt-3">
-                        <h4 class="h6">Independent policy review</h4><p id="cashFlowRuleReviewTitle" class="small"></p>
-                        <label for="cashFlowRuleReviewReason">Checker reason (required for rejection)</label>
+                        <h4 class="h6">@L("Independent policy review", "স্বতন্ত্র নীতি যাচাই")</h4><p id="cashFlowRuleReviewTitle" class="small"></p>
+                        <label for="cashFlowRuleReviewReason">@L("Checker reason (required for rejection)", "অনুমোদনকারীর কারণ (বাতিলে আবশ্যক)")</label>
                         <textarea id="cashFlowRuleReviewReason" rows="2" maxlength="500" class="form-control mb-2"></textarea>
-                        <div class="d-flex gap-2"><button id="cashFlowRuleApprove" type="button" class="btn btn-success">Approve</button>
-                            <button id="cashFlowRuleReject" type="button" class="btn btn-outline-danger">Reject</button>
-                            <button id="cashFlowRuleCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                        <div class="d-flex gap-2"><button id="cashFlowRuleApprove" type="button" class="btn btn-success">@L("Approve", "অনুমোদন")</button>
+                            <button id="cashFlowRuleReject" type="button" class="btn btn-outline-danger">@L("Reject", "প্রত্যাখ্যান")</button>
+                            <button id="cashFlowRuleCancel" type="button" class="btn btn-outline-secondary">@L("Cancel", "বাতিল")</button></div>
                     </div>
                 }
                 <hr class="my-4" />
-                <h4 class="h6">Compound journal cash-flow allocation</h4>
+                <h4 class="h6">@L("Compound journal cash-flow allocation", "যৌগিক জার্নালের নগদ প্রবাহ বণ্টন")</h4>
                 <p class="small text-muted">Use only when one posted journal requires a reviewed manual split. Enter the journal ID from the Cash Flow exception list, and allocate the exact external cash inflow or outflow across activities. This does not amend GL postings. A different TenantAdmin must approve it.</p>
                 <form id="cashFlowAllocationForm" class="card card-body mb-3">
                     <div class="row g-2 align-items-end">
                         <div class="col-md-2"><label for="cashFlowAllocationJournal" class="form-label">Posted journal ID</label><input id="cashFlowAllocationJournal" class="form-control" type="number" min="1" step="1" required /></div>
-                        <div class="col-md-2"><label for="cashFlowAllocationOperating" class="form-label">Operating BDT</label><input id="cashFlowAllocationOperating" class="form-control" type="number" min="0" step="0.01" value="0" required /></div>
-                        <div class="col-md-2"><label for="cashFlowAllocationInvesting" class="form-label">Investing BDT</label><input id="cashFlowAllocationInvesting" class="form-control" type="number" min="0" step="0.01" value="0" required /></div>
-                        <div class="col-md-2"><label for="cashFlowAllocationFinancing" class="form-label">Financing BDT</label><input id="cashFlowAllocationFinancing" class="form-control" type="number" min="0" step="0.01" value="0" required /></div>
-                        <div class="col-md-4"><label for="cashFlowAllocationReason" class="form-label">Supporting evidence (20–500 characters)</label><textarea id="cashFlowAllocationReason" rows="2" minlength="20" maxlength="500" class="form-control" required></textarea></div>
+                        <div class="col-md-2"><label for="cashFlowAllocationOperating" class="form-label">@L("Operating BDT", "পরিচালন BDT")</label><input id="cashFlowAllocationOperating" class="form-control" type="number" min="0" step="0.01" value="0" required /></div>
+                        <div class="col-md-2"><label for="cashFlowAllocationInvesting" class="form-label">@L("Investing BDT", "বিনিয়োগ BDT")</label><input id="cashFlowAllocationInvesting" class="form-control" type="number" min="0" step="0.01" value="0" required /></div>
+                        <div class="col-md-2"><label for="cashFlowAllocationFinancing" class="form-label">@L("Financing BDT", "অর্থায়ন BDT")</label><input id="cashFlowAllocationFinancing" class="form-control" type="number" min="0" step="0.01" value="0" required /></div>
+                        <div class="col-md-4"><label for="cashFlowAllocationReason" class="form-label">@L("Supporting evidence (20–500 characters)", "সমর্থক প্রমাণ (২০–৫০০ অক্ষর)")</label><textarea id="cashFlowAllocationReason" rows="2" minlength="20" maxlength="500" class="form-control" required></textarea></div>
                     </div>
                     <button type="submit" id="cashFlowAllocationSubmit" class="btn btn-outline-primary mt-2">Submit journal allocation for independent review</button>
                 </form>
                 <p id="cashFlowAllocationStatus" role="status" aria-live="polite" class="small fw-semibold"></p>
-                <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Journal</th><th>Direction</th><th>Operating</th><th>Investing</th><th>Financing</th><th>Status</th><th>Maker</th><th>Checker</th><th>Review</th></tr></thead><tbody id="cashFlowAllocationRows"></tbody></table></div>
-                <div class="d-flex justify-content-end align-items-center gap-2 mb-2"><button type="button" id="cashFlowAllocationPrev" class="btn btn-outline-secondary btn-sm" disabled>Previous</button><span id="cashFlowAllocationPage"></span><button type="button" id="cashFlowAllocationNext" class="btn btn-outline-secondary btn-sm" disabled>Next</button></div>
+                <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>@L("Journal", "জার্নাল")</th><th>@L("Direction", "দিক")</th><th>@L("Operating", "পরিচালন")</th><th>@L("Investing", "বিনিয়োগ")</th><th>@L("Financing", "অর্থায়ন")</th><th>@L("Status", "অবস্থা")</th><th>@L("Maker", "প্রস্তুতকারী")</th><th>@L("Checker", "অনুমোদনকারী")</th><th>@L("Review", "যাচাই")</th></tr></thead><tbody id="cashFlowAllocationRows"></tbody></table></div>
+                <div class="d-flex justify-content-end align-items-center gap-2 mb-2"><button type="button" id="cashFlowAllocationPrev" class="btn btn-outline-secondary btn-sm" disabled>@L("Previous", "আগের")</button><span id="cashFlowAllocationPage"></span><button type="button" id="cashFlowAllocationNext" class="btn btn-outline-secondary btn-sm" disabled>@L("Next", "পরের")</button></div>
                 @if (canReview) {
                     <div id="cashFlowAllocationReviewPanel" class="card card-body d-none">
-                        <h5 class="h6">Independent journal allocation review</h5><p id="cashFlowAllocationReviewTitle" class="small"></p>
-                        <label for="cashFlowAllocationReviewReason" class="form-label">Checker reason (required for rejection)</label>
+                        <h5 class="h6">@L("Independent journal allocation review", "স্বতন্ত্র জার্নাল বণ্টন যাচাই")</h5><p id="cashFlowAllocationReviewTitle" class="small"></p>
+                        <label for="cashFlowAllocationReviewReason" class="form-label">@L("Checker reason (required for rejection)", "অনুমোদনকারীর কারণ (বাতিলে আবশ্যক)")</label>
                         <textarea id="cashFlowAllocationReviewReason" class="form-control mb-2" maxlength="500" rows="2"></textarea>
-                        <div class="d-flex gap-2"><button type="button" id="cashFlowAllocationApprove" class="btn btn-success">Approve</button><button type="button" id="cashFlowAllocationReject" class="btn btn-outline-danger">Reject</button><button type="button" id="cashFlowAllocationCancel" class="btn btn-outline-secondary">Cancel</button></div>
+                        <div class="d-flex gap-2"><button type="button" id="cashFlowAllocationApprove" class="btn btn-success">@L("Approve", "অনুমোদন")</button><button type="button" id="cashFlowAllocationReject" class="btn btn-outline-danger">@L("Reject", "প্রত্যাখ্যান")</button><button type="button" id="cashFlowAllocationCancel" class="btn btn-outline-secondary">@L("Cancel", "বাতিল")</button></div>
                     </div>
                 }
             </div>
