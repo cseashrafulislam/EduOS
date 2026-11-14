@@ -17,7 +17,7 @@
     };
     ViewData["Title"] = bn ? feature.Bn : feature.En;
 }
-<div id="academicManagement" class="container-fluid py-4" data-active-feature="@(section)">
+<div id="academicManagement" class="container-fluid py-2" data-bangla="@(bn ? "true" : "false")" data-active-feature="@(section)">
     @Html.AntiForgeryToken()
     <div id="academicNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <section data-section="departments" class="card border-0 shadow-sm @(section == "departments" ? "" : "d-none")">
@@ -72,8 +72,9 @@
     <section data-section="classes" class="card border-0 shadow-sm @(section == "classes" ? "" : "d-none")">
         <div class="card-body">
             <form id="programForm" class="row g-2 align-items-end mb-4">
+                <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
                 <div class="col-md-3"><label for="programName" class="form-label">Programme name *</label><input id="programName" class="form-control" maxlength="200" required placeholder="Secondary" /></div>
-                <div class="col-md-2"><label for="programCode" class="form-label">Code *</label><input id="programCode" class="form-control" maxlength="50" required placeholder="SEC" /></div>
+                <input id="programCode" type="hidden" />
                 <div class="col-md-2"><label for="programDuration" class="form-label">Months</label><input id="programDuration" type="number" min="0" max="1200" value="0" class="form-control" /></div>
                 <div class="col-md-3"><label for="programCampus" class="form-label">Offered at campuses (Ctrl/Cmd + click)</label><select id="programCampus" class="form-select" multiple size="3" aria-describedby="programCampusHelp"></select><small id="programCampusHelp" class="visually-hidden">Leave empty for all campuses.</small></div>
                 <div class="col-md-2"><label for="programDepartment" class="form-label">Department</label><select id="programDepartment" class="form-select"><option value="">No department</option></select><button type="submit" class="btn btn-primary w-100 mt-2">Add Programme</button></div>
@@ -143,9 +144,10 @@
                 </div>
             </form>
             <form id="levelForm" class="row g-2 align-items-end mb-3">
+                <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
                 <div class="col-md-3"><label for="levelProgram" class="form-label">Programme *</label><select id="levelProgram" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="levelName" class="form-label">Class / Grade name *</label><input id="levelName" class="form-control" required maxlength="150" placeholder="Grade 9" /></div>
-                <div class="col-md-2"><label for="levelCode" class="form-label">Code *</label><input id="levelCode" class="form-control" required maxlength="50" placeholder="G9" /></div>
+                <input id="levelCode" type="hidden" />
                 <div class="col-md-2"><label for="levelNumber" class="form-label">Level number *</label><input id="levelNumber" class="form-control" required type="number" min="1" max="1000" value="1" /></div>
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Class</button></div>
             </form>
@@ -231,13 +233,14 @@
         <div class="card-body">
             <a class="btn btn-sm btn-outline-secondary academic-related-link" href="/AcademicManagement/Sections">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</a>
             <form id="batchCreateForm" class="row g-2 align-items-end mb-3">
+                <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
                 <div class="col-md-3"><label for="batchCreateCampus" class="form-label">Campus *</label><select id="batchCreateCampus" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="batchCreateYear" class="form-label">Academic year *</label><select id="batchCreateYear" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="batchCreateProgram" class="form-label">Programme *</label><select id="batchCreateProgram" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="batchCreateLevel" class="form-label">Class / Grade *</label><select id="batchCreateLevel" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="batchCreateTerm" class="form-label">Term (optional)</label><select id="batchCreateTerm" class="form-select"></select></div>
                 <div class="col-md-3"><label for="batchCreateName" class="form-label">Batch name *</label><input id="batchCreateName" class="form-control" maxlength="150" required placeholder="HSC 2026–2028" /></div>
-                <div class="col-md-3"><label for="batchCreateCode" class="form-label">Code *</label><input id="batchCreateCode" class="form-control" maxlength="50" required placeholder="HSC-26" /></div>
+                <input id="batchCreateCode" type="hidden" />
                 <div class="col-md-2"><label for="batchCreateCapacity" class="form-label">Capacity</label><input id="batchCreateCapacity" class="form-control" type="number" min="0" max="100000" value="40" /></div>
                 <div class="col-md-3"><label for="batchCreateStart" class="form-label">Batch start *</label><input id="batchCreateStart" type="date" class="form-control" required /></div>
                 <div class="col-md-3"><label for="batchCreateEnd" class="form-label">Batch end *</label><input id="batchCreateEnd" type="date" class="form-control" required /></div>
@@ -278,8 +281,9 @@
                 <div class="col-md-3"><button type="submit" class="btn btn-outline-primary">Search</button></div>
             </form>
             <form id="subjectForm" class="row g-2 align-items-end mb-3">
+                <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
                 <div class="col-md-4"><label for="subjectName" class="form-label">Subject name *</label><input id="subjectName" required maxlength="200" class="form-control" /></div>
-                <div class="col-md-3"><label for="subjectCode" class="form-label">Code *</label><input id="subjectCode" required maxlength="50" class="form-control" /></div>
+                <input id="subjectCode" type="hidden" />
                 <div class="col-md-3"><label for="subjectCredits" class="form-label">Default credits</label><input id="subjectCredits" type="number" min="0" max="1000" step="0.01" value="0" class="form-control" /></div>
                 <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Subject</button></div>
             </form>
@@ -305,9 +309,10 @@
     <section data-section="curricula" class="card border-0 shadow-sm @(section == "curricula" ? "" : "d-none")">
         <div class="card-body">
             <form id="curriculumForm" class="row g-2 align-items-end mb-4">
+                <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
                 <div class="col-md-3"><label for="curriculumProgram" class="form-label">Programme *</label><select id="curriculumProgram" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="curriculumName" class="form-label">Curriculum name *</label><input id="curriculumName" maxlength="150" class="form-control" required /></div>
-                <div class="col-md-2"><label for="curriculumCode" class="form-label">Code *</label><input id="curriculumCode" maxlength="50" class="form-control" required /></div>
+                <input id="curriculumCode" type="hidden" />
                 <div class="col-md-2"><label for="curriculumVersion" class="form-label">Version *</label><input id="curriculumVersion" type="number" min="1" value="1" class="form-control" required /></div>
                 <div class="col-md-2"><label for="curriculumFrom" class="form-label">Effective from *</label><input id="curriculumFrom" type="date" class="form-control" required /></div>
                 <div class="col-12 academic-curriculum-actions">
