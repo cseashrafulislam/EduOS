@@ -4,46 +4,43 @@
     var student = User.IsInRole("Student");
 }
 <section id="contentApp" class="container-fluid py-2" data-author="@author.ToString().ToLowerInvariant()" data-student="@student.ToString().ToLowerInvariant()">
-    <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <div><span class="visually-hidden">Course Sections &amp; Lesson Resources</span></div>
-        <div><a class="btn btn-outline-secondary" asp-controller="Learning" asp-action="Index">Learning</a> <button id="contentPrint" type="button" class="btn btn-outline-primary">Print</button> <button id="contentCsv" type="button" class="btn btn-outline-success">Export CSV</button></div>
-    </header>
     <div id="contentAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
     @if (student)
     {
         <div class="form-check mb-2"><input id="contentIncludeArchived" type="checkbox" class="form-check-input" /><label for="contentIncludeArchived" class="form-check-label">Include my archived completed courses</label></div>
         <div id="contentHistoricalNotice" class="alert alert-info d-none" role="status">Archived course: published sections, lessons and verified resources are available for historical reading only. Editing and new submissions remain disabled.</div>
     }
-    <section class="card mb-3"><div class="card-body row g-2 align-items-end">
+    <section class="card mb-3"><div class="card-body"><div class="row g-2 align-items-end">
         <div class="col-md-8"><label for="contentCourse" class="form-label">Course</label><select id="contentCourse" class="form-select"><option value="">Loading courses…</option></select></div>
-        <div class="col-md-4"><button id="contentRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary w-100">Refresh</button></div>
+        <button id="contentRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none">Refresh</button>
+        <div class="col-md-4 d-flex flex-wrap gap-2 align-items-end"><button id="contentPrint" type="button" class="btn btn-sm btn-outline-primary">Print</button><button id="contentCsv" type="button" class="btn btn-sm btn-outline-success">Export CSV</button></div>
         <div class="col-12 d-flex gap-2 align-items-center"><button id="contentPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="contentPage" class="small">Page 1</span><button id="contentNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
-    </div></section>
+    </div></div></section>
     @if (author)
     {
         <div id="contentAuthor" class="row g-3 mb-3 d-none">
             <div class="col-xl-4"><form id="contentSectionForm" class="card h-100">
                 <div class="card-header"><h3 class="h6 mb-0">Section setup</h3></div>
-                <div class="card-body row g-2">
+                <div class="card-body"><div class="row g-2">
                     <input type="hidden" id="contentSectionId" /><input type="hidden" id="contentSectionVersion" />
                     <div class="col-12"><label for="contentSectionTitle" class="form-label">Section title</label><input id="contentSectionTitle" class="form-control" maxlength="200" required /></div>
                     <div class="col-5"><label for="contentSectionOrder" class="form-label">Order</label><input id="contentSectionOrder" type="number" min="0" max="10000" value="1" class="form-control" required /></div>
                     <div class="col-7 align-self-end"><label><input id="contentSectionPublished" type="checkbox" /> Published</label></div>
                     <div class="col-12"><button class="btn btn-primary" type="submit">Save section</button> <button id="contentSectionClear" class="btn btn-outline-secondary" type="button">New</button></div>
-                </div>
+                </div></div>
             </form></div>
             <div class="col-xl-4"><form id="contentAssignForm" class="card h-100">
                 <div class="card-header"><h3 class="h6 mb-0">Assign existing lesson</h3></div>
-                <div class="card-body row g-2">
+                <div class="card-body"><div class="row g-2">
                     <div class="col-12"><label for="contentLessonSelect" class="form-label">Lesson</label><select id="contentLessonSelect" class="form-select" required></select></div>
                     <div class="col-12"><label for="contentSectionSelect" class="form-label">Section</label><select id="contentSectionSelect" class="form-select"><option value="">Unsectioned</option></select></div>
                     <div class="col-12"><button type="submit" class="btn btn-primary">Assign lesson</button></div>
                     
-                </div>
+                </div></div>
             </form></div>
             <div class="col-xl-4"><form id="contentResourceForm" class="card h-100">
                 <div class="card-header"><h3 class="h6 mb-0">Lesson resource</h3></div>
-                <div class="card-body row g-2">
+                <div class="card-body"><div class="row g-2">
                     <input type="hidden" id="contentResourceId" /><input type="hidden" id="contentResourceVersion" />
                     <div class="col-12"><label for="contentResourceLesson" class="form-label">Lesson</label><select id="contentResourceLesson" class="form-select" required></select></div>
                     <div class="col-8"><label for="contentResourceTitle" class="form-label">Resource title</label><input id="contentResourceTitle" class="form-control" maxlength="200" /></div>
@@ -52,7 +49,7 @@
                     <div class="col-12"><label for="contentResourceUpload" class="form-label">Upload lesson-only worksheet or note</label><input id="contentResourceUpload" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" /><small class="text-muted">Textbooks, NCTB/NTRCA books and reusable PDF study materials are published once in Library → Digital Library, not uploaded again here.</small></div>
                     <div class="col-12"><label for="contentResourceFile" class="form-label">Verified LMS file reference</label><input id="contentResourceFile" class="form-control" readonly /></div>
                     <div class="col-12"><button class="btn btn-primary" type="submit">Save resource</button> <button id="contentResourceClear" class="btn btn-outline-secondary" type="button">New</button></div>
-                </div>
+                </div></div>
             </form></div>
         </div>
     }

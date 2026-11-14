@@ -4,27 +4,24 @@
     var manager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
 <section id="liveClassApp" class="container-fluid py-2" data-author="@author.ToString().ToLowerInvariant()" data-manager="@manager.ToString().ToLowerInvariant()">
-    <header class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
-        <div><span class="visually-hidden">Live Classes</span><p class="text-muted mb-0">Course sessions, meeting access, and historical recordings for eligible students.</p></div>
-        <div class="d-flex gap-2"><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a><button id="liveExport" type="button" class="btn btn-outline-success">Export recordings CSV</button><button id="livePrint" type="button" class="btn btn-outline-primary">Print schedule</button></div>
-    </header>
     <div id="liveAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
     @if (author)
     {
         <div id="liveLock" class="alert alert-warning" role="status" aria-live="polite">Checking course authoring permissions…</div>
     }
     <section class="card mb-3">
-        <div class="card-body row g-2 align-items-end">
-            <div class="col-md-9"><label class="form-label" for="liveCourse">Course</label><select id="liveCourse" class="form-select"><option value="">Loading courses…</option></select></div>
-            <div class="col-md-3"><button id="liveRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary w-100">Refresh</button></div>
+        <div class="card-body"><div class="row g-2 align-items-end">
+            <div class="col-lg-6"><label class="form-label" for="liveCourse">Course</label><select id="liveCourse" class="form-select"><option value="">Loading courses…</option></select></div>
+            <button id="liveRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none">Refresh</button>
+            <div class="col-lg-6 d-flex flex-wrap align-items-end gap-2"><button id="liveExport" type="button" class="btn btn-sm btn-outline-success">Export recordings CSV</button><button id="livePrint" type="button" class="btn btn-sm btn-outline-primary">Print schedule</button></div>
             <div class="col-12 d-flex align-items-center gap-2"><button id="liveCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous courses</button><span id="liveCoursePage" class="small">Page 1</span><button id="liveCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next courses</button></div>
-        </div>
+        </div></div>
     </section>
     @if (author)
     {
         <form id="liveForm" class="card mb-3">
             <div class="card-header"><h3 class="h6 m-0" id="liveFormTitle">Schedule a class</h3></div>
-            <div class="card-body row g-2 align-items-end">
+            <div class="card-body"><div class="row g-2 align-items-end">
                 <div class="col-md-5"><label for="liveTitle" class="form-label">Class title</label><input id="liveTitle" class="form-control" maxlength="200" required /></div>
                 @if (manager)
                 {
@@ -36,7 +33,7 @@
                 <div class="col-md-3"><label for="liveRecording" class="form-label">HTTPS recording link</label><input id="liveRecording" type="url" pattern="https://.*" maxlength="1000" class="form-control" /></div>
                 <div class="col-12 d-flex gap-2"><button id="liveSave" type="submit" class="btn btn-primary">Save class</button><button id="liveClear" type="button" class="btn btn-outline-secondary">New class</button></div>
                 <p class="small text-muted mb-0">Only active instructors with a valid campus assignment and curriculum offering can be scheduled. Sessions may not overlap or exceed four hours. Changes require the latest row version.</p>
-            </div>
+            </div></div>
         </form>
     }
     <section class="card">
@@ -67,13 +64,13 @@
         </section>
         <form id="livePublishForm" class="card mt-3 d-none">
             <div class="card-header"><h3 class="h6 m-0">Publish a completed session recording</h3></div>
-            <div class="card-body row g-2 align-items-end">
+            <div class="card-body"><div class="row g-2 align-items-end">
                 <div class="col-md-12"><strong id="livePublishClass"></strong></div>
                 <div class="col-md-9"><label class="form-label" for="livePublishUrl">HTTPS recording URL</label>
                     <input id="livePublishUrl" class="form-control" type="url" pattern="https://.*" maxlength="1000" required /></div>
                 <div class="col-md-3"><button id="livePublishSave" type="submit" class="btn btn-primary w-100">Publish recording</button></div>
                 <p class="small text-muted mb-0">Publication is append-only. Once published, the URL cannot be replaced. Completed courses cannot receive new publications.</p>
-            </div>
+            </div></div>
         </form>
     }
     <section class="card mt-3" aria-labelledby="liveRecordingsTitle">
@@ -81,7 +78,7 @@
             <h3 id="liveRecordingsTitle" class="h6 m-0">Historical class recordings</h3>
             <span id="liveRecordingCount" class="small text-muted" aria-live="polite">0 recordings</span>
         </div>
-        <div class="card-body row g-2 align-items-end">
+        <div class="card-body"><div class="row g-2 align-items-end">
             <div class="col-md-9"><label class="form-label" for="liveRecordingCourse">Course with accessible recordings</label>
                 <select id="liveRecordingCourse" class="form-select"><option value="">Loading recording courses…</option></select></div>
             <div class="col-md-3"><button id="liveRecordingCourseRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary w-100">Refresh archive</button></div>
@@ -90,7 +87,7 @@
                 <span id="liveRecordingCoursePage" class="small">Page 1</span>
                 <button id="liveRecordingCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next courses</button>
             </div>
-        </div>
+        </div></div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
             <thead><tr><th>Class</th><th>Instructor</th><th>Session date</th><th>Recording</th></tr></thead>
             <tbody id="liveRecordingRows"><tr><td colspan="4" class="text-muted text-center p-3">Select a course.</td></tr></tbody>

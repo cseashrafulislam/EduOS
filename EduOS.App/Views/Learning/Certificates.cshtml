@@ -5,16 +5,6 @@
         !User.IsInRole("Teacher") && !User.IsInRole("Principal") && !User.IsInRole("TenantAdmin");
 }
 <section id="lmsCertificateApp" class="container-fluid py-2" data-student-mode="@studentMode.ToString().ToLowerInvariant()" data-guardian-mode="@guardianMode.ToString().ToLowerInvariant()">
-    <header class="d-flex align-items-center gap-2 mb-3">
-        <span class="visually-hidden" data-lms-i18n="title">LMS Completion Certificates</span>
-        @if (guardianMode) { <a asp-controller="LmsGuardianProgress" asp-action="Index" class="btn btn-sm btn-outline-primary">Learning progress / শেখার অগ্রগতি</a> }
-        <details id="lmsCertificateHelp" class="position-relative">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="Certificate help" title="Help">ⓘ</summary>
-            <div class="card position-absolute shadow-sm p-2" style="width:min(20rem,80vw);z-index:10" data-lms-i18n="help">
-                Certificates are issued only for verified completed courses. Revocation keeps the original record; reissue creates a new revision.
-            </div>
-        </details>
-    </header>
     <div id="lmsCertificateAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
     @if (!studentMode && !guardianMode)
     {
@@ -29,7 +19,12 @@
         </div></div>
     }
     <div class="card mb-3" id="lmsCertificateRegister">
-        <div class="card-header"><strong data-lms-i18n="register">Certificate register</strong></div>
+        <div class="card-header d-flex align-items-center flex-wrap gap-2"><strong class="me-auto" data-lms-i18n="register">Certificate register</strong>@if (guardianMode) { <a asp-controller="LmsGuardianProgress" asp-action="Index" class="btn btn-sm btn-outline-primary">Learning progress / শেখার অগ্রগতি</a> }<details id="lmsCertificateHelp" class="position-relative">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Certificate help" title="Help">ⓘ</summary>
+            <div class="card position-absolute shadow-sm p-2" style="width:min(20rem,80vw);z-index:10" data-lms-i18n="help">
+                Certificates are issued only for verified completed courses. Revocation keeps the original record; reissue creates a new revision.
+            </div>
+        </details></div>
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
                 <thead><tr>
