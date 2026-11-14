@@ -13,14 +13,14 @@ on:
         required: false
         type: boolean
         default: false
-  push:
-    branches: [ Ashraful, 'automation/**' ]
+  # Heavy SQL migration/integration smoke is deferred during UX-first work.
+  # Dispatch it manually before release or whenever a schema migration is proposed.
 
 permissions:
   contents: read
 
 concurrency:
-  # Parallel V1 sprints push the same branch; retain exact-commit SQL evidence.
+  # Preserve exact-commit SQL evidence for manual Final QA/release verification.
   group: sqlserver-migration-${{ github.sha }}
   cancel-in-progress: true
 
