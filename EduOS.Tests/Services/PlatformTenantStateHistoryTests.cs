@@ -1,4 +1,6 @@
 using EduOS.Core.Entities.SaaS;
+using EduOS.Core.DTOs.SaaS;
+using EduOS.Core.Enums.Domain;
 using EduOS.Core.Entities.System;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -54,6 +56,28 @@ public sealed class PlatformTenantStateHistoryTests
         Assert.Equal(404, (await host.GetStateHistoryAsync(303, 1, 20)).StatusCode);
         Assert.Equal(400, (await host.GetStateHistoryAsync(101, 0, 20)).StatusCode);
         Assert.Equal(403, (await CreateService(db, false).GetStateHistoryAsync(101, 1, 20)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Platform_system_institution_cannot_be_suspended_even_by_SuperAdmin()
+    {
+        var http = new DefaultHttpContext();
+        await using var db = new EduOSDbContext(new DbContextOptionsBuilder<EduOSDbContext>()
+            .UseInMemoryDatabase("system-tenant-guard-" + Guid.NewGuid().ToString("N")).Options,
+            new HttpContextAccessor { HttpContext = http });
+        db.Tenants.Add(new Tenant { Id = 901, Name = "EduOS System", Code = "EDUOS-SYSTEM",
+            Email = "system@example.test", State = TenantState.Active });
+        await db.SaveChangesAsync();
+        var result = await CreateService(db, true).ChangeStateAsync(901,
+            new ChangePlatformTenantStateRequestDto
+            {
+                RequestId = Guid.NewGuid(), RowVersion = "AQ==",
+                Reason = "Must protect the platform bootstrap institution",
+                TargetState = TenantState.Suspended
+            });
+        Assert.Equal(403, result.StatusCode);
+        Assert.Equal(TenantState.Active, (await db.Tenants.SingleAsync(x => x.Id == 901)).State);
+        Assert.False(await db.AuditLogs.AnyAsync(x => x.EntityName == "Tenant" && x.EntityId == 901));
     }
 
     private static PlatformTenantLifecycleService CreateService(EduOSDbContext db, bool host) => new(
