@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.SaaS;
@@ -47,9 +46,9 @@ public partial class PlatformCatalogService
 
         var db = _adminDb!;
         var user = _adminUser!;
-        await using var transaction = db.Database.IsRelational()
-            ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
-            : null;
+        // A single EF SaveChangesAsync atomically commits metadata plus its audit row.
+        // Explicit BeginTransactionAsync is incompatible with the configured SQL Server
+        // retrying execution strategy and is unnecessary for one write unit.
         var row = await db.InstitutionTypeDefinitions.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted, ct);
         if (row == null)
             return ApiResponse<PlatformInstitutionTypeAdminDto>.ErrorResponse("Institution type not found.", 404);
@@ -95,7 +94,6 @@ public partial class PlatformCatalogService
         try
         {
             await db.SaveChangesAsync(ct);
-            if (transaction != null) await transaction.CommitAsync(ct);
             return ApiResponse<PlatformInstitutionTypeAdminDto>.SuccessResponse(
                 MapAdmin(row), "Institution type metadata updated.");
         }
