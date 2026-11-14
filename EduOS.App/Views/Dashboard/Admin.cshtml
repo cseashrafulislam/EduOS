@@ -40,25 +40,25 @@
             <article class="dashboard-stat-card"><div><p>@(isBangla ? "পেমেন্ট যাচাই বাকি" : "Payments awaiting review")</p><strong>@(Model.PendingManualPayments.HasValue ? Model.PendingManualPayments.Value.ToString() : "—")</strong></div></article>
         </div>
     </section>
-    <section class="dashboard-panel" aria-labelledby="platformActionsTitle">
-        <div class="dashboard-section-heading"><h2 id="platformActionsTitle">@(isBangla ? "দ্রুত কাজ" : "Quick actions")</h2></div>
-        <div class="platform-tools-grid">
-            <article class="platform-tool-card">
+    <section aria-labelledby="platformActionsTitle">
+        <div class="dashboard-section-heading mb-2"><h2 id="platformActionsTitle">@(isBangla ? "দ্রুত কাজ" : "Quick actions")</h2></div>
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-4 g-2">
+            <div class="col"><article class="dashboard-panel platform-tool-card h-100">
                 <h3>@(isBangla ? "প্রতিষ্ঠান" : "Institutions")</h3>
                 <a asp-controller="PlatformTenants" asp-action="Index">@(isBangla ? "প্রতিষ্ঠান পরিচালনা" : "Manage institutions")</a>
-            </article>
-            <article class="platform-tool-card">
+            </article></div>
+            <div class="col"><article class="dashboard-panel platform-tool-card h-100">
                 <h3>@(isBangla ? "পেমেন্ট যাচাই" : "Payment verification")</h3>
                 <a asp-controller="Account" asp-action="PaymentVerification">@(isBangla ? "যাচাইয়ের তালিকা" : "Review payments")</a>
-            </article>
-            <article class="platform-tool-card">
+            </article></div>
+            <div class="col"><article class="dashboard-panel platform-tool-card h-100">
                 <h3>@(isBangla ? "সাবস্ক্রিপশন" : "Subscriptions")</h3>
                 <a asp-controller="SubscriptionPaymentHistory" asp-action="Index">@(isBangla ? "পেমেন্টের ইতিহাস" : "Payment history")</a>
-            </article>
-            <article class="platform-tool-card">
+            </article></div>
+            <div class="col"><article class="dashboard-panel platform-tool-card h-100">
                 <h3>@(isBangla ? "প্ল্যান" : "Plans")</h3>
                 <a asp-controller="SubscriptionPlanAdministration" asp-action="Index">@(isBangla ? "প্ল্যান পরিচালনা" : "Manage plans")</a>
-            </article>
+            </article></div>
         </div>
     </section>
     <div class="dashboard-main-grid">
