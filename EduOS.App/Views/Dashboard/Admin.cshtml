@@ -1,85 +1,111 @@
 @model EduOS.Core.DTOs.Dashboard.PlatformDashboardVm
 @{
-    ViewData["Title"] = "Platform Operations";
+    var isBangla = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = isBangla ? "প্ল্যাটফর্ম পরিচালনা" : "Platform Operations";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="dashboard-page platform-dashboard" id="platformDashboard">
-    <section class="dashboard-hero platform-dashboard-hero" aria-labelledby="platformTitle">
-        <div class="dashboard-hero-copy">
-            <p class="dashboard-eyebrow">@T["Dashboard"] · SuperAdmin workspace</p>
-            <h2 id="platformTitle">Platform Operations</h2>
-            <p>Live tenant onboarding, subscription risk and payment review overview. Platform-wide data is restricted to SuperAdmin.</p>
-            <div class="dashboard-badges">
-                <span class="status-chip status-chip-neutral">Restricted access</span>
-                <span class="status-chip status-chip-success">Read-only metrics</span>
-            </div>
-        </div>
-        <div class="dashboard-progress-card platform-safety-card">
-            <div>
-                <strong>Last refreshed (UTC)</strong>
-                <p id="platformRefreshedAt">@Model.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm:ss")</p>
-                <button type="button" id="platformRefresh" class="btn btn-outline-primary btn-sm mt-2">Refresh metrics</button>
-            </div>
-        </div>
-    </section>
-    <p id="platformStatus" class="small text-muted" role="status" aria-live="polite"></p>
-    <section aria-labelledby="platformMetricsTitle">
-        <div class="dashboard-section-heading">
-            <div><p class="dashboard-eyebrow">Operational metrics</p><h2 id="platformMetricsTitle">SaaS Overview</h2></div>
-        </div>
+<div class="dashboard-page platform-dashboard gap-3" id="platformDashboard">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 small text-muted">
+        <span>@(isBangla ? "প্রতিষ্ঠান, সাবস্ক্রিপশন ও পেমেন্ট পর্যালোচনা" : "Institution, subscription and payment oversight")</span>
+        <span>@(isBangla ? "তথ্য হালনাগাদ (UTC)" : "Updated (UTC)"):
+            <time datetime="@Model.GeneratedAtUtc.ToString("O")">@Model.GeneratedAtUtc.ToString("yyyy-MM-dd HH:mm")</time>
+        </span>
+    </div>
+    <section aria-label="@(isBangla ? "প্ল্যাটফর্মের সারসংক্ষেপ" : "Platform summary")">
         <div class="dashboard-stats-grid">
-            <article class="dashboard-stat-card"><div><p>Total institutions</p><strong data-platform-count="totalTenants">@Model.TotalTenants</strong><span>Non-deleted tenants</span></div></article>
-            <article class="dashboard-stat-card"><div><p>Active institutions</p><strong data-platform-count="activeTenants">@Model.ActiveTenants</strong><span>Active tenant state</span></div></article>
-            <article class="dashboard-stat-card"><div><p>Email verification pending</p><strong data-platform-count="pendingVerificationTenants">@Model.PendingVerificationTenants</strong><span>Pending tenant state</span></div></article>
-            <article class="dashboard-stat-card"><div><p>Incomplete onboarding</p><strong data-platform-count="incompleteOnboardingTenants">@Model.IncompleteOnboardingTenants</strong><span>Requires setup</span></div></article>
-            <article class="dashboard-stat-card"><div><p>New institutions (30 days)</p><strong data-platform-count="newTenantsLast30Days">@Model.NewTenantsLast30Days</strong><span>Created in last 30 days</span></div></article>
-            <article class="dashboard-stat-card"><div><p>Expiring subscriptions (7 days)</p><strong data-platform-count="subscriptionsExpiringNext7Days">@Model.SubscriptionsExpiringNext7Days</strong><span>Active / Trial / Grace</span></div></article>
-            <article class="dashboard-stat-card"><div><p>Overdue active subscriptions</p><strong data-platform-count="overdueActiveSubscriptions">@Model.OverdueActiveSubscriptions</strong><span>Past end date, not yet transitioned</span></div></article>
-            <article class="dashboard-stat-card"><div><p>Manual payments awaiting review</p><strong data-platform-count="pendingManualPayments">@(Model.PendingManualPayments?.ToString() ?? "—")</strong><span>Review queue</span></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "মোট প্রতিষ্ঠান" : "Total institutions")</p><strong>@Model.TotalTenants</strong></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "সক্রিয় প্রতিষ্ঠান" : "Active institutions")</p><strong>@Model.ActiveTenants</strong></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "ইমেইল যাচাই বাকি" : "Email verification pending")</p><strong>@Model.PendingVerificationTenants</strong></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "অনবোর্ডিং অসম্পূর্ণ" : "Onboarding incomplete")</p><strong>@Model.IncompleteOnboardingTenants</strong></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "নতুন প্রতিষ্ঠান (৩০ দিন)" : "New institutions (30 days)")</p><strong>@Model.NewTenantsLast30Days</strong></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "মেয়াদ শেষ হবে (৭ দিন)" : "Expiring (7 days)")</p><strong>@Model.SubscriptionsExpiringNext7Days</strong></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "মেয়াদোত্তীর্ণ সাবস্ক্রিপশন" : "Overdue subscriptions")</p><strong>@Model.OverdueActiveSubscriptions</strong></div></article>
+            <article class="dashboard-stat-card"><div><p>@(isBangla ? "পেমেন্ট যাচাই বাকি" : "Payments awaiting review")</p><strong>@(Model.PendingManualPayments.HasValue ? Model.PendingManualPayments.Value.ToString() : "—")</strong></div></article>
         </div>
     </section>
-    <div class="dashboard-main-grid mt-4">
+    <section class="dashboard-panel" aria-labelledby="platformActionsTitle">
+        <div class="dashboard-section-heading"><h2 id="platformActionsTitle">@(isBangla ? "দ্রুত কাজ" : "Quick actions")</h2></div>
+        <div class="platform-tools-grid">
+            <article class="platform-tool-card">
+                <h3>@(isBangla ? "প্রতিষ্ঠান" : "Institutions")</h3>
+                <a asp-controller="PlatformTenants" asp-action="Index">@(isBangla ? "প্রতিষ্ঠান পরিচালনা" : "Manage institutions")</a>
+            </article>
+            <article class="platform-tool-card">
+                <h3>@(isBangla ? "পেমেন্ট যাচাই" : "Payment verification")</h3>
+                <a asp-controller="Account" asp-action="PaymentVerification">@(isBangla ? "যাচাইয়ের তালিকা" : "Review payments")</a>
+            </article>
+            <article class="platform-tool-card">
+                <h3>@(isBangla ? "সাবস্ক্রিপশন" : "Subscriptions")</h3>
+                <a asp-controller="SubscriptionPaymentHistory" asp-action="Index">@(isBangla ? "পেমেন্টের ইতিহাস" : "Payment history")</a>
+            </article>
+            <article class="platform-tool-card">
+                <h3>@(isBangla ? "প্ল্যান" : "Plans")</h3>
+                <a asp-controller="SubscriptionPlanAdministration" asp-action="Index">@(isBangla ? "প্ল্যান পরিচালনা" : "Manage plans")</a>
+            </article>
+        </div>
+    </section>
+    <div class="dashboard-main-grid">
         <section class="dashboard-panel" aria-labelledby="recentTenantsTitle">
-            <div class="dashboard-section-heading"><h2 id="recentTenantsTitle">Recently registered institutions</h2></div>
+            <div class="dashboard-section-heading"><h2 id="recentTenantsTitle">@(isBangla ? "সাম্প্রতিক প্রতিষ্ঠান" : "Recently registered institutions")</h2></div>
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
-                    <thead><tr><th>Institution</th><th>State</th><th>Onboarding</th><th>Created (UTC)</th></tr></thead>
-                    <tbody id="platformRecentTenants">
-                    @foreach (var tenant in Model.RecentTenants)
+                    <caption class="visually-hidden">@(isBangla ? "সর্বশেষ নিবন্ধিত আটটি প্রতিষ্ঠান" : "Eight most recently registered institutions")</caption>
+                    <thead><tr>
+                        <th scope="col">@(isBangla ? "প্রতিষ্ঠান" : "Institution")</th>
+                        <th scope="col">@(isBangla ? "অবস্থা" : "State")</th>
+                        <th scope="col">@(isBangla ? "অনবোর্ডিং" : "Onboarding")</th>
+                        <th scope="col">@(isBangla ? "নিবন্ধনের তারিখ" : "Created (UTC)")</th>
+                    </tr></thead>
+                    <tbody>
+                    @if (Model.RecentTenants.Count == 0)
                     {
-                        <tr><td>@tenant.Name</td><td>@tenant.State</td><td>@tenant.OnboardingStage</td><td>@tenant.CreatedAt.ToString("yyyy-MM-dd")</td></tr>
+                        <tr><td colspan="4" class="text-center text-muted py-3">@(isBangla ? "কোনো প্রতিষ্ঠান পাওয়া যায়নি" : "No institutions found")</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var tenant in Model.RecentTenants)
+                        {
+                            <tr>
+                                <td>@tenant.Name</td>
+                                <td>@tenant.State</td>
+                                <td>@tenant.OnboardingStage</td>
+                                <td><time datetime="@tenant.CreatedAt.ToString("O")">@tenant.CreatedAt.ToString("yyyy-MM-dd")</time></td>
+                            </tr>
+                        }
                     }
                     </tbody>
                 </table>
             </div>
         </section>
-        <aside class="dashboard-side-stack">
-            <section class="dashboard-panel" aria-labelledby="expiringTitle">
-                <div class="dashboard-section-heading"><h2 id="expiringTitle">Subscriptions expiring soon</h2></div>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead><tr><th>Institution</th><th>State</th><th>Ends (UTC)</th></tr></thead>
-                        <tbody id="platformExpiringSubscriptions">
+        <section class="dashboard-panel" aria-labelledby="expiringTitle">
+            <div class="dashboard-section-heading"><h2 id="expiringTitle">@(isBangla ? "শিগগির মেয়াদ শেষ হবে" : "Subscriptions expiring soon")</h2></div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <caption class="visually-hidden">@(isBangla ? "আসন্ন মেয়াদোত্তীর্ণ সাবস্ক্রিপশন" : "Upcoming subscription expirations")</caption>
+                    <thead><tr>
+                        <th scope="col">@(isBangla ? "প্রতিষ্ঠান" : "Institution")</th>
+                        <th scope="col">@(isBangla ? "অবস্থা" : "State")</th>
+                        <th scope="col">@(isBangla ? "শেষ তারিখ (UTC)" : "Ends (UTC)")</th>
+                    </tr></thead>
+                    <tbody>
+                    @if (Model.UpcomingExpirations.Count == 0)
+                    {
+                        <tr><td colspan="3" class="text-center text-muted py-3">@(isBangla ? "আসন্ন মেয়াদোত্তীর্ণ সাবস্ক্রিপশন নেই" : "No upcoming expirations")</td></tr>
+                    }
+                    else
+                    {
                         @foreach (var subscription in Model.UpcomingExpirations)
                         {
-                            <tr><td>@subscription.TenantName</td><td>@subscription.SubscriptionState</td><td>@subscription.EndsAtUtc.ToString("yyyy-MM-dd")</td></tr>
+                            <tr>
+                                <td>@subscription.TenantName</td>
+                                <td>@subscription.SubscriptionState</td>
+                                <td><time datetime="@subscription.EndsAtUtc.ToString("O")">@subscription.EndsAtUtc.ToString("yyyy-MM-dd")</time></td>
+                            </tr>
                         }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </aside>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
-    <section class="dashboard-panel mt-4" aria-labelledby="platformActionsTitle">
-        <div class="dashboard-section-heading"><h2 id="platformActionsTitle">Operations</h2></div>
-        <div class="platform-tools-grid">
-            <article class="dashboard-panel platform-tool-card"><h3>Payment verification</h3><p>Review bank transfers and verify receipts before activation.</p><a asp-controller="Account" asp-action="PaymentVerification">Open review queue</a></article>
-            <article class="dashboard-panel platform-tool-card"><h3>Pricing catalog</h3><p>Review publicly available subscription plans.</p><a asp-controller="Pricing" asp-action="Index">Review pricing</a></article>
-            <article class="dashboard-panel platform-tool-card"><h3>Background jobs</h3><p>Restricted operations dashboard.</p><a href="/hangfire">Open jobs</a></article>
-            <article class="dashboard-panel platform-tool-card"><h3>Service health</h3><p>Inspect application health endpoint.</p><a href="/health">Check health</a></article>
-        </div>
-    </section>
 </div>
-@section Scripts {
-    <script src="~/js/dashboard/platform-admin.js" asp-append-version="true"></script>
-}
