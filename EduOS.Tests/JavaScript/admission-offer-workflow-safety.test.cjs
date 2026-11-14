@@ -16,7 +16,7 @@ test('all three mutations share one busy and conflict recovery gate',()=>{
 });
 test('mutation results never update a different selected applicant',()=>{
  assert.match(js,/if \(!currentReference\(reference\)\) return/);
- assert.match(js,/if \(updated && currentReference\(reference\)\) notice/);
+ assert.match(js,/if \(updated && currentReference\(reference\)\) \{\s*await loadEnrollmentSections\(\);\s*notice/);
  assert.match(core,/ctx.reference === reference/);
 });
 test('busy state and bilingual accessible journey exist',()=>{

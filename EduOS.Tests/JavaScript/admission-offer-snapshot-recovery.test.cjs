@@ -17,7 +17,7 @@ test('concurrent refresh and applicant switch invalidate old responses',()=>{
  assert.match(core,/sequence !== loadSequence \|\| !loaded/);
 });
 test('refresh failure does not advertise mutation success or unlock forms',()=>{
- assert.match(main,/if \(updated && currentReference\(reference\)\) notice\(success\(result\)\)/);
+ assert.match(main,/if \(updated && currentReference\(reference\)\) \{\s*await loadEnrollmentSections\(\);\s*notice\(success\(result\)\)/);
  assert.match(core,/busy \|\| pendingRefresh/);
  assert.match(core,/finally \{/);
 });

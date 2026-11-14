@@ -23,7 +23,7 @@ test('physical copy incident is atomic, tenant scoped and does not post speculat
 });
 
 test('condition UI is bilingual, CSRF protected, session-bound and text-only', () => {
-    assert.match(view, /data-bn="কপির অবস্থা"/);
+    assert.match(view, /data-bn="কপির অবস্থা নথিভুক্ত করুন"/);
     assert.match(view, /data-bn="কারণ \(ব্যক্তিগত তথ্য ছাড়া\)"/);
     assert.match(view, /id="conditionDialog"/);
     assert.match(js, /request-verification-token/);

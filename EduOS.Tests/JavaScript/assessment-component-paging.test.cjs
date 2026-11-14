@@ -17,7 +17,7 @@ test('component marks page uses server-side scope paging and bounded search', ()
     assert.match(view, /id="cmSearch"[^>]*maxlength="100"/);
     assert.match(view, /id="cmPrev"/);
     assert.match(view, /id="cmNext"/);
-    assert.match(view, /Component marks guide/);
+    assert.match(view, /id="componentMarksWorkspace"/);
     assert.doesNotMatch(js, /innerHTML\s*=/);
 });
 

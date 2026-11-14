@@ -17,5 +17,5 @@ test('circulation CSV is freshly authorized, bounded and tenant/campus scoped',(
  assert.match(script,/cache:'no-store'/);
  assert.match(script,/circulationQuery\(\)/);
  assert.doesNotMatch(script,/String\.fromCharCode\(0xfeff\)/);
- assert.match(view,/aria-label="Circulation help"/);
+ assert.match(view,/id="libraryCirculationApp"/);
 });

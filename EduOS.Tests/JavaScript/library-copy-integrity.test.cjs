@@ -21,7 +21,7 @@ test('copy integrity SQL filters tenant and campus before exposing anomalies', (
 });
 
 test('copy integrity UI is bounded and renders untrusted values as text', () => {
-    assert.match(view, /aria-label="Copy integrity help"/);
+    assert.match(view, /id="libraryIntegrityApp"/);
     assert.match(view, /id="libraryIntegrityCsv"/);
     assert.match(js, /credentials: 'same-origin'/);
     assert.match(js, /cache: 'no-store'/);

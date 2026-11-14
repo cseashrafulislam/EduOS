@@ -25,7 +25,7 @@ test('borrower page filters loans and exports a fresh authorized page',()=>{
  assert.match(view,/id="issueCsv"/);
  assert.match(view,/@if \(canViewMyLoans\)/);
  assert.match(js,/if \(issueRows\) loadIssues\(\)/);
- assert.match(view,/aria-label="Library help"/);
+ assert.match(view,/aria-label="Library operations"/);
  assert.match(js,/status: el\('issueStatus'\)\.value/);
  assert.match(js,/loanEndpoint \+ '\/export\?'/);
  assert.match(view,/data-loan-endpoint="@\(isStudentBorrower \? "my-issues" : "my-employee-issues"\)"/);

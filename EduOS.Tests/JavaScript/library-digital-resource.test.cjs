@@ -33,7 +33,7 @@ test('digital library uses real scanned private upload, authorized download and 
 test('digital resource UI is interactive, bounded, bilingual and avoids browser-held authorization', () => {
     assert.match(view, /id="digitalUploadForm"/);
     assert.match(view, /id="digitalRows"/);
-    assert.match(view, /aria-labelledby="digitalLibraryTitle"/);
+    assert.match(view, /aria-labelledby="digitalListTitle"/);
     assert.match(view, /asp-action="Index"/);
     assert.match(view, /CurrentUICulture/);
     assert.match(ui, /new FormData\(\)/);

@@ -24,7 +24,7 @@ test('reservation UI filters current page and downloads only fresh authorized CS
     assert.match(view, /id="reservationMineStatus"/);
     assert.match(view, /@if \(canExportMine\)/);
     assert.match(view, /id="reservationMineCsv"/);
-    assert.match(view, /aria-label="Reservation help"/);
+    assert.match(view, /id="reservationApp"/);
     assert.match(js, /status: el\('reservationMineStatus'\)\.value/);
     assert.match(js, /\/api\/library\/reservations\/mine\/export\?/);
     assert.match(js, /cache: 'no-store'/);

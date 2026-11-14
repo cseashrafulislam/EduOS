@@ -24,7 +24,7 @@ test('receipt is privacy-minimal and uses textContent, never HTML interpolation'
 });
 
 test('failed application requests preserve form and request key for retry', () => {
-  assert.match(js, /if \(!response\.ok \|\| !payload\?\.success\) \{[\s\S]*?showAlert\('danger', i18n\.createFailed\);[\s\S]*?return;/);
+  assert.match(js, /if \(!response\.ok \|\| !payload\?\.success\) \{[\s\S]*?showSubmissionFeedback\(applicationSubmissionError\(response, payload\)\);[\s\S]*?return;/);
   assert.match(js, /state\.pendingFingerprint !== null && state\.pendingFingerprint !== fingerprint/);
   assert.match(js, /state\.submitting = true/);
   assert.match(js, /state\.submitting = false/);
