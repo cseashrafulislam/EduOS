@@ -178,9 +178,10 @@
                     <div class="col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button><button id="trackCsv" type="button" class="btn btn-outline-secondary">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button></div>
                 </form>
                 <form id="trackCreateForm" class="row g-2 align-items-end mb-3">
+                <p class="col-12 small text-muted mb-0">@(bn ? "কোড সিস্টেম নিজে তৈরি করবে।" : "Code is generated automatically.")</p>
                     <div class="col-md-3"><label for="trackCreateProgram" class="form-label">@(bn ? "প্রোগ্রাম" : "Programme")</label><select id="trackCreateProgram" class="form-select"></select></div>
                     <div class="col-md-3"><label for="trackCreateName" class="form-label">@(bn ? "শাখার নাম *" : "Track name *")</label><input id="trackCreateName" class="form-control" maxlength="150" required /></div>
-                    <div class="col-md-2"><label for="trackCreateCode" class="form-label">@(bn ? "কোড *" : "Code *")</label><input id="trackCreateCode" class="form-control" maxlength="50" required /></div>
+                    <input id="trackCreateCode" type="hidden" />
                     <div class="col-md-2"><label for="trackCreateOrder" class="form-label">@(bn ? "ক্রম" : "Order")</label><input id="trackCreateOrder" type="number" class="form-control" min="0" value="0" required /></div>
                     <div class="col-md-2"><label class="form-check"><input id="trackCreateDefault" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "ডিফল্ট" : "Default")</span></label><button type="submit" class="btn btn-primary mt-1">@(bn ? "শাখা যোগ করুন" : "Add track")</button></div>
                     <div class="col-12"><label for="trackCreateDescription" class="form-label">@(bn ? "বিবরণ" : "Description")</label><input id="trackCreateDescription" class="form-control" maxlength="500" /></div>
@@ -210,9 +211,10 @@
                 <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button><button id="roomCsv" type="button" class="btn btn-outline-secondary">@(bn ? "CSV রপ্তানি" : "Export CSV")</button></div>
             </form>
             <form id="roomCreateForm" class="row g-2 align-items-end mb-3">
+                <p class="col-12 small text-muted mb-0">@(bn ? "কোড সিস্টেম নিজে তৈরি করবে।" : "Code is generated automatically.")</p>
                 <div class="col-md-2"><label for="roomCreateCampus" class="form-label">@(bn ? "ক্যাম্পাস *" : "Campus *")</label><select id="roomCreateCampus" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="roomCreateName" class="form-label">@(bn ? "নাম *" : "Name *")</label><input id="roomCreateName" class="form-control" maxlength="100" required /></div>
-                <div class="col-md-2"><label for="roomCreateCode" class="form-label">@(bn ? "কোড *" : "Code *")</label><input id="roomCreateCode" class="form-control" maxlength="50" required /></div>
+                <input id="roomCreateCode" type="hidden" />
                 <div class="col-md-2"><label for="roomCreateCapacity" class="form-label">@(bn ? "আসনসংখ্যা" : "Capacity")</label><input id="roomCreateCapacity" type="number" class="form-control" min="0" max="100000" value="40" required /></div>
                 <div class="col-md-2"><label for="roomCreateType" class="form-label">@(bn ? "ধরন" : "Type")</label><input id="roomCreateType" class="form-control" maxlength="100" /></div>
                 <div class="col-md-1"><button type="submit" class="btn btn-primary">@(bn ? "যোগ করুন" : "Add")</button></div>
@@ -350,10 +352,11 @@
                 <div class="col-md-3 d-flex align-items-end"><button id="offeringSearchButton" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button></div>
             </div>
             <form id="offeringForm" class="row g-2 align-items-end mb-3">
+                <p class="col-12 small text-muted mb-0">@(bn ? "কোড সিস্টেম নিজে তৈরি করবে।" : "Code is generated automatically.")</p>
                 <input id="offeringReference" type="hidden" /><input id="offeringVersion" type="hidden" />
                 <div class="col-md-4"><label for="offeringSection" class="form-label">@(bn ? "একাডেমিক শাখা *" : "Academic section *")</label><select id="offeringSection" class="form-select" required></select></div>
                 <div class="col-md-4"><label for="offeringCurriculumSubject" class="form-label">@(bn ? "পাঠ্যক্রমের বিষয় *" : "Curriculum subject *")</label><select id="offeringCurriculumSubject" class="form-select" required></select></div>
-                <div class="col-md-2"><label for="offeringCode" class="form-label">@(bn ? "অফারিং কোড *" : "Offering code *")</label><input id="offeringCode" maxlength="50" class="form-control" required /></div>
+                <input id="offeringCode" type="hidden" />
                 <div class="col-md-2"><label for="offeringCapacity" class="form-label">@(bn ? "আসনসংখ্যা *" : "Capacity *")</label><input id="offeringCapacity" type="number" min="1" max="100000" class="form-control" required /></div>
                 <div class="col-md-2"><label for="offeringDelivery" class="form-label">@(bn ? "শিক্ষাদানের ধরন" : "Delivery")</label><select id="offeringDelivery" class="form-select"><option value="1">@(bn ? "ক্যাম্পাসে" : "On campus")</option><option value="2">@(bn ? "অনলাইন লাইভ" : "Online live")</option><option value="3">@(bn ? "স্বগতিতে" : "Self-paced")</option><option value="4">@(bn ? "মিশ্র" : "Hybrid")</option></select></div>
                 <div class="col-md-2 academic-check-cell"><label class="form-check academic-check-control"><input id="offeringActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
