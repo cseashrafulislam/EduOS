@@ -8,6 +8,7 @@ on:
     branches: [Ashraful]
     paths:
       - '.github/workflows/unified-full-qa.yml'
+      - '.github/workflows/sqlserver-migration.yml'
       - 'EduOS.Tests/**'
       - 'tests/browser/**'
       - 'EduOS.Service/**'
