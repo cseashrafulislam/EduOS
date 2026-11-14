@@ -1508,7 +1508,41 @@
             ["If access or publishing fails, check module permission, licence status and the review workflow.","প্রবেশ বা প্রকাশ ব্যর্থ হলে মডিউল অনুমতি, লাইসেন্স ও রিভিউ অবস্থা যাচাই করুন।"],
             [["/Library/Study","Study collections","অধ্যয়ন সংগ্রহ"]]),
     };
+    // UX C learning menu: source-reviewed missing bilingual task manuals.
+    const uxCLearningManuals = {
+        '/learning/studyplan/index': taskGuide(
+            ["Adaptive Study Plan","ব্যক্তিগত পড়াশোনার পরিকল্পনা"],
+            ["Preview a practice plan grounded in graded published quizzes and save dated snapshots without modifying official exam marks.","প্রকাশিত ও মূল্যায়িত কুইজের ভিত্তিতে অনুশীলনের পরিকল্পনা দেখুন এবং সরকারি নম্বর না বদলে তারিখসহ পরিকল্পনা সংরক্ষণ করুন।"],
+            ["Signed-in permitted learner with a current course enrollment and recorded published quiz results.","লগইন করা অনুমোদিত শিক্ষার্থী, বর্তমান কোর্সে ভর্তি এবং প্রকাশিত কুইজের ফল প্রয়োজন।"],
+            [["Select an enrolled course and choose Preview plan.","ভর্তি থাকা কোর্স বেছে পরিকল্পনা দেখুন চাপুন।"],["Review chapter/skill priorities and suggested practice; do not treat recommendations as marks.","অধ্যায় ও দক্ষতার অগ্রাধিকার এবং অনুশীলনের পরামর্শ দেখুন; এগুলোকে নম্বর ভাববেন না।"],["Save snapshot, then inspect dated history. Open Quizzes for additional practice.","পরিকল্পনার snapshot সংরক্ষণ করে আগের তারিখের ইতিহাস দেখুন। আরও অনুশীলনে Quizzes খুলুন।"]],
+            ["Example: review an algebra weakness after a published quiz and save a weekly practice snapshot.","উদাহরণ: প্রকাশিত কুইজে বীজগণিতে দুর্বলতা দেখে সপ্তাহের অনুশীলন পরিকল্পনা সংরক্ষণ করুন।"],
+            ["A dated study snapshot is available in plan history; official grades remain unchanged.","তারিখসহ পরিকল্পনা ইতিহাসে থাকবে; পরীক্ষার নম্বর অপরিবর্তিত থাকবে।"],
+            ["Only your authorized course data is visible. A recommendation cannot grant exam access or override grades.","শুধু অনুমোদিত কোর্সের তথ্য দেখা যাবে। পরামর্শ দিয়ে পরীক্ষা প্রবেশ বা নম্বর বদলানো যাবে না।"],
+            ["If a course has no usable published results, verify enrollment and quiz publication before saving another snapshot.","প্রকাশিত ফল না থাকলে নতুন পরিকল্পনা সংরক্ষণের আগে ভর্তি ও কুইজ প্রকাশ যাচাই করুন।"],
+            [["/Learning/Quizzes","Quiz practice","কুইজ অনুশীলন"]]),
+        '/learning/coursecompletions/index': taskGuide(
+            ["Course Completion Register","কোর্স সম্পন্নের তালিকা"],
+            ["Review eligible course enrollments and verifiable lesson, graded-assignment and passed-quiz conditions before recording completion.","সম্পন্নের সিদ্ধান্তের আগে কোর্সে ভর্তি ও পাঠ, মূল্যায়িত অ্যাসাইনমেন্ট ও উত্তীর্ণ কুইজের প্রমাণ যাচাই করুন।"],
+            ["Authorized instructor or academic manager with current course access. Completed or archived enrollments are subject to server rules.","বর্তমান কোর্সের অনুমতিপ্রাপ্ত শিক্ষক বা একাডেমিক প্রশাসক প্রয়োজন। সম্পন্ন বা আর্কাইভ করা ভর্তিতে সার্ভারের নিয়ম প্রযোজ্য।"],
+            [["Choose an authorized course and search for its enrolled students.","অনুমোদিত কোর্স বেছে ভর্তি শিক্ষার্থী খুঁজুন।"],["Inspect lesson progress and assessment eligibility, then page through the bounded register.","পাঠের অগ্রগতি ও মূল্যায়নের যোগ্যতা যাচাই করে পৃষ্ঠা ধরে তালিকা দেখুন।"],["Use the authorized completion action only when evidence satisfies the current rules; export at most the permitted filtered rows.","প্রমাণ শর্ত পূরণ করলে অনুমোদিত completion action ব্যবহার করুন; অনুমতির সীমায় ফিল্টার করা রেকর্ড রপ্তানি করুন।"]],
+            ["Example: verify all required lessons and passed quizzes before completing a student's course.","উদাহরণ: শিক্ষার্থীর কোর্স সম্পন্নের আগে প্রয়োজনীয় পাঠ ও উত্তীর্ণ কুইজ যাচাই করুন।"],
+            ["The completion register and relevant learner history reflect the validated result.","যাচাইকৃত ফল সম্পন্নের তালিকা ও শিক্ষার্থীর ইতিহাসে দেখা যাবে।"],
+            ["Never bypass instructor scope, fabricate evidence or re-complete an already completed enrollment. Exports are bounded.","শিক্ষকের অনুমতি এড়িয়ে, প্রমাণ তৈরি করে বা আগের সম্পন্ন ভর্তি দ্বিতীয়বার সম্পন্ন করবেন না। রিপোর্ট সীমিত।"],
+            ["On a conflict or timeout, recheck the enrollment's current state and history before retrying.","সংঘর্ষ বা টাইমআউটে আবার চেষ্টা করার আগে ভর্তির বর্তমান অবস্থা ও ইতিহাস দেখুন।"],
+            [["/Learning/Index","Course management","কোর্স ব্যবস্থাপনা"]]),
+        '/learning/mysubmissions/index': taskGuide(
+            ["My Assignment Submissions","আমার অ্যাসাইনমেন্ট জমা"],
+            ["Find your own enrolled assignments and submit one authorized answer with optional private files.","নিজের ভর্তি কোর্সের অ্যাসাইনমেন্ট খুঁজে অনুমোদিত উত্তর ও প্রয়োজনে ব্যক্তিগত ফাইল জমা দিন।"],
+            ["Signed-in enrolled learner; assignment must still accept submissions. File limits and security scans apply.","লগইন করা ভর্তি শিক্ষার্থী; অ্যাসাইনমেন্ট জমা খোলা থাকতে হবে। ফাইলের সীমা ও নিরাপত্তা যাচাই প্রযোজ্য।"],
+            [["Filter the assignment list by course or search text; review the deadline and status.","কোর্স বা খোঁজার শব্দ দিয়ে তালিকা দেখুন, শেষ সময় ও অবস্থা যাচাই করুন।"],["For an open assignment, enter the answer and attach no more than ten allowed files, each within 5 MB.","খোলা অ্যাসাইনমেন্টে উত্তর লিখে সর্বোচ্চ দশটি বৈধ ফাইল দিন, প্রতিটি ৫ এমবির মধ্যে।"],["Submit once and verify the returned status and file receipts in your own list.","একবার জমা দিয়ে নিজের তালিকায় অবস্থা ও সংযুক্তির হিসাব যাচাই করুন।"]],
+            ["Example: submit a short answer and one scanned PDF before an assignment closes.","উদাহরণ: নির্ধারিত সময়ের আগে সংক্ষিপ্ত উত্তর ও একটি স্ক্যান PDF জমা দিন।"],
+            ["The authorized submission becomes visible in your own history and is no longer replaceable after submission.","অনুমোদিত জমা নিজের ইতিহাসে দেখা যাবে; জমার পরে আর প্রতিস্থাপন করা যাবে না।"],
+            ["Only your submissions and files are accessible. Do not retry a lost response without first checking status.","শুধু নিজের জমা ও ফাইল দেখা যাবে। উত্তর না এলে অবস্থা যাচাই ছাড়া আবার জমা দেবেন না।"],
+            ["If the upload fails, check the file format, total count, size and deadline; if the response is uncertain, reload the list before trying again.","আপলোড ব্যর্থ হলে ফরম্যাট, সংখ্যা, আকার ও সময়সীমা যাচাই করুন; ফল অনিশ্চিত হলে আবার জমার আগে তালিকা দেখুন।"],
+            [["/Learning/Index","My courses","আমার কোর্স"]]),
+    };
     const manuals = {
+        ...uxCLearningManuals,
         ...uxBManuals,
         ...ux03CrossModuleManuals,
         '/dashboard/index': {
