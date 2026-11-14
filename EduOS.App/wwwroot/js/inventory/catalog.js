@@ -8,6 +8,7 @@
     const base = '/api/inventory/catalog';
     let page = 1, lastPage = 1, locationPage = 1, locationLastPage = 1, items = [], locations = [];
     let itemSaving = false, locationSaving = false, itemSequence = 0, locationSequence = 0;
+    let itemRequestId = null, itemFingerprint = null, locationRequestId = null, locationFingerprint = null;
     const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
     const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
         context[1] === (document.body?.dataset.authSessionReference || '') &&
@@ -88,22 +89,28 @@
     }
     function resetItem() {
         el('itemForm').reset(); el('itemId').value = ''; el('itemVersion').value = '';
+        itemRequestId = null; itemFingerprint = null;
         guards.item?.markClean();
     }
     async function saveItem(event) {
         event.preventDefault();
         if (itemSaving || !live()) return;
         const id = el('itemId').value;
-        const body = { code: el('itemCode').value.trim(), name: el('itemName').value.trim(),
+        const body = { code: id ? el('itemCode').value.trim() : '', name: el('itemName').value.trim(),
             unitCode: el('itemUnit').value.trim(), categoryCode: el('itemCategory').value.trim() || null,
             reorderLevel: Number(el('itemReorder').value), isStockTracked: el('itemStock').checked,
             isAssetTracked: el('itemAsset').checked, isActive: el('itemActive').checked,
             rowVersion: el('itemVersion').value || null };
+        if (!id) {
+            const fingerprint = JSON.stringify(body);
+            if (itemFingerprint !== fingerprint) { itemFingerprint = fingerprint; itemRequestId = crypto.randomUUID(); }
+            body.clientRequestId = itemRequestId;
+        }
         itemSaving = true; const unlock = lock(el('itemForm'), true);
         try {
             await api('/items' + (id ? '/' + encodeURIComponent(id) : ''), id ? 'PUT' : 'POST', body);
             resetItem(); notice('Item saved.', true);
-            try { await loadItems(true); } catch (error) { notice('Item saved; refresh the register. ' + error.message, true); }
+            try { await loadItems(true); } catch (error) { notice('Item saved; list reload failed. Search the catalog before another create. ' + error.message, true); }
         } catch (error) { notice(error.message); }
         finally { itemSaving = false; unlock(); }
     }
@@ -146,6 +153,7 @@
     }
     function resetLocation() {
         el('locationForm').reset(); el('locationId').value = ''; el('locationVersion').value = '';
+        locationRequestId = null; locationFingerprint = null;
         guards.location?.markClean();
     }
     async function saveLocation(event) {
@@ -153,14 +161,19 @@
         if (locationSaving || !live()) return;
         const id = el('locationId').value;
         const address = el('locationAddress').value.trim();
-        const body = { code: el('locationCode').value.trim(), name: el('locationName').value.trim(),
+        const body = { code: id ? el('locationCode').value.trim() : '', name: el('locationName').value.trim(),
             campusId: el('locationCampus').value ? Number(el('locationCampus').value) : null,
             address: address || null, isActive: el('locationActive').checked, rowVersion: el('locationVersion').value || null };
+        if (!id) {
+            const fingerprint = JSON.stringify(body);
+            if (locationFingerprint !== fingerprint) { locationFingerprint = fingerprint; locationRequestId = crypto.randomUUID(); }
+            body.clientRequestId = locationRequestId;
+        }
         locationSaving = true; const unlock = lock(el('locationForm'), true);
         try {
             await api('/locations' + (id ? '/' + encodeURIComponent(id) : ''), id ? 'PUT' : 'POST', body);
             resetLocation(); notice('Location saved.', true);
-            try { await loadLocations(true); } catch (error) { notice('Location saved; refresh the register. ' + error.message, true); }
+            try { await loadLocations(true); } catch (error) { notice('Location saved; list reload failed. Search locations before another create. ' + error.message, true); }
         } catch (error) { notice(error.message); }
         finally { locationSaving = false; unlock(); }
     }

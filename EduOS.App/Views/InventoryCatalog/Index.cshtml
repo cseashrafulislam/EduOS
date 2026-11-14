@@ -2,38 +2,40 @@
     ViewData["Title"] = "Inventory Catalog";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager");
 }
-<section class="container-fluid py-3" id="inventoryCatalog" data-can-manage="@canManage.ToString().ToLowerInvariant()">
-    <header class="d-flex justify-content-between align-items-center mb-3">
-        <div><h2>Inventory Catalog</h2><p class="text-muted">Manage item definitions and stock locations. Posting stock movements is a separate workflow.</p></div>
-        <div class="d-flex gap-2"><a class="btn btn-outline-primary" href="/AssetLifecycle/Index">Fixed Assets</a><button class="btn btn-outline-secondary" type="button" onclick="window.print()">Print</button></div>
-    </header>
+<section class="container-fluid py-2" id="inventoryCatalog" data-can-manage="@canManage.ToString().ToLowerInvariant()">
+
     <div id="catalogAlert" role="alert" class="d-none"></div>
-    <div class="card mb-3"><div class="card-body">
+    <div class="card mb-2"><div class="card-body">
         <form id="itemSearchForm" class="row g-2 align-items-end">
             <div class="col-md-8"><label for="itemSearch" class="form-label">Search item name or code</label><input id="itemSearch" class="form-control" maxlength="100" /></div>
-            <div class="col-md-4"><button type="submit" class="btn btn-primary">Search</button></div>
+            <div class="col-md-4 d-flex flex-wrap gap-2"><button type="submit" class="btn btn-primary">Search</button>
+                <a class="btn btn-outline-primary" asp-controller="AssetLifecycle" asp-action="Index">Fixed assets</a></div>
         </form>
-        <div class="table-responsive mt-3"><table class="table table-striped"><thead><tr><th>Code</th><th>Name</th><th>Unit</th><th>Category</th><th>Reorder</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="itemRows"></tbody></table></div>
+        <div class="table-responsive mt-2"><table class="table table-striped"><thead><tr><th>Code</th><th>Name</th><th>Unit</th><th>Category</th><th>Reorder</th><th>Status</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="itemRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center"><button id="itemPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="itemPageLabel"></span><button id="itemNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
     </div></div>
     @if(canManage)
     {
-        <div class="card mb-3"><div class="card-body">
-            <h3 class="h5">Create / edit item</h3>
+        <div class="card mb-2"><div class="card-body">
+            <h3 class="h6 mb-2">Create / edit item</h3>
             <form id="itemForm" class="row g-2">
                 <input id="itemId" type="hidden" /><input id="itemVersion" type="hidden" />
-                <div class="col-md-3"><label for="itemCode" class="form-label">Code</label><input id="itemCode" class="form-control" maxlength="50" required /></div>
+                <input id="itemCode" type="hidden" />
                 <div class="col-md-5"><label for="itemName" class="form-label">Name</label><input id="itemName" class="form-control" maxlength="200" required /></div>
                 <div class="col-md-2"><label for="itemUnit" class="form-label">Unit</label><input id="itemUnit" class="form-control" maxlength="50" value="Each" required /></div>
                 <div class="col-md-2"><label for="itemCategory" class="form-label">Category code</label><input id="itemCategory" class="form-control" maxlength="100" /></div>
                 <div class="col-md-3"><label for="itemReorder" class="form-label">Reorder level</label><input id="itemReorder" type="number" min="0" step="0.000001" value="0" class="form-control" required /></div>
-                <div class="col-md-9 d-flex align-items-end gap-3"><label><input id="itemStock" type="checkbox" checked /> Stock tracked</label><label><input id="itemAsset" type="checkbox" /> Asset tracked</label><label><input id="itemActive" type="checkbox" checked /> Active</label></div>
+                <div class="col-md-9 d-flex flex-wrap align-items-center gap-3">
+                    <div class="form-check"><input id="itemStock" type="checkbox" class="form-check-input" checked /><label for="itemStock" class="form-check-label">Stock tracked</label></div>
+                    <div class="form-check"><input id="itemAsset" type="checkbox" class="form-check-input" /><label for="itemAsset" class="form-check-label">Asset tracked</label></div>
+                    <div class="form-check"><input id="itemActive" type="checkbox" class="form-check-input" checked /><label for="itemActive" class="form-check-label">Active</label></div>
+                </div>
                 <div class="col-12"><button class="btn btn-success" type="submit">Save item</button> <button id="itemReset" type="button" class="btn btn-outline-secondary">New</button></div>
             </form>
         </div></div>
     }
-    <div class="card mb-3"><div class="card-body">
-        <h3 class="h5">Locations</h3>
+    <div class="card mb-2"><div class="card-body">
+        <h3 class="h6 mb-2">Locations</h3>
         <form id="locationSearchForm" class="row g-2 align-items-end mb-2">
             <div class="col-md-8"><label for="locationSearch" class="form-label">Search location name or code</label><input id="locationSearch" class="form-control" maxlength="100" /></div>
             <div class="col-md-4"><button type="submit" class="btn btn-primary">Search</button></div>
@@ -45,11 +47,11 @@
         {
             <form id="locationForm" class="row g-2">
                 <input id="locationId" type="hidden" /><input id="locationVersion" type="hidden" />
-                <div class="col-md-3"><label for="locationCode" class="form-label">Code</label><input id="locationCode" class="form-control" maxlength="50" required /></div>
+                <input id="locationCode" type="hidden" />
                 <div class="col-md-4"><label for="locationName" class="form-label">Name</label><input id="locationName" class="form-control" maxlength="150" required /></div>
                 <div class="col-md-2"><label for="locationCampus" class="form-label">Campus ID</label><input id="locationCampus" type="number" min="1" class="form-control" /></div>
                 <div class="col-md-3"><label for="locationAddress" class="form-label">Address</label><input id="locationAddress" class="form-control" maxlength="500" /></div>
-                <div class="col-12"><label><input id="locationActive" type="checkbox" checked /> Active</label></div>
+                <div class="col-12"><div class="form-check"><input id="locationActive" type="checkbox" class="form-check-input" checked /><label for="locationActive" class="form-check-label">Active</label></div></div>
                 <div class="col-12"><button type="submit" class="btn btn-success">Save location</button> <button id="locationReset" type="button" class="btn btn-outline-secondary">New</button></div>
             </form>
         }
