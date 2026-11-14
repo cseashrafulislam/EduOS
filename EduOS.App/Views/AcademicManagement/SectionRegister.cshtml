@@ -4,7 +4,7 @@
     var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "একাডেমিক শাখা" : "Academic Sections";
 }
-<div id="academicSectionsPage" class="container-fluid py-4">
+<div id="academicSectionsPage" class="container-fluid py-2">
     @Html.AntiForgeryToken()
     <div id="sectionNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="card shadow-sm border-0">
@@ -23,12 +23,11 @@
                 </div>
                 <div class="col-md-4">
                     <label class="form-label" for="sectionName">@(bn ? "শাখার নাম" : "Section Name") *</label>
-                    <input id="sectionName" class="form-control" maxlength="150" required placeholder="Section A" />
+                    <input id="sectionName" class="form-control" maxlength="150" required placeholder="@(bn ? "শাখা A" : "Section A")" />
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label" for="sectionCode">@(bn ? "কোড" : "Code") *</label>
-                    <input id="sectionCode" class="form-control" maxlength="50" required placeholder="A" />
-                </div>
+                @* The authorized API generates Section Code; editing uses the existing immutable value. *@
+                <input id="sectionCode" type="hidden" />
+                <div class="col-12 small text-muted">@(bn ? "শাখার কোড সিস্টেম নিজে তৈরি করবে; তালিকায় কোড দেখা যাবে।" : "Section Code is generated automatically and shown in the directory.")</div>
                 <div class="col-md-3">
                     <label class="form-label" for="sectionCapacity">@(bn ? "আসনসংখ্যা" : "Capacity") *</label>
                     <input id="sectionCapacity" class="form-control" type="number" min="0" max="100000" value="40" required />
@@ -47,7 +46,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label" for="sectionActive">@(bn ? "অবস্থা" : "Status")</label>
-                                <select id="sectionActive" class="form-select"><option value="true">Active</option><option value="false">Inactive</option></select>
+                                <select id="sectionActive" class="form-select"><option value="true">@(bn ? "সক্রিয়" : "Active")</option><option value="false">@(bn ? "নিষ্ক্রিয়" : "Inactive")</option></select>
                             </div>
                         </div>
                     </details>
@@ -63,18 +62,18 @@
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead><tr>
-                        <th>@(bn ? "শাখা" : "Section")</th><th>@(bn ? "ক্যাম্পাস" : "Campus")</th>
-                        <th>@(bn ? "শ্রেণি" : "Class")</th><th>@(bn ? "কোড" : "Code")</th>
-                        <th>@(bn ? "আসন" : "Seats")</th><th>@(bn ? "অবস্থা" : "Status")</th>
-                        <th>@(bn ? "কার্যক্রম" : "Actions")</th>
+                        <th scope="col">@(bn ? "শাখা" : "Section")</th><th scope="col">@(bn ? "ক্যাম্পাস" : "Campus")</th>
+                        <th scope="col">@(bn ? "শ্রেণি" : "Class")</th><th scope="col">@(bn ? "কোড" : "Code")</th>
+                        <th scope="col">@(bn ? "আসন" : "Seats")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th>
+                        <th scope="col">@(bn ? "কার্যক্রম" : "Actions")</th>
                     </tr></thead>
-                    <tbody id="sectionRows"><tr><td colspan="7" class="text-muted">Loading...</td></tr></tbody>
+                    <tbody id="sectionRows"><tr><td colspan="7" class="text-muted">@(bn ? "লোড হচ্ছে…" : "Loading...")</td></tr></tbody>
                 </table>
             </div>
             <div class="d-flex justify-content-between align-items-center">
-                <button id="sectionPrevious" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+                <button id="sectionPrevious" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগের" : "Previous")</button>
                 <span id="sectionPageStatus" class="small text-muted" aria-live="polite"></span>
-                <button id="sectionNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+                <button id="sectionNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
             </div>
             </div>
         </div>
