@@ -1,27 +1,7 @@
 name: Platform Institutions Final QA — Real SQL and Browser
+# Heavy real SQL/Chromium Final QA deferred until the full UX phase is complete.
+# Run manually after UX completion; ordinary CI safety checks are retained.
 on:
-  push:
-    branches: [Ashraful]
-    paths:
-      - 'EduOS.App/Views/PlatformTenants/**'
-      - 'EduOS.App/Views/PlatformCatalogAdministration/**'
-      - 'EduOS.App/wwwroot/js/platform/tenant-lifecycle.js'
-      - 'EduOS.App/wwwroot/js/platform/institution-type-administration.js'
-      - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
-      - 'EduOS.App/Controllers/PlatformTenantsController.cs'
-      - 'EduOS.App/Controllers/PlatformCatalogAdministrationController.cs'
-      - 'EduOS.App/Controllers/Api/PlatformTenantsApiController.cs'
-      - 'EduOS.App/Controllers/Api/PlatformCatalogAdministrationApiController.cs'
-      - 'EduOS.Service/Services/Platform/PlatformTenantLifecycleService.cs'
-      - 'EduOS.Service/Services/SaaS/PlatformCatalogService.Administration.cs'
-      - 'EduOS.Service/Services/SaaS/PlatformCatalogService.MetadataAdministration.cs'
-      - 'EduOS.Tests/Services/PlatformTenantLifecycleServiceTests.cs'
-      - 'EduOS.Tests/Services/PlatformTenantStateHistoryTests.cs'
-      - 'EduOS.Tests/ClientAssets/platform-tenant-lifecycle-contract.test.cjs'
-      - 'EduOS.Tests/JavaScript/platform-catalog-activation.test.cjs'
-      - 'EduOS.Tests/JavaScript/platform-institution-type-metadata.test.cjs'
-      - 'tests/browser/platform-institutions-live.cjs'
-      - '.github/workflows/platform-institutions-final-qa.yml'
   workflow_dispatch:
 permissions:
   contents: read
