@@ -4,12 +4,6 @@
 }
 <section class="container-fluid py-2" id="componentMarksWorkspace">
     @Html.AntiForgeryToken()
-    <header class="mb-3">
-        <div class="d-flex align-items-center gap-2"><span class="visually-hidden">Assessment component marks</span>
-            <details class="ms-auto small"><summary class="btn btn-outline-secondary btn-sm" aria-label="Component marks guide">ⓘ</summary>
-                <div class="border rounded p-2 mt-1" role="note">Choose an authorized subject and component. Subject marks must exist before component marks can be saved. Published results are read-only; CSV and print include only the visible page.</div>
-            </details></div>
-    </header>
     <div id="componentMarksNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="componentMarksFilters" class="card card-body mb-3">
         <div class="row g-2 align-items-end">

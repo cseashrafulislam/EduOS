@@ -4,13 +4,12 @@
 }
 <section class="container-fluid py-2" id="subjectCompletionWorkspace">
     @Html.AntiForgeryToken()
-    <span class="visually-hidden">Subject completion reconciliation</span>
-    <p class="text-muted">Complete approved subjects after the academic year ends and all applicable published assessments are passed. This audited action unlocks subject prerequisites; one published exam alone is insufficient.</p>
+    <p class="small text-muted mb-2">Complete approved subjects after the academic year ends and all applicable published assessments are passed. This audited action unlocks subject prerequisites; one published exam alone is insufficient.</p>
     <div id="completionNotice" class="alert d-none" role="alert" aria-live="polite"></div>
-    <form id="completionFilter" class="card card-body row g-2 mb-3">
+    <form id="completionFilter" class="card mb-2"><div class="card-body"><div class="row g-2 align-items-end">
         <div class="col-md-4"><label class="form-label" for="completionBatchSearch">Find batch / academic year</label>
             <input class="form-control" id="completionBatchSearch" maxlength="100" placeholder="Search across all ended batches" /></div>
-        <div class="col-md-5"><label class="form-label" for="completionBatch">Academic batch</label>
+        <div class="col-md-8"><label class="form-label" for="completionBatch">Academic batch</label>
             <select class="form-select" id="completionBatch" required><option value="">Loading batches…</option></select></div>
         <div class="col-12 d-flex gap-2 align-items-center">
             <button type="button" class="btn btn-sm btn-outline-secondary" id="completionBatchPrev">Previous batches</button>
@@ -22,7 +21,7 @@
         <div class="col-auto"><button type="submit" class="btn btn-primary">Search</button></div>
         <div class="col-auto"><button type="button" class="btn btn-outline-secondary" id="completionCsv">CSV (page)</button></div>
         <div class="col-auto"><button type="button" class="btn btn-outline-secondary" id="completionPrint">Print</button></div>
-    </form>
+    </div></div></form>
     <div class="card card-body">
         <div class="table-responsive"><table class="table table-sm table-hover">
             <thead><tr><th>Roll</th><th>Student</th><th>Subject</th><th>State</th><th>Evidence</th><th class="completion-action">Action</th></tr></thead>
