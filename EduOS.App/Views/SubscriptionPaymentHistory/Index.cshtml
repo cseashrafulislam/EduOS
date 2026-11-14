@@ -27,7 +27,7 @@
             <div id="reconciliationStatus" class="small text-muted my-3" role="status" aria-live="polite"></div>
             <div class="table-responsive">
                 <table class="table table-hover table-sm align-middle">
-                    <th scope="col"ead><tr>
+                    <thead><tr>
                         <th scope="col">@(bn ? "প্রতিষ্ঠান / ইনভয়েস" : "Institution / Invoice")</th><th scope="col">@(bn ? "সিদ্ধান্ত / যাচাই" : "Decision / Verified")</th><th scope="col">@(bn ? "পেমেন্ট" : "Payment")</th>
                         <th scope="col">@(bn ? "ইনভয়েস মিল" : "Invoice reconciliation")</th><th scope="col">@(bn ? "সাবস্ক্রিপশনের সময়কাল" : "Subscription period")</th><th scope="col">@(bn ? "পর্যালোচনার মন্তব্য" : "Review note")</th>
                     </tr></thead>
@@ -60,7 +60,7 @@
             <div id="gatewayInspectionResult" class="alert alert-warning d-none" role="status" aria-live="polite"></div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover align-middle">
-                    <th scope="col"ead><tr><th scope="col">@(bn ? "প্রতিষ্ঠান / ইনভয়েস" : "Institution / Invoice")</th><th scope="col">@(bn ? "ট্রানজ্যাকশন" : "Transaction")</th><th scope="col">@(bn ? "পরিমাণ / বকেয়া" : "Amount / Due")</th><th scope="col">@(bn ? "শুরু" : "Initiated")</th><th scope="col">@(bn ? "ব্যতিক্রম / সময়" : "Exception / Age")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead>
+                    <thead><tr><th scope="col">@(bn ? "প্রতিষ্ঠান / ইনভয়েস" : "Institution / Invoice")</th><th scope="col">@(bn ? "ট্রানজ্যাকশন" : "Transaction")</th><th scope="col">@(bn ? "পরিমাণ / বকেয়া" : "Amount / Due")</th><th scope="col">@(bn ? "শুরু" : "Initiated")</th><th scope="col">@(bn ? "ব্যতিক্রম / সময়" : "Exception / Age")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead>
                     <tbody id="gatewayRecoveryRows"></tbody>
                 </table>
             </div>
@@ -79,7 +79,7 @@
             <div id="gatewayFinanceStatus" class="small text-muted mb-3" role="status" aria-live="polite"></div>
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
-                    <th scope="col"ead><tr><th scope="col">@(bn ? "নথিভুক্ত" : "Recorded")</th><th scope="col">@(bn ? "কাজ" : "Action")</th><th scope="col">@(bn ? "পর্যালোচনাকারী" : "Reviewer")</th><th scope="col">@(bn ? "পর্যবেক্ষণ / মন্তব্য" : "Finding / Note")</th><th scope="col">@(bn ? "প্রমাণ" : "Evidence")</th></tr></thead>
+                    <thead><tr><th scope="col">@(bn ? "নথিভুক্ত" : "Recorded")</th><th scope="col">@(bn ? "কাজ" : "Action")</th><th scope="col">@(bn ? "পর্যালোচনাকারী" : "Reviewer")</th><th scope="col">@(bn ? "পর্যবেক্ষণ / মন্তব্য" : "Finding / Note")</th><th scope="col">@(bn ? "প্রমাণ" : "Evidence")</th></tr></thead>
                     <tbody id="gatewayFinanceRows"></tbody>
                 </table>
             </div>
