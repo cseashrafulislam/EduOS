@@ -8,7 +8,7 @@ public class AdmissionIntakeFormInputDto
 {
     // Optional for new forms: the server derives a retry-stable internal code from ClientRequestId.
     // Explicit Code remains accepted for existing integrations.
-    [StringLength(50, MinimumLength = 2)]
+    [MaxLength(50)]
     [RegularExpression("^[A-Za-z][A-Za-z0-9_-]*$")]
     public string Code { get; set; } = string.Empty;
 

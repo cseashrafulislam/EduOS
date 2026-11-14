@@ -10,12 +10,16 @@
     <link rel="stylesheet" href="/css/offline-study.css" />
 </head>
 <body class="bg-light">
-    <main id="offlineStudyReader" class="container py-4 offline-study-container">
-        <header class="d-flex flex-wrap justify-content-between gap-3 align-items-start mb-4">
+    <main id="offlineStudyReader" class="container py-2 offline-study-container">
+        <header class="d-flex flex-wrap justify-content-between gap-3 align-items-start mb-2">
             <div><h1 class="h3">অফলাইন অধ্যয়ন / Offline study</h1>
                 <p class="text-muted">শুধু অনুমোদিত এনক্রিপ্টেড ফাইল। পাসফ্রেজ ছাড়া কিছু খোলা যাবে না। / Encrypted approved material only; a passphrase is required.</p></div>
             <a class="btn btn-outline-secondary" href="/Library/Study">অনলাইন লাইব্রেরি / Online library</a>
         </header>
+        <details class="mb-2"><summary class="small fw-semibold">ব্যবহারবিধি / How to use</summary>
+            <p class="small text-muted mb-1 mt-2">অনলাইন লাইব্রেরি থেকে অনুমোদিত বই এনক্রিপ্ট করে সংরক্ষণ করুন। এখানে ফাইল বেছে সংরক্ষণের সময় দেওয়া পাসফ্রেজ লিখুন। প্রয়োজনে Clear device দিয়ে ডিভাইসের অফলাইন কপি মুছুন।</p>
+            <p class="small text-muted mb-0">Save a licensed resource from the online study library, select it here and enter the original passphrase. Clear device removes your locally saved copies. Offline access expires; reconnect to validate licence changes.</p>
+        </details>
         <div id="offlineReaderStatus" role="status" aria-live="polite" class="alert alert-info">Saved content is encrypted on this device. Offline access expires within 24 hours; a revoked licence cannot be checked until reconnecting.</div>
         <div id="offlineReaderList" class="list-group mb-3"></div>
         <label for="offlineReaderPassphrase" class="form-label">পাসফ্রেজ / Encryption passphrase</label>

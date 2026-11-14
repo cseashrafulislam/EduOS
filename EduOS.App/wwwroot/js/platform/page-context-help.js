@@ -399,7 +399,7 @@
             purpose: ['Configure and publish an intake form with permitted academic scope, questions, document requirements and application dates.', 'অনুমোদিত শিক্ষাবর্ষ, প্রশ্ন, কাগজপত্র ও সময়সীমাসহ ভর্তি ফরম তৈরি ও প্রকাশ করুন।'],
             before: ['TenantAdmin and ADMISSION module access; academic year, campus, class/level and intake window must be available.', 'TenantAdmin ও ADMISSION মডিউল অনুমতি; শিক্ষাবর্ষ, ক্যাম্পাস, শ্রেণি/স্তর ও আবেদন সময়সীমা প্রস্তুত থাকতে হবে।'],
             steps: [
-                ['Select New Form and enter code, title, academic year, campus, class/level and opening/closing times.', 'New Form চেপে কোড, শিরোনাম, শিক্ষাবর্ষ, ক্যাম্পাস, শ্রেণি/স্তর ও আবেদন শুরুর/শেষের সময় দিন।'],
+                ['Select New Form and enter a title, academic year, campus, class/level and opening/closing times. The system issues the form code.', 'New Form চেপে শিরোনাম, শিক্ষাবর্ষ, ক্যাম্পাস, শ্রেণি/স্তর ও আবেদন শুরুর/শেষের সময় দিন। ফরম কোড সিস্টেম তৈরি করবে।'],
                 ['Set the application fee and currency, then add any custom fields and required documents.', 'আবেদন ফি ও মুদ্রা দিন, প্রয়োজনে অতিরিক্ত প্রশ্ন ও আবশ্যিক কাগজপত্র যোগ করুন।'],
                 ['Save the draft, review it in the Public Admission Forms register, then Publish when the details are correct.', 'খসড়া সংরক্ষণ করে পাবলিক ফরম তালিকায় যাচাই করুন; সঠিক হলে Publish করুন।'],
                 ['Reopen the form register to confirm the published status and application window.', 'ফরম তালিকা আবার খুলে প্রকাশের অবস্থা ও সময়সীমা যাচাই করুন।']
