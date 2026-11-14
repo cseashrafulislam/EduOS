@@ -1,53 +1,67 @@
 @{
-    ViewData["Title"] = "Institution Type Management";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "প্রতিষ্ঠানের ধরন" : "Institution Types";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section id="institutionTypeAdministration" class="container-fluid py-3">
+<section id="institutionTypeAdministration" class="container-fluid px-0" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <div><h1 class="h4">Institution Type Management</h1>
-            <p class="text-muted">Configure signup labels and academic-cycle defaults for future registrations. Existing institutions are not changed.</p></div>
-        <button id="catalogRefresh" class="btn btn-outline-secondary" type="button">Refresh</button>
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+        <p class="small text-muted mb-0">@(bn ? "নতুন নিবন্ধনের ধরন ও একাডেমিক ডিফল্ট এখানে নির্ধারণ করুন। বিদ্যমান প্রতিষ্ঠানের তথ্য পরিবর্তন হবে না।" : "Configure registration types and academic defaults for future signups; existing institutions are unaffected.")</p>
+        <button id="catalogRetry" class="btn btn-outline-secondary btn-sm" type="button" hidden>@(bn ? "আবার চেষ্টা করুন" : "Try again")</button>
     </div>
-    <p id="catalogMessage" role="status" aria-live="polite"></p>
-    <div class="table-responsive"><table class="table table-striped table-sm">
-        <thead><tr><th>Institution type</th><th>Code</th><th>Academic cycle</th><th>Registration</th><th>Actions</th></tr></thead>
-        <tbody id="catalogRows"><tr><td colspan="5">Loading…</td></tr></tbody>
-    </table></div>
-    <section id="catalogEditor" class="card p-3 mt-3" hidden>
-        <h2 class="h5">Edit institution type <span id="catalogEditCode"></span></h2>
+    <p id="catalogMessage" class="small mb-2" role="status" aria-live="polite"></p>
+    <div class="table-responsive border rounded-3">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <caption class="visually-hidden">@(bn ? "প্রতিষ্ঠানের ধরন ও নিবন্ধন সেটিংস" : "Institution registration type catalog")</caption>
+            <thead class="table-light"><tr>
+                <th scope="col">@(bn ? "প্রতিষ্ঠানের ধরন" : "Institution type")</th>
+                <th scope="col">@(bn ? "কোড" : "Code")</th>
+                <th scope="col">@(bn ? "একাডেমিক সময়কাল" : "Academic cycle")</th>
+                <th scope="col">@(bn ? "নিবন্ধনে উপলব্ধ" : "Signup availability")</th>
+                <th scope="col">@(bn ? "কাজ" : "Actions")</th>
+            </tr></thead>
+            <tbody id="catalogRows"><tr><td colspan="5">@(bn ? "তালিকা আনা হচ্ছে…" : "Loading catalog…")</td></tr></tbody>
+        </table>
+    </div>
+    <section id="catalogEditor" class="card border rounded-3 p-3 mt-3" hidden aria-labelledby="catalogEditorTitle">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <h2 id="catalogEditorTitle" class="h6 mb-0">@(bn ? "প্রতিষ্ঠানের ধরন সম্পাদনা" : "Edit institution type")</h2>
+            <span id="catalogEditCode" class="badge text-bg-secondary" aria-label="@(bn ? "সিস্টেম কোড (পরিবর্তনযোগ্য নয়)" : "Immutable system code")"></span>
+        </div>
         <form id="catalogForm">
-            <div class="mb-3">
-                <label for="catalogEditName" class="form-label">Name</label>
-                <input id="catalogEditName" class="form-control" maxlength="150" required />
-            </div>
-            <div class="mb-3">
-                <label for="catalogEditNameBangla" class="form-label">Bangla name</label>
-                <input id="catalogEditNameBangla" class="form-control" maxlength="150" />
-            </div>
-            <div class="mb-3">
-                <label for="catalogEditDescription" class="form-label">Description</label>
-                <textarea id="catalogEditDescription" class="form-control" maxlength="1000" rows="3"></textarea>
-            </div>
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="catalogEditCycle" class="form-label">Default academic cycle</label>
+            <div class="row g-3">
+                <div class="col-12 col-md-6">
+                    <label for="catalogEditName" class="form-label">@(bn ? "ইংরেজি নাম" : "Name")</label>
+                    <input id="catalogEditName" class="form-control" maxlength="150" required />
+                </div>
+                <div class="col-12 col-md-6">
+                    <label for="catalogEditNameBangla" class="form-label">@(bn ? "বাংলা নাম" : "Bangla name")</label>
+                    <input id="catalogEditNameBangla" class="form-control" maxlength="150" />
+                </div>
+                <div class="col-12">
+                    <label for="catalogEditDescription" class="form-label">@(bn ? "বিবরণ" : "Description")</label>
+                    <textarea id="catalogEditDescription" class="form-control" maxlength="1000" rows="2"></textarea>
+                </div>
+                <div class="col-12 col-sm-6">
+                    <label for="catalogEditCycle" class="form-label">@(bn ? "ডিফল্ট একাডেমিক সময়কাল" : "Default academic cycle")</label>
                     <select id="catalogEditCycle" class="form-select" required>
-                        <option value="Annual">Annual</option>
-                        <option value="Semester">Semester</option>
-                        <option value="Trimester">Trimester</option>
-                        <option value="Quarterly">Quarterly</option>
-                        <option value="Modular">Modular</option>
-                        <option value="BatchBased">Batch-based</option>
+                        <option value="Annual">@(bn ? "বার্ষিক" : "Annual")</option>
+                        <option value="Semester">@(bn ? "সেমিস্টার" : "Semester")</option>
+                        <option value="Trimester">@(bn ? "ট্রাইমেস্টার" : "Trimester")</option>
+                        <option value="Quarterly">@(bn ? "ত্রৈমাসিক" : "Quarterly")</option>
+                        <option value="Modular">@(bn ? "মডিউলার" : "Modular")</option>
+                        <option value="BatchBased">@(bn ? "ব্যাচ ভিত্তিক" : "Batch-based")</option>
                     </select>
                 </div>
-                <div class="col-md-6">
-                    <label for="catalogEditOrder" class="form-label">Display order</label>
+                <div class="col-12 col-sm-6">
+                    <label for="catalogEditOrder" class="form-label">@(bn ? "তালিকার ক্রম" : "Display order")</label>
                     <input id="catalogEditOrder" type="number" class="form-control" min="0" max="100000" step="1" required />
                 </div>
             </div>
-            <button id="catalogSave" type="submit" class="btn btn-primary">Save metadata</button>
-            <button id="catalogCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button id="catalogSave" type="submit" class="btn btn-primary">@(bn ? "সংরক্ষণ করুন" : "Save changes")</button>
+                <button id="catalogCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+            </div>
         </form>
     </section>
 </section>
