@@ -55,6 +55,7 @@ function browser({ bn = false, manage = true, token = 'token', sessionOk = true,
     const queue = [], calls = [];
     queue.push(initial === undefined ? response(page) : initial);
     const fetch = (url, options) => {
+        if (url.endsWith("/campus-options")) return Promise.resolve(response([{ id: 12, name: "Main campus", code: "MAIN" }]));
         calls.push({ url, options });
         if (!queue.length) throw new Error('Unexpected network call: ' + url);
         return queue.shift();

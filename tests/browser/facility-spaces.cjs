@@ -29,6 +29,7 @@ async function setup(browser,bn=false,manage=true,mobile=false){
   const req=route.request(),url=new URL(req.url());
   if(!url.pathname.startsWith('/api/'))return route.fulfill({contentType:'text/html',body:html(bn,manage)});
   assert(url.pathname.startsWith('/api/facilities/spaces'),'Unexpected API '+url.pathname);
+  if(url.pathname.endsWith('/campus-options')) return route.fulfill({contentType:'application/json',body:JSON.stringify(ok([{id:12,name:'Main campus',code:'MAIN'}]))});
   const respond=(status,payload)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(payload)});
   if(req.method()==='GET'){
    assert.equal(url.searchParams.get('pageSize'),'25');

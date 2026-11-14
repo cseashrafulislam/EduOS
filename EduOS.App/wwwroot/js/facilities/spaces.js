@@ -18,6 +18,7 @@
     const resetButton = el('facilityReset');
     let page = 1, pages = 1, rows = [], requestNumber = 0, listController = null;
     let saving = false, dirty = false, blocked = false;
+    const campusNames = new Map();
 
     const messages = {
         'Facilities access denied.': ['Facilities access denied.', 'সুবিধা ব্যবস্থাপনার অনুমতি নেই।'],
@@ -63,7 +64,7 @@
         }
         el('facilityPrev').disabled = el('facilityNext').disabled = true;
         if (editor) {
-            for (const control of editor.querySelectorAll('input, button')) control.disabled = true;
+            for (const control of editor.querySelectorAll('input, select, button')) control.disabled = true;
         }
         notice(tr('Institution session changed. Reload this page.', 'প্রতিষ্ঠানের সেশন পরিবর্তিত হয়েছে। পেজটি আবার লোড করুন।'));
         window.EduOSVerifySessionContext?.();
@@ -129,7 +130,7 @@
         target.replaceChildren();
         for (const item of rows) {
             const line = document.createElement('tr');
-            [item.campusId, item.code, item.name, item.address,
+            [campusNames.get(item.campusId) || item.campusId, item.code, item.name, item.address,
                 item.isActive ? tr('Active', 'সক্রিয়') : tr('Inactive', 'নিষ্ক্রিয়')].forEach(v => line.append(cell(v)));
             if (manage) {
                 const td = document.createElement('td'), button = document.createElement('button');
@@ -164,6 +165,43 @@
         }
         el('facilityPage').textContent = tr('Page ', 'পৃষ্ঠা ') + page + ' / ' + pages;
         setLoading(false);
+    }
+    async function loadCampusOptions() {
+        try {
+            const data = await api('/campus-options');
+            if (blocked || !Array.isArray(data)) return;
+            const filter = el('facilityCampusFilter');
+            const campus = el('facilityCampus');
+            const selectedFilter = filter.value;
+            const selectedCampus = campus?.value || (el('facilityId')?.value
+                ? String(rows.find(x => String(x.id) === el('facilityId').value)?.campusId || '') : '');
+            filter.replaceChildren();
+            if (campus) campus.replaceChildren();
+            const option = (target, value, label) => {
+                const node = document.createElement('option');
+                node.value = value;
+                node.textContent = label;
+                target.append(node);
+            };
+            option(filter, '', tr('All authorized campuses', 'অনুমোদিত সব ক্যাম্পাস'));
+            if (campus) option(campus, '', tr('Select campus', 'ক্যাম্পাস নির্বাচন করুন'));
+            campusNames.clear();
+            for (const item of data) {
+                const id = Number(item.id);
+                if (!Number.isSafeInteger(id) || id <= 0) continue;
+                campusNames.set(id, String(item.name || ''));
+                const label = String(item.name || '') + (item.code ? ' (' + String(item.code) + ')' : '');
+                option(filter, String(id), label);
+                if (campus) option(campus, String(id), label);
+            }
+            filter.value = selectedFilter && campusNames.has(Number(selectedFilter)) ? selectedFilter : '';
+            if (campus) campus.value = selectedCampus && campusNames.has(Number(selectedCampus)) ? selectedCampus : '';
+            render();
+        } catch (error) {
+            if (!blocked && error.message !== 'session-changed')
+                notice(tr('Campus choices unavailable. Reload before creating or editing a space.',
+                    'ক্যাম্পাসের তালিকা পাওয়া যায়নি। স্থান যোগ বা সম্পাদনার আগে পেজ রিলোড করুন।'));
+        }
     }
     async function load() {
         if (blocked) return false;
@@ -271,4 +309,5 @@
         if (event.persisted) void verifySession().then(() => load()).catch(() => {});
     });
     void load();
+    void loadCampusOptions();
 })();

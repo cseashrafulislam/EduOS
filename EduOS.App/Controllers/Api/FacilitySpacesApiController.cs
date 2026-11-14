@@ -15,6 +15,9 @@ public sealed class FacilitySpacesApiController : ControllerBase
 {
     private readonly IFacilitySpaceService service;
     public FacilitySpacesApiController(IFacilitySpaceService service) => this.service = service;
+    [HttpGet("campus-options"), Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesTechnician,FacilitiesApprover")]
+    public async Task<IActionResult> CampusOptions(CancellationToken ct) =>
+        Reply(await service.CampusOptionsAsync(ct));
     [HttpGet, Authorize(Roles = "TenantAdmin,Principal,FacilitiesManager,FacilitiesTechnician,FacilitiesApprover")]
     public async Task<IActionResult> List(long? campusId = null, string? search = null, int page = 1,
         int pageSize = 25, CancellationToken ct = default) =>

@@ -47,6 +47,20 @@ public sealed class FacilitySpaceService : IFacilitySpaceService
         catch (FormatException) { return false; }
     }
 
+    public async Task<ApiResponse<IReadOnlyList<FacilityCampusOptionDto>>> CampusOptionsAsync(CancellationToken ct = default)
+    {
+        if (!Readable || db.CurrentTenantId != user.TenantId) return Denied<IReadOnlyList<FacilityCampusOptionDto>>();
+        var allowed = AllowedCampusIds();
+        var campuses = await db.Campuses.AsNoTracking()
+            .Where(x => x.TenantId == user.TenantId && x.IsActive && !x.IsDeleted && allowed.Contains(x.Id))
+            .OrderBy(x => x.Name).ThenBy(x => x.Id).Take(501)
+            .Select(x => new FacilityCampusOptionDto { Id = x.Id, Name = x.Name, Code = x.Code })
+            .ToListAsync(ct);
+        if (campuses.Count > 500)
+            return ApiResponse<IReadOnlyList<FacilityCampusOptionDto>>.ErrorResponse("Campus picker exceeds supported limit.", 409);
+        return ApiResponse<IReadOnlyList<FacilityCampusOptionDto>>.SuccessResponse(campuses);
+    }
+
     public async Task<ApiResponse<PagedResult<FacilitySpaceDto>>> ListAsync(
         long? campusId, string? search, int page, int pageSize, CancellationToken ct = default)
     {

@@ -10,7 +10,7 @@
     <div class="card mb-3"><div class="card-body">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><h3 class="h6 mb-0">@(bn ? "স্থান তালিকা" : "Space register")</h3><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary btn-sm" asp-controller="FacilityWorkOrders" asp-action="Index">@(bn ? "সার্ভিস অনুরোধ" : "Service requests")</a><button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">@(bn ? "প্রিন্ট" : "Print")</button></div></div>
         <form id="facilitySearchForm" class="row g-2 align-items-end">
-            <div class="col-sm-3"><label class="form-label" for="facilityCampusFilter">@(bn ? "ক্যাম্পাস আইডি (ঐচ্ছিক)" : "Campus ID (optional)")</label><input id="facilityCampusFilter" type="number" inputmode="numeric" min="1" class="form-control" /></div>
+            <div class="col-sm-3"><label class="form-label" for="facilityCampusFilter">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="facilityCampusFilter" class="form-select"><option value="">@(bn ? "অনুমোদিত সব ক্যাম্পাস" : "All authorized campuses")</option></select></div>
             <div class="col-sm-6"><label class="form-label" for="facilitySearch">@(bn ? "কোড বা নাম" : "Code or name")</label><input id="facilitySearch" maxlength="100" class="form-control" /></div>
             <div class="col-sm-3"><button class="btn btn-primary w-100" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
         </form>
@@ -26,9 +26,9 @@
         <div class="card"><div class="card-body"><h3 class="h6">@(bn ? "স্থান যোগ বা সম্পাদনা" : "Create or edit space")</h3><p class="small text-muted mb-2">@(bn ? "এটি একাডেমিক রুম, হোস্টেল বেড বা ইনভেন্টরি স্টোর নয়।" : "Operational spaces, separate from academic rooms, hostel beds and inventory stores.")</p>
             <form id="facilityForm" class="row g-2">
                 <input type="hidden" id="facilityId" /><input type="hidden" id="facilityVersion" />
-                <div class="col-sm-3"><label class="form-label" for="facilityCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="facilityCampus" class="form-control" type="number" inputmode="numeric" min="1" required /></div>
+                <div class="col-sm-4"><label class="form-label" for="facilityCampus">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="facilityCampus" class="form-select" required><option value="">@(bn ? "ক্যাম্পাস নির্বাচন করুন" : "Select campus")</option></select></div>
                 <input type="hidden" id="facilityCode" />
-                <div class="col-sm-6"><label class="form-label" for="facilityName">@(bn ? "নাম" : "Name")</label><input id="facilityName" class="form-control" maxlength="150" required /></div>
+                <div class="col-sm-8"><label class="form-label" for="facilityName">@(bn ? "নাম" : "Name")</label><input id="facilityName" class="form-control" maxlength="150" required /></div>
                 <div class="col-sm-9"><label class="form-label" for="facilityAddress">@(bn ? "অবস্থান/বিবরণ" : "Location / address")</label><input id="facilityAddress" class="form-control" maxlength="500" /></div>
                 <div class="col-sm-3 d-flex align-items-end"><label class="form-check"><input id="facilityActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
                 <div class="col-12 d-flex gap-2"><button class="btn btn-success" type="submit">@(bn ? "সংরক্ষণ" : "Save")</button><button id="facilityReset" class="btn btn-outline-secondary" type="button">@(bn ? "নতুন" : "New")</button></div>

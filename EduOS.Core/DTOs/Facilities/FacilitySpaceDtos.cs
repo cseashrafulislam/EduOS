@@ -2,6 +2,13 @@ using System.ComponentModel.DataAnnotations;
 
 namespace EduOS.Core.DTOs.Facilities;
 
+public sealed class FacilityCampusOptionDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+}
+
 public sealed class FacilitySpaceDto
 {
     public long Id { get; set; }
