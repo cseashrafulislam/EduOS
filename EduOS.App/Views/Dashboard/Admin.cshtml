@@ -3,6 +3,23 @@
     var isBangla = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
     ViewData["Title"] = isBangla ? "প্ল্যাটফর্ম পরিচালনা" : "Platform Operations";
     Layout = "~/Views/Shared/_Layout.cshtml";
+    string StatusLabel(string value)
+    {
+        if (!isBangla) return value;
+        return value switch
+        {
+            "PendingVerification" => "যাচাই বাকি", "Active" => "সক্রিয়",
+            "Suspended" => "স্থগিত", "Closed" => "বন্ধ",
+            "EmailVerification" => "ইমেইল যাচাই", "InstitutionProfile" => "প্রতিষ্ঠানের তথ্য",
+            "PlanSelection" => "প্ল্যান নির্বাচন", "Payment" => "পেমেন্ট",
+            "CampusSetup" => "ক্যাম্পাস সেটআপ", "AcademicSetup" => "একাডেমিক সেটআপ",
+            "ModuleSetup" => "মডিউল সেটআপ", "BrandingSetup" => "ব্র্যান্ডিং",
+            "GeneralSettings" => "সাধারণ সেটিংস", "GatewaySetup" => "গেটওয়ে সেটআপ",
+            "Completed" => "সম্পূর্ণ", "Trial" => "ট্রায়াল", "Grace" => "গ্রেস পিরিয়ড",
+            "Cancelled" => "বাতিল", "Expired" => "মেয়াদ শেষ",
+            "PendingPayment" => "পেমেন্ট বাকি", _ => value
+        };
+    }
 }
 <div class="dashboard-page platform-dashboard gap-3" id="platformDashboard">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 small text-muted">
@@ -67,8 +84,8 @@
                         {
                             <tr>
                                 <td>@tenant.Name</td>
-                                <td>@tenant.State</td>
-                                <td>@tenant.OnboardingStage</td>
+                                <td>@StatusLabel(tenant.State)</td>
+                                <td>@StatusLabel(tenant.OnboardingStage)</td>
                                 <td><time datetime="@tenant.CreatedAt.ToString("O")">@tenant.CreatedAt.ToString("yyyy-MM-dd")</time></td>
                             </tr>
                         }
@@ -98,7 +115,7 @@
                         {
                             <tr>
                                 <td>@subscription.TenantName</td>
-                                <td>@subscription.SubscriptionState</td>
+                                <td>@StatusLabel(subscription.SubscriptionState)</td>
                                 <td><time datetime="@subscription.EndsAtUtc.ToString("O")">@subscription.EndsAtUtc.ToString("yyyy-MM-dd")</time></td>
                             </tr>
                         }
