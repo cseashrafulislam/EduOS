@@ -337,6 +337,12 @@ async function main() {
         await page.waitForFunction(() => document.querySelector('#curriculumRows')?.textContent.includes('Current'));
         assert(mutations.some(x => x.path.endsWith('/activate') && x.method === 'PUT'));
         await openFeature('sections');
+        // Batch creation needs explicit class, campus, year and programme
+        // selection. Do not depend on a previously used page's dropdown state.
+        await page.locator('#batchCreateCampus').selectOption('201');
+        await page.locator('#batchCreateYear').selectOption('101');
+        await page.locator('#batchCreateProgram').selectOption('401');
+        await page.locator('#batchCreateLevel').selectOption('501');
         await page.locator('#batchCreateName').fill('Grade Nine A');
         assert.equal(await page.locator('#batchCreateCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#batchCreateStart').fill('2026-01-10');
