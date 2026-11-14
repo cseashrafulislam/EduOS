@@ -23,7 +23,7 @@ public class AcademicEnrollmentModelTests
         registration.FindProperty(nameof(StudentSubjectRegistration.RowVersion))!.IsConcurrencyToken.Should().BeTrue();
         AssertUniqueIndex(enrollment, "TenantId", "ClientRequestId");
         AssertUniqueIndex(enrollment, "TenantId", "StudentId");
-        AssertUniqueIndex(enrollment, "TenantId", "AcademicBatchId", "RollNo");
+        AssertUniqueIndex(enrollment, "TenantId", "AcademicYearId", "AcademicSectionId", "RollNo");
         AssertUniqueIndex(registration, "TenantId", "ClientRequestId");
         AssertUniqueIndex(registration, "TenantId", "StudentEnrollmentId", "SubjectOfferingId");
         enrollment.GetForeignKeys().Should().OnlyContain(x => x.DeleteBehavior == DeleteBehavior.Restrict);

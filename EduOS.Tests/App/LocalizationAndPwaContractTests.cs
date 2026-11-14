@@ -126,7 +126,8 @@ public class LocalizationAndPwaContractTests
         var dashboard = File.ReadAllText(Asset("AdminDashboard.cshtml"));
         var controller = File.ReadAllText(Asset("DashboardController.cs"));
 
-        dashboard.Should().Contain("@T[");
+        dashboard.Should().Contain("ViewData[\"Title\"]");
+        dashboard.Should().Contain("isBangla");
         dashboard.Should().NotContain("Total Users");
         dashboard.Should().NotContain("Total Tenants");
         controller.Should().Contain("[Authorize(Roles = \"SuperAdmin\")]");

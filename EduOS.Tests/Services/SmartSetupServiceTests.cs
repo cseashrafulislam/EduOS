@@ -420,7 +420,9 @@ public sealed class SmartSetupServiceTests
         Assert.True(preview.Success, preview.Message);
         Assert.True(preview.Data!.Modules.Single(x => x.Code == "FEES").IsAvailable);
         Assert.True(preview.Data.Modules.Single(x => x.Code == "ASSESSMENT").IsAvailable);
-        Assert.False(preview.Data.Modules.Single(x => x.Code == "ASSESSMENT").SupportsSafeApply);
+        Assert.True(preview.Data.Modules.Single(x => x.Code == "ASSESSMENT").SupportsSafeApply);
+        Assert.All(preview.Data.Modules.Single(x => x.Code == "ASSESSMENT").Entries,
+            x => Assert.Equal("GradeScheme", x.Kind));
     }
 
     [Fact]
@@ -484,7 +486,11 @@ public sealed class SmartSetupServiceTests
         await using var f = await Open(typeCode: "UNIVERSITY", modules: ["ACADEMIC", "HR"]);
         var preview = await f.Service.PreviewAsync();
         Assert.DoesNotContain(preview.Data!.Modules.Single(x => x.Code == "ACADEMIC").Entries,
-            x => x.Code == "BANGLA");
+            x => x.Kind == "Medium" && x.Code == "BANGLA");
+        // Bangla can remain a subject master without silently choosing Bangla
+        // as a university's teaching medium or curriculum placement.
+        Assert.Contains(preview.Data.Modules.Single(x => x.Code == "ACADEMIC").Entries,
+            x => x.Kind == "Subject" && x.Code == "BANGLA");
         Assert.Contains(preview.Data.Modules.Single(x => x.Code == "HR").Entries,
             x => x.Code == "LECTURER");
     }

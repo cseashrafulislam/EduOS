@@ -87,7 +87,7 @@ public sealed class TenantUserAdministrationTests
         Assert.Equal("Teacher", roles.Data![0].Name);
         var forbidden = await service.CreateRoleAsync(new TenantRoleCreateRequestDto { Name = "SuperAdmin" });
         Assert.False(forbidden.Success);
-        Assert.Equal(400, forbidden.StatusCode);
+        Assert.Equal(409, forbidden.StatusCode); // Reserved role name conflicts with canonical platform role.
     }
 
     [Fact]

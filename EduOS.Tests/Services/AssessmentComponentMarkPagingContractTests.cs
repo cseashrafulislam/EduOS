@@ -60,7 +60,7 @@ public sealed class AssessmentComponentMarkPagingContractTests
         view.Should().Contain("id=\"cmSearch\"");
         view.Should().Contain("id=\"cmPrev\"");
         view.Should().Contain("id=\"cmNext\"");
-        view.Should().Contain("aria-label=\"Component marks guide\"");
+        view.Should().Contain("id=\"componentMarksWorkspace\"");
         var js = Read("EduOS.App/wwwroot/js/assessment/component-marks.js");
         js.Should().Contain("pageSize: String(state.pageSize)");
         js.Should().Contain("state.total = roster.totalCount");

@@ -32,7 +32,9 @@ public class AdmissionApplicationContractTests
         view.Should().Contain("CultureInfo.CurrentUICulture.Name");
         view.Should().Contain("var focusedTitle = admissionFeature switch");
         view.Should().Contain("T[\"AdmissionApplications\"].Value");
-        view.Should().Contain("id=\"admissionTitle\">@focusedTitle");
+        // Shared layout owns the page heading; no redundant inner page title.
+        view.Should().Contain("ViewData[\"Title\"] = focusedTitle");
+        view.Should().NotContain("id=\"admissionTitle\"");
         view.Should().Contain("aria-live=\"polite\"");
         view.Should().Contain("autocomplete=\"tel\"");
         view.Should().NotContain("onclick=");

@@ -23,7 +23,8 @@ public class StudentDirectoryContractTests
     {
         var view = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "StudentsIndex.cshtml"));
         var script = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "students-index.js"));
-        view.Should().Contain("@T[\"StudentDirectory\"]");
+        view.Should().Contain("ViewData[\"Title\"] = \"StudentDirectory\"");
+        view.Should().Contain("id=\"studentListTitle\"");
         view.Should().Contain("aria-live=\"polite\"");
         view.Should().NotContain("onclick=");
         script.Should().Contain("credentials: 'same-origin'");
