@@ -93,11 +93,13 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 | `/DocumentAdministration/Index` | Single page title and compact tab/attachment workflow; `DCT-` type and `DTP-` template server-generated Codes with retry matching; existing file scanning and authorization retained | `7cd2be0a`, `dea33b4f`, `c40d694b` | Deferred |
 | `/AuditLogs/Index`, `/ImportHistory/Index` | Removed duplicate headings, compact UTC filters and history results, preserved existing server-side tenant-scoped paging and report detail | `7cd2be0a`, `847ab959` | Deferred |
 
+**Additional UX repair:** Document attachment no longer asks the user to type a scanned-file GUID: upload/select a verified file, see the selected filename/status, and let server handle the reference. Existing type/template edit and secure scanning preserved (`ba73e07a`).
+
 **Safety/compatibility:** No schema/data migration, no posted accounting changes. Financial server authorization, tenant-owned queries, audit, rowversion and reversal rules retained. New internal code generation is server-owned and retry-stable; legacy explicit Code API calls remain. Source-level review preserves critical DOM IDs and form counts.
 
-**Verification state:** .NET canonical Core/Persistence/App builds have passed on intermediate commit `dea33b4f`. Broad JavaScript contracts still failed at this intermediate SHA. Inventory Physical Count Chromium workflow was also reported failing at `7203f9c1`; exact current-head CI/Chromium/tenant SQL/mobile/accessibility and financial-security Final QA remain NOT CERTIFIED. Source-level completion is **not** a release PASS.
+**Verification state:** .NET canonical Core/Persistence/App builds passed on source implementation commits through `dd7fc9c5`. Broader JavaScript contracts remain failed (63 failures recorded on `dd7fc9c5`), including unrelated modules; an initial new source test was too broad about print-only titles and was corrected. Inventory Physical Count Chromium workflow also failed at `7203f9c1` while loading the dynamic module in its test environment. Exact current-head CI/Chromium/tenant SQL/mobile/accessibility and financial-security Final QA remain NOT CERTIFIED. Source-level completion is **not** a release PASS.
 
-**UX-first lane D implementation:** all assigned canonical routes checked as UX Done. **Next stage:** combined Final QA only after remaining UX lanes are complete. Latest working code `dd7fc9c5`; scope-sensitive release acceptance has **not** been run at exact final SHA.
+**UX-first lane D implementation:** all assigned canonical routes checked as UX Done. **Next stage:** combined Final QA only after remaining UX lanes are complete. Latest working code `ba73e07a`; scope-sensitive release acceptance has **not** been run at exact final SHA.
 
 ## Verified completion evidence
 

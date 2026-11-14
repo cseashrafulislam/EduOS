@@ -13,7 +13,9 @@ test('remaining Finance reports use the common page title and retain printable r
  for(const name of financeReports){
   const src=view(name);
   assert.match(src,/ViewData\["Title"\]/,name);
-  assert.doesNotMatch(src.slice(0,850),/<header\b|<h1\b/i,name);
+  // Print-only titles are necessary for standalone report copies, not duplicate visible page headers.
+  const screen=src.replace(/<div class="d-none d-print-block[^"]*"[\s\S]*?<\/div>/g,'');
+  assert.doesNotMatch(screen.slice(0,850),/<header\b|<h1\b/i,name);
   assert.equal((src.match(/<form\b/g)||[]).length,(src.match(/<\/form>/g)||[]).length,name);
  }
  for(const name of ['FeeDueCalendar','FeeInstallmentProjection','FeeInvoiceCoverage'])
@@ -84,6 +86,9 @@ test('Communication, Document and Audit direct views use shared title without an
  }
  const docs=view('DocumentAdministration');
  assert.match(docs,/docPendingRefresh/);
+ assert.match(docs,/id="docFile" type="hidden"/);
+ assert.match(docs,/id="docSelectedFileLabel"/);
+ assert.match(read('EduOS.App/wwwroot/js/document/admin.js'),/useVerifiedFile\(f\.reference/);
  assert.match(docs,/Protected document reviews/);
  assert.match(read('EduOS.Service/Services/Documents/DocumentService.cs'),/DocumentType\.Created/);
 });
