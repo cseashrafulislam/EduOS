@@ -21,7 +21,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## platform:features (4)
 
-- [ ] `/PlatformFeatureAdministration/Index`
+- [x] `/PlatformFeatureAdministration/Index`
 - [ ] `/PlatformProductModuleAdministration/Index`
 - [ ] `/PlatformInstitutionModulePresets/Index`
 - [ ] `/PlatformModuleFeatures/Index`
@@ -119,6 +119,15 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - **Catalog:** immutable master Code, localized type/cycle list, edit name/Bangla name/description/default cycle/order, field validation, metadata idempotent retry and SQL round-trip restoration, activation/deactivation, stale UI version 409 followed by automatic list reload and valid retry, activation replay and restoration, role denial, mobile help. **Production bug fixed:** removed unnecessary manually started relational transaction from `PlatformCatalogService.MetadataAdministration.cs`; EF `SaveChangesAsync` still atomically writes metadata + audit while remaining compatible with SQL Server retrying execution strategy. Failure-only Try again and committed-but-refresh-failed messaging preserve truthful UI state.
 - **Scope limitation:** Dedicated Platform Institutions QA is fully green; unrelated general `CI` and product-wide SQL acceptance are separate release gates and may remain failing. This is page-scoped Final QA, not complete EduOS production/UAT or load-certification. Existing 5 scheduled UX automations remain OFF.
 
-## Current in-progress or blocked route
+## UX-first implementation progress — 2026-11-14
 
-**Completed menu:** platform:institutions (2/2 Verified Complete). **Next UX A menu:** platform:features (4 routes), starting with `/PlatformFeatureAdministration/Index`; do not mark any next-menu page complete until its own exact-SHA UX/SQL/browser QA succeeds. Previously verified Dashboard and Institution pages remain part of shared-regression checks.
+**New owner process:** UX is delivered to completion before a separate unified Final QA phase. This checkbox is a statement about implemented UX, **not** Final QA results. Four historically [x] Dashboard/Institution Management routes have their previous exact-SHA QA logs above; those results are retained for history.
+
+| Route | UX implementation | Final QA |
+| --- | --- | --- |
+| `/PlatformFeatureAdministration/Index` | **UX Done**; view `e3105c8f7936b34118c3997a58531378d031921a`, JS `f938c57e69e9413b0807ad0c6fb03e3eb52ccc2f`, contextual bilingual Help `c9809fb5b93b195fdc1e6a3605597c3aaf2dcef4` | **Deferred / Not Run for new UX** |
+
+Feature page delivered: compact responsive bilingual list/editor, no duplicate page title or decorative Refresh, read-only immutable Code, existing authorized metadata API retained, server-generated request ID client-side per intent for retry semantics, checkbox-style availability, loading/empty/error status, failure-only retry control, stale row-version conflict handling, and shared Page Help. Authoring check: JavaScript parsed and Razor element IDs/source references reviewed; **no authenticated browser/SQL/independent QA run was performed on these new changes**. Keep previously implemented feature backend and plan assignments as the single source of truth.
+
+**Current menu:** platform:features — `1 / 4 UX Done`. **Next route:** `/PlatformProductModuleAdministration/Index`. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
+
