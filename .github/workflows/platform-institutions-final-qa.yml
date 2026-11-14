@@ -1,0 +1,170 @@
+name: Platform Institutions Final QA — Real SQL and Browser
+on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - 'EduOS.App/Views/PlatformTenants/**'
+      - 'EduOS.App/Views/PlatformCatalogAdministration/**'
+      - 'EduOS.App/wwwroot/js/platform/tenant-lifecycle.js'
+      - 'EduOS.App/wwwroot/js/platform/institution-type-administration.js'
+      - 'EduOS.App/wwwroot/js/platform/page-context-help.js'
+      - 'EduOS.App/Controllers/PlatformTenantsController.cs'
+      - 'EduOS.App/Controllers/PlatformCatalogAdministrationController.cs'
+      - 'EduOS.App/Controllers/Api/PlatformTenantsApiController.cs'
+      - 'EduOS.App/Controllers/Api/PlatformCatalogAdministrationApiController.cs'
+      - 'EduOS.Service/Services/Platform/PlatformTenantLifecycleService.cs'
+      - 'EduOS.Service/Services/SaaS/PlatformCatalogService.Administration.cs'
+      - 'EduOS.Service/Services/SaaS/PlatformCatalogService.MetadataAdministration.cs'
+      - 'EduOS.Tests/Services/PlatformTenantLifecycleServiceTests.cs'
+      - 'EduOS.Tests/Services/PlatformTenantStateHistoryTests.cs'
+      - 'EduOS.Tests/ClientAssets/platform-tenant-lifecycle-contract.test.cjs'
+      - 'EduOS.Tests/JavaScript/platform-catalog-activation.test.cjs'
+      - 'EduOS.Tests/JavaScript/platform-institution-type-metadata.test.cjs'
+      - 'tests/browser/platform-institutions-live.cjs'
+      - '.github/workflows/platform-institutions-final-qa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: platform-institutions-final-qa-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  sql-browser-institutions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore and build entire solution
+        run: |
+          dotnet restore EduOS.slnx
+          dotnet build EduOS.slnx -c Release --no-restore
+      - name: Run focused platform institution lifecycle and catalog tests
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~PlatformTenantLifecycleServiceTests|FullyQualifiedName~PlatformTenantStateHistoryTests|FullyQualifiedName~PlatformCatalog" --logger "console;verbosity=normal"
+      - name: Run institution lifecycle and catalog Node contracts
+        run: |
+          node --test EduOS.Tests/ClientAssets/platform-tenant-lifecycle-contract.test.cjs
+          node --test EduOS.Tests/JavaScript/platform-catalog-activation.test.cjs
+          node --test EduOS.Tests/JavaScript/platform-institution-type-metadata.test.cjs
+          node --check tests/browser/platform-institutions-live.cjs
+      - name: Install pinned Playwright and real Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Start isolated SQL Server 2022
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="DashboardCi_$(openssl rand -hex 16)_aA9!"
+          echo "::add-mask::$password"
+          echo "EDUOS_DASHBOARD_SQL_PASSWORD=$password" >> "$GITHUB_ENV"
+          echo "ConnectionStrings__DefaultConnection=Server=127.0.0.1,14333;Database=EduOS_Demo_DashboardQA;User Id=sa;Password=$password;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30" >> "$GITHUB_ENV"
+          docker run --rm -d --name eduos-dashboard-sql -p 127.0.0.1:14333:1433 \
+            -e ACCEPT_EULA=Y -e MSSQL_PID=Developer -e MSSQL_SA_PASSWORD="$password" \
+            mcr.microsoft.com/mssql/server:2022-latest
+          ready=0
+          for i in $(seq 1 100); do
+            if docker logs eduos-dashboard-sql 2>&1 | grep -q 'SQL Server is now ready for client connections'; then ready=1; break; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' eduos-dashboard-sql)" != true ]; then
+              docker logs --tail 60 eduos-dashboard-sql
+              exit 1
+            fi
+            sleep 2
+          done
+          test "$ready" = 1
+      - name: Create disposable credentials and durable temporary key path
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="QAa_$(openssl rand -hex 20)_aA9!"
+          tenant="QAt_$(openssl rand -hex 20)_aA9!"
+          jwt="$(openssl rand -hex 48)"
+          echo "::add-mask::$password"
+          echo "::add-mask::$tenant"
+          echo "::add-mask::$jwt"
+          {
+            echo "EDUOS_DASHBOARD_SUPERADMIN_EMAIL=qa-platform@eduos.example.invalid"
+            echo "EDUOS_DASHBOARD_SUPERADMIN_PASSWORD=$password"
+            echo "EDUOS_DASHBOARD_TENANT_PASSWORD=$tenant"
+            echo "SuperAdmin__Email=qa-platform@eduos.example.invalid"
+            echo "SuperAdmin__Password=$password"
+            echo "JwtSettings__Secret=$jwt"
+            echo "DataProtection__KeysPath=$RUNNER_TEMP/dashboard-qa-keys"
+            echo "FileStorage__PrivateBasePath=$RUNNER_TEMP/dashboard-qa-private"
+            echo "ASPNETCORE_URLS=http://127.0.0.1:5089"
+            echo "EDUOS_DASHBOARD_BASE_URL=http://127.0.0.1:5089"
+          } >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/dashboard-qa-keys" "$RUNNER_TEMP/dashboard-qa-private"
+      - name: Apply EF migrations and bootstrap isolated SuperAdmin (Development only)
+        shell: bash
+        env:
+          ASPNETCORE_ENVIRONMENT: Development
+          DatabaseInitialization__Enabled: 'true'
+          DatabaseInitialization__ApplyMigrations: 'true'
+          DemoData__Enabled: 'false'
+        run: |
+          set -euo pipefail
+          dotnet run --project EduOS.App/EduOS.App.csproj -c Release --no-build --no-launch-profile > "$RUNNER_TEMP/dashboard-qa-bootstrap.log" 2>&1 &
+          pid=$!
+          ok=0
+          for i in $(seq 1 150); do
+            if curl -fsS http://127.0.0.1:5089/health/live >/dev/null 2>&1; then ok=1; break; fi
+            if ! kill -0 "$pid" 2>/dev/null; then
+              tail -n 100 "$RUNNER_TEMP/dashboard-qa-bootstrap.log"
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$ok" != 1 ]; then tail -n 100 "$RUNNER_TEMP/dashboard-qa-bootstrap.log"; exit 1; fi
+          kill "$pid" || true
+          for i in $(seq 1 25); do
+            if ! kill -0 "$pid" 2>/dev/null; then break; fi
+            sleep 1
+          done
+      - name: Start genuine staging app with safe disposable demo institution
+        shell: bash
+        env:
+          ASPNETCORE_ENVIRONMENT: Staging
+          DatabaseInitialization__Enabled: 'false'
+          DatabaseInitialization__ApplyMigrations: 'false'
+          DemoData__Enabled: 'true'
+          AllowedHosts: 127.0.0.1;localhost
+          Cors__AllowedOrigins__0: https://eduos.example.invalid
+        run: |
+          set -euo pipefail
+          export DemoData__SharedPassword="$EDUOS_DASHBOARD_TENANT_PASSWORD"
+          dotnet run --project EduOS.App/EduOS.App.csproj -c Release --no-build --no-launch-profile > "$RUNNER_TEMP/dashboard-qa-staging.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/dashboard-qa-app.pid"
+          ok=0
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:5089/health/live >/dev/null 2>&1; then ok=1; break; fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/dashboard-qa-app.pid")" 2>/dev/null; then
+              tail -n 100 "$RUNNER_TEMP/dashboard-qa-staging.log"
+              exit 1
+            fi
+            sleep 2
+          done
+          if [ "$ok" != 1 ]; then tail -n 100 "$RUNNER_TEMP/dashboard-qa-staging.log"; exit 1; fi
+      - name: Verify lifecycle and catalog in real Chromium on disposable SQL
+        run: node tests/browser/platform-institutions-live.cjs
+      - name: Capture safe diagnostic tail on failure
+        if: failure()
+        shell: bash
+        run: |
+          for f in "$RUNNER_TEMP/dashboard-qa-bootstrap.log" "$RUNNER_TEMP/dashboard-qa-staging.log"; do
+            if [ -f "$f" ]; then echo "Diagnostic tail for $(basename "$f")"; tail -n 65 "$f"; fi
+          done
+      - name: Shut down isolated QA application and SQL database
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/dashboard-qa-app.pid" ]; then kill "$(cat "$RUNNER_TEMP/dashboard-qa-app.pid")" 2>/dev/null || true; fi
+          docker rm -f eduos-dashboard-sql >/dev/null 2>&1 || true
