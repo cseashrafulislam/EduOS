@@ -88,7 +88,7 @@ public sealed partial class AcademicSetupService
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.AcademicBatchId <= 0 || request.CurriculumSubjectId <= 0 ||
             request.AcademicYearId <= 0 || request.AcademicTermId is <= 0 ||
-            string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
+            request.Code?.Trim().Length > 50 ||
             request.Capacity is < 1 or > 100000 || !Enum.IsDefined(request.DeliveryMode))
             return Task.FromResult(Error<SubjectOfferingDto>("Invalid offering, capacity or request reference."));
         return ExecuteWriteAsync("create subject offering", async () =>
@@ -152,7 +152,10 @@ public sealed partial class AcademicSetupService
             var subject = await _subjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == mapping.SubjectId && x.IsActive && !x.IsDeleted, ct);
             if (subject == null) return Error<SubjectOfferingDto>("Subject is inactive or unavailable.", 409);
-            var code = NormalizeCode(request.Code);
+            // Stable retry-safe Code generated from the already-required request ID.
+            // Explicit codes from older API clients remain supported.
+            var code = NormalizeCode(EffectiveInternalCode(
+                request.Code, request.ClientRequestId, "OFR-"));
             var existing = await _offerings.GetQueryable().AsNoTracking().Where(x =>
                 x.TenantId == tenant && x.AcademicBatchId == batch.Id && !x.IsDeleted &&
                 (x.Code == code || (x.CurriculumSubjectId == mapping.Id &&
