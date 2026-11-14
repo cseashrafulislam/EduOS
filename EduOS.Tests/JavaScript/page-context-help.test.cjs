@@ -158,7 +158,7 @@ test('twenty-five audited finance, academic and communication manuals match real
         ['StudentLeaves', 'leaveSubmit'], ['EmployeeAttendance', 'employeeAttendanceSave'],
         ['LeaveEntitlements', 'leaveEntitlementTypeReset'], ['StudentPortal', 'studentPortalTabs'],
         ['StudentSubjects', 'subjectsRequestButton'], ['LearnerIdentities', 'identitySubmit'],
-        ['Learning', 'learningCourse'], ['AuditLogs', 'auditTitle'], ['ImportHistory', 'importHistoryTitle'],
+        ['Learning', 'learningCourse'], ['AuditLogs', 'auditResultsTitle'], ['ImportHistory', 'importHistoryListTitle'],
         ['CommunicationAdministration', 'communicationTitle'], ['CustomFields', 'cfPage'],
         ['DocumentAdministration', 'docAdminTitle'], ['CommunicationWorkspace', 'cwSendMessage']
     ];
