@@ -191,6 +191,7 @@ async function main() {
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management-forms.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/levels.js') });
+        await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/batches.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/tracks.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/subjects.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/curricula.js') });

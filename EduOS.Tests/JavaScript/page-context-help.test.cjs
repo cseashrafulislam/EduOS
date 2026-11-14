@@ -160,7 +160,7 @@ test('twenty-five audited finance, academic and communication manuals match real
         ['StudentSubjects', 'subjectsRequestButton'], ['LearnerIdentities', 'identitySubmit'],
         ['Learning', 'learningCourse'], ['AuditLogs', 'auditResultsTitle'], ['ImportHistory', 'importHistoryListTitle'],
         ['CommunicationAdministration', 'communicationAlert'], ['CustomFields', 'cfPage'],
-        ['DocumentAdministration', 'docAdminTitle'], ['CommunicationWorkspace', 'cwSendMessage']
+        ['DocumentAdministration', 'docTabs'], ['CommunicationWorkspace', 'cwSendMessage']
     ];
     for (const [name, id] of protectedPages) {
         const view = read(`EduOS.App/Views/${name}/Index.cshtml`);

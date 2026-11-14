@@ -81,7 +81,8 @@ async function verify(browser,lang){
   await page.evaluate(()=>{document.body.dataset.authTenantId='42';});
   await page.waitForFunction(()=>document.getElementById('discountRuleSave').disabled);
   assert.doesNotMatch(await page.locator('#discountRuleRows').innerText(),/New tuition/);
-  assert.equal(await page.locator('#discountRuleRefresh').isDisabled(),true);
+  assert.equal(await page.locator('#discountRuleValue').isDisabled(),true,
+    'all edit controls remain disabled on tenant change');
   assert.deepEqual(errors,[]);
   console.log(lang+' discount rules: bilingual, authorized load, CSRF, rowversion, conflict redaction, session PASS (synthetic API)');
  }finally{await context.close();}
