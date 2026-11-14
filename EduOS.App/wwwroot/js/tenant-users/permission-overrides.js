@@ -19,6 +19,8 @@
         const node = el('permissionOverrideMessage');
         node.className = 'alert ' + (failed ? 'alert-danger' : 'alert-success');
         node.textContent = text;
+        const retry = el('permissionOverrideReload');
+        if (retry) retry.hidden = !failed;
     }
     async function api(path, method = 'GET', body) {
         const response = await fetch('/api/tenant-users' + path, {
@@ -150,7 +152,7 @@
     el('permissionOverrideCode').addEventListener('change', resetEditor);
     el('permissionOverrideMode').addEventListener('change', updateInheritFields);
     el('permissionOverrideReload').addEventListener('click', async () => {
-        try { await loadMembers(); message(t('Member permissions refreshed.', 'সদস্যের অনুমতি হালনাগাদ হয়েছে।')); }
+        try { await loadMembers(); message(t('Member permissions loaded.', 'সদস্যের অনুমতি আনা হয়েছে।')); }
         catch (error) { message(error.message, true); }
     });
     el('permissionOverrideForm').addEventListener('submit', async event => {
