@@ -70,6 +70,11 @@ public sealed class CustomFieldService : ICustomFieldService
         SaveCustomFieldDefinitionRequestDto request, CancellationToken ct = default)
     {
         if (!Allowed) return Denied<CustomFieldDefinitionDto>();
+        // FieldKey is immutable after creation. New browser forms use a server-issued,
+        // retry-stable key; explicit keys from existing integrations remain supported.
+        if (request != null && !definitionId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.FieldKey))
+            request.FieldKey = "CF_" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || request.IsSensitive || !string.IsNullOrWhiteSpace(request.ValidationJson) ||
             !string.Equals(request.EntityType, "Tenant", StringComparison.OrdinalIgnoreCase) ||
             !Regex.IsMatch(request.FieldKey?.Trim() ?? "", "^[A-Za-z][A-Za-z0-9_]{0,99}$") ||
@@ -98,7 +103,24 @@ public sealed class CustomFieldService : ICustomFieldService
                 if (existing?.IsSensitive == true)
                     return ApiResponse<CustomFieldDefinitionDto>.ErrorResponse("Sensitive fields require a separate protected workflow.", 403);
                 if (!definitionId.HasValue && existing != null)
+                {
+                    if (request.ClientRequestId != Guid.Empty &&
+                        key == "CF_" + request.ClientRequestId.ToString("N").ToUpperInvariant() &&
+                        existing.CreatedBy == _user.UserId &&
+                        existing.Label == request.Label.Trim() &&
+                        existing.DataType == request.DataType && existing.IsRequired == request.IsRequired &&
+                        existing.IsActive == request.IsActive && existing.DisplayOrder == request.DisplayOrder)
+                    {
+                        var replayOptions = await _options.GetQueryable().AsNoTracking().Where(x =>
+                            x.TenantId == _user.TenantId && x.CustomFieldDefinitionId == existing.Id &&
+                            !x.IsDeleted).ToListAsync(token);
+                        if (replayOptions.Count == choices.Length && choices.All(c => replayOptions.Any(o =>
+                            string.Equals(o.Value, c.Value, StringComparison.OrdinalIgnoreCase) &&
+                            o.Label == c.Label && o.DisplayOrder == c.DisplayOrder && o.IsActive == c.IsActive)))
+                            return ApiResponse<CustomFieldDefinitionDto>.SuccessResponse(Map(existing, replayOptions));
+                    }
                     return ApiResponse<CustomFieldDefinitionDto>.ErrorResponse("Field key already exists.", 409);
+                }
                 if (existing != null && !Version(existing.RowVersion, request.RowVersion))
                     return ApiResponse<CustomFieldDefinitionDto>.ErrorResponse("Field changed. Reload and retry.", 409);
                 if (existing != null && (existing.EntityType != "Tenant" || existing.FieldKey != key ||

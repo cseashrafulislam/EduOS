@@ -40,8 +40,9 @@ public class CustomFieldDefinitionDto
 
 public class SaveCustomFieldDefinitionRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(100)] public string EntityType { get; set; } = string.Empty;
-    [Required, MaxLength(100)] public string FieldKey { get; set; } = string.Empty;
+    [MaxLength(100)] public string FieldKey { get; set; } = string.Empty;
     [Required, MaxLength(150)] public string Label { get; set; } = string.Empty;
     public CustomFieldDataType DataType { get; set; } = CustomFieldDataType.Text;
     public bool IsRequired { get; set; }

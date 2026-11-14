@@ -13,8 +13,8 @@
     <div class="card mb-2"><div class="card-body"><h2 class="h6 mb-2">Add / edit field</h2>
         <form id="cfForm">@Html.AntiForgeryToken()<input id="cfId" type="hidden"><input id="cfVersion" type="hidden">
             <div class="row g-2">
-                <div class="col-md-3"><label for="cfKey">Field key</label><input id="cfKey" class="form-control" maxlength="100" required pattern="[A-Za-z][A-Za-z0-9_]*"></div>
-                <div class="col-md-3"><label for="cfLabel">Label</label><input id="cfLabel" class="form-control" maxlength="150" required></div>
+                <input id="cfKey" type="hidden" />
+                <div class="col-md-6"><label for="cfLabel">Label</label><input id="cfLabel" class="form-control" maxlength="150" required></div>
                 <div class="col-md-2"><label for="cfType">Type</label><select id="cfType" class="form-select">
                     <option value="1">Text</option><option value="2">Integer</option><option value="3">Decimal</option>
                     <option value="4">Date</option><option value="6">Boolean</option><option value="7">Select</option>

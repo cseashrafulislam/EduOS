@@ -3,6 +3,7 @@
     const el = id => document.getElementById(id);
     const state = { page: 1, totalPages: 1, rows: [], values: [], definitions: [] };
     let saving = false, definitionSeq = 0, valueSeq = 0;
+    let createKey = null, createFingerprint = null;
     const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
     const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
         context[1] === (document.body?.dataset.authSessionReference || '') &&
@@ -41,7 +42,8 @@
     const td = (tr, value) => { const cell = document.createElement('td'); cell.textContent = value == null ? '' : String(value); tr.append(cell); return cell; };
     function reset() {
         el('cfForm').reset(); el('cfId').value = ''; el('cfVersion').value = '';
-        el('cfKey').disabled = false; el('cfType').disabled = false; toggleChoices();
+        el('cfKey').disabled = false; el('cfType').disabled = false;
+        createKey = null; createFingerprint = null; toggleChoices();
         definitionGuard?.markClean();
     }
     function toggleChoices() { el('cfChoicesWrap').classList.toggle('d-none', el('cfType').value !== '7'); }
@@ -85,10 +87,17 @@
         event.preventDefault();
         if (saving || !live()) return;
         const id = Number(el('cfId').value) || null;
-        const dto = { entityType: 'Tenant', fieldKey: el('cfKey').value.trim(), label: el('cfLabel').value.trim(),
+        const dto = { entityType: 'Tenant', fieldKey: id ? el('cfKey').value.trim() : '', label: el('cfLabel').value.trim(),
             dataType: Number(el('cfType').value), isRequired: el('cfRequired').value === 'true',
             isActive: el('cfActive').value === 'true', displayOrder: Number(el('cfOrder').value) || 0,
             isSensitive: false, validationJson: null, options: options(), rowVersion: el('cfVersion').value || null };
+        if (!id) {
+            const fingerprint = JSON.stringify(dto);
+            if (createFingerprint !== fingerprint) {
+                createFingerprint = fingerprint; createKey = crypto.randomUUID();
+            }
+            dto.clientRequestId = createKey;
+        }
         saving = true; const unlock = lock(el('cfForm'));
         try {
             await api('definitions' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', dto);
