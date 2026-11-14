@@ -1,22 +1,53 @@
-@{ ViewData["Title"] = "Legal Publications"; }
-<section class="container-fluid py-4" data-legal-mode="admin">
-    <h2>Legal publications</h2>
-    <p class="text-muted">Publish immutable versions of institution terms and policies. Content must be reviewed and approved by your legal team before publication. Future-effective versions do not replace current terms early.</p>
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "আইনি নথি প্রকাশনা" : "Legal Publications";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<section class="container-fluid py-2" data-legal-mode="admin" data-bangla="@(bn ? "true" : "false")">
+    @Html.AntiForgeryToken()
+    <p class="text-muted small mb-2">@(bn ? "আইন বিভাগ অনুমোদিত সংস্করণ প্রকাশ করুন। প্রকাশিত লেখা অপরিবর্তনীয়; ভবিষ্যৎ কার্যকর সংস্করণ আগের সংস্করণকে আগে থেকে প্রতিস্থাপন করবে না।" : "Publish only legally approved versions. Published content is immutable; future-effective versions do not replace the current terms early.")</p>
     <div id="legalAlert" class="alert d-none" role="alert" aria-live="polite"></div>
-    <div class="card mb-3"><div class="card-body">
-        <h3 class="h5">Publish a new version</h3>
-        <form id="legalPublishForm" class="row g-3">
-            <div class="col-md-3"><label for="legalCode" class="form-label">Document code</label><input id="legalCode" class="form-control" maxlength="50" pattern="[A-Za-z][A-Za-z0-9_.-]+" required placeholder="TERMS_OF_SERVICE"></div>
-            <div class="col-md-3"><label for="legalVersion" class="form-label">Version</label><input id="legalVersion" class="form-control" maxlength="30" required placeholder="2026-10"></div>
-            <div class="col-md-6"><label for="legalTitle" class="form-label">Title</label><input id="legalTitle" class="form-control" maxlength="200" required></div>
-            <div class="col-md-4"><label for="legalEffective" class="form-label">Effective from (local time)</label><input id="legalEffective" type="datetime-local" class="form-control" required></div>
-            <div class="col-12"><label for="legalContent" class="form-label">Approved legal text</label><textarea id="legalContent" class="form-control" rows="10" maxlength="50000" minlength="20" required></textarea></div>
-            <div class="col-12"><button class="btn btn-primary" type="submit" id="legalPublishButton">Publish immutable version</button></div>
-        </form>
-    </div></div>
-    <div class="card"><div class="card-body">
-        <h3 class="h5">Published versions</h3>
-        <div id="legalAdminRows" class="d-grid gap-2"></div>
-    </div></div>
+    <section class="card mb-2" aria-labelledby="legalEditorTitle">
+        <div class="card-body p-3">
+            <h2 id="legalEditorTitle" class="h6 mb-3">@(bn ? "নতুন অনুমোদিত সংস্করণ প্রকাশ" : "Publish an approved version")</h2>
+            <form id="legalPublishForm" class="row g-2" autocomplete="off">
+                <div class="col-12 col-md-4">
+                    <label for="legalCode" class="form-label">@(bn ? "নথির ধরন" : "Document type")</label>
+                    <select id="legalCode" class="form-select" required>
+                        <option value="TERMS_OF_SERVICE">@(bn ? "ব্যবহারের শর্তাবলি" : "Terms of Service")</option>
+                        <option value="PRIVACY_POLICY">@(bn ? "গোপনীয়তার নীতি" : "Privacy Policy")</option>
+                    </select>
+                    <small class="text-muted">@(bn ? "সিস্টেম নির্ধারিত নথি কোড; লিখতে হবে না।" : "System-defined document code; no manual code entry.")</small>
+                </div>
+                <div class="col-12 col-md-2">
+                    <label for="legalVersion" class="form-label">@(bn ? "সংস্করণ" : "Version")</label>
+                    <input id="legalVersion" class="form-control" maxlength="30" required placeholder="2.0" />
+                </div>
+                <div class="col-12 col-md-6">
+                    <label for="legalTitle" class="form-label">@(bn ? "শিরোনাম" : "Title")</label>
+                    <input id="legalTitle" class="form-control" maxlength="200" minlength="3" required />
+                </div>
+                <div class="col-12 col-md-4">
+                    <label for="legalEffective" class="form-label">@(bn ? "কার্যকরের সময় (স্থানীয়)" : "Effective from (local time)")</label>
+                    <input id="legalEffective" type="datetime-local" class="form-control" required />
+                </div>
+                <div class="col-12">
+                    <label for="legalContent" class="form-label">@(bn ? "আইন বিভাগের অনুমোদিত লেখা" : "Legally approved text")</label>
+                    <textarea id="legalContent" class="form-control" rows="7" maxlength="50000" minlength="20" required></textarea>
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-primary" type="submit" id="legalPublishButton">@(bn ? "অপরিবর্তনীয় সংস্করণ প্রকাশ" : "Publish immutable version")</button>
+                </div>
+            </form>
+        </div>
+    </section>
+    <section class="card" aria-labelledby="legalVersionsTitle">
+        <div class="card-body p-3">
+            <h2 id="legalVersionsTitle" class="h6 mb-2">@(bn ? "প্রকাশিত সংস্করণ" : "Published versions")</h2>
+            <div id="legalAdminRows" class="d-grid gap-2" role="region" aria-live="polite"></div>
+        </div>
+    </section>
 </section>
-@section Scripts { <script src="~/js/platform/legal-documents.js" asp-append-version="true"></script> }
+@section Scripts {
+    <script src="~/js/platform/legal-documents.js" asp-append-version="true"></script>
+}
