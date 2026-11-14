@@ -106,6 +106,25 @@ async function main() {
                     return route.fulfill({ status: data ? 200 : 404, contentType: 'application/json',
                         body: JSON.stringify({ success: !!data, data }) });
                 }
+                if (url.pathname === '/api/academic-setup/batches') {
+                    let items = catalog.batches.filter(x =>
+                        (!url.searchParams.get('campusId') ||
+                            x.campusId === Number(url.searchParams.get('campusId'))) &&
+                        (!url.searchParams.get('academicYearId') ||
+                            x.academicYearId === Number(url.searchParams.get('academicYearId'))));
+                    const prefix = (url.searchParams.get('search') || '').toLowerCase();
+                    if (prefix) items = items.filter(x =>
+                        x.name.toLowerCase().startsWith(prefix) ||
+                        x.code.toLowerCase().startsWith(prefix));
+                    const pageNumber = Number(url.searchParams.get('page') || 1);
+                    const pageSize = Number(url.searchParams.get('pageSize') || 20);
+                    const data = {
+                        items: items.slice((pageNumber - 1) * pageSize, pageNumber * pageSize),
+                        totalCount: items.length, page: pageNumber, pageSize
+                    };
+                    return route.fulfill({ status: 200, contentType: 'application/json',
+                        body: JSON.stringify({ success: true, data }) });
+                }
                 if (url.pathname === '/api/academic-setup/programmes') {
                     const prefix = (url.searchParams.get('search') || '').toLowerCase();
                     const items = catalog.programs.filter(x => !prefix ||
