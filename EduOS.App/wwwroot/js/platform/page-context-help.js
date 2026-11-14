@@ -1525,6 +1525,276 @@
             recovery: ['If state changed or an update conflicts, search again and read History before submitting a new decision. For network failures retry the same unchanged request rather than repeatedly changing state.', 'অবস্থা বদলে গেলে বা দ্বন্দ্ব হলে আবার খুঁজে ইতিহাস দেখুন। নেটওয়ার্ক সমস্যা হলে একই অপরিবর্তিত অনুরোধ পুনরায় পাঠান; বারবার অবস্থা বদলাবেন না।'],
             related: [['/Dashboard/Admin', 'Platform overview', 'প্ল্যাটফর্ম সারসংক্ষেপ']]
         },
+        '/subscriptionpaymenthistory/index': {
+                  "version": 1,
+                  "reviewed": true,
+                  "title": [
+                            "Payment Reconciliation History",
+                            "সাবস্ক্রিপশন পেমেন্টের ইতিহাস"
+                  ],
+                  "purpose": [
+                            "Review historical payment verification decisions, gateway exceptions and immutable finance follow-up notes.",
+                            "পেমেন্ট যাচাইয়ের সিদ্ধান্ত, গেটওয়ে ব্যতিক্রম এবং অপরিবর্তনীয় আর্থিক তদন্ত নোট পর্যালোচনা করুন।"
+                  ],
+                  "before": [
+                            "Sign in as the authorized platform reviewer. Paid invoice status and subscription activation are different business events.",
+                            "অনুমোদিত প্ল্যাটফর্ম পর্যালোচক হিসেবে লগ ইন করুন। ইনভয়েস পরিশোধ ও সাবস্ক্রিপশন সক্রিয় হওয়া আলাদা ঘটনা।"
+                  ],
+                  "steps": [
+                            [
+                                      "Search and filter the verification history, then inspect the invoice and payment status separately.",
+                                      "ইতিহাস খুঁজে ফিল্টার করুন; ইনভয়েস ও পেমেন্টের অবস্থা আলাদাভাবে দেখুন।"
+                            ],
+                            [
+                                      "Review unresolved gateway exceptions; overdue or blocked does not automatically mean payment failed.",
+                                      "অমীমাংসিত গেটওয়ে ব্যতিক্রম দেখুন; বিলম্বিত বা অবরুদ্ধ মানেই পেমেন্ট ব্যর্থ নয়।"
+                            ],
+                            [
+                                      "Record finance investigation findings using the permitted workflow, without entering credentials or treating a case close as a refund.",
+                                      "অনুমোদিত প্রক্রিয়ায় তদন্ত নোট সংরক্ষণ করুন; গোপন তথ্য দেবেন না বা কেস বন্ধকে রিফান্ড ভাববেন না।"
+                            ]
+                  ],
+                  "example": [
+                            "Example: investigate an overdue AamarPay transaction using verified provider evidence without approving payment from browser input.",
+                            "উদাহরণ: ব্রাউজারের তথ্য দেখে অনুমোদন না দিয়ে যাচাইকৃত প্রোভাইডার প্রমাণের সাহায্যে বিলম্বিত AamarPay ট্রানজ্যাকশন তদন্ত করুন।"
+                  ],
+                  "result": [
+                            "Historical records remain read-only; administrative finance notes do not directly settle, cancel or refund invoices.",
+                            "ইতিহাস অপরিবর্তনীয় থাকে; প্রশাসনিক নোট ইনভয়েস নিষ্পত্তি, বাতিল বা রিফান্ড করে না।"
+                  ],
+                  "rules": [
+                            "Authorized reviewers only; never cross tenant boundaries, modify paid history or copy sensitive credentials into finance notes.",
+                            "শুধু অনুমোদিত ব্যবহারকারী; অন্য প্রতিষ্ঠানের তথ্য বা পরিশোধিত ইতিহাস বদলাবেন না, গোপন তথ্য লিখবেন না।"
+                  ],
+                  "recovery": [
+                            "On gateway uncertainty, use the existing evidence verification/recovery flow, not a direct approval or duplicate refund.",
+                            "গেটওয়ে অনিশ্চিত হলে বিদ্যমান প্রমাণ যাচাই ও recovery ব্যবহার করুন; সরাসরি অনুমোদন বা ডুপ্লিকেট রিফান্ড নয়।"
+                  ],
+                  "related": [
+                            [
+                                      "/Account/PaymentVerification",
+                                      "Bank transfer review",
+                                      "ব্যাংক ট্রান্সফার যাচাই"
+                            ]
+                  ]
+        },
+        '/account/paymentverification/index': {
+                  "version": 1,
+                  "reviewed": true,
+                  "title": [
+                            "Manual Payment Verification",
+                            "ম্যানুয়াল পেমেন্ট যাচাই"
+                  ],
+                  "purpose": [
+                            "Review submitted bank payments and independently approve or reject them using authorized server-side controls.",
+                            "জমা দেওয়া ব্যাংক পেমেন্ট যাচাই করে অনুমোদিত সার্ভার-নিয়ন্ত্রিত প্রক্রিয়ায় অনুমোদন বা প্রত্যাখ্যান করুন।"
+                  ],
+                  "before": [
+                            "Confirm you have the appropriate platform payment-review role and supporting bank evidence.",
+                            "আপনার পেমেন্ট যাচাইয়ের অনুমতি ও ব্যাংকের প্রমাণ আছে কি না নিশ্চিত করুন।"
+                  ],
+                  "steps": [
+                            [
+                                      "Search the server-paged pending transfer list and select one payment.",
+                                      "সার্ভারভিত্তিক অপেক্ষমাণ ট্রান্সফার তালিকা থেকে পেমেন্ট খুঁজে নির্বাচন করুন।"
+                            ],
+                            [
+                                      "Review invoice, bank, slip and payment details and inspect available evidence.",
+                                      "ইনভয়েস, ব্যাংক, স্লিপ ও পেমেন্টের তথ্য ও প্রমাণ দেখুন।"
+                            ],
+                            [
+                                      "Approve verified transfers only; otherwise reject with the required reason. Do not submit twice.",
+                                      "প্রমাণ মিলে গেলে অনুমোদন করুন; না মিললে কারণ লিখে প্রত্যাখ্যান করুন। দুইবার জমা দেবেন না।"
+                            ]
+                  ],
+                  "example": [
+                            "Example: approve a bank transfer only after amount, reference and actual bank receipt are confirmed.",
+                            "উদাহরণ: পরিমাণ, রেফারেন্স ও বাস্তব ব্যাংক প্রাপ্তি মিললে তবেই ব্যাংক ট্রান্সফার অনুমোদন করুন।"
+                  ],
+                  "result": [
+                            "The existing authorized payment service records an auditable decision and updates eligible subscription state according to business rules.",
+                            "বিদ্যমান অনুমোদিত পেমেন্ট সার্ভিস নিরীক্ষাযোগ্য সিদ্ধান্ত সংরক্ষণ করে ও নিয়ম অনুযায়ী সাবস্ক্রিপশনের অবস্থা বদলায়।"
+                  ],
+                  "rules": [
+                            "Do not infer settlement solely from a screenshot or attempt to bypass approval, anti-forgery or tenant access checks.",
+                            "শুধু স্ক্রিনশট দেখে পেমেন্ট নিষ্পত্তি ভাববেন না; অনুমোদন, anti-forgery বা tenant অনুমতি এড়াবেন না।"
+                  ],
+                  "recovery": [
+                            "If the result is uncertain, re-open the pending list and check the payment state before taking another action.",
+                            "ফল অনিশ্চিত হলে নতুন তালিকায় পেমেন্টের অবস্থা দেখে তারপর অন্য ব্যবস্থা নিন।"
+                  ],
+                  "related": [
+                            [
+                                      "/SubscriptionPaymentHistory/Index",
+                                      "Reconciliation history",
+                                      "পেমেন্টের ইতিহাস"
+                            ]
+                  ]
+        },
+        '/legaldocuments/index': {
+                  "version": 1,
+                  "reviewed": true,
+                  "title": [
+                            "Legal Publication",
+                            "আইনি নথি প্রকাশ"
+                  ],
+                  "purpose": [
+                            "Publish legally approved immutable versions of the canonical platform terms and privacy documents.",
+                            "প্ল্যাটফর্মের অনুমোদিত শর্তাবলি ও গোপনীয়তার নথির অপরিবর্তনীয় সংস্করণ প্রকাশ করুন।"
+                  ],
+                  "before": [
+                            "Obtain legal approval for the complete text and effective date. Document type is selected from system-defined values, not typed as a Code.",
+                            "লেখা ও কার্যকরের তারিখে আইন বিভাগের অনুমোদন নিন। নথির ধরন সিস্টেমের তালিকা থেকে নির্বাচন করুন, Code টাইপ করবেন না।"
+                  ],
+                  "steps": [
+                            [
+                                      "Choose Terms of Service or Privacy Policy and enter the approved version number and title.",
+                                      "ব্যবহারের শর্ত বা গোপনীয়তার নীতি নির্বাচন করে অনুমোদিত সংস্করণ ও শিরোনাম দিন।"
+                            ],
+                            [
+                                      "Enter the full approved content and future-effective local time; review carefully before submission.",
+                                      "অনুমোদিত পূর্ণ লেখা ও স্থানীয় কার্যকরের সময় দিন; জমার আগে ভালোভাবে দেখুন।"
+                            ],
+                            [
+                                      "Publish once, and inspect the resulting immutable version in the published list.",
+                                      "একবার প্রকাশ করে তালিকায় অপরিবর্তনীয় সংস্করণ যাচাই করুন।"
+                            ]
+                  ],
+                  "example": [
+                            "Example: publish an approved policy revision effective next month while keeping the existing current version unchanged until then.",
+                            "উদাহরণ: আগামী মাস থেকে কার্যকর নীতি প্রকাশ করুন; ততদিন বর্তমান সংস্করণ অপরিবর্তিত থাকবে।"
+                  ],
+                  "result": [
+                            "An immutable version is stored with a unique type/version pair and audit trail; historical acceptances remain linked to their original version.",
+                            "ধরন/সংস্করণ অনুযায়ী অপরিবর্তনীয় নথি ও নিরীক্ষা সংরক্ষিত হয়; আগের সম্মতিগুলো নিজ সংস্করণের সঙ্গে যুক্ত থাকে।"
+                  ],
+                  "rules": [
+                            "SuperAdmin and legal signoff required; never use draft or generated legal text without approval or silently replace existing versions.",
+                            "SuperAdmin ও আইন বিভাগের অনুমোদন প্রয়োজন; অনুমোদন ছাড়া খসড়া প্রকাশ বা আগের সংস্করণ নীরবে বদলাবেন না।"
+                  ],
+                  "recovery": [
+                            "For an uncertain publication result, inspect the published version list before retrying unchanged content.",
+                            "প্রকাশের ফল অনিশ্চিত হলে একই লেখা পুনরায় পাঠানোর আগে তালিকা দেখুন।"
+                  ],
+                  "related": [
+                            [
+                                      "/Dashboard/Admin",
+                                      "Platform overview",
+                                      "প্ল্যাটফর্ম সারসংক্ষেপ"
+                            ]
+                  ]
+        },
+        '/smartsetup/index': {
+                  "version": 1,
+                  "reviewed": true,
+                  "title": [
+                            "Smart Institution Setup",
+                            "স্মার্ট প্রতিষ্ঠান সেটআপ"
+                  ],
+                  "purpose": [
+                            "Prepare practical initial academic and operational master data once using the same canonical settings used by the individual module pages.",
+                            "অন্য পেজের একই মূল সেটিংস ব্যবহার করে প্রতিষ্ঠানের প্রাথমিক একাডেমিক ও কার্যক্রমের তথ্য একবারে প্রস্তুত করুন।"
+                  ],
+                  "before": [
+                            "Review institution type and seed choices. Smart Setup must not overwrite already configured records or create a second editable source.",
+                            "প্রতিষ্ঠানের ধরন ও ডিফল্ট তথ্য দেখুন। আগে সংরক্ষিত তথ্য নষ্ট করবেন না বা দ্বিতীয় মূল তথ্যভাণ্ডার তৈরি করবেন না।"
+                  ],
+                  "steps": [
+                            [
+                                      "Inspect readiness by module and search for missing settings.",
+                                      "মডিউলভিত্তিক প্রস্তুতি দেখুন ও অনুপস্থিত সেটিংস খুঁজুন।"
+                            ],
+                            [
+                                      "Select only missing records, review them and confirm before saving.",
+                                      "শুধু অনুপস্থিত তথ্য নির্বাচন করে যাচাই ও নিশ্চিত করুন।"
+                            ],
+                            [
+                                      "Open each individual settings page to edit a seeded record or add additional records later.",
+                                      "সংরক্ষিত তথ্য পরে সম্পাদনা বা নতুন তথ্য যোগ করতে সংশ্লিষ্ট সেটিংস পেজ খুলুন।"
+                            ]
+                  ],
+                  "example": [
+                            "Example: seed a school class list once; maintain its additional classes and sections from Academic Setup thereafter.",
+                            "উদাহরণ: স্কুলের শ্রেণির প্রাথমিক তালিকা একবার সংরক্ষণ করুন; পরে Academic Setup-এ শ্রেণি ও শাখা পরিচালনা করুন।"
+                  ],
+                  "result": [
+                            "Records are persisted to the canonical owner module; all changes remain visible from their original settings pages.",
+                            "সব তথ্য নিজস্ব মূল মডিউলে সংরক্ষিত হয় এবং সংশ্লিষ্ট সেটিংস পেজে দেখা যায়।"
+                  ],
+                  "rules": [
+                            "Do not auto-create financial opening balances or paid transactions without review. Server owns internal Codes, permissions and tenant isolation.",
+                            "যাচাই ছাড়া আর্থিক opening balance বা পরিশোধিত লেনদেন তৈরি করবেন না। Code, অনুমতি ও tenant isolation সার্ভারের দায়িত্ব।"
+                  ],
+                  "recovery": [
+                            "If a section fails, review actual saved rows before retrying; do not duplicate earlier records.",
+                            "কোনো অংশ ব্যর্থ হলে আবার চেষ্টা করার আগে সংরক্ষিত তথ্য দেখুন; ডুপ্লিকেট করবেন না।"
+                  ],
+                  "related": [
+                            [
+                                      "/AcademicManagement/Years",
+                                      "Academic years",
+                                      "শিক্ষাবর্ষ"
+                            ],
+                            [
+                                      "/TenantSettings/Index",
+                                      "Institution settings",
+                                      "প্রতিষ্ঠানের সেটিংস"
+                            ]
+                  ]
+        },
+        '/usagehistory/index': {
+                  "version": 1,
+                  "reviewed": true,
+                  "title": [
+                            "Institution Usage History",
+                            "প্রতিষ্ঠানের ব্যবহার ইতিহাস"
+                  ],
+                  "purpose": [
+                            "Inspect tenant-scoped daily resource use, current quotas and historical usage without changing billing counters.",
+                            "বিলিংয়ের হিসাব না বদলে প্রতিষ্ঠানের দৈনিক ব্যবহার, কোটা ও ইতিহাস দেখুন।"
+                  ],
+                  "before": [
+                            "Sign in under the intended institution; usage and quotas are tenant-sensitive read-only reports.",
+                            "নির্দিষ্ট প্রতিষ্ঠানে লগ ইন করুন; ব্যবহার ও কোটা প্রতিষ্ঠানের নিজস্ব শুধু-পাঠযোগ্য রিপোর্ট।"
+                  ],
+                  "steps": [
+                            [
+                                      "Review the current subscription quota and resource categories.",
+                                      "বর্তমান সাবস্ক্রিপশন কোটা ও ব্যবহারের ধরন দেখুন।"
+                            ],
+                            [
+                                      "Select a business date range and filter the server-backed daily usage history.",
+                                      "তারিখ নির্বাচন করে সার্ভারভিত্তিক দৈনিক ব্যবহার ইতিহাস ফিল্টার করুন।"
+                            ],
+                            [
+                                      "Use authorized capture/report actions only when the page offers them.",
+                                      "পেজে থাকলে শুধু অনুমোদিত তথ্য সংগ্রহ বা রিপোর্ট ব্যবস্থা ব্যবহার করুন।"
+                            ]
+                  ],
+                  "example": [
+                            "Example: compare student or storage usage over a selected month against the configured plan limit.",
+                            "উদাহরণ: নির্বাচিত মাসের শিক্ষার্থী বা স্টোরেজের ব্যবহার প্ল্যানের সীমার সঙ্গে তুলনা করুন।"
+                  ],
+                  "result": [
+                            "Historical daily usage and current quota are shown separately; viewing never changes subscription entitlements.",
+                            "দৈনিক ইতিহাস ও বর্তমান কোটা আলাদা দেখানো হয়; দেখলে সাবস্ক্রিপশনের অধিকার বদলায় না।"
+                  ],
+                  "rules": [
+                            "All data and exports must stay tenant-scoped. Historical usage should not be rewritten when the current plan changes.",
+                            "সব তথ্য ও রপ্তানি একই প্রতিষ্ঠানের মধ্যে সীমাবদ্ধ থাকবে। নতুন প্ল্যানের পরিবর্তনে আগের ব্যবহার ইতিহাস বদলাবে না।"
+                  ],
+                  "recovery": [
+                            "If the history query fails, reduce the date window and retry; do not assume zero usage from a failed load.",
+                            "ইতিহাস আনতে ব্যর্থ হলে সময়সীমা ছোট করে আবার চেষ্টা করুন; ব্যর্থ লোডকে শূন্য ব্যবহার ভাববেন না।"
+                  ],
+                  "related": [
+                            [
+                                      "/SubscriptionBilling/Index",
+                                      "Subscription and Billing",
+                                      "সাবস্ক্রিপশন ও বিলিং"
+                            ]
+                  ]
+        },
         '/dashboard/admin/index': {
             version: 2, reviewed: true,
             title: ['Platform Operations Dashboard', 'প্ল্যাটফর্ম পরিচালনা ড্যাশবোর্ড'],
