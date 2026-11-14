@@ -13,10 +13,6 @@
 }
 
 @Html.AntiForgeryToken()
-<header class="content-header-card"><div>
-    <p class="dashboard-eyebrow">@(bn ? "একাডেমিক কার্যক্রম" : "Academic Operations")</p>
-    <span id="attendanceTitle">@ViewData["Title"]</span>
-</div><button id="returnToAttendanceReports" type="button" class="btn btn-outline-primary d-none">@(bn ? "রিপোর্টে ফিরুন" : "Back to reports")</button></header>
 <section class="admission-page @(showRegister ? "" : "d-none")" aria-labelledby="attendanceFilterTitle" data-attendance-feature="@feature" data-can-correct="@((User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")).ToString().ToLowerInvariant())">
 
     <div id="attendanceAlert" class="d-none" role="alert" tabindex="-1"></div>
@@ -128,7 +124,8 @@
 @if (User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal"))
 {
     <section class="content-card mt-3 @(showReports || showCorrections ? "" : "d-none")" aria-labelledby="attendanceReportTitle">
-        <div class="content-card-heading"><h3 id="attendanceReportTitle">@(showCorrections && !showReports ? (bn ? "সংশোধন নিরীক্ষার সময় ও ব্যাচ" : "Audit scope: batch and dates") : (bn ? "চূড়ান্ত উপস্থিতির রিপোর্ট" : "Finalized attendance report"))</h3></div>
+        <div class="content-card-heading d-flex flex-wrap align-items-center justify-content-between gap-2"><h3 id="attendanceReportTitle">@(showCorrections && !showReports ? (bn ? "সংশোধন নিরীক্ষার সময় ও ব্যাচ" : "Audit scope: batch and dates") : (bn ? "চূড়ান্ত উপস্থিতির রিপোর্ট" : "Finalized attendance report"))</h3>
+            <button id="returnToAttendanceReports" type="button" class="btn btn-outline-primary btn-sm d-none">@(bn ? "রিপোর্টে ফিরুন" : "Back to reports")</button></div>
         <form id="attendanceReportFilters" class="row g-3 align-items-end">
             <div class="col-md-4"><label for="attendanceReportBatchSearch" class="form-label">@(bn ? "ঐতিহাসিক ব্যাচ খুঁজুন" : "Find historical batch")</label>
                 <div class="input-group"><input id="attendanceReportBatchSearch" class="form-control" maxlength="100" placeholder="Batch, year or level" />

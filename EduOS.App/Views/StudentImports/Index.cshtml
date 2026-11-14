@@ -2,16 +2,7 @@
 @{
     ViewData["Title"] = "Student Import Preflight";
 }
-<section class="container-fluid py-2" aria-labelledby="studentImportTitle" data-import-tenant="@CurrentUser.TenantId">
-    <header class="mb-3">
-        <div class="d-flex align-items-center gap-2">
-            <span id="studentImportTitle" class="visually-hidden">Student Import</span>
-            <details class="small"><summary class="btn btn-sm btn-outline-secondary" aria-label="Import help">ⓘ</summary>
-                <div class="border rounded p-2 mt-2">Download the fixed-column Excel template and keep its headers unchanged. Preview before committing in recoverable 100-row transactions. Source files determine the number of students; existing global identities are never auto-merged.</div>
-            </details>
-        </div>
-        <a class="btn btn-outline-secondary btn-sm" asp-controller="Students" asp-action="Index">Back to Student Directory</a>
-    </header>
+<section class="container-fluid py-2" aria-label="Student import preflight" data-import-tenant="@CurrentUser.TenantId">
     <div id="studentImportAlert" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="studentImportForm" class="card mb-3" enctype="multipart/form-data">
         @Html.AntiForgeryToken()

@@ -4,11 +4,6 @@
 }
 <section id="readmissionWorkspace" class="container-fluid py-2">
     @Html.AntiForgeryToken()
-    <header class="d-flex justify-content-between align-items-center mb-3">
-        <div><span class="visually-hidden">Student Readmission</span>
-            <p class="text-muted">Re-enroll a previously exited student. Historical enrollments and exits remain unchanged.</p></div>
-        <a class="btn btn-outline-secondary" asp-controller="Students" asp-action="Index">Student Directory</a>
-    </header>
     <div id="readmissionAlert" class="alert d-none" role="alert" tabindex="-1"></div>
     <div class="row g-3">
         <div class="col-lg-5"><div class="card shadow-sm"><div class="card-body">
