@@ -362,7 +362,12 @@ else
 app.UseHttpsRedirection();
 app.UseSecurityHeaders();
 app.UseCustomExceptionMiddleware();
-app.UseStatusCodePagesWithReExecute("/Error/{0}");
+// APIs must preserve their original 401/403/404/500 response codes.
+// Re-executing an API denial through MVC error pages can convert it into a
+// misleading 200 HTML sign-in page and break secure JSON clients.
+app.UseWhen(
+    context => !context.Request.Path.StartsWithSegments("/api"),
+    branch => branch.UseStatusCodePagesWithReExecute("/Error/{0}"));
 
 var staticFileContentTypes =
     new FileExtensionContentTypeProvider();
