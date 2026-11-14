@@ -15,7 +15,11 @@ const deferred = () => {
 function browser() {
     const handlers = { window: {}, document: {}, retry: {} };
     const calls = [], redirects = [], timers = [];
-    const shield = { hidden: true };
+    const quietStyles = new Set();
+    const shield = { hidden: true,
+        classList: { toggle(x, on) { if (on) quietStyles.add(x); else quietStyles.delete(x); },
+            contains: x => quietStyles.has(x), remove: x => quietStyles.delete(x) }
+    };
     const message = { textContent: '' };
     const retry = { focus() {}, addEventListener(name, cb) { handlers.retry[name] = cb; } };
     const shell = { inert: false, setAttribute(name) { if (name === 'inert') this.inert = true; }, removeAttribute(name) { if (name === 'inert') this.inert = false; } };
@@ -47,6 +51,15 @@ function browser() {
         return d.promise;
     };
     vm.runInNewContext(source, { document, window, fetch, AbortController, BroadcastChannel, console });
+    // Simulate genuine browser reactivation, not repeated focus events while
+    // the same tab remains active. Production code intentionally avoids that flash.
+    const resume = handlers.window.focus;
+    handlers.window.focus = () => { handlers.window.blur(); resume(); };
+    const visibleAgain = handlers.document.visibilitychange;
+    handlers.document.visibilitychange = () => {
+        document.visibilityState = 'hidden'; visibleAgain();
+        document.visibilityState = 'visible'; visibleAgain();
+    };
     const respond = (index, sessionReference = reference, tenantId = 12, status = 200) => calls[index].resolve({
         status, ok: status === 200,
         json: async () => ({ success: true, data: { sessionReference, tenantId } })
@@ -80,6 +93,7 @@ test('tenant mismatch redirects even if the session reference is unchanged', asy
 
 test('network failure remains shielded and retry restores a verified session', async () => {
     const b = browser();
+    b.window.navigator = { onLine: false };
     b.handlers.window.focus();
     b.calls[0].reject(new Error('offline'));
     await flush(); await flush();
@@ -133,8 +147,9 @@ test('revoked session sends the tab to sign-in without revealing old content', a
 
 test('a hung session check times out to an accessible retry state', async () => {
     const b = browser();
+    b.window.navigator = { onLine: false };
     b.handlers.window.focus();
-    const timeout = b.timers.find(t => t.ms === 10000);
+    const timeout = b.timers.find(t => t.ms === 5000);
     assert.ok(timeout);
     timeout.cb();
     await flush(); await flush();

@@ -229,6 +229,10 @@ async function main() {
         assert(mutations.some(x => x.path === '/api/academic-setup/levels/501' && x.method === 'PUT'));
         await page.locator('#levelCsv').click();
 
+        // Explicitly scope the track to the newly created programme, so
+        // directory filter and POST share the same canonical programme.
+        await page.locator('#trackCreateProgram').selectOption('401');
+        await page.locator('#trackProgramFilter').selectOption('401');
         await page.locator('#trackCreateName').fill('Science');
         assert.equal(await page.locator('#trackCreateCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#trackCreateForm button[type="submit"]').click();
