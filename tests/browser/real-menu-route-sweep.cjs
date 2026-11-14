@@ -32,10 +32,14 @@ async function main() {
     const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
     const results = [];
     try {
-        for (const [role,account] of [
-            ['TenantAdmin','demo.tenantadmin@eduos.example.invalid'],
-            ['Student','demo.student@eduos.example.invalid']
+        // Match all thirteen roles seeded by DemoInstitutionSeeder. Each
+        // identity is in the disposable EDUOS-DEMO tenant and never production.
+        for (const role of [
+            'TenantAdmin', 'Admin', 'AdmissionOfficer', 'Principal',
+            'VicePrincipal', 'Teacher', 'Student', 'Parent', 'Accountant',
+            'HR', 'Librarian', 'ExamController', 'Staff'
         ]) {
+            const account = 'demo.' + role.toLowerCase() + '@eduos.example.invalid';
             const ctx = await browser.newContext({
                 ignoreHTTPSErrors:true,serviceWorkers:'block',
                 acceptDownloads:false,viewport:{width:1440,height:900}
@@ -83,8 +87,9 @@ async function main() {
         const failures = results.flatMap(x=>x.pages.filter(p=>!p.passed)
             .map(p=>x.role+' '+p.path+' HTTP '+p.status));
         for (const role of results) console.log('[QA route] '+role.role+' '+role.passed+'/'+role.checked);
+        assert.equal(results.length, 13, 'Every synthetic institution role must be checked');
         if (failures.length)
-            throw Error('Failing authorized route GETs: '+failures.slice(0,18).join('; '));
+            throw Error('Failing authorized route GETs: '+failures.slice(0,30).join('; '));
         console.log('PASS real role-specific sidebar page GET sweep.');
     } finally {await browser.close();}
 }
