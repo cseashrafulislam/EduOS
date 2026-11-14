@@ -252,7 +252,7 @@ public sealed class CentralWorkCenterServiceTests
 
         (await service.GetPendingAsync(order: "unknown")).StatusCode.Should().Be(400);
         (await service.GetPendingAsync(reference: new string('x', 81))).StatusCode.Should().Be(400);
-        (await service.GetPendingAsync(reference: "abc\\n")).StatusCode.Should().Be(400);
+        (await service.GetPendingAsync(reference: "abc\n")).StatusCode.Should().Be(400);
         db.ChangeTracker.HasChanges().Should().BeFalse();
     }
 
