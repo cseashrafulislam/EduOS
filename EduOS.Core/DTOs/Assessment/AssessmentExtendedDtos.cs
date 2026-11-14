@@ -16,9 +16,10 @@ public sealed class AssessmentComponentDto
 
 public sealed class SaveAssessmentComponentRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Range(1, long.MaxValue)] public long AssessmentSubjectId { get; set; }
     [Required, MaxLength(100)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Range(typeof(decimal), "0", "100000")] public decimal FullMarks { get; set; }
     [Range(typeof(decimal), "0", "100000")] public decimal PassMarks { get; set; }
     [Range(typeof(decimal), "0", "100")] public decimal Weightage { get; set; } = 100;

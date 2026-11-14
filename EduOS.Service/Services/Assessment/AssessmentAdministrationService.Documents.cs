@@ -15,6 +15,10 @@ public sealed partial class AssessmentAdministrationService
         long? componentId, SaveAssessmentComponentRequestDto request, CancellationToken ct = default)
     {
         if (!CanPublish()) return Task.FromResult(Error<AssessmentComponentDto>("Assessment management permission required.", 403));
+        // New UI creates receive a server-owned, retry-stable code. Existing API codes and edits remain valid.
+        if (request != null && !componentId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "CMP-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (componentId is <= 0 || request == null || request.AssessmentSubjectId <= 0 ||
             string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100 ||
             string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
@@ -44,6 +48,23 @@ public sealed partial class AssessmentAdministrationService
             if (await HasAnyFinalizedPublicationAsync(exam.Id, token))
                 return Error<AssessmentComponentDto>(
                     "Finalized result history prevents marking scheme changes.", 409);
+            if (!componentId.HasValue && request.ClientRequestId != Guid.Empty &&
+                request.Code == "CMP-" + request.ClientRequestId.ToString("N").ToUpperInvariant())
+            {
+                var replay = await _components.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.AssessmentSubjectId == subject!.Id &&
+                    x.Code == request.Code && !x.IsDeleted, token);
+                if (replay != null)
+                {
+                    if (replay.Name != request.Name.Trim() || replay.FullMarks != request.FullMarks ||
+                        replay.PassMarks != request.PassMarks || replay.Weightage != request.Weightage ||
+                        replay.IsMandatoryPass != request.IsMandatoryPass ||
+                        replay.DisplayOrder != request.DisplayOrder)
+                        return Error<AssessmentComponentDto>("Request ID was already used for different component data.", 409);
+                    return ApiResponse<AssessmentComponentDto>.SuccessResponse(
+                        MapComponent(replay), "Assessment component already saved.");
+                }
+            }
             var old = componentId.HasValue ? await _components.GetQueryable().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Id == componentId.Value &&
                 x.AssessmentSubjectId == subject!.Id && !x.IsDeleted, token) : null;

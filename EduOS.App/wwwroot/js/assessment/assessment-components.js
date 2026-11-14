@@ -6,7 +6,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const form = el('componentForm');
     const formGuard = window.EduOSFormGuard?.create(form);
-    const state = { rows: [], scopes: [], page: 1, pageSize: 20, total: 0, editId: null, rowVersion: null, busy: false, listGeneration: 0 };
+    const state = { rows: [], scopes: [], page: 1, pageSize: 20, total: 0, editId: null, rowVersion: null, createRequestId: null, createFingerprint: null, busy: false, listGeneration: 0 };
     let lastSubject = '';
     const cell = value => { const td = document.createElement('td'); td.textContent = value == null ? '' : String(value); return td; };
     function notice(message, error = false) {
@@ -101,7 +101,7 @@
     function clear(force = false) {
         if (state.busy && !force) return false;
         if (!force && formGuard && !formGuard.confirmDiscard()) return false;
-        state.editId = null; state.rowVersion = null;
+        state.editId = null; state.rowVersion = null; state.createRequestId = null; state.createFingerprint = null;
         form.reset(); el('componentSubject').disabled = false;
         el('componentFormTitle').textContent = 'New assessment component';
         el('componentSave').textContent = 'Save component';
@@ -116,12 +116,12 @@
         const subject = selected(), full = Number(el('componentFull').value),
             pass = Number(el('componentPass').value), weight = Number(el('componentWeight').value),
             order = Number(el('componentOrder').value);
-        if (!subject || !draft(subject.state) || !el('componentCode').value.trim() ||
+        if (!subject || !draft(subject.state) || (state.editId != null && !el('componentCode').value.trim()) ||
             !el('componentName').value.trim() || !valid2(full) || full <= 0 ||
             !valid2(pass) || pass < 0 || pass > full ||
             !valid2(weight) || weight <= 0 || weight > 100 ||
             !Number.isSafeInteger(order) || order < 0) {
-            notice('Choose a draft subject and valid component code, marks, weightage and order.', true); return;
+            notice('Choose a draft subject and valid component name, marks, weightage and order.', true); return;
         }
         const siblings = state.rows.filter(x => x.assessmentSubjectId === subject.assessmentSubjectId && x.id !== state.editId);
         if (siblings.reduce((sum, x) => sum + Number(x.weightage), 0) + weight > 100.000001) {
@@ -134,6 +134,14 @@
             isMandatoryPass: el('componentMandatory').checked, displayOrder: order,
             rowVersion: state.rowVersion
         };
+        if (state.editId == null) {
+            const fingerprint = JSON.stringify(payload);
+            if (state.createFingerprint !== fingerprint) {
+                state.createFingerprint = fingerprint;
+                state.createRequestId = crypto.randomUUID();
+            }
+            payload.clientRequestId = state.createRequestId;
+        }
         state.busy = true;
         const fields = [...form.querySelectorAll('input, select, button')];
         const disabledBefore = fields.map(field => field.disabled);
