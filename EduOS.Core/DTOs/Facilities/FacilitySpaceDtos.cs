@@ -16,7 +16,7 @@ public sealed class FacilitySpaceDto
 public sealed class SaveFacilitySpaceRequestDto
 {
     [Range(1, long.MaxValue)] public long CampusId { get; set; }
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string? Code { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [MaxLength(500)] public string? Address { get; set; }
     public bool IsActive { get; set; } = true;

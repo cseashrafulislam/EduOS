@@ -77,8 +77,11 @@ public sealed class FacilitySpaceService : IFacilitySpaceService
         if (!Writable || db.CurrentTenantId != user.TenantId) return Denied<FacilitySpaceDto>();
         if (request == null || id is <= 0 || request.CampusId <= 0)
             return ApiResponse<FacilitySpaceDto>.ErrorResponse("Valid space details required.");
-        var code = (request.Code ?? "").Trim().ToUpperInvariant();
         var name = (request.Name ?? "").Trim();
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? "FSP-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes($"{user.TenantId}|{request.CampusId}|{name.ToUpperInvariant()}")).AsSpan(0, 10))
+            : request.Code.Trim().ToUpperInvariant();
         var address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
         if (code.Length is < 1 or > 50 || name.Length is < 1 or > 150 || address?.Length > 500 ||
             !code.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'))
@@ -97,6 +100,7 @@ public sealed class FacilitySpaceService : IFacilitySpaceService
                 if (!MatchesVersion(existing.RowVersion, request.RowVersion))
                     return ApiResponse<FacilitySpaceDto>.ErrorResponse("Space changed; reload.", 409);
                 space = existing;
+                if (string.IsNullOrWhiteSpace(request.Code)) code = existing.Code;
             }
             else
             {

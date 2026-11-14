@@ -223,7 +223,7 @@
             el('facilityId').value = '';
             el('facilityVersion').value = '';
             dirty = false;
-            el('facilityCode').focus();
+            el('facilityName').focus();
         });
         editor.addEventListener('submit', async event => {
             event.preventDefault();

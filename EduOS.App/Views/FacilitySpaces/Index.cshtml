@@ -27,7 +27,7 @@
             <form id="facilityForm" class="row g-2">
                 <input type="hidden" id="facilityId" /><input type="hidden" id="facilityVersion" />
                 <div class="col-sm-3"><label class="form-label" for="facilityCampus">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="facilityCampus" class="form-control" type="number" inputmode="numeric" min="1" required /></div>
-                <div class="col-sm-3"><label class="form-label" for="facilityCode">@(bn ? "কোড" : "Code")</label><input id="facilityCode" class="form-control" maxlength="50" pattern="[A-Za-z0-9_.-]+" required /></div>
+                <input type="hidden" id="facilityCode" />
                 <div class="col-sm-6"><label class="form-label" for="facilityName">@(bn ? "নাম" : "Name")</label><input id="facilityName" class="form-control" maxlength="150" required /></div>
                 <div class="col-sm-9"><label class="form-label" for="facilityAddress">@(bn ? "অবস্থান/বিবরণ" : "Location / address")</label><input id="facilityAddress" class="form-control" maxlength="500" /></div>
                 <div class="col-sm-3 d-flex align-items-end"><label class="form-check"><input id="facilityActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
