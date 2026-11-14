@@ -1,6 +1,10 @@
 name: SQL Server Migration Smoke
 
 on:
+  push:
+    branches: [Ashraful]
+    paths:
+      - '.github/workflows/sqlserver-migration.yml'
   workflow_dispatch:
     inputs:
       run_40k:
