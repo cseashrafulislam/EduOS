@@ -26,7 +26,10 @@ public class SaveCourseRequestDto
     public long? SubjectId { get; set; }
     public Guid? PrimaryInstructorReference { get; set; }
     [Required, MaxLength(200)] public string Title { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    // Existing API integrations can continue sending explicit codes. The web UI sends
+    // a create-intent identifier and lets the service issue its own immutable code.
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
+    public Guid? ClientRequestId { get; set; }
     [MaxLength(4000)] public string? Description { get; set; }
     [MaxLength(500)] public string? ThumbnailUrl { get; set; }
     public bool IsSelfPaced { get; set; }

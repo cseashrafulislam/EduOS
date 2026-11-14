@@ -11,7 +11,7 @@ function bindSubmitOnce(id, handler) {
   try{await handler(event);}finally{pending=false;}
  });
 }
-const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,lessonPage:1,lessonPages:1,assignmentPage:1,assignmentPages:1,reviewPage:1,reviewPages:1,reviewRows:[],reviewLoadId:0,reviewFileLoadId:0,reviewRubric:[],rubricLoadId:0,rubricVersion:'',rubricCriteria:[],studentRubricLoadId:0,authoringLocked:true,includeArchived:false,myProgressPage:1,myProgressPages:1,myProgressRows:[],myProgressLoadId:0,lessonProgress:new Map(),progressLoaded:false,instructorLoadId:0,instructorTimer:null,studentLoadId:0,studentTimer:null,enrollRequestId:null};
+const state={courses:[],detail:null,programs:[],subjects:[],page:1,pages:1,editingCourse:null,editingLesson:null,editingAssignment:null,loadId:0,lessonPage:1,lessonPages:1,assignmentPage:1,assignmentPages:1,reviewPage:1,reviewPages:1,reviewRows:[],reviewLoadId:0,reviewFileLoadId:0,reviewRubric:[],rubricLoadId:0,rubricVersion:'',rubricCriteria:[],studentRubricLoadId:0,authoringLocked:true,includeArchived:false,myProgressPage:1,myProgressPages:1,myProgressRows:[],myProgressLoadId:0,lessonProgress:new Map(),progressLoaded:false,instructorLoadId:0,instructorTimer:null,studentLoadId:0,studentTimer:null,enrollRequestId:null,courseCreateRequestId:null,courseCreateFingerprint:null};
 const initialTenant=document.body?.dataset.authTenantId||'';
 const initialSession=document.body?.dataset.authSessionReference||'';
 const privateDownloads=new Set();
@@ -29,6 +29,7 @@ function clearSensitive(){
  clearTimeout(state.instructorTimer);clearTimeout(state.studentTimer);state.enrollRequestId=null;closeReviewFiles();
  state.courses=[];state.detail=null;state.reviewRows=[];state.reviewRubric=[];state.rubricCriteria=[];state.rubricVersion='';state.myProgressRows=[];state.lessonProgress.clear();
  state.editingCourse=null;state.editingLesson=null;state.editingAssignment=null;
+ state.courseCreateRequestId=null;state.courseCreateFingerprint=null;
  root.querySelectorAll('tbody').forEach(x=>x.replaceChildren());
  root.querySelectorAll('form').forEach(x=>x.reset());
  root.querySelectorAll('select').forEach(x=>x.replaceChildren());
@@ -117,11 +118,13 @@ async function enrollStudent(e){
  }catch(error){notice('danger',error.message);}finally{button.disabled=false;}
 }
 function resetCourse(){
+ state.courseCreateRequestId=null;state.courseCreateFingerprint=null;
  state.editingCourse=null;$('learningCourseForm').reset();$('learningProgram').value='';$('learningSubject').value='';
  if(manager)$('learningInstructor').value='';
 }
 function editCourse(){
  const x=chosen();if(!x)return notice('warning','Choose a course.');
+ state.courseCreateRequestId=null;state.courseCreateFingerprint=null;
  state.editingCourse=x;$('learningProgram').value=x.academicProgramId||'';$('learningSubject').value=x.subjectId||'';
  if(manager){
   const node=$('learningInstructor');
@@ -141,11 +144,24 @@ async function saveCourse(e){
   title:$('learningTitle').value.trim(),description:$('learningDescription').value.trim()||null,
   isSelfPaced:$('learningSelfPaced').checked,isActive:$('learningCourseActive').checked,
   isTeacherCpd:$('learningTeacherCpd').checked,rowVersion:x?.rowVersion||null};
+ if(!x){
+  // Exactly the same submitted values reuse the same idempotency key after a
+  // lost response; an edited command gets a fresh key rather than returning old data.
+  const fingerprint=JSON.stringify(body);
+  if(state.courseCreateFingerprint!==fingerprint){
+   state.courseCreateFingerprint=fingerprint;
+   state.courseCreateRequestId=crypto.randomUUID();
+  }
+  body.clientRequestId=state.courseCreateRequestId;
+ }
  $('learningSaveCourse').disabled=true;
  try{const result=await api('/api/lms/courses'+(x?'/'+encodeURIComponent(x.reference):''),x?'PUT':'POST',body);
-  resetCourse();state.page=1;await courses();
-  if(state.courses.some(c=>c.reference===result.reference)){$('learningCourse').value=result.reference;await load();}
-  notice('success','Course saved.');
+  resetCourse();state.page=1;
+  try{
+   await courses();
+   if(state.courses.some(c=>c.reference===result.reference)){$('learningCourse').value=result.reference;await load();}
+   notice('success','Course saved.');
+  }catch(refreshError){notice('warning','Course saved, but the list did not refresh. Check the course directory before submitting again.');}
  }catch(err){notice('danger',err.message);}finally{$('learningSaveCourse').disabled=false;}
 }
 async function load(){

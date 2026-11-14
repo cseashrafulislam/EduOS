@@ -105,6 +105,10 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
         CancellationToken ct = default)
     {
         if (!CanTeach()) return Error<CourseDto>("LMS authoring permission required.", 403);
+        var generatedCode = request != null && !courseReference.HasValue &&
+            string.IsNullOrWhiteSpace(request.Code);
+        if (generatedCode && request!.ClientRequestId.HasValue && request.ClientRequestId.Value != Guid.Empty)
+            request.Code = "LMS-" + request.ClientRequestId.Value.ToString("N").ToUpperInvariant();
         if (request == null || string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length > 200 ||
             string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
             request.Description?.Length > 4000 || request.ThumbnailUrl?.Length > 500 ||
@@ -155,9 +159,28 @@ public sealed partial class LmsWorkflowService : ILmsWorkflowService
                     .AnyAsync(x => x.TenantId == tenant && x.CourseId == row.Id && !x.IsDeleted, token))
                     return Error<CourseDto>("Use graded LMS quizzes for CPD; this course has student assignments.", 409);
                 var code = request.Code.Trim();
-                if (await _courses.GetQueryable().AsNoTracking().AnyAsync(x =>
-                    x.TenantId == tenant && x.Code == code && !x.IsDeleted && (row == null || x.Id != row.Id), token))
-                    return Error<CourseDto>("Course code already exists.", 409);
+                var matchingCode = await _courses.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Code == code && !x.IsDeleted &&
+                    (row == null || x.Id != row.Id), token);
+                if (matchingCode != null)
+                {
+                    // The only safe successful replay is the *same* generated create
+                    // command by an actor who can still edit its existing course.
+                    if (generatedCode && !courseReference.HasValue &&
+                        await CanEditAsync(matchingCode, token) &&
+                        matchingCode.Title == request.Title.Trim() &&
+                        matchingCode.Description == Trim(request.Description) &&
+                        matchingCode.ThumbnailUrl == Trim(request.ThumbnailUrl) &&
+                        matchingCode.AcademicProgramId == request.AcademicProgramId &&
+                        matchingCode.SubjectId == request.SubjectId &&
+                        matchingCode.PrimaryInstructorEmployeeId == teacher?.Id &&
+                        matchingCode.IsSelfPaced == request.IsSelfPaced &&
+                        matchingCode.IsActive == request.IsActive &&
+                        matchingCode.IsTeacherCpd == request.IsTeacherCpd)
+                        return ApiResponse<CourseDto>.SuccessResponse(
+                            await MapCourseAsync(matchingCode, token), "Course already saved.");
+                    return Error<CourseDto>("Course already exists, was changed, or is not accessible.", 409);
+                }
                 var now = _clock.GetUtcNow().UtcDateTime;
                 if (row == null)
                 {
