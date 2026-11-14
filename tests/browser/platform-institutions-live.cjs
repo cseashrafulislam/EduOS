@@ -178,11 +178,18 @@ function stateCode(row){return typeof row.state==='number'?row.state:
     assert.equal(restore.status,200,'original metadata restored in disposable DB');
     const next=(await request(page,'/api/platform/catalog/institution-types')).payload.data.find(x=>x.id===item.id);
     assert.equal(next.description||'',oldDescription);
+    let activationBody=null;
+    await page.route('**/api/platform/catalog/institution-types/*/activation',async route=>{
+       if(route.request().method()==='POST')activationBody=route.request().postDataJSON();
+       await route.continue();
+    });
+    const hiddenWait=page.waitForResponse(r=>r.url().endsWith('/activation')&&r.request().method()==='POST');
     await page.locator('#catalogRows tr').filter({hasText:item.code})
        .getByRole('button',{name:'Hide from signup'}).click();
-    const hiddenWait=page.waitForResponse(r=>r.url().endsWith('/activation')&&r.request().method()==='POST');
-    // The click above triggers the request; waitForResponse is intentionally
-    // followed by the next response check only if still pending.
+    assert.equal((await hiddenWait).status(),200,'signup activation change must commit');
+    assert.ok(activationBody?.requestId,'activation must include retry-stable request ID');
+    const activationReplay=await request(page,activationRoute,'POST',activationBody);
+    assert.equal(activationReplay.status,200,'exact duplicate activation must be idempotent');
     const hidden=await request(page,'/api/platform/catalog/institution-types');
     const afterHide=hidden.payload.data.find(x=>x.id===item.id);
     assert.equal(afterHide.isActive,false,'signup type must be hidden');
@@ -210,6 +217,14 @@ function stateCode(row){return typeof row.state==='number'?row.state:
     await page.locator('#pageHelpDrawer[open]').waitFor({timeout:7000});
     assert.match(await page.locator('#pageHelpContent').innerText(),/স্থগিত/);
     assert.equal(await page.locator('#pageAssistantOpen').count(),1);
+    const catalogPage=await page.goto(base+'/PlatformCatalogAdministration/Index',{waitUntil:'domcontentloaded'});
+    assert.equal(catalogPage.status(),200);
+    assert.equal(await page.locator('#institutionTypeAdministration').getAttribute('data-bangla'),'true');
+    assert.match(await page.locator('#institutionTypeAdministration').innerText(),/প্রতিষ্ঠানের ধরন|নিবন্ধন/);
+    assert.ok((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=5);
+    await page.locator('#pageContextHelp').click();
+    await page.locator('#pageHelpDrawer[open]').waitFor({timeout:7000});
+    assert.match(await page.locator('#pageHelpContent').innerText(),/অপরিবর্তনীয়/);
    }finally{await c.close()}
   });
   for(const role of ['TenantAdmin','Teacher']){
