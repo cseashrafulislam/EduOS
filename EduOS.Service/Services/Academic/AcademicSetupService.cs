@@ -202,7 +202,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicProgramDto>());
-        if (request == null || !ValidNameCode(request.Name, request.Code, 200) ||
+        if (request == null || !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "PRG-"), 200) ||
             request.DurationInMonths < 0 || request.DurationInMonths > 1200 ||
             request.AcademicDepartmentId is <= 0 || request.CampusIds == null ||
             request.CampusIds.Any(x => x <= 0) || request.CampusIds.Count > 100 ||
@@ -220,7 +220,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             var valid = await _campuses.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && ids.Contains(x.Id) && x.IsActive && !x.IsDeleted, ct);
             if (valid != ids.Length) return Error<AcademicProgramDto>("One or more campuses are unavailable.", 404);
-            var code = NormalizeCode(request.Code);
+            var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "PRG-"));
             var existing = await _programs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Code == code, ct);
             if (existing != null)
@@ -362,7 +362,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicLevelDto>());
         if (request == null || request.AcademicProgramId <= 0 ||
-            !ValidNameCode(request.Name, request.Code, 150) ||
+            !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "LVL-"), 150) ||
             request.LevelNo is < 1 or > 1000 || request.DisplayOrder < 0 ||
             request.IsTerminalLevel && request.IsPromotable)
             return Task.FromResult(Error<AcademicLevelDto>("Invalid program, level or progression flags."));
@@ -372,7 +372,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             if (!await _programs.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.Id == request.AcademicProgramId && x.IsActive && !x.IsDeleted, ct))
                 return Error<AcademicLevelDto>("Program not found.", 404);
-            var code = NormalizeCode(request.Code);
+            var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "LVL-"));
             var existing = await _levels.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.AcademicProgramId == request.AcademicProgramId && x.Code == code, ct);
             if (existing != null)
@@ -400,13 +400,13 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
     public Task<ApiResponse<SubjectDto>> CreateSubjectAsync(SaveSubjectRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<SubjectDto>());
-        if (request == null || !ValidNameCode(request.Name, request.Code, 200) ||
+        if (request == null || !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "SUB-"), 200) ||
             request.ShortName?.Length > 50 || request.DefaultCreditHours is < 0 or > 1000)
             return Task.FromResult(Error<SubjectDto>("Invalid subject name, code or credit hours."));
         return ExecuteWriteAsync("create subject", async () =>
         {
             var tenant = _currentUser.TenantId;
-            var code = NormalizeCode(request.Code);
+            var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "SUB-"));
             var existing = await _subjects.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Code == code, ct);
             if (existing != null)
@@ -435,7 +435,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicCurriculumDto>());
         if (request == null || request.ClientRequestId == Guid.Empty ||
-            request.AcademicProgramId <= 0 || !ValidNameCode(request.Name, request.Code, 150) ||
+            request.AcademicProgramId <= 0 || !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "CUR-"), 150) ||
             request.VersionNo < 1 || request.EffectiveFrom == default ||
             request.EffectiveTo.HasValue && request.EffectiveTo.Value < request.EffectiveFrom ||
             request.AcademicTrackId is <= 0 || request.MediumId is <= 0 ||
@@ -456,7 +456,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             if (request.MediumId.HasValue && !await _mediums.GetQueryable().AsNoTracking()
                 .AnyAsync(x => x.TenantId == tenant && x.Id == request.MediumId.Value && x.IsActive, ct))
                 return Error<AcademicCurriculumDto>("Medium not found.", 404);
-            var code = NormalizeCode(request.Code);
+            var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "CUR-"));
             var existing = await _curricula.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Code == code, ct);
             if (existing != null)
@@ -653,7 +653,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         if (!CanManage()) return Task.FromResult(Denied<AcademicBatchDto>());
         if (request == null || request.ClientRequestId == Guid.Empty || request.CampusId <= 0 ||
             request.AcademicProgramId <= 0 || request.AcademicYearId <= 0 || request.AcademicLevelId <= 0 ||
-            !ValidNameCode(request.Name, request.Code, 150) || !Enum.IsDefined(request.DeliveryMode) ||
+            !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "BAT-"), 150) || !Enum.IsDefined(request.DeliveryMode) ||
             request.Capacity is < 0 or > 100000 || request.DisplayOrder < 0 ||
             request.AcademicTermId is <= 0 || request.AcademicTrackId is <= 0 ||
             request.MediumId is <= 0 || request.ShiftId is <= 0 ||
@@ -701,7 +701,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             if (request.StartDate < year.StartDate || request.EndDate > year.EndDate ||
                 term != null && (request.StartDate < term.StartDate || request.EndDate > term.EndDate))
                 return Error<AcademicBatchDto>("Academic batch dates exceed the academic year or term.", 409);
-            var code = NormalizeCode(request.Code);
+            var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "BAT-"));
             var existing = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.CampusId == request.CampusId &&
                 x.AcademicYearId == year.Id && x.Code == code, ct);
@@ -808,6 +808,15 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         x != null && !x.Id.HasValue && x.AcademicLevelId > 0 && x.SubjectId > 0 &&
         x.FullMarks is > 0 and <= 100000 && x.PassMarks >= 0 && x.PassMarks <= x.FullMarks &&
         x.CreditHours is >= 0 and <= 1000 && x.DisplayOrder >= 0;
+    // Internal code is stable across network retries. Existing explicit codes
+    // remain accepted for old clients and external curriculum identifiers.
+    // Tenant-scoped uniqueness is still enforced by the canonical table indexes.
+    private static string EffectiveInternalCode(string? supplied, Guid requestId, string prefix)
+    {
+        if (!string.IsNullOrWhiteSpace(supplied)) return supplied.Trim();
+        return requestId == Guid.Empty ? string.Empty :
+            prefix + requestId.ToString("N")[..12].ToUpperInvariant();
+    }
     private static string NormalizeCode(string code) => code.Trim().ToUpperInvariant();
     private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static string Version(byte[] value) => Convert.ToBase64String(value);
