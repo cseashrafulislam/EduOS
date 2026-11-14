@@ -44,7 +44,7 @@ test('workflow and browser enforce exact-SHA, target-host and read-only guard', 
     const workflow = fs.readFileSync(path.join(root,
         '.github/workflows/academic-live-browser.yml'), 'utf8');
     const browser = fs.readFileSync(path.join(root, 'tests/browser/academic-live.cjs'), 'utf8');
-    for (const check of ['github.ref', 'refs/heads/Ashraful', 'github.sha',
+    for (const check of ['github.ref', 'refs/heads/Ashraful', '$GITHUB_SHA',
         'EDUOS_E2E_EXPECTED_HOST', 'academic-live-guards.test.cjs'])
         assert(workflow.includes(check), 'Missing workflow release safety: ' + check);
     for (const check of ['validateTarget(', 'isAllowedReadOnlyRequest(',
