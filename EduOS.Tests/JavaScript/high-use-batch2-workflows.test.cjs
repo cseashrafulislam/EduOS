@@ -95,14 +95,8 @@ function financeHarness() {
             const pending = deferred();calls.push({ url: String(url), ...pending });return pending.promise;
         }
     };
-    // Diagnostic-only injection: never changes the production predicate.
-    const probeSource = fees.replace(
-        'const paymentPaisa=paisa(raw),duePaisa=paisa(invoice.dueAmount);',
-        'const paymentPaisa=paisa(raw),duePaisa=paisa(invoice.dueAmount);' +
-        'globalThis.__cashValidation={paymentPaisa,duePaisa,raw,invoiceDue:invoice.dueAmount,' +
-        'paymentDate,today:today(),parsed:Date.parse(paymentDate+"T00:00:00")};');
-    vm.runInNewContext(probeSource, context, { filename: 'fees.js' });
-    return { get, calls, diagnostic: () => context.__cashValidation };
+    vm.runInNewContext(fees, context, { filename: 'fees.js' });
+    return { get, calls };
 }
 function attendanceHarness() {
     const nodes = new Map(), calls = [];
@@ -247,7 +241,6 @@ test('Cash collection permits one preflight and one payment post while an identi
             paymentDate: h.get('feePaymentDate').value,
             selectedStudent: h.get('feeStudent').value,
             message: h.get('feeAlert').textContent,
-            validation: h.diagnostic(),
             calls: h.calls.map(x => x.url)
         }));
     assert.equal(h.get('feeCollect').disabled, true);

@@ -40,7 +40,7 @@ const today=()=>{const d=new Date();return [d.getFullYear(),String(d.getMonth()+
 const dt=x=>x?String(x).slice(0,10):'',amount=x=>Number(x).toFixed(2);
 function paisa(value){
  const raw=String(value??'').trim();
- if(!/^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,2})?$/.test(raw))return null;
+ if(!/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(raw))return null;
  const [whole,fraction='']=raw.split('.');
  const result=Number(whole)*100+Number(fraction.padEnd(2,'0'));
  return Number.isSafeInteger(result)?result:null;
@@ -396,7 +396,7 @@ async function collect(ev){
  if(!student||e('feeStudent').value!==student)return alert('warning',t('Reload the selected student ledger.','নির্বাচিত শিক্ষার্থীর লেজার আবার লোড করুন।'));
  const paymentPaisa=paisa(raw),duePaisa=paisa(invoice.dueAmount);
  if(paymentPaisa===null||duePaisa===null||paymentPaisa<=0||paymentPaisa>duePaisa||
-    !/^\\d{4}-\\d{2}-\\d{2}$/.test(paymentDate)||paymentDate>today()||
+    !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)||paymentDate>today()||
     Number.isNaN(Date.parse(paymentDate+'T00:00:00')))
     return alert('danger',t('Invalid cash amount or payment date.','নগদের পরিমাণ বা পরিশোধের তারিখ সঠিক নয়।'));
  const exactAmount=paymentPaisa/100;
