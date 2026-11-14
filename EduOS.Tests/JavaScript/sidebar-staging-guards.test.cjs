@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {isAllowedRequest, assertNoStore, assertDeniedHtml} =
+const {isAllowedRequest, assertNoStore, assertDeniedHtml, canonicalMenuPaths} =
     require('../../tests/browser/sidebar-staging-guards.cjs');
 
 test('staging network guard rejects off-origin reads and all non-login writes', () => {
@@ -15,6 +15,8 @@ test('staging network guard rejects off-origin reads and all non-login writes', 
         [origin + '/api/workspace-preferences', 'PUT'],
         [origin + '/api/auth/logout', 'POST'],
         [origin + '/api/finance/post', 'POST'],
+        [origin + '/api/auth/login?next=/dashboard', 'POST'],
+        [origin + '/api/auth/login#ignored', 'POST'],
         ['not-a-url', 'GET']
     ]) assert.equal(isAllowedRequest(url, method, origin), false);
 });
@@ -72,4 +74,26 @@ test('authenticated staging checks real read-only Profile, MFA and device APIs w
         "verifyContextHelp(page,'Account Profile')"])
         assert(browser.includes(check),'Missing staging profile acceptance: '+check);
     assert(!browser.includes('console.log(proofs)'),'Private account payload logging forbidden');
+});
+
+test('canonical enabled-menu sweep rejects redirects, foreign and non-page links', () => {
+    const origin = 'https://staging.example.test';
+    assert.deepEqual(canonicalMenuPaths([
+        '#', '/TenantUsers/Index', '/AccountingReports/Index',
+        '/FeeReceivablesAging/Index', '/TenantUsers/Index'
+    ], origin), ['/TenantUsers/Index','/AccountingReports/Index','/FeeReceivablesAging/Index']);
+    for (const href of ['https://evil.test/collect', '//evil.test/collect',
+        '/Account/Logout', '/TenantUsers/Index#danger', '/api/auth/logout']) {
+        assert.throws(() => canonicalMenuPaths([
+            '/TenantUsers/Index','/AccountingReports/Index','/FeeReceivablesAging/Index',href
+        ],origin));
+    }
+});
+test('staging acceptance sweeps enabled routes and mobile breakpoints without faking total coverage', () => {
+    const source = fs.readFileSync(path.join(__dirname,
+        '../../tests/browser/sidebar-role-staging.cjs'), 'utf8');
+    for (const term of ['verifyAuthorizedMenuPages(page,user,session,links)',
+        '360,390,768,1280', "'bn-BD'", "'en-BD'", 'Refusing non-staging host',
+        "assertNoStore(response.headers(),'Authorized sidebar '"])
+        assert(source.includes(term), 'Missing staging browser gate: ' + term);
 });

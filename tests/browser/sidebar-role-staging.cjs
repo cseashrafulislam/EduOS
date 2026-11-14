@@ -2,7 +2,8 @@
 // Opt-in read-only authenticated disposable STAGING browser acceptance; never real UAT.
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
-const {isAllowedRequest, assertNoStore, assertDeniedHtml}=require('./sidebar-staging-guards.cjs');
+const {isAllowedRequest, assertNoStore, assertDeniedHtml, canonicalMenuPaths}=
+  require('./sidebar-staging-guards.cjs');
 const base=(process.env.EDUOS_BASE_URL||'').trim().replace(/\/$/,'');
 const host=(process.env.EDUOS_E2E_STAGING_HOST||'').trim().toLowerCase();
 const users=[
@@ -14,8 +15,12 @@ let origin;
 try{
   const u=new URL(base);
   assert(host && u.hostname.toLowerCase()===host,'Explicit staging hostname mismatch');
-  assert(u.protocol==='https:'||['localhost','127.0.0.1'].includes(u.hostname),'HTTPS required');
-  assert(!u.username&&!u.password&&!u.search&&!u.hash&&['','/'].includes(u.pathname),'Unsafe staging URL');
+  assert(u.protocol==='https:' || (u.protocol==='http:' &&
+    ['localhost','127.0.0.1'].includes(u.hostname)),'HTTPS required except loopback');
+  assert(/(?:^|[.-])(staging|stage|test|qa|sandbox)(?:[.-]|$)/i.test(u.hostname) ||
+    ['localhost','127.0.0.1'].includes(u.hostname),'Refusing non-staging host');
+  assert(u.origin===base && !u.username&&!u.password&&!u.search&&!u.hash&&
+    ['','/'].includes(u.pathname),'Unsafe staging URL');
   assert(users.every(x=>x.email&&x.password&&/^[1-9]\d*$/.test(x.tenant||'')),'Three synthetic accounts required');
   assert.equal(users[0].tenant,users[1].tenant,'Admin and Accountant must share synthetic tenant');
   assert.notEqual(users[0].tenant,users[2].tenant,'Viewer must use foreign synthetic tenant');
@@ -132,6 +137,24 @@ async function verifyProfileReadback(page,user,session,mobile){
   if(mobile)assert((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=2,
     'Mobile profile horizontal overflow');
 }
+// Exercise every server-rendered authorized menu destination for the synthetic
+// TenantAdmin. Each request remains read-only, bounded and tenant-scoped.
+// This records coverage of enabled routes, NOT unconditional proof of 204 routes.
+async function verifyAuthorizedMenuPages(page,user,session,links){
+  const paths=canonicalMenuPaths(links,origin);
+  for(const path of paths){
+    const response=await page.goto(origin+path,{waitUntil:'domcontentloaded',timeout:20000});
+    assert(response&&response.status()===200,'Authorized sidebar page failed: '+path);
+    assert.equal(new URL(page.url()).pathname.toLowerCase(),
+      new URL(origin+path).pathname.toLowerCase(),'Unexpected sidebar redirect: '+path);
+    assert.equal(await page.locator('body').getAttribute('data-auth-tenant-id'),
+      user.tenant,'Sidebar tenant scope mismatch: '+path);
+    assert.equal(await page.locator('body').getAttribute('data-auth-session-reference'),
+      session,'Sidebar session scope mismatch: '+path);
+    assertNoStore(response.headers(),'Authorized sidebar '+path);
+  }
+  return paths.length;
+}
 async function verify(browser,user,mobile){
   const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1280,height:800},
     serviceWorkers:'block',ignoreHTTPSErrors:false,acceptDownloads:false});
@@ -189,12 +212,20 @@ async function verify(browser,user,mobile){
         assertDeniedHtml(await response.text(),user.role==='viewer'?users[0].tenant:null);
       }
     }
+    const menuPages=user.role==='admin'?
+      await verifyAuthorizedMenuPages(page,user,session,links):0;
     await page.goto(base+'/workspace',{waitUntil:'domcontentloaded'});
     assert.equal(await page.locator('body').getAttribute('data-auth-session-reference'),session,'Session drift');
-    if(mobile)assert((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=2,
+    if(user.role==='admin'){
+      for(const width of [360,390,768,1280]){
+        await page.setViewportSize({width,height:800});
+        assert((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=2,
+          'Workspace horizontal overflow at '+width+'px');
+      }
+    }else if(mobile)assert((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=2,
       'Mobile shell horizontal overflow');
     assert.deepEqual(blocked,[],'Off-origin or unexpected write blocked');
-    return {session,roleCaption};
+    return {session,roleCaption,culture:await page.locator('#uiCulture').inputValue(),menuPages};
   }finally{await context.close();}
 }
 (async()=>{
@@ -205,6 +236,12 @@ async function verify(browser,user,mobile){
     assert.equal(new Set(sessions.map(x=>x.session)).size,3,'Separate authenticated sessions required');
     assert.equal(new Set(sessions.map(x=>x.roleCaption)).size,3,
       'Role captions must reflect distinct synthetic identities, not a hardcoded administrator label');
-    console.log('Authenticated disposable staging sidebar PASS: anonymous denial, bilingual role-accurate account menu, three synthetic sessions, contextual Help, scoped pages, no-store, denied-body privacy, session-bound antiforgery readback, read-only Profile/MFA/device APIs, account Help and mobile.');
+    assert(new Set(sessions.map(x=>x.culture)).has('bn-BD') &&
+      new Set(sessions.map(x=>x.culture)).has('en-BD'),
+      'Synthetic staging roles must cover both Bangla and English locales');
+    console.log('Authenticated disposable staging sidebar PASS: '+sessions[0].menuPages+
+      ' enabled TenantAdmin menu destinations, 360/390/768/1280 responsive shell, '+
+      'bilingual role/session checks, scoped authorization, no-store and read-only APIs.');
+
   }finally{await browser.close();}
 })().catch(e=>{console.error(e.message);process.exitCode=1;});

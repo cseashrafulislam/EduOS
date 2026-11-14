@@ -8,7 +8,7 @@ jobs:
     if: github.ref == 'refs/heads/Ashraful'
     runs-on: ubuntu-24.04
     environment: staging
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
