@@ -12,20 +12,20 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## academics:learning (14)
 
-- [ ] `/Learning/Index`
-- [ ] `/Learning/StudyPlan`
-- [ ] `/TeacherStudio/Index`
-- [ ] `/TeacherStudio/Public`
-- [ ] `/TeacherStudio/AdaptiveGoals`
-- [ ] `/TeacherStudio/Cpd`
-- [ ] `/TeacherStudio/CpdReview`
-- [ ] `/Learning/Quizzes`
-- [ ] `/Learning/LiveClasses`
-- [ ] `/Learning/CourseContent`
-- [ ] `/Learning/AssignmentFiles`
-- [ ] `/Learning/Certificates`
-- [ ] `/Learning/CourseCompletions`
-- [ ] `/Learning/MySubmissions`
+- [x] `/Learning/Index`
+- [x] `/Learning/StudyPlan`
+- [x] `/TeacherStudio/Index`
+- [x] `/TeacherStudio/Public`
+- [x] `/TeacherStudio/AdaptiveGoals`
+- [x] `/TeacherStudio/Cpd`
+- [x] `/TeacherStudio/CpdReview`
+- [x] `/Learning/Quizzes`
+- [x] `/Learning/LiveClasses`
+- [x] `/Learning/CourseContent`
+- [x] `/Learning/AssignmentFiles`
+- [x] `/Learning/Certificates`
+- [x] `/Learning/CourseCompletions`
+- [x] `/Learning/MySubmissions`
 
 ## academics:assessments (20)
 
@@ -59,6 +59,38 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 - [ ] `/Accreditation/Index`
 - [ ] `/Accreditation/Obe`
+
+## Learning menu — source implementation checkpoint (2026-11-14)
+
+**14/14 assigned Learning + Teacher Studio routes marked UX Done; 24 UX C routes remain.**
+This is a source implementation checkpoint **only**; it is not browser, SQL, .NET release, production security or device-specific Final QA approval.
+
+- Commits `524d7faf7b3e41840317766d3baba2346787b434` and `97fb9e14d39b58b884439865ac1cfeac42665067` correct all fourteen Learning/Teacher Studio view layouts: remove redundant top headers and help-only button rows, place essential actions in their actual course/search/table toolbars, fix nested Bootstrap card-body grids and avoid wasted Refresh columns. JS-bound certificate and completion help IDs are retained inside their relevant card headers.
+- `75c94c1c0f71dfb24f3b2454d446851409b9684e` updates `EduOS.Core/DTOs/LMS/LmsDtos.cs`, `EduOS.Service/Services/LMS/LmsWorkflowService.cs`, `EduOS.App/wwwroot/js/learning/index.js`, `EduOS.App/Views/Learning/Index.cshtml`: create Course Code is server-generated using a stable client intent; legacy explicit-Code API contracts and existing edit version checks remain; per-tenant authority, author edit permission and exact-payload duplicate replay are enforced. `8d1aee7d78c612f65f6f3a0cdb211078dd41d62e` places Save/Clear together rather than a single button on a new row.
+- `5574333317064ec66d01bbdc79aa47b169944ba2` adds 3 missing full bilingual Help guides (Study Plan, Course Completions, My Submissions) using the existing global Page Help renderer; all 14 now have route-specific bilingual Help.
+- `0295d538d65680ca5b8daa76926d0240db08fc0e` adds eight `ux-c-learning-source-integrity.test.cjs` contracts for route/source ownership, single shell heading, balanced forms/cards, Page Help coverage, generated-code retries, preserved actions, aria labels and local JS assets. Source audit covered 14 distinct Razor views, found no top `<header>`, duplicate `content-header-card`, orphan `aria-labelledby`, mixed card/grid class or missing local JS. Full CI / .NET build / interactive browser checks remain independent and may still fail.
+- Historical LMS/exam authorization and database behavior are preserved except the new generated-course create path described above. No data migration was needed and no production student/course records were changed. Five scheduled UX automations remain OFF.
+
+### Learning route evidence (Final QA deferred)
+
+| Route | UX source implementation commit | Modified scope | Final QA |
+| --- | --- | --- | --- |
+| `/Learning/Index` | `524d7faf` | `EduOS.App/Views/Learning/Index.cshtml` + shared Help, LMS DTO/service/JS | Deferred / not certified |
+| `/Learning/StudyPlan` | `524d7faf` | `EduOS.App/Views/Learning/StudyPlan.cshtml` + shared Help | Deferred / not certified |
+| `/TeacherStudio/Index` | `524d7faf` | `EduOS.App/Views/TeacherStudio/Index.cshtml` + shared Help | Deferred / not certified |
+| `/TeacherStudio/Public` | `524d7faf` | `EduOS.App/Views/TeacherStudio/Public.cshtml` + shared Help | Deferred / not certified |
+| `/TeacherStudio/AdaptiveGoals` | `524d7faf` | `EduOS.App/Views/TeacherStudio/AdaptiveGoals.cshtml` + shared Help | Deferred / not certified |
+| `/TeacherStudio/Cpd` | `524d7faf` | `EduOS.App/Views/TeacherStudio/Cpd.cshtml` + shared Help | Deferred / not certified |
+| `/TeacherStudio/CpdReview` | `524d7faf` | `EduOS.App/Views/TeacherStudio/CpdReview.cshtml` + shared Help | Deferred / not certified |
+| `/Learning/Quizzes` | `97fb9e14` | `EduOS.App/Views/Learning/Quizzes.cshtml` + shared Help | Deferred / not certified |
+| `/Learning/LiveClasses` | `97fb9e14` | `EduOS.App/Views/Learning/LiveClasses.cshtml` + shared Help | Deferred / not certified |
+| `/Learning/CourseContent` | `97fb9e14` | `EduOS.App/Views/Learning/CourseContent.cshtml` + shared Help | Deferred / not certified |
+| `/Learning/AssignmentFiles` | `97fb9e14` | `EduOS.App/Views/Learning/AssignmentFiles.cshtml` + shared Help | Deferred / not certified |
+| `/Learning/Certificates` | `97fb9e14` | `EduOS.App/Views/Learning/Certificates.cshtml` + shared Help | Deferred / not certified |
+| `/Learning/CourseCompletions` | `97fb9e14` | `EduOS.App/Views/Learning/CourseCompletions.cshtml` + shared Help | Deferred / not certified |
+| `/Learning/MySubmissions` | `97fb9e14` | `EduOS.App/Views/Learning/MySubmissions.cshtml` + shared Help | Deferred / not certified |
+
+**Next menu:** `academics:assessments` (20 routes), then Research (2), Accreditation (2).
 
 ## Verified completion evidence
 
