@@ -20,10 +20,9 @@
             {
                 <section class="card border-0 shadow-sm mb-3" aria-labelledby="accFrameworkHeading">
                     <div class="card-body">
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h2 id="accFrameworkHeading" class="h5 mb-0" data-a-en="Framework versions" data-a-bn="মানদণ্ড কাঠামোর সংস্করণ">Framework versions</h2><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-outline-primary" asp-controller="Accreditation" asp-action="Obe"
-        data-a-en="University OBE attainment" data-a-bn="বিশ্ববিদ্যালয় OBE মূল্যায়ন">University OBE attainment</a></div></div>
+                        <h2 id="accFrameworkHeading" class="h5 mb-2" data-a-en="Framework versions" data-a-bn="মানদণ্ড কাঠামোর সংস্করণ">Framework versions</h2>
                         <form id="accFrameworkForm">
-                            <label for="accFrameworkCode" class="form-label" data-a-en="Framework code" data-a-bn="কাঠামো কোড">Framework code</label>
+                            <label for="accFrameworkCode" class="form-label" data-a-en="Framework reference (stable across versions)" data-a-bn="কাঠামোর রেফারেন্স (সংস্করণজুড়ে অপরিবর্তিত)">Framework code</label>
                             <input id="accFrameworkCode" class="form-control mb-2" maxlength="40" required pattern="[A-Za-z0-9_]+" />
                             <label for="accFrameworkName" class="form-label" data-a-en="Name" data-a-bn="নাম">Name</label>
                             <input id="accFrameworkName" class="form-control mb-2" maxlength="200" required />
@@ -106,6 +105,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
                         <h2 id="accQueueHeading" class="h5 mb-0" data-a-en="Accreditation evidence queue" data-a-bn="স্বীকৃতি প্রমাণের তালিকা">Accreditation evidence queue</h2>
+                        <a class="btn btn-sm btn-outline-primary" asp-controller="Accreditation" asp-action="Obe" data-a-en="University OBE attainment" data-a-bn="বিশ্ববিদ্যালয় OBE মূল্যায়ন">University OBE attainment</a>
                         <button id="accRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-sm btn-outline-secondary" data-a-en="Refresh" data-a-bn="রিফ্রেশ">Refresh</button>
                     </div>
                     <div class="table-responsive"><table class="table table-sm table-striped">
