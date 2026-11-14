@@ -8,6 +8,16 @@
     let createSaving = false, editSaving = false, editSequence = 0;
     const createGuard = guard('roomCreateForm'), editGuard = guard('roomEditForm');
     const value = id => el(id).value.trim();
+    const intentId = form => {
+        const fingerprint = window.EduOSFormGuard?.fingerprint(form) ||
+            JSON.stringify([...form.elements].map(x => [x.id, x.value, x.checked]));
+        if (form.dataset.requestFingerprint !== fingerprint) {
+            delete form.dataset.requestId;
+            form.dataset.requestFingerprint = fingerprint;
+        }
+        if (!form.dataset.requestId) form.dataset.requestId = crypto.randomUUID();
+        return form.dataset.requestId;
+    };
     function campusOptions() {
         const wasClean = !createGuard?.isDirty();
         for (const [id, label] of [['roomCampusFilter', 'All campuses'], ['roomCreateCampus', 'Choose campus']]) {
@@ -118,11 +128,12 @@
         try {
             await api('/api/academic-setup/rooms', { method: 'POST', body: JSON.stringify({
                 campusId: Number(value('roomCreateCampus')), name: value('roomCreateName'),
-                code: value('roomCreateCode'), capacity, roomType: value('roomCreateType'), isActive: true
+                clientRequestId: intentId(form), code: '', capacity, roomType: value('roomCreateType'), isActive: true
             }) });
             committed = true;
             if (!sameSession()) return;
-            form.reset(); createGuard?.markClean();
+            form.reset(); delete form.dataset.requestId; delete form.dataset.requestFingerprint;
+            createGuard?.markClean();
             try { page = 1; await Promise.all([load(), reload()]); notice('Room saved.'); }
             catch { notice('Room saved, but the directory did not refresh. Reload the page.', true); }
         } catch (error) { if (sameSession()) notice(committed ? 'Room saved, but the display failed.' : error.message, true); }
