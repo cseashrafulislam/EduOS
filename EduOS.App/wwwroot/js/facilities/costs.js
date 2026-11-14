@@ -106,6 +106,23 @@
         b.addEventListener('click', callback);
         return b;
     }
+    async function loadCampusOptions() {
+        const select = el('fcCampus');
+        if (!select) return;
+        const rows = await api('/api/facilities/spaces/campus-options');
+        if (locked || !Array.isArray(rows)) return;
+        const previous = select.value.trim();
+        select.replaceChildren(new Option(t('All authorized campuses', 'সব অনুমোদিত ক্যাম্পাস'), ''));
+        const allowed = new Set();
+        for (const item of rows) {
+            const id = Number(item.id);
+            if (!Number.isSafeInteger(id) || id <= 0) continue;
+            allowed.add(String(id));
+            select.add(new Option(String(item.name || '') +
+                (item.code ? ' (' + String(item.code) + ')' : ''), String(id)));
+        }
+        select.value = previous && allowed.has(previous) ? previous : '';
+    }
     const campus = () => {
         const box = el('fcCampus');
         return box ? box.value.trim() : '';
@@ -620,6 +637,7 @@
             String(localToday.getMonth() + 1).padStart(2, '0'),
             String(localToday.getDate()).padStart(2, '0')
         ].join('-');
+        await loadCampusOptions();
         await Promise.all([listBills(), listLabour(), listAging()]);
         notice(t('Facilities Finance data is scoped to your active institution.',
             'রক্ষণাবেক্ষণ ব্যয়ের তথ্য বর্তমান প্রতিষ্ঠানের অনুমতি অনুযায়ী দেখানো হচ্ছে।'), true);

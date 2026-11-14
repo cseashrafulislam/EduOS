@@ -14,7 +14,7 @@
     <div id="fcNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="row mb-3"><div class="col-sm-4 col-md-3">
         <label for="fcCampus" class="form-label">@(bn ? "ক্যাম্পাস ফিল্টার (ঐচ্ছিক)" : "Campus filter (optional)")</label>
-        <input id="fcCampus" class="form-control" type="number" min="1" placeholder="@(bn ? "সব অনুমোদিত ক্যাম্পাস" : "All authorized campuses")" />
+        <select id="fcCampus" class="form-select"><option value="">@(bn ? "সব অনুমোদিত ক্যাম্পাস" : "All authorized campuses")</option></select>
     </div></div>
     <div class="row g-3">
         <div class="col-12 col-xl-6">

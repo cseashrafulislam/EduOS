@@ -29,6 +29,7 @@ public sealed class FacilitySpaceService : IFacilitySpaceService
     private bool Writable => user.IsAuthenticated && user.TenantId > 0 &&
         (user.IsTenantAdmin || user.IsInRole("Principal") || user.IsInRole("FacilitiesManager"));
     private bool AllCampuses => user.IsTenantAdmin || user.IsInRole("Principal");
+    private bool CanViewCampuses => Readable || user.IsAuthenticated && user.TenantId > 0 && user.IsInRole("Accountant");
     private static ApiResponse<T> Denied<T>() => ApiResponse<T>.ErrorResponse("Facilities access denied.", 403);
     private IQueryable<long> AllowedCampusIds() =>
         db.Campuses.AsNoTracking().Where(c => c.TenantId == user.TenantId && c.IsActive && !c.IsDeleted &&
@@ -49,7 +50,7 @@ public sealed class FacilitySpaceService : IFacilitySpaceService
 
     public async Task<ApiResponse<IReadOnlyList<FacilityCampusOptionDto>>> CampusOptionsAsync(CancellationToken ct = default)
     {
-        if (!Readable || db.CurrentTenantId != user.TenantId) return Denied<IReadOnlyList<FacilityCampusOptionDto>>();
+        if (!CanViewCampuses || db.CurrentTenantId != user.TenantId) return Denied<IReadOnlyList<FacilityCampusOptionDto>>();
         var allowed = AllowedCampusIds();
         var campuses = await db.Campuses.AsNoTracking()
             .Where(x => x.TenantId == user.TenantId && x.IsActive && !x.IsDeleted && allowed.Contains(x.Id))
