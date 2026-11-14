@@ -5,9 +5,6 @@
 }
 <section class="container-fluid py-2" id="markReviewWorkspace" data-can-review="@canReview.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
-    <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <span class="visually-hidden">Marks submission &amp; review</span>
-    </header>
     <div id="markReviewNotice" class="d-none" role="alert" aria-live="polite"></div>
     <form id="markReviewSearch" class="card card-body mb-3">
         <div class="row g-2 align-items-end">

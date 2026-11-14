@@ -3,14 +3,11 @@
 }
 <div class="container-fluid py-2" id="assessmentSetupWorkspace">
     @Html.AntiForgeryToken()
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <div><span class="visually-hidden">Assessment Setup</span><p class="text-muted mb-0">Create, edit and assign exam subjects before scheduling and marks entry.</p></div>
-        <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Exam workspace</a>
-    </div>
     <div id="setupAlert" class="alert alert-info" role="status" aria-live="polite">Select an assessment or create a new one.</div>
     <section class="card mb-3" aria-labelledby="setupRegistersHeading">
         <div class="card-body">
-            <h2 class="h6" id="setupRegistersHeading">Existing assessments</h2>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h2 class="h6 mb-0" id="setupRegistersHeading">Existing assessments</h2><div class="d-flex flex-wrap align-items-center gap-2"><a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Exam workspace</a></div></div>
+<p class="small text-muted mb-2">Create, edit and assign exam subjects before scheduling and marks entry.</p>
             <form id="setupFindForm" class="d-flex gap-2 mb-2">
                 <input id="setupFind" class="form-control" maxlength="100" type="search" placeholder="Assessment code or name" aria-label="Assessment search" />
                 <button class="btn btn-outline-primary" type="submit">Search</button>
