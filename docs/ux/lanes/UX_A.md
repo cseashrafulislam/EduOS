@@ -28,7 +28,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## platform:subscriptions (3)
 
-- [ ] `/SubscriptionPlanAdministration/Index`
+- [x] `/SubscriptionPlanAdministration/Index`
 - [ ] `/SubscriptionPaymentHistory/Index`
 - [ ] `/Account/PaymentVerification`
 
@@ -135,5 +135,7 @@ Feature page delivered: compact responsive bilingual list/editor, no duplicate p
 
 **Module Feature Mapping — UX Done:** `/PlatformModuleFeatures/Index` view `e96f8c2fab0d61897fc743a7fef73eb63bb6a85c`, JS `99cdf17c51626d1ef02a2f7ce8fcfddbbf246203`, bilingual Help `a1ad152979dc1c94f4df996587c5acb7f9153562`. Responsive module selector/mapping table, no duplicate heading/Refresh, localized feature rows and locked core/inactive mappings, existing audited API and version fields, idempotent retry intent, conflict reload, failure-only retry, async sequence guard. **Final QA deferred / NOT RUN**, not counted as QA PASS.
 
-**Completed menu:** platform:features — `4 / 4 UX Done`. **Next UX A menu:** platform:subscriptions, starting with `/SubscriptionPlanAdministration/Index`. Final QA deferred until all UX routes are finished. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
+**Subscription Plan Administration — UX Done:** `/SubscriptionPlanAdministration/Index` view `72248e9e544ba840ad1a98887c20757c2f6881c9`, JS `81a81122d7a530d23d9aac4f0fbe86b1694d061d`, bilingual Page Help `6119c356c2bdf8340cbc2d819e3e543bfc9ef927`. Compact responsive pricing/limits/feature configuration, no redundant header/Refresh, localized lifecycle and pricing actions, unchanged original SuperAdmin API/transaction/backend price snapshot ownership, read-only existing Code, stable client intent request IDs and conflict reload. **Final QA deferred / NOT RUN.** Financial edge cases (large decimal values, old/new snapshots, concurrent plan feature updates) remain mandatory for later QA, not certified by this UX checkpoint.
+
+**Completed menu:** platform:features — `4 / 4 UX Done`. **Current menu:** platform:subscriptions — `1 / 3 UX Done`. Next route `/SubscriptionPaymentHistory/Index`. Final QA deferred until all UX routes are finished. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
 
