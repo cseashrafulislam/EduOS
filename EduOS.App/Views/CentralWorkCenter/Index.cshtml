@@ -1,8 +1,8 @@
 @{
-    ViewData["Title"] = "My Work & Approvals";
     var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "আমার কাজ ও অনুমোদন" : "My Work & Approvals";
 }
-<section class="container-fluid cwc-page py-2" id="centralWorkCenter"
+<section class="container-fluid cwc-page py-2" id="centralWorkCenter" data-bangla="@(bn ? "true" : "false")"
          aria-label="@(bn ? "আমার কাজ ও অনুমোদন" : "My Work & Approvals")">
     @* The application shell already renders the page heading. No duplicate heading here. *@
     <div id="cwcAlert" class="d-none" role="status" aria-live="polite"></div>
