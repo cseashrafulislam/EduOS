@@ -2,11 +2,8 @@
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "বৃত্তি ও ছাড়ের বরাদ্দ" : "Scholarship & Discount Awards";
 }
-<section class="container-fluid py-3" id="discountAwardRegister">
-    <header class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h1 class="h4 mb-0">@(bn ? "বৃত্তি ও ছাড়ের বরাদ্দ" : "Scholarship & Discount Awards")</h1>
-        <a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary btn-sm">@(bn ? "আর্থিক সমন্বয়" : "Adjustments")</a>
-    </header>
+<section class="container-fluid py-2" id="discountAwardRegister">
+    
     <div id="awardNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <form id="awardFilters" class="card card-body row g-2 align-items-end mb-3">
         <div class="col-md-2"><label for="awardCampus" class="form-label">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="awardCampus" type="number" min="1" class="form-control" placeholder="@(bn ? "সব" : "All")" /></div>
@@ -19,7 +16,8 @@
     <section class="card">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <strong id="awardTotals">@(bn ? "তালিকা লোড হয়নি" : "No register loaded")</strong>
-            <button id="awardExport" type="button" class="btn btn-outline-primary btn-sm" disabled>@(bn ? "এই পৃষ্ঠার CSV" : "Export page CSV")</button>
+            <div class="d-flex flex-wrap gap-2"><a href="/FinanceAdjustments/Index" class="btn btn-outline-secondary btn-sm">@(bn ? "আর্থিক সমন্বয়" : "Adjustments")</a>
+            <button id="awardExport" type="button" class="btn btn-outline-primary btn-sm" disabled>@(bn ? "এই পৃষ্ঠার CSV" : "Export page CSV")</button></div>
         </div>
         <div class="table-responsive"><table class="table table-sm table-striped align-middle mb-0">
             <thead><tr><th>@(bn ? "শিক্ষার্থী কোড" : "Student code")</th><th>@(bn ? "ক্যাম্পাস" : "Campus")</th><th>@(bn ? "নিয়ম" : "Rule")</th><th>@(bn ? "মান" : "Value")</th><th>@(bn ? "শুরু" : "From")</th><th>@(bn ? "শেষ" : "To")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "অনুমোদনকারী আইডি" : "Approved by ID")</th></tr></thead>
