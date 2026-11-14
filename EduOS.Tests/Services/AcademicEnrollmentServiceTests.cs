@@ -443,7 +443,8 @@ public sealed class AcademicEnrollmentServiceTests
         new GenericRepository<Subject>(db), new GenericRepository<SubjectPrerequisite>(db),
         new GenericRepository<RoutineEntry>(db),
         new GenericRepository<RoutineTimeSlot>(db), new GenericRepository<Room>(db),
-        db, user, TimeProvider.System, NullLogger<AcademicEnrollmentService>.Instance);
+        db, user, TimeProvider.System, NullLogger<AcademicEnrollmentService>.Instance,
+        new GenericRepository<AcademicSection>(db));
 
     private static async Task<Seed> SeedAsync(DbContextOptions<EduOSDbContext> options, int capacity)
     {
@@ -496,6 +497,11 @@ public sealed class AcademicEnrollmentServiceTests
         await db.SaveChangesAsync();
         batch.AcademicLevelId = level.Id;
         db.AcademicBatches.Add(batch);
+        db.AcademicSections.Add(new AcademicSection
+        {
+            TenantId = 101, CampusId = campus.Id, AcademicLevelId = level.Id,
+            Name = "Section A", Code = "A", Capacity = capacity
+        });
         await db.SaveChangesAsync();
         var core = new CurriculumSubject
         {

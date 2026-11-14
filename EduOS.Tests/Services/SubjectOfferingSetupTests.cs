@@ -185,6 +185,12 @@ public sealed class SubjectOfferingSetupTests
             AcademicYearId = year.Id, AcademicProgramId = program.Id, AcademicLevelId = level.Id,
             Name = "Nine A", Code = "N9A", Capacity = 40, StartDate = year.StartDate, EndDate = year.EndDate };
         db.AddRange(mapping, batch); await db.SaveChangesAsync();
+        db.AcademicSections.Add(new AcademicSection
+        {
+            TenantId = tenant, CampusId = campus.Id, AcademicLevelId = level.Id,
+            Name = "Section A", Code = "A", Capacity = 40
+        });
+        await db.SaveChangesAsync();
         return (batch.Id, mapping.Id, year.Id);
     }
     private static DbContextOptions<EduOSDbContext> Options() => new DbContextOptionsBuilder<EduOSDbContext>()
@@ -211,7 +217,8 @@ public sealed class SubjectOfferingSetupTests
         new GenericRepository<AcademicTrack>(db), new GenericRepository<Medium>(db),
         new GenericRepository<Shift>(db), new GenericRepository<SubjectOffering>(db),
         new GenericRepository<StudentSubjectRegistration>(db), new GenericRepository<StudentEnrollment>(db), db, new User(tenant),
-        NullLogger<AcademicSetupService>.Instance);
+        NullLogger<AcademicSetupService>.Instance,
+        new GenericRepository<AcademicSection>(db));
     private sealed class User(long tenant) : ICurrentUserService
     {
         public bool IsAuthenticated => true;

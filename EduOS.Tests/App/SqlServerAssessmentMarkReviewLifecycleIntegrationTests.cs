@@ -88,20 +88,31 @@ public sealed class SqlServerAssessmentMarkReviewLifecycleIntegrationTests
                 SubjectId = otherSubject.Id, CreditHours = 2m };
             db.CurriculumSubjects.Add(pastCourse);
             await db.SaveChangesAsync();
-            var pastOffering = new SubjectOffering { TenantId = seeded.TenantId,
-                AcademicBatchId = offering.AcademicBatchId, AcademicYearId = offering.AcademicYearId,
-                CurriculumSubjectId = repeatedCourse ? originalCourse.Id : pastCourse.Id,
-                Code = "HIST" };
-            db.SubjectOfferings.Add(pastOffering);
-            await db.SaveChangesAsync();
+            // A single batch/year/section has one canonical offering per curriculum subject.
+            // Repeated historical assessment attempts reuse that offering; never insert
+            // a duplicate that violates the database's required unique constraint.
+            var pastOffering = repeatedCourse ? offering : new SubjectOffering {
+                TenantId = seeded.TenantId, AcademicBatchId = offering.AcademicBatchId,
+                AcademicYearId = offering.AcademicYearId,
+                AcademicSectionId = offering.AcademicSectionId,
+                CurriculumSubjectId = pastCourse.Id, Code = "HIST"
+            };
+            if (!repeatedCourse)
+            {
+                db.SubjectOfferings.Add(pastOffering);
+                await db.SaveChangesAsync();
+            }
             var pastSubject = new AssessmentSubject { TenantId = seeded.TenantId,
                 AssessmentId = historic.Id, SubjectOfferingId = pastOffering.Id };
-            var pastRegistration = new StudentSubjectRegistration { TenantId = seeded.TenantId,
-                StudentEnrollmentId = enrollment.Id, SubjectOfferingId = pastOffering.Id,
-                ClientRequestId = Guid.NewGuid(), CreditHoursSnapshot = 2m,
-                State = SubjectRegistrationState.Approved };
+            // Repeated assessments share the existing course registration; their
+            // separately published assessment snapshots remain immutable and distinct.
+            var pastRegistration = repeatedCourse ? registration : new StudentSubjectRegistration {
+                TenantId = seeded.TenantId, StudentEnrollmentId = enrollment.Id,
+                SubjectOfferingId = pastOffering.Id, ClientRequestId = Guid.NewGuid(),
+                CreditHoursSnapshot = 2m, State = SubjectRegistrationState.Approved
+            };
             db.AssessmentSubjects.Add(pastSubject);
-            db.StudentSubjectRegistrations.Add(pastRegistration);
+            if (!repeatedCourse) db.StudentSubjectRegistrations.Add(pastRegistration);
             await db.SaveChangesAsync();
             var pastPublication = new ResultPublication { TenantId = seeded.TenantId,
                 AssessmentId = historic.Id, AcademicBatchId = offering.AcademicBatchId,

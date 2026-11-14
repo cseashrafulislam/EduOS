@@ -53,6 +53,13 @@ public sealed class StudentImportExecutionServiceTests
             Id = 20, TenantId = 101, CampusId = 10, Name = "Cohort", Code = "C1",
             AcademicYearId = 1, AcademicProgramId = 1, AcademicLevelId = 1, Capacity = 100
         });
+        // Student import requires an existing, campus/class-owned section.
+        // Seed precisely one to exercise safe automatic section resolution.
+        db.AcademicSections.Add(new AcademicSection
+        {
+            Id = 30, TenantId = 101, CampusId = 10, AcademicLevelId = 1,
+            Name = "Section A", Code = "A", Capacity = 100
+        });
         db.AcademicCurriculums.Add(new AcademicCurriculum
         {
             Id = 50, TenantId = 101, AcademicProgramId = 1,
