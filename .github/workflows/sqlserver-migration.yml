@@ -4,11 +4,16 @@ on:
   push:
     branches: [Ashraful]
     paths:
+      # Recheck disposable SQL acceptance after any application, persistence,
+      # security, contract or test change; never rely on a previous commit.
       - '.github/workflows/sqlserver-migration.yml'
-      - 'EduOS.Tests/App/SqlServer*IntegrationTests.cs'
-      - 'EduOS.Tests/Services/**'
-      - 'EduOS.Service/Services/Academic/**'
-      - 'EduOS.Service/Services/Students/**'
+      - '.github/workflows/unified-full-qa.yml'
+      - 'EduOS.Tests/**'
+      - 'EduOS.Core/**'
+      - 'EduOS.Persistence/**'
+      - 'EduOS.Service/**'
+      - 'EduOS.App/**'
+      - 'tests/browser/**'
   workflow_dispatch:
     inputs:
       run_40k:
@@ -225,9 +230,10 @@ jobs:
           name: sql-acceptance-diagnostics-${{ github.sha }}
           path: |
             TestResults/sql-v1-acceptance.trx
+            TestResults/sql-scholarship-cash-ledger-acceptance.trx
             TestResults/sql-a4-safeguarding-acceptance.trx
             TestResults/sql-research-accreditation-acceptance.trx
-            TestResults/sql-v3-alumni-acceptance.trx
+            TestResults/sql-alumni-career-acceptance.trx
             TestResults/sql-v3-facilities-acceptance.trx
             TestResults/sql-v2-v3-smoke.trx
             TestResults/sql-v3-procurement-assets-acceptance.trx
@@ -294,6 +300,15 @@ jobs:
           path: TestResults/supplier-ap-load.trx
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Preserve backup/restore diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-backup-restore-diagnostics-${{ github.sha }}
+          path: TestResults/sql-backup-restore-drill.trx
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Stop isolated SQL Server
         if: always()
