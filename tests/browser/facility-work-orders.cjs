@@ -208,7 +208,7 @@ async function managerAndSession(browser) {
     const { context, page, state } = await setup(browser);
     try {
         await page.locator('#wfRows button').click();
-        assert.match(await page.locator('#facilityWorkflow p.small.text-muted').innerText(),
+        assert.match(await page.locator('#facilityWorkflow p.small.text-muted').first().innerText(),
             /Start work only during the active technician schedule/);
         assert.match(await page.locator('#wfAction').innerText(), /Assign schedule/);
         await page.evaluate(() => { document.body.dataset.authTenantId = '99'; });
@@ -244,7 +244,7 @@ async function mobileBangla(browser) {
     const { context, page, state } = await setup(browser, true, false, true);
     try {
         assert.match(await page.locator('h2').innerText(), /ক্যাম্পাস/);
-        assert.match(await page.locator('#facilityWorkflow p.small.text-muted').innerText(),
+        assert.match(await page.locator('#facilityWorkflow p.small.text-muted').first().innerText(),
             /নির্ধারিত টেকনিশিয়ান সময়ের মধ্যে/);
         assert.equal(await page.locator('#wfVendorPanel').count(), 0,
             'requester markup must not contain manager vendor discovery');
