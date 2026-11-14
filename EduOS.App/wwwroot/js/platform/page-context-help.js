@@ -7,6 +7,96 @@
     // and historical-report workflows. Every guide below follows an actual
     // existing authorized page; no new result or grade engine is implied.
     const examManuals = {
+        '/assessmentadministration/assessmentcomponents/index': {
+            version: 1, reviewed: true,
+            title: ["Assessment components","মূল্যায়ন উপাদান"],
+            purpose: ["Set the full marks, pass threshold, weight and mandatory pass rule of an eligible draft assessment.","খসড়া মূল্যায়নে পূর্ণ নম্বর, পাস নম্বর, ওজন ও বাধ্যতামূলক পাসের নিয়ম নির্ধারণ করুন।"],
+            before: ["EXAM module and authorized examination administrator access are required; select the correct institution scope.","EXAM মডিউল ও অনুমোদিত পরীক্ষা প্রশাসকের প্রবেশাধিকার এবং সঠিক প্রতিষ্ঠানের পরিসর প্রয়োজন।"],
+            steps: [
+                ["Select a draft assessment subject, enter a component name and marks/weightage, then save.","খসড়া মূল্যায়নের বিষয় বেছে উপাদানের নাম, নম্বর ও ওজন লিখে সংরক্ষণ করুন।"],
+                ["Inspect the saved record or register, then use the available filters, page controls or output action.","সংরক্ষিত তথ্য বা তালিকা যাচাই করে প্রয়োজনীয় ফিল্টার, পৃষ্ঠা বা আউটপুট ব্যবহার করুন।"]
+            ],
+            example: ["Fictional example: use the authorized 2026 academic assessment and verify its records before saving.","কাল্পনিক উদাহরণ: অনুমোদিত ২০২৬ শিক্ষাবর্ষের মূল্যায়নের তথ্য যাচাই করে সংরক্ষণ করুন।"],
+            result: ["Changes appear in the authorized register after a successful save.","সফল সংরক্ষণের পর অনুমোদিত তালিকায় পরিবর্তন দেখা যায়।"],
+            rules: ["Existing published outcomes and locked marks cannot be overwritten.","প্রকাশিত ফল ও লক করা নম্বর পরিবর্তন করা যাবে না।"],
+            recovery: ["After an uncertain or rejected save, check the current record and permissions before another attempt.","অনিশ্চিত বা প্রত্যাখ্যাত সংরক্ষণে আবার চেষ্টা করার আগে বর্তমান তথ্য ও অনুমতি যাচাই করুন।"],
+            related: [["/AssessmentAdministration/ComponentMarks","Related workflow","সংশ্লিষ্ট কার্যক্রম"]]
+        },
+        '/assessmentadministration/assessmentschedules/index': {
+            version: 1, reviewed: true,
+            title: ["Assessment schedules","পরীক্ষার সময়সূচি"],
+            purpose: ["Schedule an eligible draft assessment in a date, time and optionally a room.","খসড়া মূল্যায়নের তারিখ, সময় ও প্রয়োজন হলে কক্ষ নির্ধারণ করুন।"],
+            before: ["EXAM module and authorized examination administrator access are required; select the correct institution scope.","EXAM মডিউল ও অনুমোদিত পরীক্ষা প্রশাসকের প্রবেশাধিকার এবং সঠিক প্রতিষ্ঠানের পরিসর প্রয়োজন।"],
+            steps: [
+                ["Select an assessment subject, enter the exam date, room and times, then save.","মূল্যায়নের বিষয়, পরীক্ষার তারিখ, কক্ষ ও সময় বেছে সংরক্ষণ করুন।"],
+                ["Inspect the saved record or register, then use the available filters, page controls or output action.","সংরক্ষিত তথ্য বা তালিকা যাচাই করে প্রয়োজনীয় ফিল্টার, পৃষ্ঠা বা আউটপুট ব্যবহার করুন।"]
+            ],
+            example: ["Fictional example: use the authorized 2026 academic assessment and verify its records before saving.","কাল্পনিক উদাহরণ: অনুমোদিত ২০২৬ শিক্ষাবর্ষের মূল্যায়নের তথ্য যাচাই করে সংরক্ষণ করুন।"],
+            result: ["Changes appear in the authorized register after a successful save.","সফল সংরক্ষণের পর অনুমোদিত তালিকায় পরিবর্তন দেখা যায়।"],
+            rules: ["Published or closed assessments cannot be silently rescheduled.","প্রকাশিত বা সমাপ্ত মূল্যায়নের সময়সূচি নীরবে বদলানো যাবে না।"],
+            recovery: ["After an uncertain or rejected save, check the current record and permissions before another attempt.","অনিশ্চিত বা প্রত্যাখ্যাত সংরক্ষণে আবার চেষ্টা করার আগে বর্তমান তথ্য ও অনুমতি যাচাই করুন।"],
+            related: [["/AssessmentAdministration/AdmitCards","Related workflow","সংশ্লিষ্ট কার্যক্রম"]]
+        },
+        '/assessmentadministration/gradeschemes/index': {
+            version: 1, reviewed: true,
+            title: ["Grade schemes","গ্রেডিং নীতি"],
+            purpose: ["Create an immutable grading scheme with contiguous grade intervals covering 0–100.","০–১০০ পর্যন্ত ধারাবাহিক গ্রেড সীমাসহ অপরিবর্তনীয় গ্রেডিং নীতি তৈরি করুন।"],
+            before: ["EXAM module and authorized examination administrator access are required; select the correct institution scope.","EXAM মডিউল ও অনুমোদিত পরীক্ষা প্রশাসকের প্রবেশাধিকার এবং সঠিক প্রতিষ্ঠানের পরিসর প্রয়োজন।"],
+            steps: [
+                ["Enter scheme details, add grade intervals, verify coverage and save the scheme.","নীতির বিবরণ লিখে গ্রেড সীমা যোগ করুন, সম্পূর্ণ সীমা যাচাই করে সংরক্ষণ করুন।"],
+                ["Inspect the saved record or register, then use the available filters, page controls or output action.","সংরক্ষিত তথ্য বা তালিকা যাচাই করে প্রয়োজনীয় ফিল্টার, পৃষ্ঠা বা আউটপুট ব্যবহার করুন।"]
+            ],
+            example: ["Fictional example: use the authorized 2026 academic assessment and verify its records before saving.","কাল্পনিক উদাহরণ: অনুমোদিত ২০২৬ শিক্ষাবর্ষের মূল্যায়নের তথ্য যাচাই করে সংরক্ষণ করুন।"],
+            result: ["Changes appear in the authorized register after a successful save.","সফল সংরক্ষণের পর অনুমোদিত তালিকায় পরিবর্তন দেখা যায়।"],
+            rules: ["A saved grading policy is immutable; changes require a controlled new version.","সংরক্ষিত গ্রেডিং নীতি অপরিবর্তনীয়; পরিবর্তনে নিয়ন্ত্রিত নতুন সংস্করণ প্রয়োজন।"],
+            recovery: ["After an uncertain or rejected save, check the current record and permissions before another attempt.","অনিশ্চিত বা প্রত্যাখ্যাত সংরক্ষণে আবার চেষ্টা করার আগে বর্তমান তথ্য ও অনুমতি যাচাই করুন।"],
+            related: [["/AssessmentAdministration/Setup","Related workflow","সংশ্লিষ্ট কার্যক্রম"]]
+        },
+        '/assessmentadministration/certificatetemplates/index': {
+            version: 1, reviewed: true,
+            title: ["Certificate templates","সনদ টেমপ্লেট"],
+            purpose: ["Maintain plain-text certificate templates and approved merge placeholders.","অনুমোদিত স্থানধারকসহ সাধারণ টেক্সট সনদ টেমপ্লেট পরিচালনা করুন।"],
+            before: ["EXAM module and authorized examination administrator access are required; select the correct institution scope.","EXAM মডিউল ও অনুমোদিত পরীক্ষা প্রশাসকের প্রবেশাধিকার এবং সঠিক প্রতিষ্ঠানের পরিসর প্রয়োজন।"],
+            steps: [
+                ["Create a named template, enter approved plain text and save; select a register row to edit where permitted.","টেমপ্লেটের নাম ও অনুমোদিত সাধারণ লেখা দিয়ে সংরক্ষণ করুন; অনুমতি থাকলে তালিকা থেকে সংশোধন করুন।"],
+                ["Inspect the saved record or register, then use the available filters, page controls or output action.","সংরক্ষিত তথ্য বা তালিকা যাচাই করে প্রয়োজনীয় ফিল্টার, পৃষ্ঠা বা আউটপুট ব্যবহার করুন।"]
+            ],
+            example: ["Fictional example: use the authorized 2026 academic assessment and verify its records before saving.","কাল্পনিক উদাহরণ: অনুমোদিত ২০২৬ শিক্ষাবর্ষের মূল্যায়নের তথ্য যাচাই করে সংরক্ষণ করুন।"],
+            result: ["Changes appear in the authorized register after a successful save.","সফল সংরক্ষণের পর অনুমোদিত তালিকায় পরিবর্তন দেখা যায়।"],
+            rules: ["Issued certificates preserve their frozen text and cannot be rewritten by a template edit.","ইস্যুকৃত সনদের সংরক্ষিত লেখা টেমপ্লেট সংশোধনে বদলাবে না।"],
+            recovery: ["After an uncertain or rejected save, check the current record and permissions before another attempt.","অনিশ্চিত বা প্রত্যাখ্যাত সংরক্ষণে আবার চেষ্টা করার আগে বর্তমান তথ্য ও অনুমতি যাচাই করুন।"],
+            related: [["/AssessmentAdministration/Certificates","Related workflow","সংশ্লিষ্ট কার্যক্রম"]]
+        },
+        '/assessmentadministration/certificates/index': {
+            version: 1, reviewed: true,
+            title: ["Certificate issue register","সনদ ইস্যু তালিকা"],
+            purpose: ["Issue and verify academic certificates against released published results.","প্রকাশিত ও শিক্ষার্থীর জন্য উন্মুক্ত ফলাফলের ভিত্তিতে সনদ ইস্যু ও যাচাই করুন।"],
+            before: ["EXAM module and authorized examination administrator access are required; select the correct institution scope.","EXAM মডিউল ও অনুমোদিত পরীক্ষা প্রশাসকের প্রবেশাধিকার এবং সঠিক প্রতিষ্ঠানের পরিসর প্রয়োজন।"],
+            steps: [
+                ["Find an eligible student, choose enrollment and template, confirm issue date, then issue.","উপযুক্ত শিক্ষার্থী খুঁজে এনরোলমেন্ট, টেমপ্লেট ও ইস্যুর তারিখ বেছে সনদ ইস্যু করুন।"],
+                ["Inspect the saved record or register, then use the available filters, page controls or output action.","সংরক্ষিত তথ্য বা তালিকা যাচাই করে প্রয়োজনীয় ফিল্টার, পৃষ্ঠা বা আউটপুট ব্যবহার করুন।"]
+            ],
+            example: ["Fictional example: use the authorized 2026 academic assessment and verify its records before saving.","কাল্পনিক উদাহরণ: অনুমোদিত ২০২৬ শিক্ষাবর্ষের মূল্যায়নের তথ্য যাচাই করে সংরক্ষণ করুন।"],
+            result: ["Changes appear in the authorized register after a successful save.","সফল সংরক্ষণের পর অনুমোদিত তালিকায় পরিবর্তন দেখা যায়।"],
+            rules: ["Do not issue duplicates on uncertain network responses; verify the register before retrying.","নেটওয়ার্ক অনিশ্চয়তায় দ্বৈত ইস্যু নয়; পুনরায় দেওয়ার আগে তালিকা যাচাই করুন।"],
+            recovery: ["After an uncertain or rejected save, check the current record and permissions before another attempt.","অনিশ্চিত বা প্রত্যাখ্যাত সংরক্ষণে আবার চেষ্টা করার আগে বর্তমান তথ্য ও অনুমতি যাচাই করুন।"],
+            related: [["/AssessmentAdministration/CertificateTemplates","Related workflow","সংশ্লিষ্ট কার্যক্রম"]]
+        },
+        '/assessmentadministration/transcripts/index': {
+            version: 1, reviewed: true,
+            title: ["Transcript issue register","ট্রান্সক্রিপ্ট ইস্যু তালিকা"],
+            purpose: ["Issue an authenticated academic transcript from reconciled published records.","যাচাইকৃত প্রকাশিত ফল থেকে সত্যায়িত একাডেমিক ট্রান্সক্রিপ্ট ইস্যু করুন।"],
+            before: ["EXAM module and authorized examination administrator access are required; select the correct institution scope.","EXAM মডিউল ও অনুমোদিত পরীক্ষা প্রশাসকের প্রবেশাধিকার এবং সঠিক প্রতিষ্ঠানের পরিসর প্রয়োজন।"],
+            steps: [
+                ["Search for an eligible student, inspect the published course history, select issue date and issue the document.","উপযুক্ত শিক্ষার্থী খুঁজে প্রকাশিত কোর্স ফল যাচাই করে তারিখ দিয়ে দলিল ইস্যু করুন।"],
+                ["Inspect the saved record or register, then use the available filters, page controls or output action.","সংরক্ষিত তথ্য বা তালিকা যাচাই করে প্রয়োজনীয় ফিল্টার, পৃষ্ঠা বা আউটপুট ব্যবহার করুন।"]
+            ],
+            example: ["Fictional example: use the authorized 2026 academic assessment and verify its records before saving.","কাল্পনিক উদাহরণ: অনুমোদিত ২০২৬ শিক্ষাবর্ষের মূল্যায়নের তথ্য যাচাই করে সংরক্ষণ করুন।"],
+            result: ["Changes appear in the authorized register after a successful save.","সফল সংরক্ষণের পর অনুমোদিত তালিকায় পরিবর্তন দেখা যায়।"],
+            rules: ["Historical grades and issued documents are immutable; revocation is audited.","ঐতিহাসিক গ্রেড ও ইস্যুকৃত দলিল অপরিবর্তনীয়; প্রত্যাহার নিরীক্ষাযোগ্য।"],
+            recovery: ["After an uncertain or rejected save, check the current record and permissions before another attempt.","অনিশ্চিত বা প্রত্যাখ্যাত সংরক্ষণে আবার চেষ্টা করার আগে বর্তমান তথ্য ও অনুমতি যাচাই করুন।"],
+            related: [["/AssessmentAdministration/ExamReports","Related workflow","সংশ্লিষ্ট কার্যক্রম"]]
+        },
         '/assessmentadministration/marks/index': {
             version: 1, reviewed: true,
             title: ['Marks Entry', 'নম্বর এন্ট্রি'],
