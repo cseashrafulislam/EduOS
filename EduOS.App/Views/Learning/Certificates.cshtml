@@ -4,9 +4,9 @@
     var studentMode = User.IsInRole("Student") &&
         !User.IsInRole("Teacher") && !User.IsInRole("Principal") && !User.IsInRole("TenantAdmin");
 }
-<section id="lmsCertificateApp" class="container-fluid py-3" data-student-mode="@studentMode.ToString().ToLowerInvariant()" data-guardian-mode="@guardianMode.ToString().ToLowerInvariant()">
+<section id="lmsCertificateApp" class="container-fluid py-2" data-student-mode="@studentMode.ToString().ToLowerInvariant()" data-guardian-mode="@guardianMode.ToString().ToLowerInvariant()">
     <header class="d-flex align-items-center gap-2 mb-3">
-        <h2 class="h4 mb-0" data-lms-i18n="title">LMS Completion Certificates</h2>
+        <span class="visually-hidden" data-lms-i18n="title">LMS Completion Certificates</span>
         @if (guardianMode) { <a asp-controller="LmsGuardianProgress" asp-action="Index" class="btn btn-sm btn-outline-primary">Learning progress / শেখার অগ্রগতি</a> }
         <details id="lmsCertificateHelp" class="position-relative">
             <summary class="btn btn-sm btn-outline-secondary" aria-label="Certificate help" title="Help">ⓘ</summary>

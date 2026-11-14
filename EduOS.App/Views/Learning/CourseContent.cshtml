@@ -3,9 +3,9 @@
     var author = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Teacher");
     var student = User.IsInRole("Student");
 }
-<section id="contentApp" class="container-fluid py-3" data-author="@author.ToString().ToLowerInvariant()" data-student="@student.ToString().ToLowerInvariant()">
+<section id="contentApp" class="container-fluid py-2" data-author="@author.ToString().ToLowerInvariant()" data-student="@student.ToString().ToLowerInvariant()">
     <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <div><h2 class="h4 mb-1">Course Sections &amp; Lesson Resources</h2></div>
+        <div><span class="visually-hidden">Course Sections &amp; Lesson Resources</span></div>
         <div><a class="btn btn-outline-secondary" asp-controller="Learning" asp-action="Index">Learning</a> <button id="contentPrint" type="button" class="btn btn-outline-primary">Print</button> <button id="contentCsv" type="button" class="btn btn-outline-success">Export CSV</button></div>
     </header>
     <div id="contentAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
@@ -16,7 +16,7 @@
     }
     <section class="card mb-3"><div class="card-body row g-2 align-items-end">
         <div class="col-md-8"><label for="contentCourse" class="form-label">Course</label><select id="contentCourse" class="form-select"><option value="">Loading courses…</option></select></div>
-        <div class="col-md-4"><button id="contentRefresh" type="button" class="btn btn-outline-primary w-100">Refresh</button></div>
+        <div class="col-md-4"><button id="contentRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary w-100">Refresh</button></div>
         <div class="col-12 d-flex gap-2 align-items-center"><button id="contentPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="contentPage" class="small">Page 1</span><button id="contentNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div>
     </div></section>
     @if (author)

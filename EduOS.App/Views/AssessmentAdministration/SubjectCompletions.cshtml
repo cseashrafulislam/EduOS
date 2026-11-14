@@ -2,9 +2,9 @@
     ViewData["Title"] = "Subject Completion Reconciliation";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section class="container-fluid py-4" id="subjectCompletionWorkspace">
+<section class="container-fluid py-2" id="subjectCompletionWorkspace">
     @Html.AntiForgeryToken()
-    <h1 class="h4">Subject completion reconciliation</h1>
+    <span class="visually-hidden">Subject completion reconciliation</span>
     <p class="text-muted">Complete approved subjects after the academic year ends and all applicable published assessments are passed. This audited action unlocks subject prerequisites; one published exam alone is insufficient.</p>
     <div id="completionNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="completionFilter" class="card card-body row g-2 mb-3">

@@ -2,9 +2,9 @@
     ViewData["Title"] = "Assignment Files";
     var canAuthor = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Teacher");
 }
-<section class="container-fluid py-3" id="assignmentFilesApp" data-author="@canAuthor.ToString().ToLowerInvariant()">
+<section class="container-fluid py-2" id="assignmentFilesApp" data-author="@canAuthor.ToString().ToLowerInvariant()">
     <header class="mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div><h1 class="h4 mb-1">Assignment Handouts</h1><p class="text-muted mb-0">Upload scanned learning materials; students can download published handouts from their enrolled course.</p></div>
+        <div><span class="visually-hidden">Assignment Handouts</span><p class="text-muted mb-0">Upload scanned learning materials; students can download published handouts from their enrolled course.</p></div>
         <a class="btn btn-outline-secondary" asp-controller="Learning" asp-action="Index">Back to Learning</a>
     </header>
     <div id="assignmentFilesAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
@@ -12,7 +12,7 @@
         <div class="col-md-6"><label class="form-label" for="assignmentFilesCourse">Course</label><select id="assignmentFilesCourse" class="form-select"><option value="">Choose a course</option></select>
             <button id="assignmentFilesMoreCourses" type="button" class="btn btn-link btn-sm px-0 mt-1" hidden>Load more courses</button></div>
         <div class="col-md-6"><label class="form-label" for="assignmentFilesAssignment">Assignment</label><select id="assignmentFilesAssignment" class="form-select"><option value="">Choose an assignment</option></select></div>
-        <div class="col-12 d-flex gap-2 align-items-center"><button type="button" id="assignmentFilesRefresh" class="btn btn-outline-primary">Refresh</button>
+        <div class="col-12 d-flex gap-2 align-items-center"><button type="button" id="assignmentFilesRefresh" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary">Refresh</button>
             <button type="button" id="assignmentFilesCsv" class="btn btn-outline-secondary">Export CSV</button>
             <button type="button" id="assignmentFilesPrint" class="btn btn-outline-secondary">Print</button>
             <span id="assignmentFilesCount" class="text-muted small"></span></div>

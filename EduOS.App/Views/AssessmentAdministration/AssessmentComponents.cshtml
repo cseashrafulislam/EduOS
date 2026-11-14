@@ -2,10 +2,10 @@
     ViewData["Title"] = "Assessment Component Register";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section class="container-fluid py-4" id="assessmentComponentWorkspace">
+<section class="container-fluid py-2" id="assessmentComponentWorkspace">
     @Html.AntiForgeryToken()
     <header class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-        <div><h1 class="h4 mb-1">Assessment components</h1>
+        <div><span class="visually-hidden">Assessment components</span>
             <p class="text-muted mb-0">Configure component marks and weightage for draft assessments. Existing marks and published results remain protected.</p></div>
         <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Marks &amp; results</a>
     </header>
