@@ -157,6 +157,11 @@ public sealed class PlatformTenantLifecycleService(
                 var tenant = await tenants.GetQueryable().IgnoreQueryFilters().FirstOrDefaultAsync(x =>
                     x.Id == tenantId && !x.IsDeleted, token);
                 if (tenant == null) return ApiResponse<PlatformTenantLifecycleDto>.ErrorResponse("Institution not found.", 404);
+                // Host bootstrap tenancy is a platform control-plane record, never a
+                // customer lifecycle target. Disallow even a valid SuperAdmin request.
+                if (string.Equals(tenant.Code, "EDUOS-SYSTEM", StringComparison.OrdinalIgnoreCase))
+                    return ApiResponse<PlatformTenantLifecycleDto>.ErrorResponse(
+                        "The system institution cannot be suspended or reactivated.", 403);
 
                 var prior = await audits.GetQueryable().IgnoreQueryFilters().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenantId && x.EntityName == "Tenant" && x.EntityId == tenantId &&
