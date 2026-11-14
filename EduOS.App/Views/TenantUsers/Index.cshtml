@@ -12,7 +12,7 @@
     <div id="adminMessage" class="alert d-none" role="alert" aria-live="polite"></div>
     <ul class="nav nav-tabs mb-3" role="tablist">
         <li class="nav-item"><button id="tabUsers" class="nav-link active" type="button">@(bn ? "প্রতিষ্ঠানের ব্যবহারকারী" : "Institution Users")</button></li>
-        <li class="nav-item"><button id="tabRoles" class="nav-link" type="button">Roles &amp; Permissions</button></li>
+        <li class="nav-item"><button id="tabRoles" class="nav-link" type="button">@(bn ? "ভূমিকা ও অনুমতি" : "Roles &amp; Permissions")</button></li>
     </ul>
     <section id="usersSection">
         <div class="card border-0 shadow-sm mb-3">
@@ -30,7 +30,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label" for="inviteCampus">@(bn ? "প্রাথমিক ক্যাম্পাস (ঐচ্ছিক)" : "Initial campus (optional)")</label>
-                        <select id="inviteCampus" class="form-select" aria-label="Initial campus"><option value="">@(bn ? "ক্যাম্পাস পরে দিন" : "No campus (assign later)")</option></select>
+                        <select id="inviteCampus" class="form-select" aria-label="@(bn ? "প্রাথমিক ক্যাম্পাস" : "Initial campus")"><option value="">@(bn ? "ক্যাম্পাস পরে দিন" : "No campus (assign later)")</option></select>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <button class="btn btn-primary" type="submit">@(bn ? "আমন্ত্রণ পাঠান" : "Send Invitation")</button>
@@ -67,7 +67,7 @@
         <div id="memberEditor" class="card border-0 shadow-sm mt-3 d-none">
             <div class="card-body">
                 <h5 id="memberEditorTitle"></h5>
-                <p class="small text-muted">Changes revoke the selected user's old sessions. Ownership cannot be changed here.</p>
+                <p class="small text-muted">@(bn ? "সদস্যের অনুমতি পরিবর্তন করলে পুরোনো লগইন সেশন বাতিল হবে। প্রতিষ্ঠানের মালিকানা এখানে পরিবর্তন করা যাবে না।" : "Changes revoke the selected user's old sessions. Ownership cannot be changed here.")</p>
                 <button id="memberHistoryButton" type="button" class="btn btn-outline-secondary btn-sm mb-3">@(bn ? "প্রবেশাধিকার পরিবর্তনের ইতিহাস" : "View access history")</button>
                 <div id="memberHistoryPanel" class="border rounded p-3 mb-3 d-none">
                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
