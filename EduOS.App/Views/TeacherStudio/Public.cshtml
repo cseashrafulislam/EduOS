@@ -2,9 +2,9 @@
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী" : "Public Teaching Materials";
 }
-<section id="teacherPublicCatalogue" class="container-fluid py-3">
+<section id="teacherPublicCatalogue" class="container-fluid py-2">
     <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-        <h2 class="h4 mb-0">@(bn ? "উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী" : "Public Teaching Materials")</h2>
+        <span class="visually-hidden">@(bn ? "উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী" : "Public Teaching Materials")</span>
         <a class="btn btn-sm btn-outline-secondary" href="/TeacherStudio">@(bn ? "রিসোর্স স্টুডিও" : "Resource Studio")</a>
     </header>
     <form id="publicResourceSearch" class="card card-body mb-3">

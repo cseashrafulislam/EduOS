@@ -2,9 +2,9 @@
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "প্রশিক্ষণ সনদ যাচাই" : "CPD Certificate Review";
 }
-<section id="cpdReview" class="container-fluid py-3" data-lang="@(bn ? "bn" : "en")">
+<section id="cpdReview" class="container-fluid py-2" data-lang="@(bn ? "bn" : "en")">
     <header class="content-header-card d-flex justify-content-between gap-2 align-items-center mb-3 flex-wrap">
-        <h2 class="h4 mb-0">@(bn ? "শিক্ষক প্রশিক্ষণ ও সনদ যাচাই" : "Teacher CPD completion register")</h2>
+        <span class="visually-hidden">@(bn ? "শিক্ষক প্রশিক্ষণ ও সনদ যাচাই" : "Teacher CPD completion register")</span>
     </header>
     <div id="cpdReviewAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
     <form id="cpdReviewSearch" class="card card-body mb-3 row g-2">

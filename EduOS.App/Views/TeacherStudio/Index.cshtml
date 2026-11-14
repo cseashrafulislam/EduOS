@@ -4,9 +4,9 @@
     var admin = User.IsInRole("TenantAdmin");
     ViewData["Title"] = bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio";
 }
-<section id="teacherStudio" class="container-fluid py-3" data-can-author="@teacher.ToString().ToLowerInvariant()" data-can-review="@admin.ToString().ToLowerInvariant()">
+<section id="teacherStudio" class="container-fluid py-2" data-can-author="@teacher.ToString().ToLowerInvariant()" data-can-review="@admin.ToString().ToLowerInvariant()">
     <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-        <h2 class="h4 mb-0">@(bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</h2>
+        <span class="visually-hidden">@(bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</span>
         @if (teacher) { <a class="btn btn-sm btn-primary" href="/TeacherStudio/Cpd">@(bn ? "শিক্ষক প্রশিক্ষণ (CPD)" : "Teacher CPD")</a> }
         <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/AdaptiveGoals">@(bn ? "শিক্ষার্থীর লক্ষ্য" : "Adaptive goals")</a>
         @if (admin) { <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/CpdReview">@(bn ? "সনদ যাচাই" : "CPD review")</a> }

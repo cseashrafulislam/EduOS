@@ -2,9 +2,9 @@
  var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
  ViewData["Title"] = bn ? "ব্যক্তিগত পড়াশোনার পরিকল্পনা" : "My Adaptive Study Plan";
 }
-<section id="adaptiveStudy" class="container-fluid py-3" data-lang="@(bn ? "bn" : "en")">
+<section id="adaptiveStudy" class="container-fluid py-2" data-lang="@(bn ? "bn" : "en")">
  <header class="content-header-card d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-  <h2 class="h4 mb-0">@(bn ? "ব্যক্তিগত পড়াশোনার পরিকল্পনা" : "My Adaptive Study Plan")</h2>
+  <span class="visually-hidden">@(bn ? "ব্যক্তিগত পড়াশোনার পরিকল্পনা" : "My Adaptive Study Plan")</span>
   <div class="d-flex gap-2"><details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="@(bn ? "পৃষ্ঠা সহায়তা" : "Page help")">ⓘ</summary>
    <div class="card card-body shadow position-absolute end-0" style="width:min(22rem,85vw);z-index:10"><h3 class="h6">@(bn ? "ব্যবহার নির্দেশিকা" : "Page manual")</h3>
     <ol class="small"><li>@(bn ? "নিজের অনুমোদিত কোর্স বেছে নিন।" : "Choose an enrolled course.")</li>

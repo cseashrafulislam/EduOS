@@ -4,8 +4,8 @@
     var isStudent = User.IsInRole("Student");
     var isManager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
-<section class="container-fluid py-3" id="learningApp" data-author="@canAuthor.ToString().ToLowerInvariant()" data-student="@isStudent.ToString().ToLowerInvariant()" data-manager="@isManager.ToString().ToLowerInvariant()">
-    <header class="d-flex align-items-center gap-2 mb-3"><h2 class="h4 mb-0">Learning Management</h2>
+<section class="container-fluid py-2" id="learningApp" data-author="@canAuthor.ToString().ToLowerInvariant()" data-student="@isStudent.ToString().ToLowerInvariant()" data-manager="@isManager.ToString().ToLowerInvariant()">
+    <header class="d-flex align-items-center gap-2 mb-3"><span class="visually-hidden">Learning Management</span>
         <details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="Learning page help" title="Help">ⓘ</summary>
             <div class="card position-absolute p-2 shadow-sm" style="width:min(20rem,80vw);z-index:10;">Choose a course to view lessons and assignments. Instructors publish content; enrolled students submit work and track progress. Archived completed courses are read-only.</div>
         </details></header>
@@ -24,7 +24,7 @@
             <div class="card-header d-flex flex-wrap justify-content-between gap-2 align-items-center">
                 <h3 class="h6 mb-0" id="learningMyProgressHeading">My course progress</h3>
                 <div class="d-flex gap-2">
-                    <button id="learningMyProgressRefresh" type="button" class="btn btn-outline-primary btn-sm">Refresh progress</button>
+                    <button id="learningMyProgressRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary btn-sm">Refresh progress</button>
                     <button id="learningMyProgressExport" type="button" class="btn btn-outline-secondary btn-sm">Export visible page (CSV)</button>
                 </div>
             </div>
@@ -62,7 +62,7 @@
     }
     @if(canAuthor) { <div id="learningAuthoringLock" class="alert alert-warning d-none" role="status" aria-live="polite"></div> }
     <div class="card mb-3"><div class="card-body row g-2 align-items-end"><div class="col-md-9"><label for="learningCourse" class="form-label">Course</label><select id="learningCourse" class="form-select"><option value="">Loading courses…</option></select></div>@if(canAuthor) { <div class="col-md-3"><button id="learningEditCourse" type="button" class="btn btn-outline-secondary w-100">Edit selected course</button></div> }
-    <div class="col-md-3"><button id="learningRefresh" type="button" class="btn btn-outline-primary w-100">Refresh courses</button></div><div class="col-12 d-flex align-items-center justify-content-end gap-2"><button id="learningCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningCoursePage">Page 1</span><button id="learningCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div></div>
+    <div class="col-md-3"><button id="learningRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary w-100">Refresh courses</button></div><div class="col-12 d-flex align-items-center justify-content-end gap-2"><button id="learningCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningCoursePage">Page 1</span><button id="learningCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div></div>
     @if(isManager)
     {
         <section class="card mb-3">
@@ -168,7 +168,7 @@
             <div class="card-header"><h3 class="h6 m-0">Submission review and grading</h3></div>
             <div class="card-body row g-2 align-items-end">
                 <div class="col-md-8"><label for="learningReviewAssignment" class="form-label">Assignment</label><select id="learningReviewAssignment" class="form-select"><option value="">Choose an assignment</option></select></div>
-                <div class="col-md-4 d-flex gap-2"><button id="learningReviewRefresh" type="button" class="btn btn-outline-primary flex-fill">Refresh</button>
+                <div class="col-md-4 d-flex gap-2"><button id="learningReviewRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary flex-fill">Refresh</button>
                     <button id="learningReviewExport" type="button" class="btn btn-outline-secondary flex-fill">Export page</button></div>
             </div>
             <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Student</th><th>Submitted</th><th>Answer</th><th>Status</th><th>Marks / feedback</th><th>Action</th></tr></thead><tbody id="learningReviewRows"><tr><td colspan="6" class="text-muted">Choose an assignment.</td></tr></tbody></table></div>

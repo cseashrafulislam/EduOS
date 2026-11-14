@@ -2,8 +2,8 @@
  var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
  ViewData["Title"] = bn ? "শিক্ষার্থীর শেখার লক্ষ্য" : "Adaptive Learning Goals";
 }
-<section id="adaptiveGoals" class="container-fluid py-3" data-lang="@(bn ? "bn" : "en")">
- <header class="content-header-card d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><h2 class="h4 mb-0">@(bn ? "শিক্ষার্থীর শেখার লক্ষ্য" : "Adaptive Learning Goals")</h2>
+<section id="adaptiveGoals" class="container-fluid py-2" data-lang="@(bn ? "bn" : "en")">
+ <header class="content-header-card d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3"><span class="visually-hidden">@(bn ? "শিক্ষার্থীর শেখার লক্ষ্য" : "Adaptive Learning Goals")</span>
   <a class="btn btn-sm btn-outline-secondary" href="/Learning/Quizzes">@(bn ? "কুইজ" : "Quizzes")</a>
  </header>
  <div id="goalAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>

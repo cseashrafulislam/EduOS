@@ -3,13 +3,13 @@
  var author=User.IsInRole("TenantAdmin")||User.IsInRole("Principal")||User.IsInRole("Teacher");
  var learner=User.IsInRole("Student")||User.IsInRole("Teacher");
 }
-<section class="container-fluid py-3" id="quizApp" data-author="@author.ToString().ToLowerInvariant()" data-learner="@learner.ToString().ToLowerInvariant()">
- <header class="d-flex justify-content-between mb-3"><h2 class="h4">LMS Quiz Assessment</h2><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a></header>
+<section class="container-fluid py-2" id="quizApp" data-author="@author.ToString().ToLowerInvariant()" data-learner="@learner.ToString().ToLowerInvariant()">
+ <header class="d-flex justify-content-between mb-3"><span class="visually-hidden">LMS Quiz Assessment</span><a asp-controller="Learning" asp-action="Index" class="btn btn-outline-secondary">Learning</a></header>
  <div id="quizAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
  <div class="card mb-3"><div class="card-body row g-2">
   <div class="col-md-6"><label for="quizCourse">Course</label><select id="quizCourse" class="form-select"><option value="">Select course</option></select></div>
   <div class="col-md-4"><label for="quizList">Quiz</label><select id="quizList" class="form-select"><option value="">Select quiz</option></select></div>
-  <div class="col-md-2 d-flex align-items-end"><button id="quizRefresh" type="button" class="btn btn-outline-primary w-100">Refresh</button></div>
+  <div class="col-md-2 d-flex align-items-end"><button id="quizRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary w-100">Refresh</button></div>
  </div></div>
  @if(author){
  <form id="quizAuthorForm" class="card mb-3"><div class="card-header">Author quiz</div><div class="card-body row g-2">
