@@ -1,7 +1,7 @@
-<section class="card mb-3" id="stockPositionRoot" aria-labelledby="stockPositionHeading"><div class="card-body">
-    <h3 class="h5" id="stockPositionHeading">Stock position by location</h3>
-    <p class="text-muted">Shows stock-tracked catalog items, including inactive items with historical stock. Quantities and recorded movement costs come only from posted receipts, issues, transfers and reversals, using posting time. Drafts are excluded. Recorded cost is <strong>not</strong> an approved FIFO/weighted-average financial valuation.</p>
-    <form id="stockPositionForm" class="row g-2 align-items-end mb-3">
+<section class="card mb-2" id="stockPositionRoot" aria-labelledby="stockPositionHeading"><div class="card-body">
+    <h3 class="h6 mb-2" id="stockPositionHeading">Stock position by location</h3>
+    <p class="small text-muted">Shows stock-tracked catalog items, including inactive items with historical stock. Quantities and recorded movement costs come only from posted receipts, issues, transfers and reversals, using posting time. Drafts are excluded. Recorded cost is <strong>not</strong> an approved FIFO/weighted-average financial valuation.</p>
+    <form id="stockPositionForm" class="row g-2 align-items-end mb-2">
         <div class="col-md-3"><label for="stockPositionLocation" class="form-label">Accessible location</label><select id="stockPositionLocation" class="form-select" required></select></div>
         <div class="col-md-3"><label for="stockPositionSearch" class="form-label">Item code/name</label><input id="stockPositionSearch" class="form-control" maxlength="100" /></div>
         <div class="col-md-3"><label for="stockPositionAsOf" class="form-label">As of (local time, optional)</label><input id="stockPositionAsOf" type="datetime-local" class="form-control" /></div>
