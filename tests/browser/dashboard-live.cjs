@@ -39,6 +39,24 @@ async function visit(page, route) {
     assert.ok(response, 'Missing HTTP response for ' + route);
     return response;
 }
+async function browserApi(page, route) {
+    // The browser, not Playwright's independent APIRequestContext, carries
+    // the exact HttpOnly/Secure identity cookie issued to this page.
+    return await page.evaluate(async path => {
+        const r=await fetch(path, {
+            method:'GET', credentials:'same-origin', cache:'no-store',
+            headers:{Accept:'application/json'}
+        });
+        const raw=await r.text();
+        let data=null;
+        try { data=JSON.parse(raw); } catch {}
+        return {
+            status:r.status, cacheControl:r.headers.get('cache-control') || '',
+            contentType:r.headers.get('content-type') || '', data,
+            preview:raw.slice(0,180)
+        };
+    }, route);
+}
 async function run(name, fn) {
     try { await fn(); console.log('PASS:', name); }
     catch (e) { failures.push(name); console.error('FAIL:', name, e.stack || e); }
@@ -93,10 +111,11 @@ async function run(name, fn) {
                     ]);
                     assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 5,
                         'Horizontal overflow in ' + (mobile ? 'mobile' : 'desktop'));
-                    const api = await ctx.request.get(base + '/api/dashboard/platform', {failOnStatusCode:false});
-                    assert.equal(api.status(), 200);
-                    assert.match(api.headers()['cache-control'] || '', /no-store/);
-                    const payload = await api.json();
+                    const api = await browserApi(page, '/api/dashboard/platform');
+                    assert.equal(api.status, 200, api.preview);
+                    assert.match(api.cacheControl, /no-store/);
+                    const payload = api.data;
+                    assert.ok(payload, 'Authenticated platform API must return JSON');
                     assert.equal(payload.success, true);
                     assert.ok(payload.data.totalTenants >= 2, 'Disposable system + demo tenant expected');
                     assert.equal(Number(await page.locator('#platformDashboard .dashboard-stat-card strong').first().innerText()),
@@ -134,24 +153,15 @@ async function run(name, fn) {
                     assert.equal(await page.locator('#platformDashboard').count(),0);
                     assert.ok((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=5,
                         'Tenant dashboard mobile overflow');
-                    const denied=await ctx.request.get(base+'/api/dashboard/platform',{failOnStatusCode:false});
-                    if (denied.status() !== 403) {
-                        const denialBody = await denied.text();
-                        console.error('Platform API denial status mismatch', {
-                            status:denied.status(), contentType:denied.headers()['content-type'],
-                            url:denied.url(), bodyPreview:denialBody.slice(0,160)
-                        });
-                    }
-                    assert.equal(denied.status(),403,'Tenant cannot read platform-wide metrics');
-                    const attempted=await ctx.request.get(base+'/Dashboard/Admin',{failOnStatusCode:false});
-                    if (attempted.status() === 200)
-                        assert.match(new URL(attempted.url()).pathname, /^\/(Account\/AccessDenied|Error)/,
-                            'Authorized tenant must not see the platform page even after redirect');
-                    assert.doesNotMatch(await attempted.text(), /id="platformDashboard"/);
-                    const api=await ctx.request.get(base+'/api/dashboard',{failOnStatusCode:false});
-                    assert.equal(api.status(),200);
-                    assert.match(api.headers()['cache-control']||'',/no-store/);
-                    const result=await api.json();
+                    const denied=await browserApi(page,'/api/dashboard/platform');
+                    assert.equal(denied.status,403,'Tenant cannot read platform-wide metrics: '+denied.preview);
+                    assert.notEqual(denied.data?.success,true,'No successful foreign platform response');
+                    assert.doesNotMatch(denied.preview, /totalTenants|pendingManualPayments/);
+                    const api=await browserApi(page,'/api/dashboard');
+                    assert.equal(api.status,200,api.preview);
+                    assert.match(api.cacheControl,/no-store/);
+                    const result=api.data;
+                    assert.ok(result,'Institution API must return JSON');
                     assert.equal(result.success,true);
                     assert.equal(result.data.institutionName,'EduOS Demonstration Institute');
                     if(role!=='TenantAdmin'){
@@ -159,6 +169,12 @@ async function run(name, fn) {
                         assert.equal(result.data.monthlyCollection,null);
                         assert.equal(result.data.totalDues,null);
                     }
+                    const forbidden=await visit(page,'/Dashboard/Admin');
+                    assert.equal(await page.locator('#platformDashboard').count(),0,
+                        'Tenant must not render SuperAdmin data');
+                    if(forbidden.status()===200)
+                        assert.match(new URL(page.url()).pathname,/^\/(Account\/Login|Error)/,
+                            'Permission denied may display only protected error/login route');
                 } finally { await ctx.close(); }
             });
         }
