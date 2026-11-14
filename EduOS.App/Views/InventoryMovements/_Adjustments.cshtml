@@ -1,8 +1,8 @@
 @{
     var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
 }
-<div class="card mb-3"><div class="card-body">
-    <h3 class="h5">@(bn ? "স্টক সমন্বয়ের আবেদন" : "Stock adjustment request")</h3>
+<div class="card mb-2"><div class="card-body">
+    <h3 class="h6 mb-2">@(bn ? "স্টক সমন্বয়ের আবেদন" : "Stock adjustment request")</h3>
     <form id="inventoryAdjustmentForm" class="row g-2">
         <div class="col-md-3"><label class="form-label" for="adjustmentLocation">@(bn ? "স্টোর" : "Store")</label>
             <select class="form-select" id="adjustmentLocation" required></select></div>

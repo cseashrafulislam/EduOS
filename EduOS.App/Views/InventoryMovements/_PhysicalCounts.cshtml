@@ -3,13 +3,13 @@
     var canCreate = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager") || User.IsInRole("StoreKeeper");
     var canApprove = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager");
 }
-<section class="card mb-3" id="physicalCounts" aria-label="@(bn ? "ফিজিক্যাল স্টক গণনা" : "Physical stock count")">
+<section class="card mb-2" id="physicalCounts" aria-label="@(bn ? "ফিজিক্যাল স্টক গণনা" : "Physical stock count")">
     <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-2">
-            <h3 class="h5 mb-0">@(bn ? "ফিজিক্যাল স্টক গণনা ও পার্থক্য অনুমোদন" : "Physical stock counts & variance approval")</h3>
+            <h3 class="h6 mb-0">@(bn ? "ফিজিক্যাল স্টক গণনা ও পার্থক্য অনুমোদন" : "Physical stock counts & variance approval")</h3>
             <div class="d-flex align-items-center gap-2">
                 <button id="countHelp" class="btn btn-outline-secondary btn-sm" type="button" aria-expanded="false" aria-controls="countHelpText" aria-label="@(bn ? "গণনা ব্যবহারের নির্দেশনা" : "Physical count help")">ⓘ</button>
-                <button class="btn btn-outline-secondary btn-sm" id="countReload" type="button">@(bn ? "তালিকা রিফ্রেশ" : "Refresh counts")</button>
+                <button class="btn btn-outline-secondary btn-sm" id="countReload" type="button">@(bn ? "গণনার তালিকা লোড" : "Load count register")</button>
             </div>
         </div>
         <p class="small text-muted d-none" id="countHelpText" role="note">@(bn ? "Blind count-এ জমা দেওয়ার আগে বইয়ের হিসাব গোপন থাকে। স্টোর ও পণ্য/লট বেছে গণনা শুরু করুন; খসড়া প্রিন্ট করে হাতে গণনা করা যায়। জমার পর স্বতন্ত্র অনুমোদনে পার্থক্য স্টক লেজারে পোস্ট হয়।" : "Blind counts conceal book quantities until submission. Select a store and item/lot; print a draft sheet for manual counting. Independent approval posts differences to the stock ledger.")</p>

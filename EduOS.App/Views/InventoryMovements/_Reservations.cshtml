@@ -1,9 +1,9 @@
 @{
     var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
 }
-<div class="card mb-3"><div class="card-body">
-    <h3 class="h5">@(bn ? "সক্রিয় স্টক রিজার্ভেশন" : "Active stock reservations")</h3>
-    <form id="inventoryReservationFilter" class="row g-2 mb-2">
+<div class="card mb-2"><div class="card-body">
+    <h3 class="h6 mb-2">@(bn ? "সক্রিয় স্টক রিজার্ভেশন" : "Active stock reservations")</h3>
+    <form id="inventoryReservationFilter" class="row g-2 align-items-end mb-2">
         <div class="col-md-4"><label for="inventoryReservationSearch" class="form-label">@(bn ? "মুভমেন্ট, পণ্য বা লট" : "Movement, item or lot")</label>
             <input id="inventoryReservationSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
         <div class="col-md-4"><label for="inventoryReservationLocation" class="form-label">@(bn ? "স্টোর" : "Store")</label>
@@ -42,7 +42,7 @@
     </div>
 </div></div>
 
-<details class="card mb-3">
+<details class="card mb-2">
     <summary class="card-header fw-semibold">@(bn ? "রিজার্ভেশন স্টক কভারেজ ও ঘাটতি" : "Reservation stock coverage & exceptions")</summary>
     <div class="card-body">
         <form id="inventoryCoverageFilter" class="row g-2 mb-3">
@@ -94,7 +94,7 @@
 
 <dialog id="inventoryExpiryScheduleDialog" class="border rounded shadow p-3" aria-labelledby="inventoryExpiryScheduleTitle">
     <form id="inventoryExpiryScheduleForm">
-        <h3 id="inventoryExpiryScheduleTitle" class="h5">@(bn ? "রিজার্ভেশনের মেয়াদ নির্ধারণ" : "Set reservation deadline")</h3>
+        <h3 id="inventoryExpiryScheduleTitle" class="h6 mb-2">@(bn ? "রিজার্ভেশনের মেয়াদ নির্ধারণ" : "Set reservation deadline")</h3>
         <label for="inventoryExpiryDeadline" class="form-label">@(bn ? "মেয়াদ শেষ হবে" : "Deadline")</label>
         <input id="inventoryExpiryDeadline" type="datetime-local" class="form-control" required />
         <div class="d-flex justify-content-end gap-2 mt-3">
@@ -105,7 +105,7 @@
 </dialog>
 <dialog id="inventoryExpiryConfirmDialog" class="border rounded shadow p-3" aria-labelledby="inventoryExpiryConfirmTitle">
     <form id="inventoryExpiryConfirmForm">
-        <h3 id="inventoryExpiryConfirmTitle" class="h5">@(bn ? "মেয়াদোত্তীর্ণ রিজার্ভেশন বন্ধ" : "Expire reservation")</h3>
+        <h3 id="inventoryExpiryConfirmTitle" class="h6 mb-2">@(bn ? "মেয়াদোত্তীর্ণ রিজার্ভেশন বন্ধ" : "Expire reservation")</h3>
         <label for="inventoryExpiryReason" class="form-label">@(bn ? "অনুমোদিত কারণ" : "Approved reason")</label>
         <textarea id="inventoryExpiryReason" class="form-control" rows="3" minlength="10" maxlength="400" required></textarea>
         <div class="d-flex justify-content-end gap-2 mt-3">
