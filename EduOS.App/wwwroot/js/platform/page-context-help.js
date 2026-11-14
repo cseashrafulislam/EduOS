@@ -1413,6 +1413,22 @@
             recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
             related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
         },
+        '/platformfeatureadministration/index': {
+            version: 1, reviewed: true,
+            title: ['Feature Catalog Management', 'ফিচার পরিচালনা'],
+            purpose: ['Edit the global feature catalog labels, descriptions and future plan availability without changing assigned plans.', 'বিদ্যমান প্ল্যান অপরিবর্তিত রেখে ফিচারের নাম, বিবরণ ও নতুন প্ল্যানে উপলব্ধতা সম্পাদনা করুন।'],
+            before: ['Sign in as SuperAdmin. The system-issued feature Code cannot be edited. Changes to availability affect new plan configuration, not old assignments.', 'SuperAdmin হিসেবে লগ ইন করুন। সিস্টেমের তৈরি ফিচার Code পরিবর্তনযোগ্য নয়। উপলব্ধতা বদলালে আগের প্ল্যান নয়, নতুন প্ল্যান তৈরির বিকল্প বদলাবে।'],
+            steps: [
+                ['Review the feature list and availability, then select Edit on the intended feature.', 'ফিচারের তালিকা ও উপলব্ধতা দেখে সংশ্লিষ্ট ফিচারে সম্পাদনা নির্বাচন করুন।'],
+                ['Update the name or description and choose whether the feature is available for new plan configuration. The Code remains read-only.', 'নাম বা বিবরণ পরিবর্তন করুন এবং নতুন প্ল্যানের জন্য উপলব্ধতা নির্বাচন করুন। Code শুধু দেখানো হয়।'],
+                ['Select Save changes and confirm. If a concurrent update is detected, reload the current list and review the latest row before editing again.', 'সংরক্ষণ করে নিশ্চিত করুন। অন্য কেউ পরিবর্তন করে থাকলে নতুন তালিকা দেখে আবার সম্পাদনা করুন।']
+            ],
+            example: ['Example: clarify an attendance feature description while retaining its internal Code and existing plan mappings.', 'উদাহরণ: উপস্থিতি ফিচারের বিবরণ উন্নত করুন; অভ্যন্তরীণ Code ও আগের প্ল্যানের ম্যাপিং অপরিবর্তিত রাখুন।'],
+            result: ['The canonical feature metadata is updated through the authorized catalog API with concurrency and idempotency checks.', 'অনুমোদিত ক্যাটালগ API-তে concurrency ও idempotency যাচাই করে মূল ফিচারের তথ্য সংরক্ষিত হয়।'],
+            rules: ['SuperAdmin only. Do not create a duplicate feature catalog or hand-enter internal Codes. Disabling new-plan availability does not revoke an already assigned entitlement.', 'শুধু SuperAdmin। আলাদা ফিচার ক্যাটালগ বানাবেন না বা Code লিখবেন না। নতুন প্ল্যানের বিকল্প বন্ধ করা মানে আগের দেওয়া অধিকার বাতিল নয়।'],
+            recovery: ['Use Try again only if the list failed to load. If a save is uncertain after a network error, retry the same unchanged request rather than creating duplicate edits.', 'তালিকা আনতে ব্যর্থ হলে তবেই আবার চেষ্টা করুন। সংরক্ষণ অনিশ্চিত হলে আগের অনুরোধ অপরিবর্তিত রেখে পুনরায় চেষ্টা করুন।'],
+            related: [['/PlatformProductModuleAdministration/Index', 'Module configuration', 'মডিউল পরিচালনা'], ['/PlatformCatalogAdministration/Index', 'Institution type catalog', 'প্রতিষ্ঠানের ধরন']]
+        },
         '/platformcatalogadministration/index': {
             version: 1, reviewed: true,
             title: ['Institution Type Catalog', 'প্রতিষ্ঠানের ধরন পরিচালনা'],
