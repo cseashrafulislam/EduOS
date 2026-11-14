@@ -1413,6 +1413,22 @@
             recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
             related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
         },
+        '/platformtenants/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Lifecycle', 'প্রতিষ্ঠান পরিচালনা'],
+            purpose: ['Find registered institutions, inspect their state-change history, and suspend or reactivate only eligible institutions with a recorded reason.', 'নিবন্ধিত প্রতিষ্ঠান খুঁজুন, অবস্থা পরিবর্তনের ইতিহাস দেখুন এবং কারণ সংরক্ষণ করে শুধু যোগ্য প্রতিষ্ঠান স্থগিত বা পুনরায় চালু করুন।'],
+            before: ['Sign in as a platform SuperAdmin. Suspension immediately restricts that institution’s access; do not use this for payment or onboarding approval.', 'প্ল্যাটফর্ম SuperAdmin হিসেবে লগ ইন করুন। স্থগিত করলে প্রতিষ্ঠানের প্রবেশাধিকার সীমিত হয়; পেমেন্ট বা অনবোর্ডিং অনুমোদনের বিকল্প হিসেবে এটি ব্যবহার করবেন না।'],
+            steps: [
+                ['Search by institution name, code or email; filter status and use server-side paging.', 'প্রতিষ্ঠানের নাম, কোড বা ইমেইল দিয়ে খুঁজুন; অবস্থা ফিল্টার ও সার্ভার-ভিত্তিক পৃষ্ঠা ব্যবহার করুন।'],
+                ['Select History to inspect the audited actor, date, previous and new states and reason.', 'ইতিহাস খুলে পরিবর্তনকারী, তারিখ, আগের ও নতুন অবস্থা এবং কারণ যাচাই করুন।'],
+                ['For an eligible customer select Suspend or Reactivate, enter a 10–500 character reason, and confirm once; the system validates version, subscription and state.', 'যোগ্য প্রতিষ্ঠানের জন্য স্থগিত বা পুনরায় চালু নির্বাচন করে ১০–৫০০ অক্ষরের কারণ লিখুন এবং একবার নিশ্চিত করুন; সার্ভার অবস্থা, সংস্করণ ও সাবস্ক্রিপশন যাচাই করে।']
+            ],
+            example: ['Example: suspend a confirmed customer account after an authorized policy review, then inspect its new audit history. Reopen only after onboarding and entitlement checks pass.', 'উদাহরণ: অনুমোদিত নীতি পর্যালোচনার পরে গ্রাহক প্রতিষ্ঠান স্থগিত করে নতুন নিরীক্ষা দেখুন। সেটআপ ও সাবস্ক্রিপশন যাচাইয়ের পরে তবেই পুনরায় চালু করুন।'],
+            result: ['The canonical tenant state and audit trail are updated atomically, with a retry-safe request ID. The platform system institution cannot be changed here.', 'মূল প্রতিষ্ঠানের অবস্থা এবং নিরীক্ষা একই ট্রানজ্যাকশনে সংরক্ষিত হয়; পুনরায় জমা নিরাপদ। প্ল্যাটফর্ম system প্রতিষ্ঠান এখানে পরিবর্তন করা যায় না।'],
+            rules: ['SuperAdmin-only. Client code and state controls cannot bypass server permissions. Never type a new institution code. Pending onboarding, subscription and payments retain their own workflows.', 'শুধু SuperAdmin। ক্লায়েন্ট কোড ও বোতাম দিয়ে সার্ভারের অনুমতি এড়ানো যায় না। নতুন প্রতিষ্ঠানের কোড এখানে দেবেন না। অনবোর্ডিং, সাবস্ক্রিপশন ও পেমেন্টের নিজস্ব প্রক্রিয়া রয়েছে।'],
+            recovery: ['If state changed or an update conflicts, search again and read History before submitting a new decision. For network failures retry the same unchanged request rather than repeatedly changing state.', 'অবস্থা বদলে গেলে বা দ্বন্দ্ব হলে আবার খুঁজে ইতিহাস দেখুন। নেটওয়ার্ক সমস্যা হলে একই অপরিবর্তিত অনুরোধ পুনরায় পাঠান; বারবার অবস্থা বদলাবেন না।'],
+            related: [['/Dashboard/Admin', 'Platform overview', 'প্ল্যাটফর্ম সারসংক্ষেপ']]
+        },
         '/dashboard/admin/index': {
             version: 2, reviewed: true,
             title: ['Platform Operations Dashboard', 'প্ল্যাটফর্ম পরিচালনা ড্যাশবোর্ড'],
