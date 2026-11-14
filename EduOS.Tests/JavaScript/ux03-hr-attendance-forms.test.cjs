@@ -59,8 +59,8 @@ function harness(){
   markClean:()=>{dirty[form.id]=false;}});
  for(const name of ['Form','CorrectionForm'])el(name).id=name;
  const Option=class {constructor(text,value){this.text=text;this.value=value;}};
- const window={EduOSFormGuard:{create:guard}};
- const document={getElementById:id=>el(id.replace(/^employeeAttendance/,'')),
+ const window={EduOSFormGuard:{create:guard},addEventListener(){}};
+ const document={body:{classList:{add(){},remove(){}}},getElementById:id=>el(id.replace(/^employeeAttendance/,'')),
   createElement:tag=>new Element(tag),querySelector:()=>({content:'csrf'})};
  const crypto={randomUUID:()=>`request-${++uid}`};
  vm.runInNewContext(source,{window,document,fetch,crypto,Option,URLSearchParams,Date,
