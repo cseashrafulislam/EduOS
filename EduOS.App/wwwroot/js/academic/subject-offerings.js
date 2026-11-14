@@ -154,7 +154,7 @@
             academicBatchId: batch.id, academicSectionId: section.id,
             curriculumSubjectId: Number(el('offeringCurriculumSubject').value),
             academicYearId: batch.academicYearId, academicTermId: batch.academicTermId || null,
-            code: el('offeringCode').value.trim().toUpperCase(), capacity,
+            code: '', capacity,
             deliveryMode: Number(el('offeringDelivery').value), isActive: el('offeringActive').checked
         };
         if (!reference) {
