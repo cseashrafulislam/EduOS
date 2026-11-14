@@ -7,6 +7,10 @@ const status = document.getElementById("catalogMessage");
 const retry = document.getElementById("catalogRetry");
 const bn = root.dataset.bangla === "true";
 const t = (en, banglaText) => bn ? banglaText : en;
+const cycleLabel = value => bn ? ({
+    Annual: "বার্ষিক", Semester: "সেমিস্টার", Trimester: "ট্রাইমেস্টার",
+    Quarterly: "ত্রৈমাসিক", Modular: "মডিউলার", BatchBased: "ব্যাচ ভিত্তিক"
+}[value] || value) : value;
 const editor = document.getElementById("catalogEditor");
 const form = document.getElementById("catalogForm");
 const name = document.getElementById("catalogEditName");
@@ -57,7 +61,7 @@ function render(items) {
     }
     for (const item of items) {
         const tr = document.createElement("tr");
-        cell(tr, item.name); cell(tr, item.code); cell(tr, item.academicCycleType);
+        cell(tr, bn && item.nameBangla ? item.nameBangla : item.name); cell(tr, item.code); cell(tr, cycleLabel(item.academicCycleType));
         cell(tr, item.isActive ? t("Available", "উপলব্ধ") : t("Hidden", "লুকানো"));
         const action = cell(tr, "");
         const editButton = document.createElement("button");
