@@ -107,7 +107,6 @@
     }
     function controls() {
         el('researchCreateButton').disabled = busy || !el('researchCampus').value;
-        el('researchRefresh').disabled = busy;
         el('researchPrevious').disabled = busy || page <= 1;
         el('researchNext').disabled = busy || page * 20 >= total;
         el('researchActButton').disabled = busy || !selected || !el('researchAction').value;
@@ -334,7 +333,6 @@
     });
     el('researchAction').addEventListener('change', () => { actionRetry = null; updateActionFields(); });
     el('researchClose').addEventListener('click', clearDetail);
-    el('researchRefresh').addEventListener('click', () => { void load(); });
     el('researchPrevious').addEventListener('click', () => { if (page > 1) { page--; void load(); } });
     el('researchNext').addEventListener('click', () => { if (page * 20 < total) { page++; void load(); } });
     el('researchCampus').addEventListener('change', () => { createRetry = null; void programs(); controls(); });

@@ -30,7 +30,6 @@
                 <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-2">
                     <h2 class="h5 mb-0" id="researchListHeading" data-r-i18n="queue">Proposal and ethics queue</h2>
                     <a class="btn btn-sm btn-outline-primary" asp-controller="ResearchGrants" asp-action="Index">@(bn ? "গবেষণা অনুদান" : "Grant applications")</a>
-                    <button hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-secondary btn-sm" id="researchRefresh" type="button" data-r-i18n="refresh">Refresh</button>
                 </div>
                 <div class="table-responsive"><table class="table table-striped table-sm align-middle">
                     <thead><tr><th data-r-i18n="title">Title</th><th data-r-i18n="campus">Campus</th><th data-r-i18n="status">Status</th><th data-r-i18n="revision">Revision</th><th data-r-i18n="actions">Actions</th></tr></thead>

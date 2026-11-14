@@ -81,7 +81,6 @@
         get('grantProposalFind').disabled = busy;
         get('grantProposalPrev').disabled = busy || proposalPage <= 1;
         get('grantProposalNext').disabled = busy || proposalPage * 20 >= proposalTotal;
-        get('grantRefresh').disabled = busy;
         get('grantPrevious').disabled = busy || page === 1;
         get('grantNext').disabled = busy || page * 20 >= total;
         get('grantConfirm').disabled = busy || !selected || !get('grantAction').value;
@@ -342,7 +341,6 @@
         controls();
     }
     get('grantAction').addEventListener('change', changeAction);
-    get('grantRefresh').addEventListener('click', () => { page = 1; loadList(); });
     get('grantPrevious').addEventListener('click', () => { if (page > 1) { page--; loadList(); } });
     get('grantNext').addEventListener('click', () => { if (page * 20 < total) { page++; loadList(); } });
     get('grantProposalFind').addEventListener('click', () => {

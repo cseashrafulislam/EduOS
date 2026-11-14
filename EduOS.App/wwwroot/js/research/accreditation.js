@@ -83,7 +83,6 @@
     function controls() {
         get('accCreateButton').disabled = busy || !get('accCampus').value || !get('accStandard').value;
         get('accConfirm').disabled = busy || !selected || !get('accAction').value;
-        get('accRefresh').disabled = busy;
         get('accPrevious').disabled = busy || page === 1;
         get('accNext').disabled = busy || page * 20 >= total;
         get('accReportRun').disabled = busy;
@@ -317,7 +316,6 @@
     get('accFrameworkManage')?.addEventListener('change', () => {
         standardRetry = null; publishRetry = null; mappingRetry = null; loadDraftMapStandards(); controls();
     });
-    get('accRefresh').addEventListener('click', () => { page = 1; loadList(); });
     get('accPrevious').addEventListener('click', () => { if (page > 1) { page--; loadList(); } });
     get('accNext').addEventListener('click', () => { if (page * 20 < total) { page++; loadList(); } });
     get('accCreateForm').addEventListener('input', () => { createRetry = null; });
