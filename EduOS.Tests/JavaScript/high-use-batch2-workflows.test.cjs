@@ -25,7 +25,9 @@ function element() {
     const listeners = new Map(), classes = new Set();
     return {
         value: '', textContent: '', disabled: false, children: [], dataset: {},
+        get options() { return this.children; },
         classList: { add: value => classes.add(value), remove: value => classes.delete(value),
+            contains: value => classes.has(value),
             toggle: (value, on) => on ? classes.add(value) : classes.delete(value) },
         addEventListener(type, listener) { listeners.set(type, listener); },
         trigger(type, event = {}) { return listeners.get(type)?.(event); },
@@ -237,7 +239,14 @@ test('Cash collection permits one preflight and one payment post while an identi
     call(h, '/payments/preflight').resolve(response({ amount: 12, currencyCode: 'BDT',
         invoices: [{ invoiceReference: 'invoice-A', allocating: 12, invoiceNumber: 'INV-1', dueAfter: 0 }] }));
     await flush();
-    assert.equal(h.calls.filter(x => x.url.endsWith('/payments')).length, 1);
+    assert.equal(h.calls.filter(x => x.url.endsWith('/payments')).length, 1,
+        'Preflight did not reach posting: ' + JSON.stringify({
+            requests: h.calls.map(x => x.url),
+            message: h.get('feeAlert').textContent,
+            value: h.get('feeAmount').value,
+            date: h.get('feePaymentDate').value,
+            student: h.get('feeStudent').value
+        }));
     form.trigger('submit', { currentTarget: form, preventDefault() {} });
     assert.equal(h.calls.filter(x => x.url.endsWith('/payments/preflight')).length, 1);
     assert.equal(h.calls.filter(x => x.url.endsWith('/payments')).length, 1);
@@ -277,6 +286,10 @@ test('Attendance does not discard unsaved marks when a date filter change is dec
     await flush();
     h.get('sectionId').value = '10';
     h.get('sectionId').trigger('change');
+    call(h, '/api/student-attendance/sections?').resolve(response({
+        items: [{ id: 77, name: 'Section A', code: 'A' }], totalPages: 1, totalCount: 1
+    }));
+    await flush();
     call(h, '/api/student-attendance/subjects?').resolve(response({
         items: [], totalPages: 0, totalCount: 0
     }));
