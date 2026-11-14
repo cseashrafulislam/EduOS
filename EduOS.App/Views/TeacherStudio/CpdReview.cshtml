@@ -3,17 +3,14 @@
     ViewData["Title"] = bn ? "প্রশিক্ষণ সনদ যাচাই" : "CPD Certificate Review";
 }
 <section id="cpdReview" class="container-fluid py-2" data-lang="@(bn ? "bn" : "en")">
-    <header class="content-header-card d-flex justify-content-between gap-2 align-items-center mb-3 flex-wrap">
-        <span class="visually-hidden">@(bn ? "শিক্ষক প্রশিক্ষণ ও সনদ যাচাই" : "Teacher CPD completion register")</span>
-    </header>
     <div id="cpdReviewAlert" class="d-none" role="alert" aria-live="polite" tabindex="-1"></div>
-    <form id="cpdReviewSearch" class="card card-body mb-3 row g-2">
+    <form id="cpdReviewSearch" class="card mb-2"><div class="card-body">
         <label class="form-label" for="cpdReviewTerm">@(bn ? "কোর্স খুঁজুন" : "Search CPD course")</label>
         <div class="d-flex gap-2 flex-wrap"><input id="cpdReviewTerm" maxlength="100" class="form-control flex-grow-1" style="min-width:12rem;width:auto" /><button class="btn btn-primary" type="submit">@(bn ? "খুঁজুন" : "Search")</button></div>
         <div class="d-flex gap-2 flex-wrap align-items-center justify-content-end"><button id="cpdCoursePrev" class="btn btn-sm btn-outline-secondary" type="button">@(bn ? "আগে" : "Previous")</button><span id="cpdCoursePage"></span><button id="cpdCourseNext" class="btn btn-sm btn-outline-secondary" type="button">@(bn ? "পরে" : "Next")</button></div>
         <label class="form-label" for="cpdCourseSelect">@(bn ? "প্রশিক্ষণ কোর্স" : "Training course")</label>
         <select id="cpdCourseSelect" class="form-select"><option value="">@(bn ? "কোর্স নির্বাচন করুন" : "Choose course")</option></select>
-    </form>
+    </div></form>
     <section class="card" aria-labelledby="cpdReviewTitle">
         <div class="card-header"><h3 class="h6 mb-0" id="cpdReviewTitle">@(bn ? "প্রশিক্ষণার্থীদের তালিকা" : "Teacher participants")</h3></div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>@(bn ? "প্রশিক্ষক" : "Employee")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "সম্পন্ন" : "Completed")</th><th>@(bn ? "সনদ" : "Certificate")</th></tr></thead><tbody id="cpdParticipantRows"></tbody></table></div>

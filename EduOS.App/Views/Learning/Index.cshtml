@@ -5,14 +5,6 @@
     var isManager = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
 <section class="container-fluid py-2" id="learningApp" data-author="@canAuthor.ToString().ToLowerInvariant()" data-student="@isStudent.ToString().ToLowerInvariant()" data-manager="@isManager.ToString().ToLowerInvariant()">
-    <header class="d-flex align-items-center gap-2 mb-3"><span class="visually-hidden">Learning Management</span>
-        <details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="Learning page help" title="Help">ⓘ</summary>
-            <div class="card position-absolute p-2 shadow-sm" style="width:min(20rem,80vw);z-index:10;">Choose a course to view lessons and assignments. Instructors publish content; enrolled students submit work and track progress. Archived completed courses are read-only.</div>
-        </details></header>
-    @if (User.IsInRole("Teacher")) { <div class="mb-3"><a class="btn btn-primary" asp-controller="TeacherStudio" asp-action="Cpd">Teacher CPD / শিক্ষক প্রশিক্ষণ</a></div> }
-    @if (isManager) { <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TeacherStudio" asp-action="CpdReview">CPD Certificate Review / প্রশিক্ষণ সনদ যাচাই</a></div> }
-    @if (isStudent) { <div class="mb-3"><a class="btn btn-primary" asp-controller="Learning" asp-action="StudyPlan">Adaptive Study Plan / পড়ার পরিকল্পনা</a></div> }
-    <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="Learning" asp-action="Quizzes">Quiz Assessment</a> <a class="btn btn-outline-primary" asp-controller="Learning" asp-action="LiveClasses">Live Classes</a> <a class="btn btn-outline-primary" asp-controller="Learning" asp-action="CourseContent">Course Sections &amp; Resources</a> <a class="btn btn-outline-primary" asp-controller="Learning" asp-action="AssignmentFiles">Assignment Files</a> @if(canAuthor) { <a class="btn btn-outline-primary" asp-controller="Learning" asp-action="CourseCompletions">Course Completions</a> } @if(isStudent) { <a class="btn btn-primary" asp-controller="Learning" asp-action="MySubmissions">My Submissions</a> }</div>
     <div id="learningAlert" role="alert" tabindex="-1" class="d-none" aria-live="polite"></div>
     @if(isStudent)
     {
@@ -61,26 +53,38 @@
         <div id="learningHistoricalNotice" class="alert alert-info d-none" role="status">Archived course: published lessons and assignments are available for historical reading only. New progress and submissions are disabled.</div>
     }
     @if(canAuthor) { <div id="learningAuthoringLock" class="alert alert-warning d-none" role="status" aria-live="polite"></div> }
-    <div class="card mb-3"><div class="card-body row g-2 align-items-end"><div class="col-md-9"><label for="learningCourse" class="form-label">Course</label><select id="learningCourse" class="form-select"><option value="">Loading courses…</option></select></div>@if(canAuthor) { <div class="col-md-3"><button id="learningEditCourse" type="button" class="btn btn-outline-secondary w-100">Edit selected course</button></div> }
-    <div class="col-md-3"><button id="learningRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary w-100">Refresh courses</button></div><div class="col-12 d-flex align-items-center justify-content-end gap-2"><button id="learningCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningCoursePage">Page 1</span><button id="learningCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div></div>
+    <div class="card mb-3"><div class="card-body"><div class="row g-2 align-items-end"><div class="col-lg-7"><label for="learningCourse" class="form-label">Course</label><select id="learningCourse" class="form-select"><option value="">Loading courses…</option></select></div>@if(canAuthor) { <div class="col-lg-3 d-flex align-items-end"><button id="learningEditCourse" type="button" class="btn btn-outline-secondary w-100">Edit selected course</button></div> }
+    <div class="col-lg-2 d-flex align-items-end"><details class="w-100 position-relative">
+    <summary class="btn btn-sm btn-outline-primary w-100">Course actions</summary>
+    <nav class="position-absolute end-0 card card-body shadow-sm d-flex flex-column gap-1 mt-1" style="min-width:16rem;z-index:20" aria-label="Learning actions">
+        @if (User.IsInRole("Teacher")) { <a class="btn btn-sm btn-outline-primary" asp-controller="TeacherStudio" asp-action="Cpd">Teacher CPD</a> }
+        @if (isManager) { <a class="btn btn-sm btn-outline-primary" asp-controller="TeacherStudio" asp-action="CpdReview">CPD certificate review</a> }
+        @if (isStudent) { <a class="btn btn-sm btn-outline-primary" asp-controller="Learning" asp-action="StudyPlan">Adaptive study plan</a> }
+        <a class="btn btn-sm btn-outline-primary" asp-controller="Learning" asp-action="Quizzes">Quizzes</a>
+        <a class="btn btn-sm btn-outline-primary" asp-controller="Learning" asp-action="LiveClasses">Live classes</a>
+        <a class="btn btn-sm btn-outline-primary" asp-controller="Learning" asp-action="CourseContent">Course content</a>
+        <a class="btn btn-sm btn-outline-primary" asp-controller="Learning" asp-action="AssignmentFiles">Assignment files</a>
+        @if (canAuthor) { <a class="btn btn-sm btn-outline-primary" asp-controller="Learning" asp-action="CourseCompletions">Course completions</a> }
+        @if (isStudent) { <a class="btn btn-sm btn-outline-primary" asp-controller="Learning" asp-action="MySubmissions">My submissions</a> }
+    </nav></details></div><button id="learningRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none">Refresh courses</button><div class="col-12 d-flex align-items-center justify-content-end gap-2"><button id="learningCoursePrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button><span id="learningCoursePage">Page 1</span><button id="learningCourseNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button></div></div></div></div>
     @if(isManager)
     {
         <section class="card mb-3">
             <div class="card-header"><h3 class="h6 m-0">Enroll student in selected course</h3></div>
-            <form id="learningEnrollForm" class="card-body row g-2 align-items-end">
+            <form id="learningEnrollForm" class="card-body"><div class="row g-2 align-items-end">
                 <div class="col-md-5"><label class="form-label" for="learningStudentSearch">Find student by name or code</label>
                     <input id="learningStudentSearch" class="form-control" autocomplete="off" minlength="2" maxlength="80" /></div>
                 <div class="col-md-5"><label class="form-label" for="learningStudentChoice">Student</label>
                     <select id="learningStudentChoice" class="form-select" required><option value="">Search for a student</option></select></div>
                 <div class="col-md-2"><button id="learningEnrollSave" class="btn btn-primary w-100" type="submit">Enroll</button></div>
-            </form>
+            </div></form>
         </section>
     }
     @if(canAuthor)
     {
         <section class="card mb-3">
             <div class="card-header"><h3 class="h6 m-0">Create or update a course</h3></div>
-            <form id="learningCourseForm" class="card-body row g-2 align-items-end">
+            <form id="learningCourseForm" class="card-body"><div class="row g-2 align-items-end">
                 <div class="col-md-4"><label for="learningProgram" class="form-label">Academic program</label><select id="learningProgram" class="form-select"><option value="">Loading…</option></select></div>
                 <div class="col-md-4"><label for="learningSubject" class="form-label">Subject</label><select id="learningSubject" class="form-select"><option value="">Loading…</option></select></div>
                 @if(isManager)
@@ -90,7 +94,7 @@
                 <div class="col-md-4"><label for="learningCode" class="form-label">Course code</label><input id="learningCode" class="form-control" maxlength="50" required /></div><div class="col-md-4"><label for="learningTitle" class="form-label">Course title</label><input id="learningTitle" class="form-control" maxlength="200" required /></div>
                 <div class="col-md-10"><label for="learningDescription" class="form-label">Description</label><textarea id="learningDescription" class="form-control" rows="2" maxlength="4000"></textarea></div>
                 <div class="col-md-2"><button id="learningSaveCourse" class="btn btn-primary w-100" type="submit">Save course</button></div><div class="col-md-2"><button id="learningResetCourse" type="button" class="btn btn-outline-secondary w-100">Clear</button></div><div class="col-12 d-flex gap-3 flex-wrap"><label><input id="learningSelfPaced" type="checkbox" /> Self-paced</label><label><input id="learningCourseActive" type="checkbox" checked /> Active</label><label><input id="learningTeacherCpd" type="checkbox" /> Teacher CPD / শিক্ষক প্রশিক্ষণ</label></div>
-            </form>
+            </div></form>
         </section>
     }
     <section class="card mb-3">
@@ -104,13 +108,13 @@
         </div>
         @if(canAuthor)
         {
-            <form id="learningLessonForm" class="card-body border-top row g-2 align-items-end">
+            <form id="learningLessonForm" class="card-body border-top"><div class="row g-2 align-items-end">
                 <div class="col-md-2"><label for="learningOrder" class="form-label">Order</label><input id="learningOrder" type="number" min="1" max="10000" value="1" class="form-control" required /></div>
                 <div class="col-md-5"><label for="learningLessonTitle" class="form-label">Lesson title</label><input id="learningLessonTitle" maxlength="200" class="form-control" required /></div>
                 <div class="col-md-5"><label for="learningVideo" class="form-label">Video link</label><input id="learningVideo" maxlength="500" class="form-control" /></div>
                 <div class="col-12"><label for="learningContent" class="form-label">Content</label><textarea id="learningContent" maxlength="4000" rows="3" class="form-control"></textarea></div>
                 <div class="col-12"><label><input id="learningLessonPublished" type="checkbox" /> Published</label></div><div class="col-12 d-flex gap-2"><button id="learningSaveLesson" type="submit" class="btn btn-outline-primary">Save lesson</button><button id="learningResetLesson" type="button" class="btn btn-outline-secondary">Clear</button></div>
-            </form>
+            </div></form>
         }
     </section>
     <section class="card mb-3">
@@ -124,13 +128,13 @@
         </div>
         @if(canAuthor)
         {
-            <form id="learningAssignmentForm" class="card-body border-top row g-2 align-items-end">
+            <form id="learningAssignmentForm" class="card-body border-top"><div class="row g-2 align-items-end">
                 <div class="col-md-5"><label for="learningAssignmentTitle" class="form-label">Assignment title</label><input id="learningAssignmentTitle" maxlength="200" class="form-control" required /></div>
                 <div class="col-md-3"><label for="learningDue" class="form-label">Due date and time</label><input id="learningDue" type="datetime-local" class="form-control" /></div>
                 <div class="col-md-2"><label for="learningTotal" class="form-label">Full marks</label><input id="learningTotal" type="number" min="0" max="100000" value="100" class="form-control" required /></div>
                 <div class="col-md-2"><button id="learningSaveAssignment" class="btn btn-outline-primary w-100" type="submit">Save</button></div>
                 <div class="col-12"><label for="learningInstructions" class="form-label">Instructions</label><textarea id="learningInstructions" maxlength="4000" rows="2" class="form-control"></textarea></div><div class="col-12 d-flex gap-3"><label><input id="learningAssignmentPublished" type="checkbox" /> Published</label><button id="learningResetAssignment" type="button" class="btn btn-outline-secondary btn-sm">Clear assignment</button></div>
-            </form>
+            </div></form>
         }
     </section>
     @if(canAuthor)
@@ -166,11 +170,11 @@
     {
         <section class="card mb-3" id="learningReviewPanel">
             <div class="card-header"><h3 class="h6 m-0">Submission review and grading</h3></div>
-            <div class="card-body row g-2 align-items-end">
+            <div class="card-body"><div class="row g-2 align-items-end">
                 <div class="col-md-8"><label for="learningReviewAssignment" class="form-label">Assignment</label><select id="learningReviewAssignment" class="form-select"><option value="">Choose an assignment</option></select></div>
                 <div class="col-md-4 d-flex gap-2"><button id="learningReviewRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary flex-fill">Refresh</button>
                     <button id="learningReviewExport" type="button" class="btn btn-outline-secondary flex-fill">Export page</button></div>
-            </div>
+            </div></div>
             <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Student</th><th>Submitted</th><th>Answer</th><th>Status</th><th>Marks / feedback</th><th>Action</th></tr></thead><tbody id="learningReviewRows"><tr><td colspan="6" class="text-muted">Choose an assignment.</td></tr></tbody></table></div>
             <div class="border-top p-3 d-none" id="learningReviewFilesPanel" aria-live="polite">
                 <div class="d-flex align-items-center justify-content-between gap-2 mb-2"><h4 class="h6 mb-0" id="learningReviewFilesTitle">Submission details</h4>

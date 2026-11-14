@@ -5,19 +5,17 @@
     ViewData["Title"] = bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio";
 }
 <section id="teacherStudio" class="container-fluid py-2" data-can-author="@teacher.ToString().ToLowerInvariant()" data-can-review="@admin.ToString().ToLowerInvariant()">
-    <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-        <span class="visually-hidden">@(bn ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</span>
-        @if (teacher) { <a class="btn btn-sm btn-primary" href="/TeacherStudio/Cpd">@(bn ? "শিক্ষক প্রশিক্ষণ (CPD)" : "Teacher CPD")</a> }
-        <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/AdaptiveGoals">@(bn ? "শিক্ষার্থীর লক্ষ্য" : "Adaptive goals")</a>
-        @if (admin) { <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/CpdReview">@(bn ? "সনদ যাচাই" : "CPD review")</a> }
-        <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/Public">@(bn ? "উন্মুক্ত শিক্ষাসামগ্রীর তালিকা" : "Public teaching materials")</a>
-    </header>
     <div id="studioAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     <form id="studioFilter" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
             <div class="col-lg-6"><label class="form-label" for="studioSearch">@(bn ? "শিরোনাম/বিষয় খুঁজুন" : "Search title/topic")</label><input id="studioSearch" class="form-control" maxlength="100" /></div>
             <div class="col-lg-3"><label class="form-label" for="studioState">@(bn ? "অবস্থা" : "State")</label><select id="studioState" class="form-select"><option value="">@(bn ? "সব" : "All")</option><option>Draft</option><option>Submitted</option><option>Approved</option><option>Rejected</option><option>Withdrawn</option></select></div>
-            <div class="col-lg-3"><button class="btn btn-primary w-100" type="submit">@(bn ? "লোড করুন" : "Load resources")</button></div>
+            <div class="col-lg-3 d-flex align-items-end gap-2"><button class="btn btn-primary flex-grow-1" type="submit">@(bn ? "লোড করুন" : "Load resources")</button><details class="position-relative"><summary class="btn btn-sm btn-outline-secondary">@(bn ? "আরও" : "More")</summary><nav class="position-absolute end-0 card card-body shadow-sm d-flex flex-column gap-1 mt-1" style="min-width:14rem;z-index:20">
+@if (teacher) { <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/Cpd">Teacher CPD</a> }
+<a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/AdaptiveGoals">Adaptive goals</a>
+@if (admin) { <a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/CpdReview">CPD review</a> }
+<a class="btn btn-sm btn-outline-primary" href="/TeacherStudio/Public">Public materials</a>
+</nav></details></div>
         </div>
     </form>
     @if (teacher)

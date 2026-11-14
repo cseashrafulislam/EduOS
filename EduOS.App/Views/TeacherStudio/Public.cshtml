@@ -3,14 +3,10 @@
     ViewData["Title"] = bn ? "উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী" : "Public Teaching Materials";
 }
 <section id="teacherPublicCatalogue" class="container-fluid py-2">
-    <header class="content-header-card d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-        <span class="visually-hidden">@(bn ? "উন্মুক্ত শিক্ষক শিক্ষাসামগ্রী" : "Public Teaching Materials")</span>
-        <a class="btn btn-sm btn-outline-secondary" href="/TeacherStudio">@(bn ? "রিসোর্স স্টুডিও" : "Resource Studio")</a>
-    </header>
     <form id="publicResourceSearch" class="card card-body mb-3">
         <div class="row g-2 align-items-end">
-            <div class="col-md-9"><label for="publicResourceTerm" class="form-label">@(bn ? "শিরোনাম বা টপিক" : "Title or topic")</label><input id="publicResourceTerm" class="form-control" maxlength="100" /></div>
-            <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">@(bn ? "খুঁজুন" : "Search")</button></div>
+            <div class="col-md-8"><label for="publicResourceTerm" class="form-label">@(bn ? "শিরোনাম বা টপিক" : "Title or topic")</label><input id="publicResourceTerm" class="form-control" maxlength="100" /></div>
+            <div class="col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-primary flex-grow-1">@(bn ? "খুঁজুন" : "Search")</button><a class="btn btn-sm btn-outline-secondary" href="/TeacherStudio">@(bn ? "স্টুডিও" : "Studio")</a></div>
         </div>
     </form>
     <div id="publicResourceMessage" class="d-none alert" role="status" aria-live="polite"></div>
