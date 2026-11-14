@@ -85,8 +85,10 @@ function render(items) {
                 });
                 activationRequests.delete(activationKey);
                 selected = null; editor.hidden = true;
-                await load();
-                status.textContent = t("Registration availability updated.", "নিবন্ধনের উপলব্ধতা সংরক্ষিত হয়েছে।");
+                const fresh = await load();
+                status.textContent = fresh
+                    ? t("Registration availability updated.", "নিবন্ধনের উপলব্ধতা সংরক্ষিত হয়েছে।")
+                    : t("Saved, but the list could not reload. Try again.", "সংরক্ষণ হয়েছে, কিন্তু তালিকা আনা যায়নি। আবার চেষ্টা করুন।");
             } catch (error) {
                 if (error.status === 409) { activationRequests.delete(activationKey); await load(); }
                 status.textContent = error.message + (error.status === 409 ? t(" Review the latest record and retry.", "সর্বশেষ তথ্য দেখে আবার চেষ্টা করুন।") : "");
@@ -100,14 +102,16 @@ async function load() {
     retry.disabled = true;
     try {
         const data = await api("/api/platform/catalog/institution-types");
-        if (ticket !== loadSequence) return;
+        if (ticket !== loadSequence) return false;
         render(data);
         retry.hidden = true;
         status.textContent = "";
+        return true;
     } catch (error) {
-        if (ticket !== loadSequence) return;
+        if (ticket !== loadSequence) return false;
         status.textContent = error.message;
         retry.hidden = false;
+        return false;
     } finally { if (ticket === loadSequence && !busy) retry.disabled = false; }
 }
 form.addEventListener("submit", async event => {
@@ -124,7 +128,10 @@ form.addEventListener("submit", async event => {
             displayOrder: Number(order.value)
         });
         selected = null; requestId = null; editor.hidden = true;
-        await load(); status.textContent = t("Institution type metadata updated.", "প্রতিষ্ঠানের ধরন সংরক্ষিত হয়েছে।");
+        const fresh = await load();
+        status.textContent = fresh
+            ? t("Institution type metadata updated.", "প্রতিষ্ঠানের ধরন সংরক্ষিত হয়েছে।")
+            : t("Saved, but the list could not reload. Try again.", "সংরক্ষণ হয়েছে, কিন্তু তালিকা আনা যায়নি। আবার চেষ্টা করুন।");
     } catch (error) {
         if (error.status === 409) { selected = null; requestId = null; editor.hidden = true; await load(); }
         status.textContent = error.message + (error.status === 409 ? t(" Review the latest record before editing again.", "আবার সম্পাদনার আগে সর্বশেষ তথ্য দেখুন।") : "");
