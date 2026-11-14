@@ -4,32 +4,32 @@
     ViewData["Title"] = bn ? "বিষয়ের পূর্বশর্ত" : "Subject Prerequisites";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="container-fluid py-4" id="prerequisiteWorkspace">
+<div class="container-fluid py-2" id="prerequisiteWorkspace" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
     <div id="prerequisiteNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
         <div class="row g-3 align-items-end">
-            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteCurriculum" class="form-label">Curriculum version</label><select id="prerequisiteCurriculum" class="form-select"></select></div>
-            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteCatalogSearch" class="form-label">Find curriculum</label><input id="prerequisiteCatalogSearch" class="form-control" maxlength="100" placeholder="Name or code" /></div>
-            <div class="col-6 col-xl-2"><button id="prerequisiteLoadCatalog" type="button" class="btn btn-outline-primary w-100">Load catalog</button></div>
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteCurriculum" class="form-label">@(bn ? "পাঠ্যক্রমের সংস্করণ" : "Curriculum version")</label><select id="prerequisiteCurriculum" class="form-select"></select></div>
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteCatalogSearch" class="form-label">@(bn ? "পাঠ্যক্রম খুঁজুন" : "Find curriculum")</label><input id="prerequisiteCatalogSearch" class="form-control" maxlength="100" placeholder="@(bn ? "নাম বা কোড" : "Name or code")" /></div>
+            <div class="col-6 col-xl-2"><button id="prerequisiteLoadCatalog" type="button" class="btn btn-outline-primary w-100">@(bn ? "ক্যাটালগ আনুন" : "Load catalog")</button></div>
             <div class="col-6 col-xl-2"><a class="btn btn-outline-secondary academic-back-button w-100" asp-controller="AcademicManagement" asp-action="Curricula"><span aria-hidden="true">←</span> @(bn ? "পাঠ্যক্রমে ফিরুন" : "Back to Curriculum")</a></div>
         </div>
     </div></div>
     <div class="card border-0 shadow-sm mb-3"><div class="card-body">
         <form id="prerequisiteForm" class="row g-2 align-items-end">
-            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteSubject" class="form-label">Subject</label><select id="prerequisiteSubject" class="form-select" required></select></div>
-            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteRequired" class="form-label">Required prior subject</label><select id="prerequisiteRequired" class="form-select" required></select></div>
-            <div class="col-6 col-xl-2 academic-check-cell"><label class="form-check academic-check-control"><input id="prerequisiteMandatory" type="checkbox" class="form-check-input" checked /><span class="form-check-label">Mandatory</span></label></div>
-            <div class="col-6 col-xl-2"><button type="submit" class="btn btn-primary w-100">Add link</button></div>
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteSubject" class="form-label">@(bn ? "বিষয়" : "Subject")</label><select id="prerequisiteSubject" class="form-select" required></select></div>
+            <div class="col-12 col-md-6 col-xl-4"><label for="prerequisiteRequired" class="form-label">@(bn ? "পূর্বশর্ত বিষয়" : "Required prior subject")</label><select id="prerequisiteRequired" class="form-select" required></select></div>
+            <div class="col-6 col-xl-2 academic-check-cell"><label class="form-check academic-check-control"><input id="prerequisiteMandatory" type="checkbox" class="form-check-input" checked /><span class="form-check-label">@(bn ? "আবশ্যক" : "Mandatory")</span></label></div>
+            <div class="col-6 col-xl-2"><button type="submit" class="btn btn-primary w-100">@(bn ? "পূর্বশর্ত যোগ" : "Add link")</button></div>
         </form>
     </div></div>
     <div class="card border-0 shadow-sm"><div class="card-body">
         <div class="d-flex flex-wrap gap-2 justify-content-between align-items-end mb-3">
-            <div><label for="prerequisiteSearch" class="form-label">Search subject</label><input id="prerequisiteSearch" class="form-control" maxlength="100" placeholder="Subject name/code" /></div>
-            <div class="d-flex gap-2"><button id="prerequisiteRefresh" type="button" class="btn btn-outline-primary">Search</button><button id="prerequisiteCsv" type="button" class="btn btn-outline-secondary">CSV (page)</button><button id="prerequisitePrint" type="button" class="btn btn-outline-secondary">Print</button></div>
+            <div><label for="prerequisiteSearch" class="form-label">@(bn ? "বিষয় খুঁজুন" : "Search subject")</label><input id="prerequisiteSearch" class="form-control" maxlength="100" placeholder="@(bn ? "বিষয়ের নাম / কোড" : "Subject name/code")" /></div>
+            <div class="d-flex gap-2"><button id="prerequisiteRefresh" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button><button id="prerequisiteCsv" type="button" class="btn btn-outline-secondary">@(bn ? "দেখানো পৃষ্ঠা CSV" : "CSV (page)")</button><button id="prerequisitePrint" type="button" class="btn btn-outline-secondary">@(bn ? "প্রিন্ট" : "Print")</button></div>
         </div>
-        <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Subject</th><th>Prerequisite</th><th>Mandatory</th><th>Actions</th></tr></thead><tbody id="prerequisiteRows"></tbody></table></div>
-        <div class="d-flex justify-content-between align-items-center"><span id="prerequisiteCount" class="text-muted small"></span><div class="d-flex gap-2"><button id="prerequisitePrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><button id="prerequisiteNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div></div>
+        <div class="table-responsive"><table class="table table-hover"><th scope="col"ead><tr><th scope="col">@(bn ? "বিষয়" : "Subject")</th><th scope="col">@(bn ? "পূর্বশর্ত" : "Prerequisite")</th><th scope="col">@(bn ? "আবশ্যক" : "Mandatory")</th><th scope="col">@(bn ? "কাজ" : "Actions")</th></tr></thead><tbody id="prerequisiteRows"></tbody></table></div>
+        <div class="d-flex justify-content-between align-items-center"><span id="prerequisiteCount" class="text-muted small"></span><div class="d-flex gap-2"><button id="prerequisitePrev" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button><button id="prerequisiteNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button></div></div>
     </div></div>
 </div>
 @section Scripts {
