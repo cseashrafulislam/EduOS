@@ -1,10 +1,10 @@
 @{
     ViewData["Title"] = "Retake & Improvement Approvals";
 }
-<div class="container-fluid py-3" id="assessmentAttemptWorkspace">
+<div class="container-fluid py-2" id="assessmentAttemptWorkspace">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div><h1 class="h4 mb-1">Retake &amp; Improvement</h1>
+        <div><span class="visually-hidden">Retake &amp; Improvement</span>
             <p class="text-muted mb-0">Approve student-specific attempts using an earlier published course result. The original result remains unchanged.</p></div>
         <a class="btn btn-outline-secondary" asp-controller="AssessmentAdministration" asp-action="Index">Back to exam workspace</a>
     </div>

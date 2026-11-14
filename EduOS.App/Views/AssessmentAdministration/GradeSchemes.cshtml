@@ -2,10 +2,10 @@
     ViewData["Title"] = "Grade Scheme Register";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section class="container-fluid py-4" id="gradeSchemeWorkspace">
+<section class="container-fluid py-2" id="gradeSchemeWorkspace">
     @Html.AntiForgeryToken()
     <header class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-        <div><h1 class="h4 mb-1">Grade schemes</h1>
+        <div><span class="visually-hidden">Grade schemes</span>
             <p class="text-muted mb-0">Create grading policies and inspect their rules. Saved schemes are immutable; create a new code for a revised policy.</p></div>
         <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Exam marks &amp; results</a>
     </header>

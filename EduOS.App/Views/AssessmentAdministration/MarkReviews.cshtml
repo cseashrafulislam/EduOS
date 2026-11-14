@@ -3,10 +3,10 @@
     var canReview = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") ||
         User.IsInRole("VicePrincipal") || User.IsInRole("ExamController");
 }
-<section class="container-fluid py-3" id="markReviewWorkspace" data-can-review="@canReview.ToString().ToLowerInvariant()">
+<section class="container-fluid py-2" id="markReviewWorkspace" data-can-review="@canReview.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
     <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <h1 class="h4 mb-0">Marks submission &amp; review</h1>
+        <span class="visually-hidden">Marks submission &amp; review</span>
     </header>
     <div id="markReviewNotice" class="d-none" role="alert" aria-live="polite"></div>
     <form id="markReviewSearch" class="card card-body mb-3">
