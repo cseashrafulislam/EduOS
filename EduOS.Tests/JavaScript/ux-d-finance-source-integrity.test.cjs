@@ -55,11 +55,11 @@ test('invoice and receipt GL posting screens preserve related workflows without 
  assert.match(invoice,/Posted journals are immutable/);
  assert.match(payment,/One campus per receipt/);
 });
-test('ledger credits thirteen out of thirty-nine routes and explicitly defers Final QA',()=>{
+test('ledger credits all thirty-nine UX D source routes and explicitly defers Final QA',()=>{
  const doc=read('docs/ux/lanes/UX_D.md');
  const routes=[...doc.matchAll(/^- \[([ x])\] \x60(\/[^\x60]+)\x60/gm)];
  assert.equal(routes.length,39);
- assert.equal(routes.filter(x=>x[1]==='x').length,13);
- assert.match(doc,/13\/39 UX D routes/);
+ assert.equal(routes.filter(x=>x[1]==='x').length,39);
+ assert.match(doc,/39\/39 UX D routes/);
  assert.match(doc,/Final QA/);
 });

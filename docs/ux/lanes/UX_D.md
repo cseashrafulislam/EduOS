@@ -25,45 +25,45 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - [x] `/FeeOperations/Ledger`
 - [x] `/StudentInvoicePosting/Index`
 - [x] `/StudentPaymentPosting/Index`
-- [ ] `/FeeDueCalendar/Index`
-- [ ] `/FeeInstallmentProjection/Index`
-- [ ] `/FeeInstallmentPlans/Index`
-- [ ] `/FeeInvoiceCoverage/Index`
-- [ ] `/FeeDiscountAttributionReview/Index`
-- [ ] `/FinanceAdjustments/Policies`
-- [ ] `/FinanceAdjustments/StudentAdjustments`
-- [ ] `/FinanceAdjustments/FineRegister`
-- [ ] `/FinanceAdjustments/Refunds`
-- [ ] `/FinanceAdjustments/HostelClearances`
-- [ ] `/FinanceAdjustments/TransportClearances`
-- [ ] `/FinanceAdjustments/ReservationPreflight`
-- [ ] `/FinanceAdjustments/DiscountAwards`
+- [x] `/FeeDueCalendar/Index`
+- [x] `/FeeInstallmentProjection/Index`
+- [x] `/FeeInstallmentPlans/Index`
+- [x] `/FeeInvoiceCoverage/Index`
+- [x] `/FeeDiscountAttributionReview/Index`
+- [x] `/FinanceAdjustments/Policies`
+- [x] `/FinanceAdjustments/StudentAdjustments`
+- [x] `/FinanceAdjustments/FineRegister`
+- [x] `/FinanceAdjustments/Refunds`
+- [x] `/FinanceAdjustments/HostelClearances`
+- [x] `/FinanceAdjustments/TransportClearances`
+- [x] `/FinanceAdjustments/ReservationPreflight`
+- [x] `/FinanceAdjustments/DiscountAwards`
 
 ## management:inventory (7)
 
-- [ ] `/InventoryCatalog/Index`
-- [ ] `/InventoryMovements/FacilityFinance`
-- [ ] `/AssetLifecycle/Index`
-- [ ] `/InventoryMovements/Transactions`
-- [ ] `/InventoryMovements/Adjustments`
-- [ ] `/InventoryMovements/StockCounts`
-- [ ] `/InventoryMovements/Reports`
+- [x] `/InventoryCatalog/Index`
+- [x] `/InventoryMovements/FacilityFinance`
+- [x] `/AssetLifecycle/Index`
+- [x] `/InventoryMovements/Transactions`
+- [x] `/InventoryMovements/Adjustments`
+- [x] `/InventoryMovements/StockCounts`
+- [x] `/InventoryMovements/Reports`
 
 ## management:communication (4)
 
-- [ ] `/CommunicationWorkspace/Index`
-- [ ] `/CommunicationAdministration/Index`
-- [ ] `/CustomFields/Index`
-- [ ] `/DocumentAdministration/Index`
+- [x] `/CommunicationWorkspace/Index`
+- [x] `/CommunicationAdministration/Index`
+- [x] `/CustomFields/Index`
+- [x] `/DocumentAdministration/Index`
 
 ## management:governance (2)
 
-- [ ] `/AuditLogs/Index`
-- [ ] `/ImportHistory/Index`
+- [x] `/AuditLogs/Index`
+- [x] `/ImportHistory/Index`
 
 ## Current UX-first implementation checkpoint — 2026-11-14
 
-**13/39 UX D routes source-implemented; 26 remain.** Finance: 13/26, Inventory: 0/7, Communication: 0/4, Governance: 0/2. This means UX Done at source level only, **not Full Final QA** or production certification. Five scheduled UX automations stay OFF.
+**39/39 UX D routes source-implemented; 0 remain.** Finance: 26/26, Inventory: 7/7, Communication: 4/4, Governance: 2/2. This is source-level UX completion only; all Full Final QA gates remain separate. This means UX Done at source level only, **not Full Final QA** or production certification. Five scheduled UX automations stay OFF.
 
 | Routes | UX implementation | Source commits | Final QA |
 | --- | --- | --- | --- |
@@ -79,11 +79,25 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 | `/AccountingReports/Index` | Compact central ledger introduction and horizontally scrollable tabs, replace generic Refresh with specific Load saved drafts; preserve ledger report definitions | `09028510` | Deferred |
 | `/FeeOperations/Structures`, `/FeeOperations/Billing`, `/FeeOperations/Ledger` | Shared view removes redundant feature header, aligns active checkbox, puts batch/structure alongside and retains billing preflight | `09028510` | Deferred |
 
+| `/FeeDueCalendar/Index`, `/FeeInstallmentProjection/Index`, `/FeeInvoiceCoverage/Index`, `/FeeDiscountAttributionReview/Index` | Removed redundant visible headings, kept print-only report titles; moved fee navigation next to export/print actions and retained filters and report caveats | `3139c714` | Deferred |
+| `/FeeInstallmentPlans/Index` | Removed duplicate title and redundant inline Help popup; reused shared Help; compacted filter/actions without changing maker-checker or agreement issuance | `fe085636` | Deferred |
+| `/FinanceAdjustments/Policies`, `/FinanceAdjustments/StudentAdjustments`, `/FinanceAdjustments/FineRegister`, `/FinanceAdjustments/Refunds` | One shared Razor implementation; removed duplicate title and empty action spacing; fixed checkbox layout; retained historical accounting/posted refund guards | `53f03539` | Deferred |
+| `/FinanceAdjustments/HostelClearances`, `/FinanceAdjustments/TransportClearances`, `/FinanceAdjustments/ReservationPreflight`, `/FinanceAdjustments/DiscountAwards` | Compact finance forms and registers, contextual load and navigation buttons, preserved explicit non-payment/non-posting warnings and review permissions | `53f03539` | Deferred |
+| `/InventoryCatalog/Index` | New item/location codes created by backend with retry-stable GUID and existing API compatibility; hidden manual Code controls, compact forms, labeled checkboxes, catalog-to-assets navigation | `39d8c3b4`, `6eb30704` | Deferred |
+| `/InventoryMovements/FacilityFinance` | Removed duplicated shell title, compact reconciliation, preserved maker-checker and tenant session protection | `1f090bc0` | Deferred |
+| `/AssetLifecycle/Index` | Shared shell title; asset category Code created by backend with duplicate retry protection; category form compact and authorized Asset Accounting navigation | `1f090bc0`, `b3b4f973` | Deferred |
+| `/InventoryMovements/Transactions`, `/InventoryMovements/Adjustments`, `/InventoryMovements/StockCounts`, `/InventoryMovements/Reports` | Shared route view and partials; compacted drafts, movement ledger, adjustments, blind-count controls, reorder, reservations, stock position, lot aging and history | `1f090bc0`, `7203f9c1`, `dd7fc9c5` | Deferred |
+| `/CommunicationWorkspace/Index` | Shared title, compact notice/editor/inbox/messages and contextual preference/device load actions | `7cd2be0a` | Deferred |
+| `/CommunicationAdministration/Index` | Shared title, compact category/template setup; server-issued Notice Category (`NTC-`) and Template (`MSG-`) Codes, retry matching and existing explicit-Code edit compatibility | `7cd2be0a`, `cd4ccc39`, `0abdc04a` | Deferred |
+| `/CustomFields/Index` | Hidden internal tenant profile FieldKey; server-generated immutable `CF_` Key with exact retry matching of definition and options, preserved existing field identities and tenant authorization | `7cd2be0a`, `cc1ffa89` | Deferred |
+| `/DocumentAdministration/Index` | Single page title and compact tab/attachment workflow; `DCT-` type and `DTP-` template server-generated Codes with retry matching; existing file scanning and authorization retained | `7cd2be0a`, `dea33b4f`, `c40d694b` | Deferred |
+| `/AuditLogs/Index`, `/ImportHistory/Index` | Removed duplicate headings, compact UTC filters and history results, preserved existing server-side tenant-scoped paging and report detail | `7cd2be0a`, `847ab959` | Deferred |
+
 **Safety/compatibility:** No schema/data migration, no posted accounting changes. Financial server authorization, tenant-owned queries, audit, rowversion and reversal rules retained. New internal code generation is server-owned and retry-stable; legacy explicit Code API calls remain. Source-level review preserves critical DOM IDs and form counts.
 
-**Verification state:** On commit `e758bf0b` GitHub Actions passed canonical Core, Persistence and app builds, while broader JavaScript contract CI failed. Current-head CI, Chromium, actual tenant SQL, accessibility, bilingual/mobile, idempotency/concurrency and Finance Final QA are pending; no full PASS is claimed.
+**Verification state:** .NET canonical Core/Persistence/App builds have passed on intermediate commit `dea33b4f`. Broad JavaScript contracts still failed at this intermediate SHA. Inventory Physical Count Chromium workflow was also reported failing at `7203f9c1`; exact current-head CI/Chromium/tenant SQL/mobile/accessibility and financial-security Final QA remain NOT CERTIFIED. Source-level completion is **not** a release PASS.
 
-**Next Finance route:** `/FeeDueCalendar/Index`. Finish the rest of Finance before Inventory, Communication and Governance.
+**UX-first lane D implementation:** all assigned canonical routes checked as UX Done. **Next stage:** combined Final QA only after remaining UX lanes are complete. Latest working code `dd7fc9c5`; scope-sensitive release acceptance has **not** been run at exact final SHA.
 
 ## Verified completion evidence
 
