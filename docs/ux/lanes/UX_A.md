@@ -89,4 +89,14 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## Current in-progress or blocked route
 
-None assigned yet. Update when selecting the first unchecked page.
+**Selected menu:** platform:other (1 route). **Current route:** `/Dashboard/Admin` — **Implemented / Final QA Pending / Blocked**. The route stays **[ ]**, and no following route or menu is started.
+
+### 2026-11-14 — SuperAdmin Platform Dashboard implementation checkpoint
+
+- **Branch:** `Ashraful`. **Last application-code commit:** `75278a2497e7865e4108c68f2767d0c21e87d14c` (verified GitHub commit readback).
+- **Changes pushed:** `d8497e9ca74c6029474c9e6c8e2714973e0f5947` (compact server-rendered operations dashboard, no duplicate header/decorative Refresh, real empty states and four operational navigation links), `ec731695b410c6bff5cb6d008b254bb9d9d64754` (Bangla tenant/onboarding/subscription labels), `4d9468e1dc3feaee52edad6727e955743cc53a91` (five regression tests), `921fd00114a61b9515fd60e5c4ba8f0289e4ac67` (responsive action card layout), `75278a2497e7865e4108c68f2767d0c21e87d14c` (remove unused refresh-only JavaScript file). No service/API, schema, account, subscription, finance or production data changes.
+- **Existing safeguards retained:** MVC and API SuperAdmin role restriction; dashboard service's authenticated `IsSuperAdmin` check; server-side no-store caching; source-backed counts including nullable pending payment count; bounded recent tenant and expiry lists; no new user-controlled Code or tenant data input. The four action destinations have actual SuperAdmin controller actions.
+- **PASS — source-level only:** All five focused contract assertions executed against GitHub `Ashraful` file snapshots in a V8 harness with mocked filesystem, checking authorization/no-store source contracts, eight real metrics, compact shell, bilingual labels, empty states/accessibility markup, and existing action routes. All five PASS. This is **not** Node repository test execution or runtime UI verification. GitHub file readback after updates PASS.
+- **BLOCKED:** local git clone/ls-remote cannot resolve github.com; `dotnet` executable is absent in the current execution environment. Commit combined status endpoint reports no checks for application-code commit `75278a2497e7865e4108c68f2767d0c21e87d14c`.
+- **NOT RUN:** Release build, actual `node --test` repository suite, .NET unit/integration/tenant/security tests, authenticated SQL integration, page service live data, desktop/mobile browser rendering, bn-BD/en-BD and light/dark, accessibility, and Global Page Assistant/Voice smoke tests. No production/UAT certification.
+- **Next on this same page:** restore a runnable GitHub checkout + .NET SDK + controlled SQL/browser environment; run named source test using Node, full build/service and browser/tenant/role/locale/voice checks, fix discovered issues, and only then mark this route Verified Complete. Do not proceed to `/PlatformTenants/Index` or other menu routes until required final gates PASS.
