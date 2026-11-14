@@ -17,12 +17,12 @@
             <button id="iaWebhookAdd" type="button" class="btn btn-outline-primary btn-sm" aria-controls="iaWebhookEditor" aria-expanded="false">@(bn ? "+ নতুন ওয়েবহুক" : "+ Add webhook")</button>
         </div>
         <div class="table-responsive"><table class="table table-hover table-sm align-middle mb-2">
-            <thead><tr><th>Name</th><th>HTTPS destination</th><th>Events</th><th>Secret</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th scope="col">@(bn ? "নাম" : "Name")</th><th scope="col">@(bn ? "HTTPS গন্তব্য" : "HTTPS destination")</th><th scope="col">@(bn ? "ইভেন্ট" : "Events")</th><th scope="col">@(bn ? "গোপন কী" : "Secret")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Actions")</th></tr></thead>
             <tbody id="iaWebhookRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center">
-            <button id="iaWebhookPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <button id="iaWebhookPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগের" : "Previous")</button>
             <span id="iaWebhookPage"></span>
-            <button id="iaWebhookNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            <button id="iaWebhookNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
         </div>
     </div></div>
     <details id="iaWebhookEditor" class="card border-0 shadow-sm mb-2">
@@ -32,24 +32,24 @@
             @Html.AntiForgeryToken()
             <input id="iaWebhookId" type="hidden" /><input id="iaWebhookVersion" type="hidden" />
             <div class="row g-2">
-                <div class="col-md-3"><label class="form-label" for="iaWebhookName">Name</label>
+                <div class="col-md-3"><label class="form-label" for="iaWebhookName">@(bn ? "নাম" : "Name")</label>
                     <input id="iaWebhookName" class="form-control" maxlength="150" required /></div>
-                <div class="col-md-5"><label class="form-label" for="iaWebhookUrl">Public HTTPS URL (port 443, no query)</label>
+                <div class="col-md-5"><label class="form-label" for="iaWebhookUrl">@(bn ? "পাবলিক HTTPS URL (পোর্ট ৪৪৩, query ছাড়া)" : "Public HTTPS URL (port 443, no query)")</label>
                     <input id="iaWebhookUrl" class="form-control" type="url" maxlength="1000" placeholder="https://hooks.example.org/eduos" required /></div>
-                <div class="col-md-4"><label class="form-label" for="iaWebhookEvents">Event codes (comma separated)</label>
+                <div class="col-md-4"><label class="form-label" for="iaWebhookEvents">@(bn ? "ইভেন্ট কোড (কমা দিয়ে আলাদা)" : "Event codes (comma separated)")</label>
                     <input id="iaWebhookEvents" class="form-control" maxlength="1000" placeholder="STUDENT.CREATED, PAYMENT.POSTED" required /></div>
-                <div class="col-md-5"><label class="form-label" for="iaWebhookSecret">Signing secret (min 16 characters)</label>
+                <div class="col-md-5"><label class="form-label" for="iaWebhookSecret">@(bn ? "স্বাক্ষর যাচাইয়ের গোপন কী (কমপক্ষে ১৬ অক্ষর)" : "Signing secret (min 16 characters)")</label>
                     <input id="iaWebhookSecret" class="form-control" type="password" maxlength="256" autocomplete="new-password" />
-                    <small class="text-muted">Leave blank on edit to retain existing protected secret. Never displayed after save.</small></div>
-                <div class="col-md-3"><label class="form-label" for="iaWebhookActive">Status</label>
-                    <select id="iaWebhookActive" class="form-select"><option value="true">Active configuration</option><option value="false">Inactive</option></select></div>
+                    <small class="text-muted">@(bn ? "আগের গোপন কী রাখতে ফাঁকা রাখুন। সংরক্ষণের পরে আর দেখানো হবে না।" : "Leave blank on edit to retain existing protected secret. Never displayed after save.")</small></div>
+                <div class="col-md-3"><label class="form-label" for="iaWebhookActive">@(bn ? "অবস্থা" : "Status")</label>
+                    <select id="iaWebhookActive" class="form-select"><option value="true">@(bn ? "সক্রিয় সেটিংস" : "Active configuration")</option><option value="false">@(bn ? "নিষ্ক্রিয়" : "Inactive")</option></select></div>
                 <div class="col-md-4 d-flex align-items-center"><div class="form-check">
                     <input id="iaWebhookClear" class="form-check-input" type="checkbox" />
-                    <label for="iaWebhookClear" class="form-check-label">Clear secret (inactive only)</label>
+                    <label for="iaWebhookClear" class="form-check-label">@(bn ? "গোপন কী পরিষ্কার (নিষ্ক্রিয় অবস্থায়)" : "Clear secret (inactive only)")</label>
                 </div></div>
             </div>
-            <div class="mt-3 d-flex gap-2"><button class="btn btn-primary" type="submit">Save webhook</button>
-                <button id="iaWebhookReset" type="button" class="btn btn-outline-secondary">Reset</button></div>
+            <div class="mt-3 d-flex gap-2"><button class="btn btn-primary" type="submit">@(bn ? "ওয়েবহুক সংরক্ষণ" : "Save webhook")</button>
+                <button id="iaWebhookReset" type="button" class="btn btn-outline-secondary">@(bn ? "ফর্ম পরিষ্কার" : "Reset")</button></div>
         </form>
         </div>
     </details>
@@ -59,56 +59,56 @@
             <span id="iaDeliveryFor" class="small text-muted"></span>
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
-            <label class="form-label mb-0" for="iaDeliveryExportEndpoint">Export endpoint</label>
-            <select id="iaDeliveryExportEndpoint" class="form-select form-select-sm w-auto" aria-label="Webhook endpoint for export"><option value="">Loading webhooks...</option></select>
-            <button id="iaDeliveryExport" type="button" class="btn btn-outline-primary btn-sm" disabled>Download delivery CSV</button>
+            <label class="form-label mb-0" for="iaDeliveryExportEndpoint">@(bn ? "রপ্তানির এন্ডপয়েন্ট" : "Export endpoint")</label>
+            <select id="iaDeliveryExportEndpoint" class="form-select form-select-sm w-auto" aria-label="Webhook endpoint for export"><option value="">@(bn ? "ওয়েবহুক আনা হচ্ছে…" : "Loading webhooks...")</option></select>
+            <button id="iaDeliveryExport" type="button" class="btn btn-outline-primary btn-sm" disabled>@(bn ? "ডেলিভারির CSV নামান" : "Download delivery CSV")</button>
             <small class="text-muted">Maximum 1,000 rows; no payloads or secrets.</small>
         </div>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-2">
-            <thead><tr><th>Event</th><th>Event ID</th><th>State</th><th>Attempts</th><th>Last attempt</th><th>Next attempt</th><th>Failure</th></tr></thead>
+            <thead><tr><th scope="col">@(bn ? "ইভেন্ট" : "Event")</th><th scope="col">@(bn ? "ইভেন্ট আইডি" : "Event ID")</th><th scope="col">@(bn ? "অবস্থা" : "State")</th><th scope="col">@(bn ? "চেষ্টা" : "Attempts")</th><th scope="col">@(bn ? "সর্বশেষ চেষ্টা" : "Last attempt")</th><th scope="col">@(bn ? "পরের চেষ্টা" : "Next attempt")</th><th scope="col">@(bn ? "ব্যর্থতা" : "Failure")</th></tr></thead>
             <tbody id="iaDeliveryRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center">
-            <button id="iaDeliveryPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <button id="iaDeliveryPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগের" : "Previous")</button>
             <span id="iaDeliveryPage"></span>
-            <button id="iaDeliveryNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            <button id="iaDeliveryNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
         </div>
     </div></div>
     <div class="card border-0 shadow-sm mb-2"><div class="card-body p-3">
         <h2 class="h6 fw-semibold mb-2">@(bn ? "API ক্রেডেনশিয়াল" : "API credentials")</h2>
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-2">
-            <thead><tr><th>Name</th><th>Prefix</th><th>Scopes</th><th>Expiry</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th scope="col">@(bn ? "নাম" : "Name")</th><th scope="col">@(bn ? "প্রিফিক্স" : "Prefix")</th><th scope="col">@(bn ? "অনুমতির পরিধি" : "Scopes")</th><th scope="col">@(bn ? "মেয়াদ শেষ" : "Expiry")</th><th scope="col">@(bn ? "সর্বশেষ ব্যবহার" : "Last used")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col"></th></tr></thead>
             <tbody id="iaCredentialRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center">
-            <button id="iaCredentialPrev" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
+            <button id="iaCredentialPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগের" : "Previous")</button>
             <span id="iaCredentialPage"></span>
-            <button id="iaCredentialNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+            <button id="iaCredentialNext" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
         </div>
-        <details class="mt-2" id="iaUsageHelp"><summary class="fw-semibold">Usage API example</summary><div class="alert alert-info mt-2 mb-0" role="note">
-            <strong>Read-only integration API</strong>
+        <details class="mt-2" id="iaUsageHelp"><summary class="fw-semibold">@(bn ? "API ব্যবহারের উদাহরণ" : "Usage API example")</summary><div class="alert alert-info mt-2 mb-0" role="note">
+            <strong>@(bn ? "শুধু পড়ার ইন্টিগ্রেশন API" : "Read-only integration API")</strong>
             <p class="mb-2">Create a credential with <code>integration:read</code> scope to retrieve your institution's saved usage snapshots. Send requests without login cookies.</p>
             <p class="mb-2">GET <code>/api/integration/v1/usage?page=1&amp;pageSize=20</code></p>
             <p class="mb-2">GET <code>/api/integration/v1/usage/export</code> downloads the latest 100 saved usage snapshots as CSV (not the complete history). The same <code>integration:read</code> credential, tenant, revocation, expiry and subscription checks apply. Use a server-side, cookie-free client; never put the API key in browser JavaScript. For date-range exports use the TenantAdmin Institution Usage History page.</p>
             <pre class="mb-2" style="white-space:pre-wrap">curl -H 'Authorization: ApiKey YOUR_API_KEY' 'https://YOUR_EDUOS_HOST/api/integration/v1/usage/export' -o institution-usage-latest-100.csv</pre>
             <pre id="iaApiExample" class="mb-2" style="white-space:pre-wrap">curl -H 'Authorization: ApiKey YOUR_API_KEY' 'https://YOUR_EDUOS_HOST/api/integration/v1/usage?page=1&amp;pageSize=20'</pre>
-            <button type="button" id="iaCopyApiExample" class="btn btn-outline-primary btn-sm">Copy placeholder example</button>
-            <p class="small mb-0 mt-2">The credential is shown only once. Never place it in URLs, browser JavaScript, or source control. Expiry and revocation are enforced.</p>
+            <button type="button" id="iaCopyApiExample" class="btn btn-outline-primary btn-sm">@(bn ? "নমুনা কপি করুন" : "Copy placeholder example")</button>
+            <p class="small mb-0 mt-2">@(bn ? "API কী একবারই দেখানো হবে। URL, ব্রাউজার JavaScript বা source control-এ রাখবেন না। মেয়াদ ও বাতিলের নিয়ম কার্যকর।" : "The credential is shown only once. Never place it in URLs, browser JavaScript, or source control. Expiry and revocation are enforced.")</p>
         </div></details>
         <details class="border rounded px-3 py-2 mt-2" id="iaCredentialCreator">
             <summary class="fw-semibold small">@(bn ? "+ নতুন API ক্রেডেনশিয়াল" : "+ Generate API credential")</summary>
         <form id="iaCredentialForm" class="pt-2">
             <div class="row g-2">
-                <div class="col-md-4"><label class="form-label" for="iaCredentialName">Name</label>
+                <div class="col-md-4"><label class="form-label" for="iaCredentialName">@(bn ? "নাম" : "Name")</label>
                     <input id="iaCredentialName" class="form-control" maxlength="150" required /></div>
-                <div class="col-md-4"><label class="form-label" for="iaCredentialScopes">Scopes (comma separated)</label>
+                <div class="col-md-4"><label class="form-label" for="iaCredentialScopes">@(bn ? "অনুমতি (কমা দিয়ে আলাদা)" : "Scopes (comma separated)")</label>
                     <input id="iaCredentialScopes" class="form-control" maxlength="1000" value="integration:read" required /></div>
-                <div class="col-md-4"><label class="form-label" for="iaCredentialExpiry">Expires at (optional)</label>
+                <div class="col-md-4"><label class="form-label" for="iaCredentialExpiry">@(bn ? "মেয়াদ শেষ (ঐচ্ছিক)" : "Expires at (optional)")</label>
                     <input id="iaCredentialExpiry" class="form-control" type="datetime-local" /></div>
             </div>
             <button class="btn btn-primary btn-sm mt-2" type="submit">@(bn ? "ক্রেডেনশিয়াল তৈরি" : "Generate credential")</button>
         </form>
         </details>
         <div id="iaKeyPanel" class="alert alert-success mt-3 d-none" role="status">
-            <strong>Copy this key now. It will never be displayed again.</strong>
+            <strong>@(bn ? "কী এখনই কপি করুন। পরে আর দেখা যাবে না।" : "Copy this key now. It will never be displayed again.")</strong>
             <pre id="iaOneTimeKey" class="mt-2 mb-0 text-break" style="white-space:pre-wrap"></pre>
             <button id="iaHideKey" type="button" class="btn btn-outline-secondary btn-sm mt-2">Hide key</button>
         </div>
