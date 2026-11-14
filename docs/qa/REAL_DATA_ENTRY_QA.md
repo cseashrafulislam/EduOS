@@ -18,3 +18,7 @@ This is an authenticated real form-data-entry QA slice and DOES NOT certify
 204 routes, financial GL postings, full ERP acceptance or institutional UAT.
 Use issue #139 for the remaining release blockers. A github.dev Codespace
 editor URL is not the application URL or a remotely controllable terminal.
+
+## First real browser QA finding and corrective patch
+
+Initial real-browser run [#43633087557](https://github.com/cseashrafulislam/EduOS/actions/runs/43633087557) exposed a backend defect: creating a Term through the current UX succeeded but persisted a null Code. The service now generates a stable AT- prefixed GUID code when omitted, preserves old explicit/immutable codes and checks the existing scoped unique index. A real SQL acceptance test covers no-Code term creation. The original run is a genuine FAIL; a later candidate must pass before this acceptance is green.

@@ -477,6 +477,19 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 x.Name == request.Name.Trim() && !x.IsDeleted &&
                 (!id.HasValue || x.Id != id.Value), token))
                 return Error<AcademicTermDto>("Term name already exists for this year.", 409);
+            // Modern pages do not ask users to enter internal codes. Generate
+            // a stable, concurrency-safe code when absent; retain any existing
+            // code and explicit legacy API codes for backwards compatibility.
+            var code = Trim(request.Code);
+            if (string.IsNullOrWhiteSpace(code))
+                code = string.IsNullOrWhiteSpace(row?.Code)
+                    ? "AT-" + Guid.NewGuid().ToString("N")[..20].ToUpperInvariant()
+                    : row.Code;
+            if (await _terms.GetQueryable().AsNoTracking().AnyAsync(x =>
+                x.TenantId == tenant && x.AcademicYearId == year.Id &&
+                x.Code == code && !x.IsDeleted &&
+                (!id.HasValue || x.Id != id.Value), token))
+                return Error<AcademicTermDto>("Term code already exists for this year.", 409);
             var now = _clock.GetUtcNow().UtcDateTime;
             if (request.IsCurrent)
             {
@@ -498,7 +511,7 @@ public sealed class InstitutionFoundationService : IInstitutionFoundationService
                 await _terms.AddAsync(row);
             }
             row.AcademicYearId = year.Id; row.Name = request.Name.Trim();
-            row.Code = Trim(request.Code); row.StartDate = request.StartDate;
+            row.Code = code; row.StartDate = request.StartDate;
             row.EndDate = request.EndDate; row.IsCurrent = request.IsCurrent;
             row.IsActive = request.IsActive; row.DisplayOrder = request.DisplayOrder;
             row.UpdatedAt = now; row.UpdatedBy = _user.UserId;

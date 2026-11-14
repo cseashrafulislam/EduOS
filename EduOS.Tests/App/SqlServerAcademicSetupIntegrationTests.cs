@@ -146,10 +146,12 @@ public sealed class SqlServerAcademicSetupIntegrationTests
         Assert.True(firstTerm.Success, firstTerm.Message);
         var secondTerm = await sut.SaveAcademicTermAsync(null, new SaveAcademicTermRequestDto
         {
-            AcademicYearId = b.Data.Id, Name = "Second", Code = "T2-" + suffix,
+            AcademicYearId = b.Data.Id, Name = "Second", Code = null,
             StartDate = new DateOnly(2026, 7, 1), EndDate = end, IsCurrent = true
         });
         Assert.True(secondTerm.Success, secondTerm.Message);
+        Assert.StartsWith("AT-", secondTerm.Data!.Code);
+        Assert.True(secondTerm.Data.Code!.Length <= 30);
         db.ChangeTracker.Clear();
         var years = await db.AcademicYears.AsNoTracking().Where(x => x.TenantId == tenantId).ToListAsync();
         var terms = await db.AcademicTerms.AsNoTracking().Where(x => x.TenantId == tenantId).ToListAsync();
@@ -159,6 +161,7 @@ public sealed class SqlServerAcademicSetupIntegrationTests
         Assert.Equal(2, terms.Count);
         Assert.Single(terms, x => x.Id == secondTerm.Data!.Id && x.IsCurrent);
         Assert.False(terms.Single(x => x.Id == firstTerm.Data!.Id).IsCurrent);
+        Assert.Equal(secondTerm.Data.Code, terms.Single(x => x.Id == secondTerm.Data!.Id).Code);
     }
 
     private sealed class AcademicAdmin(long tenant) : ICurrentUserService
