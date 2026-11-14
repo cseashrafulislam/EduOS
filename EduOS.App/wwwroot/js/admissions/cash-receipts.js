@@ -3,6 +3,8 @@
     const root = document.getElementById('admissionCashWorkspace');
     if (!root) return;
     const el = id => document.getElementById(id);
+    const bn = document.documentElement.lang.toLowerCase().startsWith('bn');
+    const t = (en, bd) => bn ? bd : en;
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
     const endpoint = '/api/admission-cash-receipts';
     let workspace = null, selected = null, requestId = '', fingerprint = '';
@@ -14,10 +16,10 @@
     function notice(message, error = false) {
         const box = el('admissionCashNotice');
         box.textContent = message;
-        box.className = 'alert ' + (error ? 'alert-danger' : 'alert-info');
+        box.className = 'alert py-2 mb-2 ' + (error ? 'alert-danger' : 'alert-info');
     }
     async function api(url, method = 'GET', payload) {
-        if (!live()) throw new Error('Institution session changed. Reload the page.');
+        if (!live()) throw new Error(t('Institution session changed. Reload the page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পেজ রিলোড করুন।'));
         const headers = { Accept: 'application/json' };
         if (method !== 'GET') {
             if (!token) throw new Error('Antiforgery token missing; reload the page.');
@@ -27,7 +29,7 @@
         const response = await fetch(url, { method, headers, credentials: 'same-origin',
             cache: 'no-store', body: payload === undefined ? undefined : JSON.stringify(payload) });
         const result = await response.json().catch(() => null);
-        if (!live()) throw new Error('Institution session changed. Reload the page.');
+        if (!live()) throw new Error(t('Institution session changed. Reload the page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পেজ রিলোড করুন।'));
         if (!response.ok || !result?.success) throw new Error(result?.message || 'Request failed.');
         return result.data;
     }
@@ -73,23 +75,23 @@
         el('admissionCashCollectPanel').hidden = false;
         el('admissionCashSelected').textContent = row.applicationNumber + ' · ' + row.applicantName +
             ' · ' + row.campusName + ' · ' + money(row.applicationFee, row.currencyCode);
-        notice('Select a period and ledgers, then confirm cash collection.');
+        notice(t('Select a period and ledgers, then confirm cash collection.', 'হিসাবকাল ও লেজার নির্বাচন করে নগদ গ্রহণ নিশ্চিত করুন।'));
     }
     function render(data) {
         workspace = data;
-        select('admissionCashPeriod', data.openPeriods || [], 'Select open period');
-        select('admissionCashLedger', data.cashAccounts || [], 'Select cash-in-hand ledger');
-        select('admissionIncomeLedger', data.incomeAccounts || [], 'Select income ledger');
+        select('admissionCashPeriod', data.openPeriods || [], t('Select open period', 'খোলা হিসাবকাল নির্বাচন করুন'));
+        select('admissionCashLedger', data.cashAccounts || [], t('Select cash-in-hand ledger', 'নগদ হিসাব নির্বাচন করুন'));
+        select('admissionIncomeLedger', data.incomeAccounts || [], t('Select income ledger', 'আয়ের হিসাব নির্বাচন করুন'));
         if (!el('admissionCashDate').value) el('admissionCashDate').value = data.today;
         const body = el('admissionCashApplicants'); body.replaceChildren();
         for (const row of data.applicants || []) {
             const tr = document.createElement('tr');
             for (const value of [row.applicationNumber, row.applicantName, row.campusName,
-                money(row.applicationFee, row.currencyCode), row.receiptNumber || 'Not collected'])
+                money(row.applicationFee, row.currencyCode), row.receiptNumber || t('Not collected', 'সংগ্রহ হয়নি')])
                 tr.append(cell(value));
             const action = document.createElement('td'), button = document.createElement('button');
             button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary';
-            button.textContent = row.receiptReference ? 'View receipt' : 'Collect cash';
+            button.textContent = row.receiptReference ? t('View receipt', 'রসিদ দেখুন') : t('Collect cash', 'নগদ গ্রহণ করুন');
             const eligible = [2, 3, 4, 5, 6, 8].includes(Number(row.state));
             button.disabled = !row.receiptReference &&
                 (!eligible || row.currencyCode !== 'BDT' || Number(row.applicationFee) <= 0);
@@ -102,7 +104,7 @@
             action.append(button); tr.append(action); body.append(tr);
         }
         if (!(data.applicants || []).length) {
-            const tr = document.createElement('tr'), td = cell('No matching applications.');
+            const tr = document.createElement('tr'), td = cell(t('No matching applications.', 'কোনো আবেদন পাওয়া যায়নি।'));
             td.colSpan = 6; tr.append(td); body.append(tr);
         }
     }
@@ -119,11 +121,11 @@
         const cashId = Number(el('admissionCashLedger').value), incomeId = Number(el('admissionIncomeLedger').value);
         const period = (workspace.openPeriods || []).find(x => x.id === periodId);
         if (!period || date < period.startDate || date > period.endDate || !cashId || !incomeId) {
-            notice('Choose an open period covering the date, cash ledger and income ledger.', true); return;
+            notice(t('Choose an open period covering the date, cash ledger and income ledger.', 'তারিখের সঙ্গে মিল থাকা খোলা হিসাবকাল, নগদ ও আয় হিসাব নির্বাচন করুন।'), true); return;
         }
         const key = [selected.applicantReference, selected.applicationFee, date, periodId, cashId, incomeId].join('|');
         if (key !== fingerprint) { fingerprint = key; requestId = crypto.randomUUID(); }
-        if (!confirm('Cash received? This will immediately post a balanced admission-fee journal.')) return;
+        if (!confirm(t('Cash received? This will immediately post a balanced admission-fee journal.', 'নগদ টাকা গ্রহণ করেছেন? নিশ্চিত করলে সুষম ভর্তি ফি জার্নাল পোস্ট হবে।'))) return;
         const applicant = selected;
         const button = el('admissionCashCollect'); collecting = true; button.disabled = true;
         try {
@@ -136,7 +138,7 @@
             showReceipt(result);
             el('admissionCashCollectPanel').hidden = true;
             selected = null; requestId = ''; fingerprint = '';
-            notice(result.alreadyRecorded ? 'Existing receipt recovered.' : 'Cash collected and GL journal posted.');
+            notice(result.alreadyRecorded ? t('Existing receipt recovered.', 'আগের রসিদ পুনরুদ্ধার করা হয়েছে।') : t('Cash collected and GL journal posted.', 'নগদ গ্রহণ ও GL জার্নাল পোস্ট হয়েছে।'));
             await load();
         } catch (error) { notice(error.message, true); }
         finally { collecting = false; button.disabled = false; }
@@ -147,7 +149,7 @@
         ++receiptSequence;
         el('admissionCashCollectPanel').hidden = true;
         selected = null;
-        try { await load(); notice('Applications loaded.'); }
+        try { await load(); notice(t('Applications loaded.', 'আবেদনের তালিকা লোড হয়েছে।')); }
         catch (error) { notice(error.message, true); }
     });
     el('admissionCashCollectForm').addEventListener('submit', collect);
@@ -159,7 +161,7 @@
         el('admissionCashApplicants').replaceChildren();
         el('admissionCashCollectPanel').hidden = true;
         el('admissionCashReceiptPrint').hidden = true;
-        notice('Institution session changed. Reload the page.', true);
+        notice(t('Institution session changed. Reload the page.', 'প্রতিষ্ঠানের সেশন বদলেছে। পেজ রিলোড করুন।'), true);
         observer.disconnect();
     });
     observer.observe(document.body, { attributes: true,

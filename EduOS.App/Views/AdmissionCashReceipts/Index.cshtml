@@ -1,62 +1,63 @@
+@using System.Globalization
 @{
-    ViewData["Title"] = "Admission Cash Fee Receipts";
+    var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    string L(string en, string bd) => bn ? bd : en;
+    ViewData["Title"] = L("Admission Cash Fee Receipts", "ভর্তি আবেদন ফি—নগদ রসিদ");
 }
-<section id="admissionCashWorkspace" class="container-fluid py-3">
-    <header class="mb-3">
-        <h2>Admission application fee · Cash receipt</h2>
-        <p class="text-muted">Institution administrator only. A successful BDT cash receipt and its balanced, posted institutional GL journal are saved together. No gateway, bank transfer or subscription payments.</p>
-        <a href="/Admissions/Index" class="btn btn-outline-secondary btn-sm">Admission applications</a>
-    </header>
+<section id="admissionCashWorkspace" class="container-fluid py-2">
     @Html.AntiForgeryToken()
-    <div id="admissionCashNotice" class="alert alert-info" role="status" aria-live="polite">Search for an existing admission application.</div>
-    <form id="admissionCashSearchForm" class="card card-body mb-3">
+    <div id="admissionCashNotice" class="alert d-none py-2 mb-2" role="status" aria-live="polite"></div>
+    <form id="admissionCashSearchForm" class="card card-body mb-2">
         <div class="row g-2 align-items-end">
             <div class="col-md-9">
-                <label class="form-label" for="admissionCashSearch">Application number, applicant name or receipt</label>
+                <label class="form-label" for="admissionCashSearch">@L("Application number, applicant name or receipt", "আবেদন নম্বর, আবেদনকারীর নাম বা রসিদ")</label>
                 <input id="admissionCashSearch" class="form-control" minlength="2" maxlength="100" autocomplete="off" required />
             </div>
-            <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Find application</button></div>
+            <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">@L("Find application", "আবেদন খুঁজুন")</button></div>
         </div>
     </form>
-    <div class="card card-body mb-3">
-        <h3 class="h5">Matching applicants</h3>
+    <div class="card card-body mb-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <h2 class="h6 mb-0">@L("Matching applicants", "মিলে যাওয়া আবেদনকারী")</h2>
+            <a asp-controller="Admissions" asp-action="Index" class="btn btn-outline-secondary btn-sm">@L("Admission applications", "ভর্তি আবেদন")</a>
+        </div>
         <div class="table-responsive"><table class="table table-sm table-striped align-middle">
-            <thead><tr><th>Application</th><th>Applicant</th><th>Campus</th><th>Fee</th><th>Payment</th><th>Action</th></tr></thead>
+            <thead><tr><th>@L("Application", "আবেদন")</th><th>@L("Applicant", "আবেদনকারী")</th><th>@L("Campus", "ক্যাম্পাস")</th><th>@L("Fee", "ফি")</th><th>@L("Payment", "পেমেন্ট")</th><th>@L("Action", "কাজ")</th></tr></thead>
             <tbody id="admissionCashApplicants"></tbody>
         </table></div>
     </div>
-    <div id="admissionCashCollectPanel" class="card card-body mb-3" hidden>
-        <h3 class="h5">Collect one-time cash application fee</h3>
+    <div id="admissionCashCollectPanel" class="card card-body mb-2" hidden>
+        <h3 class="h6 mb-2">@L("Collect one-time cash application fee", "একবারের ভর্তি আবেদন ফি নগদ গ্রহণ")</h3>
         <p id="admissionCashSelected" class="text-muted" aria-live="polite"></p>
         <form id="admissionCashCollectForm">
-            <div class="row g-3">
-                <div class="col-md-3"><label class="form-label" for="admissionCashDate">Payment date</label>
+            <div class="row g-2">
+                <div class="col-md-3"><label class="form-label" for="admissionCashDate">@L("Payment date", "পেমেন্টের তারিখ")</label>
                     <input id="admissionCashDate" class="form-control" type="date" required /></div>
-                <div class="col-md-3"><label class="form-label" for="admissionCashPeriod">Open accounting period</label>
+                <div class="col-md-3"><label class="form-label" for="admissionCashPeriod">@L("Open accounting period", "খোলা হিসাবকাল")</label>
                     <select id="admissionCashPeriod" class="form-select" required></select></div>
-                <div class="col-md-3"><label class="form-label" for="admissionCashLedger">Cash-in-hand asset ledger</label>
+                <div class="col-md-3"><label class="form-label" for="admissionCashLedger">@L("Cash-in-hand asset ledger", "নগদ সম্পদ হিসাব")</label>
                     <select id="admissionCashLedger" class="form-select" required></select></div>
-                <div class="col-md-3"><label class="form-label" for="admissionIncomeLedger">Admission fee income ledger</label>
+                <div class="col-md-3"><label class="form-label" for="admissionIncomeLedger">@L("Admission fee income ledger", "ভর্তি ফি আয়ের হিসাব")</label>
                     <select id="admissionIncomeLedger" class="form-select" required></select></div>
             </div>
-            <div class="mt-3">
-                <button id="admissionCashCollect" class="btn btn-success" type="submit">Collect cash and post GL</button>
-                <p class="small text-muted mt-2">The amount is taken from the canonical intake form. The selected period must cover the payment date. This action is irreversible without a controlled accounting reversal.</p>
+            <div class="mt-2">
+                <button id="admissionCashCollect" class="btn btn-success" type="submit">@L("Collect cash and post GL", "নগদ গ্রহণ ও GL পোস্ট করুন")</button>
+                <p class="small text-muted mt-2">@L("The amount is taken from the canonical intake form. The selected period must cover the payment date. This action is irreversible without a controlled accounting reversal.", "প্রকৃত পরিমাণ ভর্তি ফর্ম থেকে নেওয়া হবে। নির্বাচিত হিসাবকাল পেমেন্টের তারিখের সঙ্গে মিলতে হবে। হিসাব রিভার্সাল ছাড়া পোস্টিং ফেরানো যাবে না।")</p>
             </div>
         </form>
     </div>
-    <section id="admissionCashReceiptPrint" class="card card-body mb-3" hidden aria-labelledby="admissionCashReceiptHeading">
-        <h3 id="admissionCashReceiptHeading" class="h5">Admission fee receipt / ভর্তি ফি রসিদ</h3>
+    <section id="admissionCashReceiptPrint" class="card card-body mb-2" hidden aria-labelledby="admissionCashReceiptHeading">
+        <h3 id="admissionCashReceiptHeading" class="h6 mb-2">@L("Admission fee receipt / ভর্তি ফি রসিদ", "ভর্তি ফি রসিদ / Admission fee receipt")</h3>
         <dl class="row mb-2">
-            <dt class="col-sm-3">Receipt</dt><dd class="col-sm-9" id="cashReceiptNumber"></dd>
-            <dt class="col-sm-3">Application</dt><dd class="col-sm-9" id="cashReceiptApplication"></dd>
-            <dt class="col-sm-3">Applicant</dt><dd class="col-sm-9" id="cashReceiptApplicant"></dd>
-            <dt class="col-sm-3">Campus</dt><dd class="col-sm-9" id="cashReceiptCampus"></dd>
-            <dt class="col-sm-3">Date</dt><dd class="col-sm-9" id="cashReceiptDate"></dd>
-            <dt class="col-sm-3">Amount</dt><dd class="col-sm-9" id="cashReceiptAmount"></dd>
-            <dt class="col-sm-3">Posted journal</dt><dd class="col-sm-9" id="cashReceiptJournal"></dd>
+            <dt class="col-sm-3">@L("Receipt", "রসিদ")</dt><dd class="col-sm-9" id="cashReceiptNumber"></dd>
+            <dt class="col-sm-3">@L("Application", "আবেদন")</dt><dd class="col-sm-9" id="cashReceiptApplication"></dd>
+            <dt class="col-sm-3">@L("Applicant", "আবেদনকারী")</dt><dd class="col-sm-9" id="cashReceiptApplicant"></dd>
+            <dt class="col-sm-3">@L("Campus", "ক্যাম্পাস")</dt><dd class="col-sm-9" id="cashReceiptCampus"></dd>
+            <dt class="col-sm-3">@L("Date", "তারিখ")</dt><dd class="col-sm-9" id="cashReceiptDate"></dd>
+            <dt class="col-sm-3">@L("Amount", "পরিমাণ")</dt><dd class="col-sm-9" id="cashReceiptAmount"></dd>
+            <dt class="col-sm-3">@L("Posted journal", "পোস্ট করা জার্নাল")</dt><dd class="col-sm-9" id="cashReceiptJournal"></dd>
         </dl>
-        <button id="admissionCashPrintButton" type="button" class="btn btn-outline-primary d-print-none">Print receipt</button>
+        <button id="admissionCashPrintButton" type="button" class="btn btn-outline-primary d-print-none">@L("Print receipt", "রসিদ প্রিন্ট")</button>
     </section>
 </section>
 <style>
