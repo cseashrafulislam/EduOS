@@ -149,3 +149,14 @@ Feature page delivered: compact responsive bilingual list/editor, no duplicate p
 **Per-menu UX summary:** Dashboard 2/2; Platform Institutions 2/2; Platform Features 4/4; Platform Subscription 3/3; Platform Governance 1/1; Access 2/2; Institution & Smart Setup 13/13; Subscription/Usage 2/2; Work Center 1/1; Academic Setup 11/11.
 
 **QA handoff:** Each newly completed route is `UX Done / Final QA Deferred` unless explicitly linked above to a historical exact-SHA pass. Do not conflate source audits with real browser acceptance. Once the other UX lanes are done, run separate final production-like .NET/JS, SQL, browser desktop/mobile, tenant/security/role, payment/reconciliation, concurrency, accessibility, localization and shared AI/Voice coverage; repair CI failures before approving deployment.
+
+## Screenshot-driven UX A + B compact layout correction — 2026-11-14
+
+The shared app shell already renders the route title, so a second page header is **not allowed**. A previously hidden `h1`/`h2` can leave the old white header card and wasted height; the redundant **wrapper itself** was removed. One standalone help icon/back link no longer allocates a full toolbar row. Filter forms no longer combine Bootstrap `card`/`card-body` and `row` on the same element, which produced the screenshot's mostly blank left side and vertically stacked controls.
+
+- Canonical re-audit: **UX A 41 routes / 28 views** and **UX B 42 routes / 36 MVC views plus the standalone offline reader**. Shared Academic/Institution/Admission/Attendance actions are counted once per unique source, not reimplemented.
+- Focused corrections were pushed in `1d33873b7d3dcc360c1522b4ef83cc685545a2dc`, `c0049627a6bd0e776e2f437959eccb54ec926c46`, `0a86b2567709a6dfef13d5e05e9f244de783a3e8`, `78016f3edb76fd0933fe7ce0122f829733127c55`, `339bfbfcdf2814b325237236a70c55723bb03c52`, `0469c45f753b35e7f2bd51d7a39e6be11bdb54b8` and `7a778645717cfd2521ccb7e7e149ebd103571112`.
+- The strict 83-route structural regression file is `EduOS.Tests/JavaScript/ux-ab-compact-layout.test.cjs` (`ed379886f7e413cc1b301a40eff5a683490ef01b`). It checks current route-to-view mapping, shared title ownership, removal of B-only header rows, safe Bootstrap grid nesting, balanced Library filter columns, conditional Merit content, preserved actions, and `aria-labelledby` targets.
+- **No change to UX Done ledger totals. Final QA stays separate:** signed-in desktop/tablet/mobile, Bangla/English screenshot acceptance and latest-head full CI remain to be verified. The repository-level CI includes pre-existing JS failures; no broad PASS is claimed, no tests waived, and no database/tenant data modified. The scheduled UX automations stay OFF.
+
+Full change narrative: [UX A/B screenshot correction](../UX_AB_COMPACT_LAYOUT_CORRECTION_20261114.md).
