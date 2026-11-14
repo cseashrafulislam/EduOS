@@ -1541,7 +1541,41 @@
             ["If the upload fails, check the file format, total count, size and deadline; if the response is uncertain, reload the list before trying again.","আপলোড ব্যর্থ হলে ফরম্যাট, সংখ্যা, আকার ও সময়সীমা যাচাই করুন; ফল অনিশ্চিত হলে আবার জমার আগে তালিকা দেখুন।"],
             [["/Learning/Index","My courses","আমার কোর্স"]]),
     };
+    // UX C examination workflows: existing authorized screens, no invented posting backend.
+    const uxCExamInitialManuals = {
+        '/assessmentadministration/componentmarks/index': taskGuide(
+            ["Assessment Component Marks","মূল্যায়নের অংশভিত্তিক নম্বর"],
+            ["Record authorized component-level marks for existing assessment subjects while preserving published result locks.","বিদ্যমান পরীক্ষার বিষয়ের অংশভিত্তিক অনুমোদিত নম্বর লিখুন; প্রকাশিত ফলের লক অপরিবর্তিত থাকবে।"],
+            ["EXAM module and allowed marks-entry role; the assessment subject, component and subject marks must already exist.","EXAM মডিউল ও নম্বর লেখার অনুমতি; মূল্যায়নের বিষয়, উপাদান এবং বিষয়ের নম্বর আগে থাকতে হবে।"],
+            [["Select an assessment/batch/subject and its authorized component.","মূল্যায়ন, ব্যাচ, বিষয় ও অনুমোদিত অংশ বাছুন।"],["Search or page through the eligible roster and enter verified component marks.","যোগ্য শিক্ষার্থীদের খুঁজে বা পৃষ্ঠা বদলে যাচাইকৃত অংশের নম্বর লিখুন।"],["Save changes while editing remains allowed; use CSV or print for only the currently authorized page.","সম্পাদনা খোলা থাকলে নম্বর সংরক্ষণ করুন; শুধু অনুমোদিত বর্তমান পৃষ্ঠার CSV বা প্রিন্ট নিন।"]],
+            ["Example: record a practical component mark for an eligible learner after the parent subject mark has been prepared.","উদাহরণ: মূল বিষয়ের নম্বর প্রস্তুত হওয়ার পরে যোগ্য শিক্ষার্থীর ব্যবহারিক অংশের নম্বর লিখুন।"],
+            ["Authorized marks appear in the component register; published results cannot be changed from here.","অনুমোদিত নম্বর অংশভিত্তিক তালিকায় দেখা যাবে; এখান থেকে প্রকাশিত ফল বদলানো যাবে না।"],
+            ["Do not create component marks for the wrong subject, bypass result publication or export another tenant's roster.","ভুল বিষয়ে অংশভিত্তিক নম্বর দেবেন না; ফল প্রকাশের লক এড়াবেন না বা অন্য প্রতিষ্ঠানের রেকর্ড রপ্তানি করবেন না।"],
+            ["If saving is blocked, reload the selected subject and confirm its publication/lock state before retrying.","সংরক্ষণ আটকে গেলে নির্বাচিত বিষয় নতুন করে লোড করে প্রকাশ/লক অবস্থা যাচাই করুন।"],
+            [["/AssessmentAdministration/Marks","Marks entry","নম্বর এন্ট্রি"]]),
+        '/assessmentadministration/omr/index': taskGuide(
+            ["Smart OMR Verification","স্মার্ট OMR যাচাই"],
+            ["Prepare immutable answer templates, inspect uploaded OMR evidence and post verified marks using authorized exam controls.","অপরিবর্তনীয় উত্তর টেমপ্লেট তৈরি, আপলোড করা OMR প্রমাণ যাচাই এবং পরীক্ষার অনুমতিতে যাচাইকৃত নম্বর পোস্ট করুন।"],
+            ["EXAM module, an authorized assessment subject and component; verified template and upload format. Posting is restricted to permitted controllers.","EXAM মডিউল, অনুমোদিত বিষয় ও অংশ এবং বৈধ উত্তর টেমপ্লেট ও ফাইল দরকার। পোস্ট করার জন্য বিশেষ অনুমতি প্রয়োজন।"],
+            [["Choose the assessment subject and component; authorized staff may create an answer template before scanning.","বিষয় ও অংশ বাছুন; অনুমোদিত কর্মী স্ক্যানের আগে উত্তর টেমপ্লেট তৈরি করতে পারেন।"],["Upload the supported OMR evidence and inspect detected student matches, answer discrepancies and manual corrections.","অনুমোদিত OMR ফাইল আপলোড করে শিক্ষার্থী মিল, উত্তরের অমিল ও সংশোধন দেখুন।"],["Only after verification, use the authorized Post verified marks action and confirm the linked assessment result.","যাচাইয়ের পরে অনুমোদিত Post verified marks ব্যবহার করে পরীক্ষার সঙ্গে যুক্ত ফল নিশ্চিত করুন।"]],
+            ["Example: review a scanned class test, correct an uncertain roll match and post only confirmed sheets.","উদাহরণ: ক্লাস টেস্টের স্ক্যান যাচাই করে অনিশ্চিত রোল মিল সংশোধন করে শুধু নিশ্চিত শিট পোস্ট করুন।"],
+            ["A verified OMR batch is traceable to the assessment component; draft and posted states are distinct.","যাচাইকৃত OMR ব্যাচ মূল্যায়নের সংশ্লিষ্ট অংশে খুঁজে পাওয়া যাবে; খসড়া ও পোস্ট করা অবস্থা আলাদা।"],
+            ["Never auto-post low-confidence scans or overwrite published marks. Posting must pass server status and role checks.","কম-নিশ্চিত স্ক্যান স্বয়ংক্রিয়ভাবে পোস্ট করবেন না বা প্রকাশিত নম্বর বদলাবেন না। সার্ভার অবস্থা ও অনুমতি যাচাই করে।"],
+            ["If a scan is uncertain, inspect the row and original evidence; after a timeout check batch status before another post.","স্ক্যান অনিশ্চিত হলে মূল প্রমাণ মিলিয়ে দেখুন; টাইমআউট হলে পুনরায় পোস্টের আগে ব্যাচের অবস্থা যাচাই করুন।"],
+            [["/AssessmentAdministration/ComponentMarks","Component marks","অংশভিত্তিক নম্বর"]]),
+        '/assessmentadministration/subjectcompletions/index': taskGuide(
+            ["Subject Completion Reconciliation","বিষয় সম্পন্নের মিল যাচাই"],
+            ["Reconcile end-of-year subject outcomes against all applicable published assessments and finalize only eligible subjects.","শিক্ষাবর্ষের শেষে প্রযোজ্য সব প্রকাশিত মূল্যায়নের সঙ্গে বিষয়ভিত্তিক ফল মিলিয়ে শুধু যোগ্য বিষয় সম্পন্ন করুন।"],
+            ["Authorized academic staff; the academic year must have ended and applicable published assessments must be available.","অনুমোদিত একাডেমিক কর্মী; শিক্ষাবর্ষ শেষ হতে হবে এবং প্রযোজ্য প্রকাশিত মূল্যায়ন থাকতে হবে।"],
+            [["Search and select the ended academic batch; inspect the bounded learner/subject list.","শেষ হওয়া শিক্ষাবর্ষের ব্যাচ খুঁজে শিক্ষার্থী ও বিষয়ের সীমিত তালিকা দেখুন।"],["Inspect each student's required published assessment outcomes and subject eligibility.","প্রতিটি শিক্ষার্থীর প্রযোজ্য প্রকাশিত ফল এবং বিষয় সম্পন্নের যোগ্যতা যাচাই করুন।"],["Complete only eligible subjects and verify the resulting audited state. Export current page as needed.","শুধু যোগ্য বিষয় সম্পন্ন করে অডিটে অবস্থা দেখুন; প্রয়োজনে বর্তমান পৃষ্ঠার রিপোর্ট নিন।"]],
+            ["Example: reconcile an ended academic year's science subject after all required exams are published.","উদাহরণ: শিক্ষাবর্ষ শেষ হওয়ার পর প্রয়োজনীয় পরীক্ষা প্রকাশিত হলে বিজ্ঞান বিষয় সম্পন্নের যোগ্যতা মিলিয়ে দেখুন।"],
+            ["Validated completion allows eligible prerequisite progression without rewriting historical examination marks.","যাচাইকৃত বিষয় সম্পন্ন হলে যোগ্য পূর্বশর্ত পূরণ হয়, পুরোনো পরীক্ষার নম্বর অপরিবর্তিত থাকে।"],
+            ["One passed exam is not enough when the subject has more required assessments; never bypass end-of-year or tenant rules.","একাধিক পরীক্ষা লাগলে শুধু একটি পাস যথেষ্ট নয়; শিক্ষাবর্ষ শেষ হওয়ার নিয়ম বা প্রতিষ্ঠানের অনুমতি এড়াবেন না।"],
+            ["If a subject is ineligible, inspect the missing assessment results and retry only after official publication/approval.","বিষয় অযোগ্য হলে অনুপস্থিত পরীক্ষার ফল দেখুন; আনুষ্ঠানিক প্রকাশ/অনুমোদনের পরে আবার চেষ্টা করুন।"],
+            [["/AssessmentAdministration/Results","Result review","ফল যাচাই"]]),
+    };
     const manuals = {
+        ...uxCExamInitialManuals,
         ...uxCLearningManuals,
         ...uxBManuals,
         ...ux03CrossModuleManuals,
