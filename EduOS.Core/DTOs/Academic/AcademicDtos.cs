@@ -178,9 +178,10 @@ public class AcademicTrackDto
 
 public class SaveAcademicTrackRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     public long? AcademicProgramId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [MaxLength(500)] public string? Description { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;
@@ -303,9 +304,10 @@ public class RoomDto
 
 public class SaveRoomRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     public long CampusId { get; set; }
     [Required, MaxLength(100)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Range(0, 100000)] public int Capacity { get; set; }
     [MaxLength(100)] public string? RoomType { get; set; }
     public bool IsActive { get; set; } = true;
@@ -467,7 +469,7 @@ public class SaveSubjectOfferingRequestDto
     public long CurriculumSubjectId { get; set; }
     public long AcademicYearId { get; set; }
     public long? AcademicTermId { get; set; }
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Range(0, 100000)] public int Capacity { get; set; }
     public DeliveryModeType DeliveryMode { get; set; } = DeliveryModeType.OnCampus;
     public bool IsActive { get; set; } = true;
