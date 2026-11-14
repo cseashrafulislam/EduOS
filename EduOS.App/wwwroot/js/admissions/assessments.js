@@ -11,6 +11,13 @@ function selectTest() {
  el('assessmentMeritList').replaceChildren();
  el('assessmentMeritPanel')?.classList.add('d-none');
  el('assessmentMerit').disabled = !state.test;
+ el('assessmentRosterArea')?.classList.toggle('d-none', !state.test);
+ el('assessmentRosterEmpty')?.classList.toggle('d-none', !!state.test);
+ if (!state.test) {
+  el('assessmentPrev').disabled = true;
+  el('assessmentNext').disabled = true;
+  el('assessmentPage').textContent = '';
+ }
  roster().catch(e => notice(e.message));
 }
 function showTests(selected) {
