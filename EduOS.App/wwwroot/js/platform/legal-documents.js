@@ -2,7 +2,10 @@
  "use strict";
  const root=document.querySelector("[data-legal-mode]");if(!root)return;
  const $=id=>document.getElementById(id), admin=root.dataset.legalMode==="admin";
- const token=document.querySelector('meta[name="request-verification-token"]')?.content;
+ const bn=root.dataset.bangla==="true" || document.documentElement.lang?.toLowerCase().startsWith("bn");
+ const t=(en,bangla)=>bn?bangla:en;
+ const token=root.querySelector('input[name="__RequestVerificationToken"]')?.value ||
+  document.querySelector('meta[name="request-verification-token"]')?.content;
  function notice(message,error=false){const x=$("legalAlert");x.textContent=message;x.className="alert "+(error?"alert-danger":"alert-success");}
  function el(tag,text,cls){const x=document.createElement(tag);x.textContent=String(text??"");if(cls)x.className=cls;return x;}
  async function api(path,method="GET",body){
@@ -15,13 +18,13 @@
   const box=el("article","","border rounded-3 p-3"),detail=document.createElement("details");
   box.append(el("h3",doc.title+" ("+doc.version+")","h6"));
   box.append(el("p",doc.code+" | Effective: "+new Date(doc.effectiveAt).toLocaleString(),"small text-muted"));
-  detail.append(el("summary","Read full text"));
+  detail.append(el("summary",t("Read full text","সম্পূর্ণ লেখা দেখুন")));
   detail.append(el("pre",doc.content,"p-3 mt-2 bg-light text-wrap"));
   box.append(detail);return box;
  }
  async function loadAdmin(){
   const box=$("legalAdminRows");box.replaceChildren();
-  const rows=await api("/admin");if(!rows.length)box.append(el("p","No documents published."));
+  const rows=await api("/admin");if(!rows.length)box.append(el("p",t("No documents published.","কোনো নথি প্রকাশিত হয়নি।")));
   for(const row of rows)box.append(card(row));
  }
  async function loadUser(){
@@ -47,13 +50,22 @@
  }
  if(admin){
   const time=$("legalEffective"),now=new Date();
+  let publishAttemptId=null,publishFingerprint="";
   time.value=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
   $("legalPublishForm").addEventListener("submit",async e=>{
    e.preventDefault();const button=$("legalPublishButton");if(button.disabled)return;
-   if(!confirm("Publish immutable legal version?"))return;button.disabled=true;
+   if(!$( "legalPublishForm").reportValidity())return;
+   const draft=[$("legalCode").value,$("legalVersion").value.trim(),$("legalTitle").value.trim(),
+      $("legalContent").value.trim(),time.value].join("\u001f");
+   if(draft!==publishFingerprint){publishFingerprint=draft;publishAttemptId=crypto.randomUUID();}
+   if(!confirm(t("Publish immutable legal version?","অপরিবর্তনীয় আইনি নথির সংস্করণ প্রকাশ করবেন?")))return;
+   button.disabled=true;
    try{
-    await api("/admin","POST",{clientRequestId:crypto.randomUUID(),code:$("legalCode").value.trim().toUpperCase(),version:$("legalVersion").value.trim(),title:$("legalTitle").value.trim(),content:$("legalContent").value.trim(),effectiveAt:new Date(time.value).toISOString()});
-    $("legalPublishForm").reset();await loadAdmin();notice("Version published.");
+    await api("/admin","POST",{clientRequestId:publishAttemptId,code:$("legalCode").value.trim().toUpperCase(),version:$("legalVersion").value.trim(),title:$("legalTitle").value.trim(),content:$("legalContent").value.trim(),effectiveAt:new Date(time.value).toISOString()});
+    publishAttemptId=null;publishFingerprint="";
+    $("legalPublishForm").reset();
+    await loadAdmin();
+    notice(t("Version published.","সংস্করণ প্রকাশিত হয়েছে।"));
    }catch(error){notice(error.message,true);}finally{button.disabled=false;}
   });loadAdmin().catch(e=>notice(e.message,true));
  }else loadUser().catch(e=>notice(e.message,true));
