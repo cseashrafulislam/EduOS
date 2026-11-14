@@ -5,13 +5,7 @@
 }
 <div id="studentOptionalSubjects" data-can-manage="@(canManageSubjects ? "true" : "false")" class="container-fluid py-2">
     @Html.AntiForgeryToken()
-    <header class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <span class="visually-hidden">Student Optional Subjects</span>
-            <p class="text-muted mb-0">Request eligible electives and review registrations. Prerequisites and student ownership are checked by the server.</p>
-        </div>
-        <a class="btn btn-outline-secondary" href="@(canManageSubjects ? "/Students/Index" : "/StudentPortal/Index")">Back</a>
-    </header>
+    <p class="small text-muted mb-2">Eligible subjects only. Prerequisites and student scope are checked on the server.</p>
     <div id="subjectsNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="row g-3">
         <section class="col-lg-5">

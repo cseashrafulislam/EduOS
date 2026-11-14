@@ -4,10 +4,7 @@
 }
 <div id="alumniWorkspace" class="container-fluid py-2" data-admin="@(User.IsInRole("TenantAdmin") ? "true" : "false")">
     @Html.AntiForgeryToken()
-    <header class="mb-3">
-        <span class="visually-hidden" data-i18n="heading">Alumni &amp; Graduate Directory</span>
-        <p class="text-muted" data-i18n="intro">Only verified graduates can register. Directory sharing is voluntary and can be revoked at any time.</p>
-    </header>
+    <p class="small text-muted mb-2" data-i18n="intro">Only verified graduates can register. Directory sharing is voluntary and can be revoked.</p>
     <div id="alumniNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="row g-3">
         <section class="col-lg-5" aria-labelledby="alumniPrivacyHeading">

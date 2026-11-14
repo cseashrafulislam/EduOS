@@ -10,10 +10,10 @@
 }
 <section id="counselingApp" class="container-fluid py-2" data-officer="@officer.ToString().ToLowerInvariant()" data-counselor="@counselor.ToString().ToLowerInvariant()" data-admin="@admin.ToString().ToLowerInvariant()" data-aggregate="@aggregateAccess.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
-    <header class="mb-3"><span class="visually-hidden">@L("Student Counseling & Safeguarding", "শিক্ষার্থী কাউন্সেলিং ও সুরক্ষা")</span>
-        <p class="text-muted">@L("Private educational support. Only the assigned counselor can open notes, with a narrowly scoped urgent safeguarding escalation.", "ব্যক্তিগত শিক্ষাগত সহায়তা। কেবল নির্ধারিত কাউন্সেলর নোট খুলতে পারেন; জরুরি সুরক্ষা ঘটনায় সীমিত ব্যতিক্রম।")</p>
-        <p class="small text-danger">@L("For immediate danger, contact local emergency or child-protection services. This form is not an emergency response channel.", "তাৎক্ষণিক বিপদে স্থানীয় জরুরি বা শিশু সুরক্ষা সেবায় যোগাযোগ করুন। এই ফর্ম জরুরি সাড়া দেওয়ার মাধ্যম নয়।")</p>
-    </header>
+    <div class="mb-2">
+        <p class="small text-muted mb-1">@L("Private counseling notes are restricted to the assigned counselor and authorized safeguarding processes.", "ব্যক্তিগত কাউন্সেলিং নোট শুধু নির্ধারিত কাউন্সেলর ও অনুমোদিত সুরক্ষা প্রক্রিয়ার জন্য।")</p>
+        <p class="small text-danger mb-0">@L("For immediate danger, contact local emergency or child-protection services. This is not an emergency channel.", "তাৎক্ষণিক বিপদে স্থানীয় জরুরি বা শিশু সুরক্ষা সেবায় যোগাযোগ করুন। এটি জরুরি সেবার মাধ্যম নয়।")</p>
+    </div>
     <div id="caseNotice" class="alert alert-info" role="status" aria-live="polite">@L("Only authorized staff can view case worklists.", "কেবল অনুমোদিত কর্মীরা কেস তালিকা দেখতে পারবেন।")</div>
     @if (admin || officer || counselor)
     {

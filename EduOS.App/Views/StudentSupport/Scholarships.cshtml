@@ -7,11 +7,10 @@
 }
 <section id="scholarshipsApp" class="container-fluid py-2" data-reviewer="@reviewer.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
-    <header class="mb-3">
-        <span class="visually-hidden">@L("Scholarships & Fee Assistance", "বৃত্তি ও ফি সহায়তা")</span>
-        <p class="text-muted">@L("Apply for fee credit or a one-time cash grant. Approved fee credits affect only future invoices; cash grants need separate, independently confirmed Finance posting.", "ফি ছাড় অথবা এককালীন নগদ অনুদানের আবেদন করুন। অনুমোদিত ফি ছাড় শুধু ভবিষ্যৎ বিলে প্রযোজ্য; নগদ অনুদানে আলাদা স্বাধীন ফাইন্যান্স অনুমোদন লাগে।")</p>
-        <a href="/FeeDiscountRules/Index" class="small">@L("Manage existing fee policies (administrator)", "বিদ্যমান ফি-ছাড় নীতিমালা (প্রশাসক)")</a>
-    </header>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <p class="small text-muted mb-0">@L("Fee credits affect only future invoices; cash grants require separately confirmed Finance posting.", "ফি ছাড় শুধু ভবিষ্যৎ ইনভয়েসে প্রযোজ্য; নগদ অনুদানে আলাদা ফাইন্যান্স অনুমোদন প্রয়োজন।")</p>
+        <a href="/FeeDiscountRules/Index" class="small">@L("Fee policies", "ফি-ছাড় নীতিমালা")</a>
+    </div>
     <div id="aidNotice" class="alert alert-info" role="status" aria-live="polite">@L("Select a student and current enrollment.", "শিক্ষার্থী ও বর্তমান ভর্তি নির্বাচন করুন।")</div>
     <div class="row g-3">
         <div class="col-xl-5">

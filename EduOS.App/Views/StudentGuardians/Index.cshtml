@@ -4,10 +4,7 @@
 }
 <div id="guardianWorkspace" class="container-fluid py-2">
     @Html.AntiForgeryToken()
-    <header class="mb-3">
-        <span class="visually-hidden">Student Guardians</span>
-        <p class="text-muted">Manage guardian relationships, primary, emergency and financial contacts, and communication/pickup permissions. Changes are limited to your institution.</p>
-    </header>
+    <p class="small text-muted mb-2">Manage verified guardian relationships and contact permissions for the selected learner.</p>
     <div id="guardianNotice" class="alert alert-info" role="status" aria-live="polite">Search for a student to begin.</div>
     <div class="row g-3">
         <div class="col-lg-5">

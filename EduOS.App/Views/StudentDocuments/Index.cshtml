@@ -4,10 +4,7 @@
 }
 <div id="studentDocumentsApp" class="container-fluid py-2">
     @Html.AntiForgeryToken()
-    <header class="mb-3">
-        <span class="visually-hidden">Student Documents</span>
-        <p class="text-muted">Private, malware-scanned student document attachments. Only institution administrators can access files. Sensitive or verification-required types use the separate protected verification process.</p>
-    </header>
+    <p class="small text-muted mb-2">Private, malware-scanned attachments. Access and verification are restricted to authorized institution staff.</p>
     <div id="documentNotice" class="alert alert-info" role="status" aria-live="polite">Find a student to begin.</div>
     <div class="row g-3">
         <div class="col-lg-5">

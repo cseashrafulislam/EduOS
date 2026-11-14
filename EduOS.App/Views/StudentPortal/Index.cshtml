@@ -1,18 +1,14 @@
 @{
     ViewData["Title"] = "Student & Guardian Portal";
 }
-<section class="container-fluid py-2" aria-labelledby="studentPortalTitle">
-    <header class="mb-3">
-        <span id="studentPortalTitle">Student & guardian portal</span>
-        <p class="text-muted">Only your own or explicitly linked students are visible. Each section respects institutional module access.</p>
-        <a class="btn btn-outline-primary btn-sm" href="/MyStudentLeaves/Index">Request Student Leave</a>
+<section class="container-fluid py-2" aria-label="Student and guardian portal">
+    <nav class="d-flex flex-wrap align-items-center gap-2 mb-2" aria-label="Portal shortcuts">
+        <span class="small text-muted me-auto">Only linked learners are accessible.</span>
+        <a class="btn btn-outline-primary btn-sm" href="/MyStudentLeaves/Index">Request leave</a>
         <a class="btn btn-outline-primary btn-sm" href="/StudentPortal/ResultRescrutiny">Result re-scrutiny</a>
-        <a class="btn btn-outline-secondary btn-sm" href="#learnerConsents">Learner data consent</a>
-        @if (User.IsInRole("Guardian") || User.IsInRole("Parent"))
-        {
-            <a class="btn btn-outline-secondary btn-sm" href="#guardianPreferences">Communication preferences</a>
-        }
-    </header>
+        <a class="btn btn-outline-secondary btn-sm" href="#learnerConsents">Data consent</a>
+        @if (User.IsInRole("Guardian") || User.IsInRole("Parent")) { <a class="btn btn-outline-secondary btn-sm" href="#guardianPreferences">Preferences</a> }
+    </nav>
     @if (User.IsInRole("Student") || User.IsInRole("Parent") || User.IsInRole("Guardian"))
     {
         <section class="card mb-3" id="learnerConsents" aria-labelledby="learnerConsentsTitle">
