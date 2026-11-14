@@ -8,6 +8,16 @@
     let createSaving = false, editSaving = false, editSequence = 0, programmeLookupSequence = 0;
     const createGuard = guard('trackCreateForm'), editGuard = guard('trackEditForm');
     const value = id => el(id).value.trim();
+    const intentId = form => {
+        const fingerprint = window.EduOSFormGuard?.fingerprint(form) ||
+            JSON.stringify([...form.elements].map(x => [x.id, x.value, x.checked]));
+        if (form.dataset.requestFingerprint !== fingerprint) {
+            delete form.dataset.requestId;
+            form.dataset.requestFingerprint = fingerprint;
+        }
+        if (!form.dataset.requestId) form.dataset.requestId = crypto.randomUUID();
+        return form.dataset.requestId;
+    };
     const cell = text => { const td = document.createElement('td'); td.textContent = String(text ?? ''); return td; };
     function populatePrograms(items) {
         const wasClean = !createGuard?.isDirty();
@@ -129,13 +139,15 @@
         try {
             await api('/api/academic-setup/tracks', { method: 'POST', body: JSON.stringify({
                 academicProgramId: value('trackCreateProgram') ? Number(value('trackCreateProgram')) : null,
-                name: value('trackCreateName'), code: value('trackCreateCode').toUpperCase(),
+                clientRequestId: intentId(form),
+                name: value('trackCreateName'), code: '',
                 description: value('trackCreateDescription') || null,
                 isDefault: el('trackCreateDefault').checked, isActive: true, displayOrder: order
             }) });
             committed = true;
             if (!sameSession()) return;
-            form.reset(); createGuard?.markClean();
+            form.reset(); delete form.dataset.requestId; delete form.dataset.requestFingerprint;
+            createGuard?.markClean();
             try { await reload(); page = 1; await load(); notice('Academic track created.'); }
             catch { notice('Track created, but the directory did not refresh. Reload the page.', true); }
         } catch (error) { if (sameSession()) notice(committed ? 'Track created, but the display failed.' : error.message, true); }
