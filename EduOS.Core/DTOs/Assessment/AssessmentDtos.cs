@@ -32,7 +32,7 @@ public class SaveAssessmentRequestDto
     public long? AcademicTermId { get; set; }
     public long? GradeSchemeId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     public AssessmentKind Type { get; set; } = AssessmentKind.Exam;
     public AssessmentAttemptMode AttemptMode { get; set; }
     public bool CountsTowardCgpa { get; set; }

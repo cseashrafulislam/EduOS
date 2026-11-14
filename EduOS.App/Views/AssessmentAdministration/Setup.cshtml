@@ -25,8 +25,7 @@
         <form id="setupDefinition" class="card-body row g-3">
             <div class="col-md-6"><label class="form-label" for="setupName">Assessment name *</label>
                 <input class="form-control" id="setupName" maxlength="150" required /></div>
-            <div class="col-md-3"><label class="form-label" for="setupCode">Code *</label>
-                <input class="form-control" id="setupCode" maxlength="50" required /></div>
+            <input id="setupCode" type="hidden" />
             <div class="col-md-3"><label class="form-label" for="setupType">Assessment type</label>
                 <select class="form-select" id="setupType"><option value="1">Exam</option><option value="2">Quiz</option><option value="3">Assignment</option><option value="4">Class Test</option><option value="5">Practical</option><option value="6">Viva</option><option value="7">Project</option><option value="8">Continuous assessment</option></select></div>
             <div class="col-md-4"><label class="form-label" for="setupCampus">Campus *</label><select class="form-select" id="setupCampus" required></select></div>

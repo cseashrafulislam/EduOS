@@ -132,8 +132,8 @@
         const attemptMode = Number(el('setupAttemptMode').value), type = Number(el('setupType').value);
         const countsTowardCgpa = el('setupCgpa').checked;
         if (!campusId || !academicYearId || !startDate || !endDate || endDate < startDate ||
-            !el('setupName').value.trim() || !el('setupCode').value.trim()) {
-            notify('Complete name, code, campus, year and valid dates.', true); return;
+            !el('setupName').value.trim()) {
+            notify('Complete name, campus, year and valid dates.', true); return;
         }
         if (attemptMode !== 0 && (!countsTowardCgpa || type !== 1 || !el('setupScheme').value)) {
             notify('Retake/improvement must be a credit-weighted terminal exam with a grade scheme.', true); return;

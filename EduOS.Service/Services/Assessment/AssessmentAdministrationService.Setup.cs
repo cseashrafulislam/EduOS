@@ -12,6 +12,10 @@ public sealed partial class AssessmentAdministrationService
         SaveAssessmentRequestDto request, CancellationToken ct = default)
     {
         if (!CanPublish()) return Error<AssessmentDto>("Assessment management permission required.", 403);
+        // Server-owned, retry-stable system code. Existing explicit-code integrations remain supported.
+        if (request != null && !reference.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "ASM-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || request.ClientRequestId == Guid.Empty || request.CampusId <= 0 ||
             request.AcademicYearId <= 0 || request.AcademicTermId is <= 0 || request.GradeSchemeId is <= 0 ||
             string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 150 ||
