@@ -3,10 +3,10 @@
     ViewData["Title"] = bn ? "সাবস্ক্রিপশন ও বিলিং" : "Subscription & Billing";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="container-fluid institution-settings-workspace" id="subscriptionBillingApp">
+<div class="container-fluid institution-settings-workspace" id="subscriptionBillingApp" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
     <div id="sbAlert" role="alert" aria-live="polite" class="alert d-none"></div>
-    <section class="card mb-3"><div class="card-body">
+    <section class="card mb-2"><div class="card-body">
         <h2 class="h5">@(bn ? "বর্তমান সাবস্ক্রিপশন" : "Current subscription")</h2><div id="sbCurrent">@(bn ? "লোড হচ্ছে…" : "Loading…")</div>
         <div id="sbActions" class="d-flex flex-wrap gap-2 mt-2"></div>
         <p class="small text-muted mt-2 mb-0">@(bn ? "স্বয়ংক্রিয় নবায়ন বন্ধ করলেও বর্তমান মেয়াদ চালু থাকে। এখনই সাবস্ক্রিপশন শেষ করলে প্রবেশাধিকার সঙ্গে সঙ্গে বন্ধ হয়, স্বয়ংক্রিয় রিফান্ড হয় না এবং পরবর্তী মেয়াদের নবায়ন থাকলে তা করা যায় না।" : "Disabling auto-renew keeps the current period active. Ending a subscription now stops access immediately, does not automatically refund payments, and is blocked if a next-period renewal exists.")</p>
@@ -37,7 +37,7 @@
             </select>
         </div>
         <div class="table-responsive"><table class="table table-sm table-striped">
-            <thead><tr><th>@(bn ? "ইনভয়েস" : "Invoice")</th><th>@(bn ? "তারিখ" : "Date")</th><th>@(bn ? "শেষ তারিখ" : "Due date")</th><th>@(bn ? "মোট" : "Total")</th><th>@(bn ? "পরিশোধ" : "Paid")</th><th>@(bn ? "বকেয়া" : "Outstanding")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কাজ" : "Action")</th></tr></thead>
+            <th scope="col"ead><tr><th scope="col">@(bn ? "ইনভয়েস" : "Invoice")</th><th scope="col">@(bn ? "তারিখ" : "Date")</th><th scope="col">@(bn ? "শেষ তারিখ" : "Due date")</th><th scope="col">@(bn ? "মোট" : "Total")</th><th scope="col">@(bn ? "পরিশোধ" : "Paid")</th><th scope="col">@(bn ? "বকেয়া" : "Outstanding")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead>
             <tbody id="sbInvoiceRows"></tbody>
         </table></div>
         <nav class="d-flex align-items-center gap-2 mb-3" aria-label="@(bn ? "ইনভয়েস ইতিহাসের পৃষ্ঠা" : "Invoice history pages")">
@@ -51,7 +51,7 @@
     <section class="card"><div class="card-body">
         <h2 class="h5">@(bn ? "সাবস্ক্রিপশনের ইতিহাস" : "Subscription history")</h2>
         <div class="table-responsive"><table class="table table-sm">
-            <thead><tr><th>@(bn ? "প্ল্যান" : "Plan")</th><th>@(bn ? "চক্র" : "Cycle")</th><th>@(bn ? "শুরু" : "Start")</th><th>@(bn ? "শেষ" : "End")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "স্বয়ংক্রিয় নবায়ন" : "Auto-renew")</th></tr></thead>
+            <th scope="col"ead><tr><th scope="col">@(bn ? "প্ল্যান" : "Plan")</th><th scope="col">@(bn ? "চক্র" : "Cycle")</th><th scope="col">@(bn ? "শুরু" : "Start")</th><th scope="col">@(bn ? "শেষ" : "End")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "স্বয়ংক্রিয় নবায়ন" : "Auto-renew")</th></tr></thead>
             <tbody id="sbHistoryRows"></tbody>
         </table></div>
         <div class="d-flex align-items-center gap-2">
