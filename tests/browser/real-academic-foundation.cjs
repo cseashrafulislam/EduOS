@@ -95,6 +95,11 @@ async function run() {
         page.on('framenavigated', frame => {
             if (frame === page.mainFrame()) console.log('[QA navigation]', new URL(frame.url()).pathname);
         });
+        page.on('requestfailed', request => {
+            const path = new URL(request.url()).pathname;
+            if (path.startsWith('/api/')) console.error('[QA request failed]',path,
+                String(request.failure()?.errorText || '').slice(0, 80));
+        });
         await login(page);
         await feature(page, 'Classes', 'classes');
         assert(!(await catalogItem(page, 'programs', programName)), 'Demo programme already exists');
@@ -103,7 +108,13 @@ async function run() {
         await page.locator('#programName').fill(programName);
         await page.locator('#programForm button[type="submit"]').click();
         const program = await waitForCatalogItem(page, 'programs', programName);
-        console.log('[QA stage] programme visible after save; beginning full reload');
+        // The catalog can update before the async submit handler has released
+        // the form/unsaved-changes guard. Never race a reload against the POST.
+        await page.waitForFunction(() => {
+            const form = document.querySelector('#programForm');
+            return form && !form.inert && !form.querySelector('button[type="submit"]')?.disabled;
+        }, null, {timeout: 15000});
+        console.log('[QA stage] programme submit lifecycle complete; beginning full reload');
         const programReload = await page.reload({waitUntil: 'domcontentloaded'});
         assert(programReload && programReload.status() === 200,
             'Programme page reload did not return HTTP 200');
@@ -120,6 +131,10 @@ async function run() {
                     x.src.includes('/js/academic/management.js')),
                 scriptCount: document.scripts.length,
                 libraryReady: !!window.eduosAcademicManagement,
+                catalogReady: !!window.eduosAcademicManagement?.state?.catalog,
+                sameSession: window.eduosAcademicManagement?.sameSession?.(),
+                sessionTransitionPending: window.EduOSSessionTransitionPending?.() === true,
+                academicNotice: document.getElementById('academicNotice')?.textContent?.slice(0, 220),
                 bodyPrefix: document.body?.innerText?.slice(0, 220)
             })).catch(e => ({pageInspectionError: String(e.message)}));
             console.error('[QA reload hydration diagnosis]', JSON.stringify(diagnosis));
