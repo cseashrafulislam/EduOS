@@ -9,7 +9,8 @@ const nav = fs.readFileSync(path.join(root, "EduOS.App/Views/Shared/_Layout.csht
 
 test("plan availability UI uses antiforgery, concurrency and idempotency", () => {
     assert.match(js, /RequestVerificationToken/);
-    assert.match(js, /requestId:\s*crypto\.randomUUID\(\)/);
+    assert.match(js, /requestId=availabilityRequests\.get\(key\)\|\|crypto\.randomUUID\(\)/);
+    assert.match(js, /availabilityRequests\.set\(key,requestId\)/);
     assert.match(js, /rowVersion:\s*item\.rowVersion/);
     assert.match(js, /\/api\/platform\/subscription-plans\//);
     assert.doesNotMatch(js, /innerHTML/);

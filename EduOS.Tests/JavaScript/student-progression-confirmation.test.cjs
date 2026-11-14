@@ -14,7 +14,7 @@ test('progression requires a rendered matching preview and explicit confirmation
     assert.match(script, /showPreview\(selected, roll, fingerprint\)/);
     assert.match(script, /if \(!el\('promotionConfirm'\)\.checked\)/);
     assert.match(script, /el\('promotionConfirm'\)\.focus\(\)/);
-    assert.match(script, /\['promotionTarget', 'promotionRoll', 'promotionNote'\]/);
+    assert.match(script, /\['promotionTarget', 'promotionSection', 'promotionRoll', 'promotionNote'\]/);
     assert.match(script, /addEventListener\('input', invalidatePreview\)/);
     assert.match(script, /addEventListener\('change', invalidatePreview\)/);
 });

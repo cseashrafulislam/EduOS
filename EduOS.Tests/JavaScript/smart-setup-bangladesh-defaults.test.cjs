@@ -41,7 +41,7 @@ test('Subject, GL and payroll presets use the existing authoritative tables', ()
 });
 
 test('New modules keep confirmed tenant-scoped idempotent transactional apply', () => {
-    assert.match(catalog, /Version = "2026\.11\.3"/);
+    assert.match(catalog, /Version = "2026\.11\.4"/);
     for (const code of ['ACADEMIC', 'ASSESSMENT', 'FINANCE', 'PAYROLL'])
         assert.match(catalog, new RegExp('new\\("' + code + '"[^\\n]*'));
     assert.match(service, /request\.Modules\.Count is < 1 or > 10/);

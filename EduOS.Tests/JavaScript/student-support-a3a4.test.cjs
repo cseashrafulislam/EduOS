@@ -10,7 +10,7 @@ test('A3 aid form keeps antiforgery, server-enrollment selection and tenant-boun
     const view = file('EduOS.App/Views/StudentSupport/Scholarships.cshtml');
     const js = file('EduOS.App/wwwroot/js/students/student-scholarships.js');
     assert.match(view, /AntiForgeryToken/);
-    assert.match(view, /@L\("Scholarships & Fee Assistance"/);
+    assert.match(view, /ViewData\["Title"\] = L\("Scholarships & Fee Assistance"/);
     assert.match(js, /student-support-directory\/enrollments/);
     assert.match(js, /student-support-directory\/aid-rules/);
     assert.match(js, /RequestVerificationToken/);
@@ -36,7 +36,7 @@ test('A4 keeps confidential narratives outside GET and never builds HTML from no
     const api = file('EduOS.App/Controllers/Api/CounselingCasesController.cs');
     const svc = file('EduOS.Service/Services/Students/CounselingWorkflowService.cs');
     assert.match(view, /AntiForgeryToken/);
-    assert.match(view, /@L\("Student Counseling & Safeguarding"/);
+    assert.match(view, /ViewData\["Title"\] = L\("Student Counseling & Safeguarding"/);
     assert.match(js, /\/private-view', 'POST'/);
     assert.match(js, /casePrivateSummary'\)\.textContent/);
     assert.match(js, /visibilitychange/);

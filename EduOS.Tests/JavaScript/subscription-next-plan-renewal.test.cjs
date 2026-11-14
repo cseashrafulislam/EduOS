@@ -15,7 +15,7 @@ test("Next-period plan selection uses the existing renewal API with tenant-admin
  assert.match(ui, /p\.isActive&&p\.isPublic/);
  assert.match(ui, /credentials:"same-origin"/);
  assert.match(ui, /RequestVerificationToken/);
- assert.match(view, /Your current plan and entitlements remain unchanged/);
+ assert.match(view, /Current access is unchanged; the next-period invoice uses the selected plan's current price and requires verified payment/);
  assert.match(api, /Authorize\(Roles = "TenantAdmin"\)/);
  assert.match(api, /AutoValidateAntiforgeryToken/);
  assert.doesNotMatch(ui, /innerHTML/);

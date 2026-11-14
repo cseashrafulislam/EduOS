@@ -8,7 +8,8 @@ const view = fs.readFileSync(path.join(root, "EduOS.App/Views/SubscriptionPlanAd
 
 test("plan configuration editor has validation, antiforgery and concurrency", () => {
     assert.match(js, /RequestVerificationToken/);
-    assert.match(js, /requestId:\s*crypto\.randomUUID\(\)/);
+    assert.match(js, /editRequestId=crypto\.randomUUID\(\)/);
+    assert.match(js, /requestId:editRequestId/);
     assert.match(js, /rowVersion:\s*editing\.rowVersion/);
     assert.match(js, /\/configuration/);
     assert.match(js, /editorForm\.reportValidity\(\)/);

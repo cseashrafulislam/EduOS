@@ -9,13 +9,14 @@ const nav = fs.readFileSync(path.join(root, "EduOS.App/Views/Shared/_Layout.csht
 
 test("product module configuration submits antiforgery, request ID and row version", () => {
     assert.match(js, /RequestVerificationToken/);
-    assert.match(js, /requestId = crypto\.randomUUID\(\)/);
+    assert.match(js, /requestId=crypto\.randomUUID\(\)/);
     assert.match(js, /requestId, rowVersion: selected\.rowVersion/);
     assert.match(js, /\/api\/platform\/catalog\/modules\//);
     assert.doesNotMatch(js, /innerHTML/);
 });
 test("core modules cannot be disabled in editor and workspace is navigable", () => {
-    assert.match(js, /active\.disabled = item\.isCore/);
+    assert.match(js, /active\.disabled=!!item\.isCore/);
+    assert.match(js, /isActive:selected\.isCore\?true:active\.checked/);
     assert.match(view, /platformModuleAdministration/);
     assert.match(view, /product-module-administration\.js/);
     assert.match(nav, /PlatformProductModuleAdministration\/Index/);

@@ -8,7 +8,8 @@ const view = fs.readFileSync(path.join(root, "EduOS.App/Views/PlatformInstitutio
 const nav = fs.readFileSync(path.join(root, "EduOS.App/Views/Shared/_Layout.cshtml"), "utf8");
 test("preset administration includes antiforgery, concurrency, idempotency and safe DOM", () => {
     assert.match(js, /RequestVerificationToken/);
-    assert.match(js, /requestId = crypto.randomUUID\(\)/);
+    assert.match(js, /requestId=attemptIds\.get\(key\)\|\|crypto\.randomUUID\(\)/);
+    assert.match(js, /attemptIds\.set\(key,requestId\)/);
     assert.match(js, /institutionTypeRowVersion: data.institutionTypeRowVersion/);
     assert.match(js, /rowVersion: item.rowVersion/);
     assert.doesNotMatch(js, /innerHTML/);

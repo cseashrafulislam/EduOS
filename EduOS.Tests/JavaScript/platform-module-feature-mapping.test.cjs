@@ -8,7 +8,8 @@ const view = fs.readFileSync(path.join(root, "EduOS.App/Views/PlatformModuleFeat
 const nav = fs.readFileSync(path.join(root, "EduOS.App/Views/Shared/_Layout.cshtml"), "utf8");
 test("module feature mapping uses antiforgery, concurrency, idempotency and safe DOM", () => {
     assert.match(js, /RequestVerificationToken/);
-    assert.match(js, /requestId = crypto.randomUUID\(\)/);
+    assert.match(js, /requestId=attemptIds\.get\(key\)\|\|crypto\.randomUUID\(\)/);
+    assert.match(js, /attemptIds\.set\(key,requestId\)/);
     assert.match(js, /moduleRowVersion: directory.moduleRowVersion/);
     assert.match(js, /featureRowVersion: item.featureRowVersion/);
     assert.match(js, /mappingRowVersion: item.mappingRowVersion/);
