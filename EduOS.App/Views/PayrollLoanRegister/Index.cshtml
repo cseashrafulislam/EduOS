@@ -1,26 +1,21 @@
 @{
     ViewData["Title"] = "Employee Loan Register";
 }
-<section id="payrollLoanRegister" class="container-fluid py-3">
-    <header class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-        <h2 class="h4 mb-0">Employee Loan Register</h2>
-        <div class="d-flex gap-2">
-            <a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/LoanDisbursement/Index">Disbursement</a>
-            <a class="btn btn-sm btn-outline-secondary" href="/LoanRecovery/Index">Recovery</a>
-            <details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Loan register help">ⓘ</summary>
-                <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(320px,85vw);z-index:10">
-                    Register an agreed loan and installment amount. Registration is not cash disbursement. Posted cash movements are handled separately through Finance. After an uncertain save, check the register before creating another loan.
-                </div>
-            </details>
-        </div>
-    </header>
+<section id="payrollLoanRegister" class="container-fluid py-1">
+    
     @Html.AntiForgeryToken()
     <div id="loanRegNotice" class="alert d-none" role="alert" aria-live="polite" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body">
-        <h3 class="h6">New loan / advance</h3>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">New loan / advance</h3><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll</a>
+<a class="btn btn-sm btn-outline-secondary" href="/LoanDisbursement/Index">Disbursement</a>
+<a class="btn btn-sm btn-outline-secondary" href="/LoanRecovery/Index">Recovery</a>
+<details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Loan register help">ⓘ</summary>
+                <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(320px,85vw);z-index:10">
+                    Register an agreed loan and installment amount. Registration is not cash disbursement. Posted cash movements are handled separately through Finance. After an uncertain save, check the register before creating another loan.
+                </div>
+            </details></div></div>
         <form id="loanRegForm">
-            <div class="row g-3">
+            <div class="row g-2">
                 <div class="col-md-7">
                     <label for="loanRegSearch" class="form-label">Find employee *</label>
                     <div class="input-group"><input id="loanRegSearch" class="form-control" maxlength="100" placeholder="Code or name" />

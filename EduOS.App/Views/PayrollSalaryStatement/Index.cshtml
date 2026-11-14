@@ -1,15 +1,10 @@
 @{
     ViewData["Title"] = "Payroll Salary Statement";
 }
-<section id="payrollSalaryStatement" class="container-fluid py-3">
-    <header class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-        <h2 class="h4 mb-0">Payroll Salary Statement</h2>
-        <div class="d-flex gap-2">
-            <a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll</a>
-        </div>
-    </header>
+<section id="payrollSalaryStatement" class="container-fluid py-1">
+    
     <div id="statementError" class="alert d-none" role="alert" aria-live="polite" tabindex="-1"></div>
-    <form id="statementFilter" class="card card-body mb-3">
+    <form id="statementFilter" class="card card-body mb-3"><div class="d-flex flex-wrap align-items-center gap-2"><a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll</a></div>
         <div class="row g-2 align-items-end">
             <div class="col-md-3"><label for="statementYear" class="form-label">Year</label><input id="statementYear" class="form-control" type="number" min="2000" max="2200" required /></div>
             <div class="col-md-3"><label for="statementMonth" class="form-label">Month</label><select id="statementMonth" class="form-select" required>

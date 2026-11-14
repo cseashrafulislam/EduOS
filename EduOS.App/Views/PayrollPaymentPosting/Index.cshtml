@@ -2,11 +2,10 @@
     ViewData["Title"] = "Institutional Payroll Payment Settlement";
     var canPost = User.IsInRole("TenantAdmin");
 }
-<section class="container-fluid py-3" id="payrollPaymentPosting" data-post="@canPost.ToString().ToLowerInvariant()">
-    <h2 class="h4">Payroll payments → Institutional GL</h2>
-    <p class="text-muted">Verify pending cash or bank-transfer disbursements against posted salary payable. The register reconciles employee net pay, all successful settlements and immutable GL evidence before enabling a new posting. Maker and verifier must differ; no platform subscription billing is involved.</p>
-    <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
-       <a class="btn btn-sm btn-outline-secondary" href="/PayrollJournalPosting/Index">Payroll accrual posting</a></p>
+<section class="container-fluid py-1" id="payrollPaymentPosting" data-post="@canPost.ToString().ToLowerInvariant()">
+    
+    
+    
     @if (canPost)
     {
         <div class="alert alert-info small" role="note">A bank-neutral salary CSV can be downloaded for pending, reconciled bank-transfer requests within one posted run. It contains sensitive account numbers and is marked <strong>REVIEW_ONLY</strong>. It does not send money or confirm settlement; verify the file independently and store it securely.</div>
@@ -34,7 +33,8 @@
     @if (canPost)
     {
         <section class="card card-body mt-3 d-none" id="payrollPaymentConfirmPanel">
-            <h3 class="h6">Confirm salary payable settlement</h3>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">Confirm salary payable settlement</h3><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
+<a class="btn btn-sm btn-outline-secondary" href="/PayrollJournalPosting/Index">Payroll accrual posting</a></div></div><p class="small text-muted mb-2">Verify pending cash or bank-transfer disbursements against posted salary payable. The register reconciles employee net pay, all successful settlements and immutable GL evidence before enabling a new posting. Maker and verifier must differ; no platform subscription billing is involved.</p>
             <p id="payrollPaymentSelected"></p>
             <label class="form-label" for="payrollPaymentAccount">Settlement asset ledger</label>
             <select class="form-select" id="payrollPaymentAccount"></select>

@@ -1,11 +1,10 @@
 @{
     ViewData["Title"] = "Employee Loan Cash Disbursement";
 }
-<section id="loanDisbursement" class="container-fluid py-3">
-    <h2 class="h4">Employee loan → Institutional GL</h2>
-    <p class="text-muted">Post an existing approved employee loan as cash paid and a matching loan receivable. Requires a separate creator and administrator poster. This does not record payroll deductions or SaaS billing.</p>
-    <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
-       <a class="btn btn-sm btn-outline-secondary" href="/AccountingJournals/Index">Institutional journals</a></p>
+<section id="loanDisbursement" class="container-fluid py-1">
+    
+    
+    
     @Html.AntiForgeryToken()
     <div id="loanNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="loanFilter" class="card card-body mb-3">
@@ -24,7 +23,8 @@
         </div>
     </div>
     <section id="loanConfirmPanel" class="card card-body mt-3 d-none">
-        <h3 class="h6">Post cash disbursement</h3>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">Post cash disbursement</h3><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
+<a class="btn btn-sm btn-outline-secondary" href="/AccountingJournals/Index">Institutional journals</a></div></div><p class="small text-muted mb-2">Post an existing approved employee loan as cash paid and a matching loan receivable. Requires a separate creator and administrator poster. This does not record payroll deductions or SaaS billing.</p>
         <p id="loanSelected"></p>
         <div class="row g-2">
             <div class="col-md-3"><label for="loanDate" class="form-label">Disbursement date</label><input type="date" id="loanDate" class="form-control" required /></div>

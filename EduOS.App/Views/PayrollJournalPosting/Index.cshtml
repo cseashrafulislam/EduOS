@@ -2,10 +2,10 @@
     ViewData["Title"] = "Institutional Payroll GL Posting";
     var canPost = User.IsInRole("TenantAdmin");
 }
-<section class="container-fluid py-3" id="payrollJournalPosting" data-post="@canPost.ToString().ToLowerInvariant()">
-    <h2>Payroll → Institutional General Ledger</h2>
-    <p class="text-muted">Review calculated runs, approve with a separate approver, then post payroll to salary expense, withholding liabilities and net salary payable. This is institutional accounting, not SaaS billing.</p>
-    <p><a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll operations</a> <a href="/AccountingJournals/Index" class="btn btn-sm btn-outline-secondary">Journal register</a></p>
+<section class="container-fluid py-1" id="payrollJournalPosting" data-post="@canPost.ToString().ToLowerInvariant()">
+    
+    
+    
     @Html.AntiForgeryToken()
     <div id="payrollPostingNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="payrollPostingFilter" class="card card-body mb-3">
@@ -30,7 +30,8 @@
     @if(canPost)
     {
         <section id="payrollPostingMappingPanel" class="card card-body d-none">
-            <h3 class="h6">Component → institutional COA mappings</h3>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">Component → institutional COA mappings</h3><div class="d-flex flex-wrap align-items-center gap-2"><a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll operations</a>
+<a href="/AccountingJournals/Index" class="btn btn-sm btn-outline-secondary">Journal register</a></div></div><p class="small text-muted mb-2">Review calculated runs, approve with a separate approver, then post payroll to salary expense, withholding liabilities and net salary payable. This is institutional accounting, not SaaS billing.</p>
             <p class="small text-muted">Each earning debits an expense ledger. Ordinary deductions credit withholding liabilities. LOAN_RECOVERY credits the original employee-loan receivable asset, settles each loan separately, and reduces its outstanding balance atomically. Only loans disbursed and unchanged since payroll calculation can be posted. Employer contributions require expense and liability accounts.</p>
             <div id="payrollPostingSelected" class="mb-2"></div>
             <div id="payrollPostingMappings" class="table-responsive"></div>

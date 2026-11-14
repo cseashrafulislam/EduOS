@@ -1,16 +1,15 @@
 @{
     ViewData["Title"] = "Salary Structure Register";
 }
-<section id="salaryWorkspace" class="container-fluid py-3">
-    <div class="d-flex align-items-center gap-2 mb-2">
-        <h2 class="h4 mb-0">Employee salary structures</h2>
-        <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-title="Salary structure guide" data-bs-content="Choose effective date and salary lines. Active STAT_ deductions are listed automatically but need your reviewed amount or rate (enter 0 only for a reviewed exemption). Tax/PF support Manual BDT or Auto percentage; PF needs an earning base. Preview excludes bonus, loans and proration. Auto Tax is not an NBR tax-slab engine. History is retained." aria-label="Salary structure guide">ⓘ</button>
-    </div>
-    <p class="d-flex flex-wrap gap-2"><a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll operations</a><a href="/PayrollSalaryComponents/Index" class="btn btn-sm btn-outline-primary">Manage salary components</a></p>
+<section id="salaryWorkspace" class="container-fluid py-1">
+    
+    
     @Html.AntiForgeryToken()
     <div id="salaryNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card card-body mb-3">
-        <h3 class="h6">Select employee</h3>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">Select employee</h3><div class="d-flex flex-wrap align-items-center gap-2"><button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="bottom" data-bs-title="Salary structure guide" data-bs-content="Choose effective date and salary lines. Active STAT_ deductions are listed automatically but need your reviewed amount or rate (enter 0 only for a reviewed exemption). Tax/PF support Manual BDT or Auto percentage; PF needs an earning base. Preview excludes bonus, loans and proration. Auto Tax is not an NBR tax-slab engine. History is retained." aria-label="Salary structure guide">ⓘ</button>
+<a href="/PayrollOperations/Index" class="btn btn-sm btn-outline-secondary">Payroll operations</a>
+<a href="/PayrollSalaryComponents/Index" class="btn btn-sm btn-outline-primary">Manage salary components</a></div></div>
         <div class="row g-2 align-items-end">
             <div class="col-md-5"><label for="salaryEmployeeSearch" class="form-label">Name or employee code</label><input id="salaryEmployeeSearch" class="form-control" maxlength="100" minlength="2" /></div>
             <div class="col-md-2"><button id="salaryFind" type="button" class="btn btn-outline-primary">Search</button></div>

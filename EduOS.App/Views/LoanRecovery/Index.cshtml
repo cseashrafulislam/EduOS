@@ -1,12 +1,10 @@
 @{
     ViewData["Title"] = "Employee Loan Cash Recovery";
 }
-<section id="loanRecovery" class="container-fluid py-3">
-    <h2 class="h4">Employee loan cash recovery → Institutional GL</h2>
-    <p class="text-muted">Record actual cash received against an existing posted loan disbursement. Debit cash-in-hand, credit the original loan receivable. Payroll withholding is not recorded here.</p>
-    <p><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
-       <a class="btn btn-sm btn-outline-secondary" href="/LoanDisbursement/Index">Loan disbursement</a>
-       <a class="btn btn-sm btn-outline-secondary" href="/AccountingJournals/Index">Institutional journals</a></p>
+<section id="loanRecovery" class="container-fluid py-1">
+    
+    
+    
     @Html.AntiForgeryToken()
     <div id="recoveryNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <form id="recoveryFilter" class="card card-body mb-3">
@@ -25,7 +23,9 @@
         </div>
     </div>
     <section id="recoveryHistoryPanel" class="card card-body mt-3 d-none">
-        <h3 class="h6">Loan recovery history (payroll and cash)</h3>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">Loan recovery history (payroll and cash)</h3><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-sm btn-outline-secondary" href="/PayrollOperations/Index">Payroll operations</a>
+<a class="btn btn-sm btn-outline-secondary" href="/LoanDisbursement/Index">Loan disbursement</a>
+<a class="btn btn-sm btn-outline-secondary" href="/AccountingJournals/Index">Institutional journals</a></div></div><p class="small text-muted mb-2">Record actual cash received against an existing posted loan disbursement. Debit cash-in-hand, credit the original loan receivable. Payroll withholding is not recorded here.</p>
         <p id="recoveryHistoryLoan" class="small text-muted"></p>
         <div class="table-responsive"><table class="table table-sm">
             <thead><tr><th>Date</th><th>Amount</th><th>Journal</th><th>Status</th><th>Remarks</th></tr></thead>
