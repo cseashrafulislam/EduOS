@@ -8,6 +8,7 @@ on:
       - '.github/workflows/real-data-entry-qa.yml'
       - 'tests/browser/real-data-entry.cjs'
       - 'tests/browser/real-academic-foundation.cjs'
+      - 'tests/browser/real-menu-route-sweep.cjs'
       - 'EduOS.Tests/App/SqlServerRealAcademicFoundationEvidenceTests.cs'
       - 'EduOS.Tests/App/SqlServerRealDataEntryEvidenceTests.cs'
       - 'EduOS.App/**'
@@ -152,6 +153,10 @@ jobs:
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
         run: node tests/browser/real-data-entry.cjs
+      - name: Sweep tenant role sidebar page links in actual app (read-only)
+        env:
+          EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
+        run: node tests/browser/real-menu-route-sweep.cjs
       - name: Create programme, class, subject and independent section through real browser
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
@@ -172,6 +177,7 @@ jobs:
           path: |
             qa-artifacts/real-data-entry.json
             qa-artifacts/real-academic-foundation.json
+            qa-artifacts/real-menu-route-sweep.json
             TestResults/real-data-entry.trx
           if-no-files-found: ignore
           retention-days: 7
