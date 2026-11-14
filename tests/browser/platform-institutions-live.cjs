@@ -143,12 +143,15 @@ function stateCode(row){return typeof row.state==='number'?row.state:
       nameBangla:'',description:'',academicCycleType:item.academicCycleType,displayOrder:item.displayOrder
     });
     assert.equal(bad.status,400,'empty name cannot change authoritative catalog');
+    const oldBytes=Buffer.from(item.rowVersion,'base64');
+    assert.ok(oldBytes.length>0,'Database must expose optimistic row version');
+    oldBytes[0]^=0xff;
     const stale=await request(page,metadataRoute,'POST',{
-      requestId:crypto.randomUUID(),rowVersion:'AQ==',name:item.name,
+      requestId:crypto.randomUUID(),rowVersion:oldBytes.toString('base64'),name:item.name,
       nameBangla:item.nameBangla||'',description:item.description||'',
       academicCycleType:item.academicCycleType,displayOrder:item.displayOrder
     });
-    assert.equal(stale.status,409,'stale metadata version must not be applied');
+    assert.equal(stale.status,409,'stale metadata version must not be applied: '+stale.preview);
     const row=page.locator('#catalogRows tr').filter({hasText:item.code});
     await row.getByRole('button',{name:'Edit'}).click();
     assert.equal(await page.locator('#catalogEditor').isVisible(),true);
