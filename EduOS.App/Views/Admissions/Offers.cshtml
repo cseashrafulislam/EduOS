@@ -2,7 +2,7 @@
     var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "ভর্তির অফার ও গ্রহণ" : "Admission Offers & Enrollment";
 }
-<section class="content-card" aria-labelledby="admissionOfferTitle">
+<section class="content-card" aria-label="Admission offers and decisions">
     @Html.AntiForgeryToken()
     <input id="offerLocale" type="hidden" value="@(bn ? "bn-BD" : "en-BD")" />
     <div class="d-flex align-items-center gap-2 mb-2">

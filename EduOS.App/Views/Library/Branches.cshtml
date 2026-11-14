@@ -5,14 +5,14 @@
     <div id="branchAlert" role="alert" tabindex="-1" class="d-none"></div>
     <section class="card mb-3">
         <div class="card-header"><h3 class="h6 m-0">Create or update branch</h3></div>
-        <form id="branchForm" class="card-body row g-3">
+        <form id="branchForm" class="card-body"><div class="row g-3">
             <input id="branchId" type="hidden" /><input id="branchVersion" type="hidden" />
             <div class="col-md-4"><label for="branchCampus" class="form-label">Campus *</label><select id="branchCampus" class="form-select" required><option value="">Loading campuses…</option></select></div>
             <div class="col-md-4"><label for="branchName" class="form-label">Branch name *</label><input id="branchName" class="form-control" maxlength="150" required /></div>
             <input id="branchCode" type="hidden" />
             <div class="col-md-8"><label for="branchLocation" class="form-label">Location</label><input id="branchLocation" class="form-control" maxlength="500" /></div>
             <div class="col-md-4 d-flex align-items-end gap-3"><label><input id="branchActive" type="checkbox" checked /> Active</label><button id="branchSave" type="submit" class="btn btn-primary">Save</button><button id="branchReset" type="button" class="btn btn-outline-secondary">Clear</button></div>
-        </form>
+        </div></form>
     </section>
     <section class="card">
         <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Configured branches</h3><button id="branchRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-sm btn-outline-primary">Refresh</button></div>

@@ -64,7 +64,7 @@
         <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">Class timetable</h3><button id="routineExportBatch" type="button" class="btn btn-sm btn-outline-secondary">Export current page CSV</button></div>
         @if(canManage)
         {
-            <form id="routineEntryForm" class="card-body border-bottom row g-2 align-items-end">
+            <form id="routineEntryForm" class="card-body border-bottom"><div class="row g-2 align-items-end">
                 <div class="col-lg-3"><label for="routineAssignment" class="form-label">Instructor / offering</label><select id="routineAssignment" class="form-select" required><option value="">Select batch</option></select></div>
                 <div class="col-lg-2"><label for="routineSlot" class="form-label">Time slot</label><select id="routineSlot" class="form-select" required><option value="">Select a slot</option></select></div>
                 <div class="col-lg-2"><label for="routineDay" class="form-label">Day</label><select id="routineDay" class="form-select">@foreach(var day in Enum.GetValues<DayOfWeek>()){<option value="@((int)day)">@day</option>}</select></div>
@@ -72,7 +72,7 @@
                 <div class="col-lg-2"><button id="routineAddEntry" type="submit" class="btn btn-primary w-100">Add class</button></div>
                 <div class="col-lg-3"><label for="routineEntryFrom" class="form-label">Routine effective from</label><input id="routineEntryFrom" type="date" class="form-control" required /></div>
                 <div class="col-lg-3"><label for="routineEntryTo" class="form-label">Routine effective to (optional)</label><input id="routineEntryTo" type="date" class="form-control" /></div>
-            </form>
+            </div></form>
         }
         <div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0"><thead><tr><th>Day</th><th>Time slot</th><th>Subject</th><th>Room</th><th>Effective</th>@if(canManage){<th>Action</th>}</tr></thead><tbody id="routineEntries"><tr><td colspan="6" class="text-muted text-center p-3">Load a batch.</td></tr></tbody></table></div>
         <nav class="card-body d-flex align-items-center gap-2 justify-content-end" aria-label="Class timetable pages">
