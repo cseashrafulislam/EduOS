@@ -20,6 +20,9 @@ public sealed partial class CommunicationAdministrationService
         SaveNoticeCategoryRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!await CanManageAsync(cancellationToken)) return ApiResponse<NoticeCategoryDto>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (request != null && !categoryId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "NTC-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50
             || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100)
             return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category details are invalid.");
@@ -30,7 +33,15 @@ public sealed partial class CommunicationAdministrationService
             var row = categoryId.HasValue
                 ? await query.FirstOrDefaultAsync(x => x.Id == categoryId.Value, cancellationToken)
                 : await query.FirstOrDefaultAsync(x => x.Code == code, cancellationToken);
-            if (!categoryId.HasValue && row != null) return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category already exists.", 409);
+            if (!categoryId.HasValue && row != null)
+            {
+                if (request.ClientRequestId != Guid.Empty &&
+                    code == "NTC-" + request.ClientRequestId.ToString("N").ToUpperInvariant() &&
+                    row.CreatedBy == _user.UserId && row.Name == request.Name.Trim() &&
+                    row.IsActive == request.IsActive)
+                    return ApiResponse<NoticeCategoryDto>.SuccessResponse(Map(row), "Existing category returned.");
+                return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category already exists.", 409);
+            }
             if (categoryId.HasValue && row == null) return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category not found.", 404);
             if (row != null && categoryId.HasValue && !MatchesVersion(row.RowVersion, request.RowVersion))
                 return ApiResponse<NoticeCategoryDto>.ErrorResponse("Category changed. Reload and retry.", 409);

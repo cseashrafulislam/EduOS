@@ -11,8 +11,9 @@ public class NoticeCategoryDto
 
 public class SaveNoticeCategoryRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(100)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public string? RowVersion { get; set; }
 }
@@ -129,7 +130,8 @@ public class MessageTemplateDto
 
 public class SaveMessageTemplateRequestDto
 {
-    [Required, MaxLength(100)] public string Code { get; set; } = string.Empty;
+    public Guid ClientRequestId { get; set; }
+    [MaxLength(100)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
     public NotificationChannelType Channel { get; set; }
     [MaxLength(250)] public string? SubjectTemplate { get; set; }

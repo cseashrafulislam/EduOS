@@ -26,6 +26,9 @@ public sealed partial class CommunicationAdministrationService
         SaveMessageTemplateRequestDto request, CancellationToken cancellationToken = default)
     {
         if (!await CanManageAsync(cancellationToken)) return ApiResponse<MessageTemplateDto>.ErrorResponse("Tenant administrator access is required.", 403);
+        if (request != null && !templateId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "MSG-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 100
             || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200
             || string.IsNullOrWhiteSpace(request.BodyTemplate) || request.BodyTemplate.Length > 10000
@@ -38,7 +41,17 @@ public sealed partial class CommunicationAdministrationService
             var row = templateId.HasValue
                 ? await query.FirstOrDefaultAsync(x => x.Id == templateId.Value, cancellationToken)
                 : await query.FirstOrDefaultAsync(x => x.Code == code, cancellationToken);
-            if (!templateId.HasValue && row != null) return ApiResponse<MessageTemplateDto>.ErrorResponse("Template already exists.", 409);
+            if (!templateId.HasValue && row != null)
+            {
+                if (request.ClientRequestId != Guid.Empty &&
+                    code == "MSG-" + request.ClientRequestId.ToString("N").ToUpperInvariant() &&
+                    row.CreatedBy == _user.UserId && row.Name == request.Name.Trim() &&
+                    row.Channel == request.Channel && row.SubjectTemplate ==
+                        (string.IsNullOrWhiteSpace(request.SubjectTemplate) ? null : request.SubjectTemplate.Trim()) &&
+                    row.BodyTemplate == request.BodyTemplate && row.IsActive == request.IsActive)
+                    return ApiResponse<MessageTemplateDto>.SuccessResponse(Map(row), "Existing template returned.");
+                return ApiResponse<MessageTemplateDto>.ErrorResponse("Template already exists.", 409);
+            }
             if (templateId.HasValue && row == null) return ApiResponse<MessageTemplateDto>.ErrorResponse("Template not found.", 404);
             if (row != null && templateId.HasValue && !MatchesVersion(row.RowVersion, request.RowVersion))
                 return ApiResponse<MessageTemplateDto>.ErrorResponse("Template changed. Reload and retry.", 409);
