@@ -11,6 +11,8 @@ public sealed partial class AssetLifecycleService
         // Categories are tenant-wide; campus-scoped managers cannot change shared definitions.
         if (!CanWrite() || !AllCampuses()) return Denied<AssetCategoryDto>();
         if (request == null || categoryId is <= 0) return Invalid<AssetCategoryDto>("Invalid category request.");
+        if (!categoryId.HasValue && request.ClientRequestId != Guid.Empty && string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "CAT-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         var code = Code(request.Code); var name = Text(request.Name);
         if (code.Length is < 1 or > 50 || name.Length is < 1 or > 150)
             return Invalid<AssetCategoryDto>("Category code and name are required.");
@@ -29,6 +31,16 @@ public sealed partial class AssetLifecycleService
             }
             else
             {
+                var replay = await _db.AssetCategories.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == Tenant && x.Code == code && !x.IsDeleted, ct);
+                if (replay != null)
+                {
+                    if (request.ClientRequestId != Guid.Empty &&
+                        code == "CAT-" + request.ClientRequestId.ToString("N").ToUpperInvariant() &&
+                        replay.CreatedBy == _user.UserId && replay.Name == name && replay.IsActive == request.IsActive)
+                        return ApiResponse<AssetCategoryDto>.SuccessResponse(Map(replay), "Existing category returned.");
+                    return ApiResponse<AssetCategoryDto>.ErrorResponse("Category code is already used.", 409);
+                }
                 entity = new AssetCategory { TenantId = Tenant, CreatedAt = Now, CreatedBy = _user.UserId };
                 _db.AssetCategories.Add(entity);
             }

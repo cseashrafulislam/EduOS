@@ -149,8 +149,9 @@ public sealed class AssetCategoryDto
 }
 public sealed class SaveAssetCategoryRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
     public string? RowVersion { get; set; }
 }

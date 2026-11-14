@@ -28,22 +28,28 @@ export function renderCategories(rows) {
 export function bindCategories(reload) {
     if (!canCategory) return;
     const form = el('assetCategoryForm');
-    let saving = false;
+    let saving = false, createKey = null, createFingerprint = null;
     el('assetCategoryNew').addEventListener('click', () => {
         if (saving || !categoryGuard.confirmDiscard()) return;
         form.reset(); el('assetCategoryId').value = ''; el('assetCategoryVersion').value = '';
-        categoryGuard.markClean();
+        createKey = null; createFingerprint = null; categoryGuard.markClean();
     });
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (saving) return;
         const id = el('assetCategoryId').value;
-        const body = { code: el('assetCategoryCode').value.trim(), name: el('assetCategoryName').value.trim(),
+        const body = { code: id ? el('assetCategoryCode').value.trim() : '', name: el('assetCategoryName').value.trim(),
             isActive: el('assetCategoryActive').checked, rowVersion: el('assetCategoryVersion').value || null };
+        if (!id) {
+            const fingerprint = JSON.stringify(body);
+            if (createFingerprint !== fingerprint) { createFingerprint = fingerprint; createKey = crypto.randomUUID(); }
+            body.clientRequestId = createKey;
+        }
         saving = true; form.inert = true;
         try {
             await api('/categories' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);
             form.reset(); el('assetCategoryId').value = ''; el('assetCategoryVersion').value = '';
+            createKey = null; createFingerprint = null;
             categoryGuard.markClean(); notice('Category saved.', true);
             try { await reload(); } catch (_) { notice('Category saved; catalog refresh failed. Reload before editing.'); }
         } catch (error) { notice(error.message); }

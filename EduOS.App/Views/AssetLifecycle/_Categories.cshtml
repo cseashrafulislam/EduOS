@@ -12,8 +12,8 @@
     {
         <form id="assetCategoryForm" class="row g-2 align-items-end">
             <input type="hidden" id="assetCategoryId" /><input type="hidden" id="assetCategoryVersion" />
-            <div class="col-md-3"><label for="assetCategoryCode" class="form-label">Code</label><input id="assetCategoryCode" maxlength="50" required class="form-control" /></div>
-            <div class="col-md-5"><label for="assetCategoryName" class="form-label">Name</label><input id="assetCategoryName" maxlength="150" required class="form-control" /></div>
+            <input id="assetCategoryCode" type="hidden" />
+            <div class="col-md-7"><label for="assetCategoryName" class="form-label">Name</label><input id="assetCategoryName" maxlength="150" required class="form-control" /></div>
             <div class="col-md-2 d-flex align-items-center"><div class="form-check"><input id="assetCategoryActive" type="checkbox" class="form-check-input" checked /><label for="assetCategoryActive" class="form-check-label">Active</label></div></div>
             <div class="col-md-2 d-flex flex-wrap gap-1"><button type="submit" class="btn btn-success">Save category</button><button id="assetCategoryNew" type="button" class="btn btn-outline-secondary">New</button></div>
         </form>
