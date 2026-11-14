@@ -16,6 +16,8 @@ namespace EduOS.App.Controllers
         [Route("Error/403")]
         public IActionResult AccessDenied()
         {
+            Response.StatusCode = StatusCodes.Status403Forbidden;
+            Response.Headers.CacheControl = "no-store, private";
             return View("AccessDenied");
         }
 
