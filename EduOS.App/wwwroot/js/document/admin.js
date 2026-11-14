@@ -7,7 +7,13 @@
   const docGuard = window.EduOSFormGuard.create(el("docForm"));
   const typeGuard = window.EduOSFormGuard.create(el("typeForm"));
   const templateGuard = window.EduOSFormGuard.create(el("templateForm"));
-  let uploadRetry = null;
+  let uploadRetry = null, typeRequest = null, templateRequest = null;
+  function intent(key, data) {
+    const fingerprint = JSON.stringify(data), previous = key === "type" ? typeRequest : templateRequest;
+    const next = previous?.fingerprint === fingerprint ? previous : {fingerprint, id:crypto.randomUUID()};
+    if (key === "type") typeRequest = next; else templateRequest = next;
+    return next.id;
+  }
   function uploadRequestId(file) {
     const fingerprint = [file.name, file.size, file.lastModified].join(':');
     if (uploadRetry?.fingerprint !== fingerprint)
@@ -43,8 +49,8 @@
   const date = s => s ? new Date(s).toLocaleString() : "—";
   function localDate(s) { if(!s) return "";const d=new Date(s);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); }
   function resetDoc(){el("docForm").reset();set("docReference","");set("docVersion","");docGuard.markClean();}
-  function resetType(){el("typeForm").reset();set("typeId","");set("typeVersion","");el("typeCode").readOnly=false;el("typeActive").checked=true;typeGuard.markClean();}
-  function resetTemplate(){el("templateForm").reset();set("templateId","");set("templateVersion","");el("templateCode").readOnly=false;el("templateActive").checked=true;templateGuard.markClean();}
+  function resetType(){el("typeForm").reset();set("typeId","");set("typeVersion","");typeRequest=null;el("typeCode").readOnly=false;el("typeActive").checked=true;typeGuard.markClean();}
+  function resetTemplate(){el("templateForm").reset();set("templateId","");set("templateVersion","");templateRequest=null;el("templateCode").readOnly=false;el("templateActive").checked=true;templateGuard.markClean();}
   async function loadTypes() {
     state.types=await api("/types");
     const tbody=el("typeRows"),select=el("docType"),filter=el("docFilterDocumentType"),old=select.value;
@@ -54,14 +60,14 @@
       if(t.isActive)select.add(new Option(t.code+" — "+t.name,t.code));
       filter.add(new Option(t.code+" — "+t.name,t.code));
       row(tbody,[t.code,t.name,t.requiresVerification?"Yes":"No",t.isSensitive?"Yes":"No",t.isActive?"Active":"Inactive"],[
-        button("Edit",async()=>{if(!typeGuard.confirmDiscard())return;set("typeId",t.id);set("typeVersion",t.rowVersion);set("typeCode",t.code);el("typeCode").readOnly=true;set("typeName",t.name);set("typeDescription",t.description);el("typeVerify").checked=t.requiresVerification;el("typeSensitive").checked=t.isSensitive;el("typeActive").checked=t.isActive;typeGuard.markClean();el("typeCode").focus();})
+        button("Edit",async()=>{if(!typeGuard.confirmDiscard())return;set("typeId",t.id);set("typeVersion",t.rowVersion);set("typeCode",t.code);el("typeCode").readOnly=true;set("typeName",t.name);set("typeDescription",t.description);el("typeVerify").checked=t.requiresVerification;el("typeSensitive").checked=t.isSensitive;el("typeActive").checked=t.isActive;typeGuard.markClean();el("typeName").focus();})
       ]);
     } select.value=old;
   }
   async function loadTemplates() {
     state.templates=await api("/templates");const tbody=el("templateRows");tbody.replaceChildren();
     for(const t of state.templates)row(tbody,[t.code,t.name,t.format,t.isActive?"Active":"Inactive"],[
-      button("Edit",async()=>{if(!templateGuard.confirmDiscard())return;set("templateId",t.id);set("templateVersion",t.rowVersion);set("templateCode",t.code);el("templateCode").readOnly=true;set("templateName",t.name);set("templateFormat",t.format);set("templateContent",t.templateContent);el("templateActive").checked=t.isActive;templateGuard.markClean();el("templateCode").focus();})
+      button("Edit",async()=>{if(!templateGuard.confirmDiscard())return;set("templateId",t.id);set("templateVersion",t.rowVersion);set("templateCode",t.code);el("templateCode").readOnly=true;set("templateName",t.name);set("templateFormat",t.format);set("templateContent",t.templateContent);el("templateActive").checked=t.isActive;templateGuard.markClean();el("templateName").focus();})
     ]);
   }
   async function download(item) {
@@ -114,14 +120,22 @@
     await api("/documents"+(ref?"/"+encodeURIComponent(ref):""),ref?"PUT":"POST",payload);resetDoc();await loadDocuments();await loadPending();msg("Document saved.");
   }, e.currentTarget);});
   el("typeForm").addEventListener("submit",e=>{e.preventDefault();run(async()=>{
-    const id=val("typeId");await api("/types"+(id?"/"+id:""),id?"PUT":"POST",{code:val("typeCode"),name:val("typeName"),
+    const id=val("typeId"), data={code:id?val("typeCode"):"",name:val("typeName"),
       description:val("typeDescription"),requiresVerification:el("typeVerify").checked,isSensitive:el("typeSensitive").checked,
-      isActive:el("typeActive").checked,rowVersion:val("typeVersion")||null});resetType();await loadTypes();msg("Document type saved.");
+      isActive:el("typeActive").checked,rowVersion:val("typeVersion")||null};
+    if(!id)data.clientRequestId=intent("type",data);
+    await api("/types"+(id?"/"+id:""),id?"PUT":"POST",data);
+    resetType();msg("Document type saved.");
+    try{await loadTypes();}catch{msg("Document type saved; reload the type list before creating another.",true);}
   }, e.currentTarget);});
   el("templateForm").addEventListener("submit",e=>{e.preventDefault();run(async()=>{
-    const id=val("templateId");await api("/templates"+(id?"/"+id:""),id?"PUT":"POST",{code:val("templateCode"),name:val("templateName"),
+    const id=val("templateId"), data={code:id?val("templateCode"):"",name:val("templateName"),
       templateContent:el("templateContent").value,format:val("templateFormat"),isActive:el("templateActive").checked,
-      rowVersion:val("templateVersion")||null});resetTemplate();await loadTemplates();msg("Template saved.");
+      rowVersion:val("templateVersion")||null};
+    if(!id)data.clientRequestId=intent("template",data);
+    await api("/templates"+(id?"/"+id:""),id?"PUT":"POST",data);
+    resetTemplate();msg("Template saved.");
+    try{await loadTemplates();}catch{msg("Template saved; reload the template list before creating another.",true);}
   }, e.currentTarget);});
   el("docFilter").addEventListener("submit",e=>{e.preventDefault();state.page=1;run(loadDocuments);});
   el("docFilterClear").addEventListener("click",()=>{el("docFilter").reset();state.page=1;run(loadDocuments);});

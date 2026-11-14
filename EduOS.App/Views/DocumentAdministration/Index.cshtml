@@ -57,10 +57,13 @@
         <div class="card mb-2"><div class="card-body"><h3 class="h6 mb-2">Document type</h3>
             <form id="typeForm" class="row g-2">
                 <input id="typeId" type="hidden" /><input id="typeVersion" type="hidden" />
-                <div class="col-md-3"><label class="form-label" for="typeCode">Code</label><input id="typeCode" class="form-control" maxlength="100" required /></div>
-                <div class="col-md-4"><label class="form-label" for="typeName">Name</label><input id="typeName" class="form-control" maxlength="200" required /></div>
+                <input id="typeCode" type="hidden" />
+                <div class="col-md-7"><label class="form-label" for="typeName">Name</label><input id="typeName" class="form-control" maxlength="200" required /></div>
                 <div class="col-md-5"><label class="form-label" for="typeDescription">Description</label><input id="typeDescription" class="form-control" maxlength="1000" /></div>
-                <div class="col-12 d-flex flex-wrap align-items-center gap-3"><label><input id="typeVerify" type="checkbox" /> Requires verification</label><label><input id="typeSensitive" type="checkbox" /> Sensitive</label><label><input id="typeActive" type="checkbox" checked /> Active</label><button class="btn btn-primary" type="submit">Save type</button><button id="typeCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
+                <div class="col-12 d-flex flex-wrap align-items-center gap-3">
+                    <div class="form-check"><input id="typeVerify" type="checkbox" class="form-check-input" /><label for="typeVerify" class="form-check-label">Requires verification</label></div>
+                    <div class="form-check"><input id="typeSensitive" type="checkbox" class="form-check-input" /><label for="typeSensitive" class="form-check-label">Sensitive</label></div>
+                    <div class="form-check"><input id="typeActive" type="checkbox" class="form-check-input" checked /><label for="typeActive" class="form-check-label">Active</label></div><button class="btn btn-primary" type="submit">Save type</button><button id="typeCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
             </form>
         </div></div>
         <div class="card"><div class="card-body table-responsive"><table class="table table-striped table-sm"><thead><tr><th>Code</th><th>Name</th><th>Verification</th><th>Sensitive</th><th>Active</th><th></th></tr></thead><tbody id="typeRows"></tbody></table></div></div>
@@ -69,10 +72,10 @@
         <div class="card mb-2"><div class="card-body"><h3 class="h6 mb-2">Reusable document template</h3>
             <form id="templateForm" class="row g-2">
                 <input id="templateId" type="hidden" /><input id="templateVersion" type="hidden" />
-                <div class="col-md-3"><label class="form-label" for="templateCode">Code</label><input id="templateCode" class="form-control" maxlength="100" required /></div>
-                <div class="col-md-5"><label class="form-label" for="templateName">Name</label><input id="templateName" class="form-control" maxlength="200" required /></div>
+                <input id="templateCode" type="hidden" />
+                <div class="col-md-8"><label class="form-label" for="templateName">Name</label><input id="templateName" class="form-control" maxlength="200" required /></div>
                 <div class="col-md-2"><label class="form-label" for="templateFormat">Format</label><select id="templateFormat" class="form-select"><option value="TEXT">Plain text</option><option value="HTML">HTML source</option></select></div>
-                <div class="col-md-2 d-flex align-items-end"><label><input id="templateActive" type="checkbox" checked /> Active</label></div>
+                <div class="col-md-2 d-flex align-items-center"><div class="form-check"><input id="templateActive" type="checkbox" class="form-check-input" checked /><label for="templateActive" class="form-check-label">Active</label></div></div>
                 <div class="col-12"><label class="form-label" for="templateContent">Template source (never executed on this page)</label><textarea id="templateContent" class="form-control font-monospace" rows="7" required maxlength="200000"></textarea></div>
                 <div class="col-12 d-flex gap-2"><button class="btn btn-primary" type="submit">Save template</button><button id="templateCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
             </form>
