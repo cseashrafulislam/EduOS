@@ -18,7 +18,7 @@
         <div class="col-12 col-xl-7">
             <div class="card mb-3"><div class="card-body">
                 <form id="workflowSearch" class="row g-2 align-items-end">
-                    <div class="col-sm-4"><label class="form-label" for="wfCampusFilter">@(bn ? "ক্যাম্পাস আইডি" : "Campus ID")</label><input id="wfCampusFilter" class="form-control" type="number" min="1" /></div>
+                    <div class="col-sm-4"><label class="form-label" for="wfCampusFilter">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="wfCampusFilter" class="form-select"><option value="">@(bn ? "সব অনুমোদিত ক্যাম্পাস" : "All authorized campuses")</option></select></div>
                     <div class="col-sm-5"><label class="form-label" for="wfStateFilter">@(bn ? "অনুরোধের অবস্থা" : "Request status")</label>
                         <select id="wfStateFilter" class="form-select"><option value="">@(bn ? "সব" : "All")</option><option>Submitted</option><option>Triaged</option><option>Approved</option><option>Rejected</option></select></div>
                     <div class="col-12"><div class="form-check">

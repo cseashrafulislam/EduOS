@@ -177,7 +177,7 @@
         const headers = { Accept: 'application/json' };
         if (body !== undefined) headers['Content-Type'] = 'application/json';
         if (method !== 'GET') headers.RequestVerificationToken = token;
-        const response = await fetch(base + path, {
+        const response = await fetch(path === '/campus-options' ? '/api/facilities/spaces/campus-options' : base + path, {
             method, credentials: 'same-origin', cache: 'no-store', headers,
             ...(body === undefined ? {} : { body: JSON.stringify(body) })
         });
@@ -648,6 +648,28 @@
             card.append(value, caption); column.append(card); box.append(column);
         }
     }
+    async function loadCampusOptions() {
+        try {
+            const choices = await api('/campus-options');
+            if (blocked || !Array.isArray(choices)) return;
+            const select = el('wfCampusFilter');
+            const previous = select.value;
+            select.replaceChildren(new Option(t('All authorized campuses', 'সব অনুমোদিত ক্যাম্পাস'), ''));
+            const allowed = new Set();
+            for (const item of choices) {
+                const campusId = Number(item.id);
+                if (!Number.isSafeInteger(campusId) || campusId <= 0) continue;
+                allowed.add(String(campusId));
+                select.add(new Option(String(item.name || '') +
+                    (item.code ? ' (' + String(item.code) + ')' : ''), String(campusId)));
+            }
+            select.value = allowed.has(previous) ? previous : '';
+        } catch (error) {
+            if (!blocked && error.message !== 'session-changed')
+                notice(t('Campus filter is unavailable. Reload to choose a campus.',
+                    'ক্যাম্পাস ফিল্টার পাওয়া যায়নি। ক্যাম্পাস বেছে নিতে পেজটি রিলোড করুন।'));
+        }
+    }
     async function load() {
         if (blocked) return false;
         const generation = ++listGeneration;
@@ -1051,4 +1073,5 @@
     });
     load();
     loadLocations();
+    loadCampusOptions();
 })();

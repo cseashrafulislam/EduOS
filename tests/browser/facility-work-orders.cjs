@@ -66,6 +66,10 @@ async function setup(browser, bn = false, manager = true, mobile = false,
             return route.fulfill({ contentType: 'text/html', body: html(bn, manager, approver) });
         state.calls.push({ url: url.pathname + url.search, method: request.method(),
             body: request.method() === 'POST' ? request.postDataJSON() : null });
+        if (url.pathname === '/api/facilities/spaces/campus-options')
+            return route.fulfill({ contentType: 'application/json',
+                headers: scopeHeaders,
+                body: JSON.stringify(ok([{id: 12, name: 'Facilities Campus', code: 'FAC'}])) });
         assert(url.pathname.startsWith('/api/facilities/work-orders'), 'Unexpected endpoint ' + url.pathname);
         const reply = payload => route.fulfill({ contentType: 'application/json',
             headers: scopeHeaders, body: JSON.stringify(ok(payload)) });
