@@ -459,6 +459,7 @@ public sealed class SqlServerAcademicOperationsIntegrationTests
             AcademicLevelId = originalEnrollment.AcademicLevelId,
             AcademicCurriculumId = originalEnrollment.AcademicCurriculumId,
             AcademicBatchId = originalEnrollment.AcademicBatchId,
+            AcademicSectionId = originalEnrollment.AcademicSectionId,
             RollNo = "02", EnrollmentDate = new DateOnly(2026, 10, 13),
             IsCurrent = true, State = EnrollmentState.Active,
             ClientRequestId = Guid.NewGuid()

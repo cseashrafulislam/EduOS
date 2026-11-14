@@ -171,17 +171,17 @@ async function main() {
             if (url.pathname.endsWith('/academic-term'))
                 terms.push({ ...data, id: 301, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/programmes'))
-                catalog.programs.push({ ...data, id: 401, rowVersion: 'AQIDBAUGBwg=' });
+                catalog.programs.push({ ...data, code: data.code || 'PROG-' + String(data.clientRequestId || 'TEST').slice(0,8), id: 401, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/levels'))
-                catalog.levels.push({ ...data, id: 501, rowVersion: 'AQIDBAUGBwg=' });
+                catalog.levels.push({ ...data, code: data.code || 'LVL-' + String(data.clientRequestId || 'TEST').slice(0,8), id: 501, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname === '/api/academic-setup/tracks')
-                catalog.tracks.push({ ...data, id: 551, rowVersion: 'AQIDBAUGBwg=' });
+                catalog.tracks.push({ ...data, code: data.code || 'TRK-' + String(data.clientRequestId || 'TEST').slice(0,8), id: 551, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname === '/api/academic-setup/subjects')
-                catalog.subjects.push({ ...data, id: 601, rowVersion: 'AQIDBAUGBwg=' });
+                catalog.subjects.push({ ...data, code: data.code || 'SUB-' + String(data.clientRequestId || 'TEST').slice(0,8), id: 601, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/curricula'))
-                catalog.curricula.push({ ...data, id: 701, rowVersion: 'AQIDBAUGBwg=' });
+                catalog.curricula.push({ ...data, code: data.code || 'CUR-' + String(data.clientRequestId || 'TEST').slice(0,8), id: 701, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/batches'))
-                catalog.batches.push({ ...data, id: 801, rowVersion: 'AQIDBAUGBwg=' });
+                catalog.batches.push({ ...data, code: data.code || 'BAT-' + String(data.clientRequestId || 'TEST').slice(0,8), id: 801, rowVersion: 'AQIDBAUGBwg=' });
             if (url.pathname.endsWith('/subjects') && url.pathname.includes('/curricula/'))
                 catalog.curriculumSubjects.push({ ...data, id: 901, academicCurriculumId: 701 });
             return route.fulfill({ status: 200, contentType: 'application/json',
@@ -210,13 +210,14 @@ async function main() {
         }, feature);
         await openFeature('classes');
         await page.locator('#programName').fill('Secondary');
-        await page.locator('#programCode').fill('SEC');
+        assert.equal(await page.locator('#programCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#programForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#programList')?.textContent.includes('Secondary'));
-        assert.equal(mutations.find(x => x.path.endsWith('/programmes')).data.code, 'SEC');
+        assert.equal(mutations.find(x => x.path.endsWith('/programmes')).data.code || '', '',
+            'the browser must not require users to supply an internal programme code');
 
         await page.locator('#levelName').fill('Grade Nine');
-        await page.locator('#levelCode').fill('G9');
+        assert.equal(await page.locator('#levelCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#levelNumber').fill('9');
         await page.locator('#levelForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#levelRows')?.textContent.includes('Grade Nine'));
@@ -229,7 +230,7 @@ async function main() {
         await page.locator('#levelCsv').click();
 
         await page.locator('#trackCreateName').fill('Science');
-        await page.locator('#trackCreateCode').fill('SCI');
+        assert.equal(await page.locator('#trackCreateCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#trackCreateForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#trackRows')?.textContent.includes('Science'));
         assert(mutations.some(x => x.path === '/api/academic-setup/tracks' && x.method === 'POST'));
@@ -243,7 +244,7 @@ async function main() {
 
         await openFeature('subjects');
         await page.locator('#subjectName').fill('Mathematics');
-        await page.locator('#subjectCode').fill('MATH');
+        assert.equal(await page.locator('#subjectCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#subjectForm button[type="submit"]').click();
         await page.waitForFunction(() => document.querySelector('#subjectRows')?.textContent.includes('Mathematics'));
         await page.locator('#subjectRows button').first().click();
@@ -261,7 +262,7 @@ async function main() {
 
         await openFeature('curricula');
         await page.locator('#curriculumName').fill('Secondary Curriculum 2026');
-        await page.locator('#curriculumCode').fill('SC-2026');
+        assert.equal(await page.locator('#curriculumCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#curriculumFrom').fill('2026-01-01');
         await page.locator('#curriculumForm button[type="submit"]').click();
         try {
@@ -317,7 +318,7 @@ async function main() {
         assert(mutations.some(x => x.path.endsWith('/activate') && x.method === 'PUT'));
         await openFeature('sections');
         await page.locator('#batchCreateName').fill('Grade Nine A');
-        await page.locator('#batchCreateCode').fill('G9-A');
+        assert.equal(await page.locator('#batchCreateCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#batchCreateStart').fill('2026-01-10');
         await page.locator('#batchCreateEnd').fill('2026-12-20');
         await page.locator('#batchCreateForm button[type="submit"]').click();

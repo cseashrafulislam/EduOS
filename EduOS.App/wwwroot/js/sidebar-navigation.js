@@ -588,9 +588,10 @@
     }
 
     function restoreOpenGroup() {
-        const isDashboard = matchesPrefix(selected?.getAttribute('href') || '', '/Dashboard');
+        // Preserve only this tenant/session's previously opened module when
+        // returning to Dashboard. Never restore a foreign account's menu state.
         const toOpen = isTop() ? null : (activeGroup ||
-            (isDashboard ? null : allDetails.find(details => details.dataset.sidebarGroup === state.group)));
+            allDetails.find(details => details.dataset.sidebarGroup === state.group));
         for (const details of allDetails) details.open = details === toOpen;
     }
     restoreOpenGroup();
