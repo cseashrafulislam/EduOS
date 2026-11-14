@@ -23,7 +23,6 @@
     document.addEventListener('DOMContentLoaded', initialize, { once: true });
 
     function initialize() {
-        document.getElementById('btnRefresh')?.addEventListener('click', loadPayments);
         document.getElementById('btnApprove')?.addEventListener('click', () => verifyPayment(true));
         document.getElementById('btnReject')?.addEventListener('click', () => verifyPayment(false));
         document.getElementById('btnViewSlip')?.addEventListener('click', viewDepositSlip);
