@@ -18,7 +18,7 @@
         <p class="mb-0 mt-2">@(bn ? "DNS পরিবর্তন কার্যকর হলে যাচাই করুন। ডোমেইন সক্রিয় থাকা পর্যন্ত TXT রেকর্ডটি রাখুন।" : "Wait for DNS propagation, then select Verify. Keep the record published while this hostname is active.")</p>
     </div>
     <div class="table-responsive"><table class="table table-striped table-sm align-middle">
-        <th scope="col"ead><tr><th scope="col">@(bn ? "হোস্টনেম" : "Hostname")</th><th scope="col">@(bn ? "যাচাই" : "Verification")</th><th scope="col">@(bn ? "সক্রিয়" : "Active")</th><th scope="col">@(bn ? "প্রধান" : "Primary")</th><th scope="col">@(bn ? "যাচাইয়ের সময় (UTC)" : "Verified UTC")</th><th scope="col">@(bn ? "কাজ" : "Actions")</th></tr></thead>
+        <thead><tr><th scope="col">@(bn ? "হোস্টনেম" : "Hostname")</th><th scope="col">@(bn ? "যাচাই" : "Verification")</th><th scope="col">@(bn ? "সক্রিয়" : "Active")</th><th scope="col">@(bn ? "প্রধান" : "Primary")</th><th scope="col">@(bn ? "যাচাইয়ের সময় (UTC)" : "Verified UTC")</th><th scope="col">@(bn ? "কাজ" : "Actions")</th></tr></thead>
         <tbody id="domainRows"></tbody>
     </table></div>
 </section>
