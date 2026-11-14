@@ -9,7 +9,7 @@ const bootstrap=path.join(root,'EduOS.App/wwwroot/lib/bootstrap/dist/css/bootstr
 const initial={id:5,campusId:12,code:'LAB-A',name:'Lab A',address:'North wing',isActive:true,rowVersion:'AQIDBAUGBwg='};
 const ok=data=>({success:true,data}), bad=message=>({success:false,data:null,message});
 function html(bn,manage){
- const a=view.indexOf('<section class="container-fluid py-3" id="facilitySpaces"'),b=view.indexOf('@section Scripts',a);
+ const a=view.search(/<section\b[^>]*\bid="facilitySpaces"/),b=view.indexOf('@section Scripts',a);
  assert(a>=0&&b>a,'FacilitySpaces view contract changed');
  let h=view.slice(a,b);
  h=h.replace(/@\(\s*bn \? "([^"]*)" : "([^"]*)"\s*\)/g,(_,bd,en)=>bn?bd:en);
@@ -90,7 +90,7 @@ async function sessionAndRace(browser){
 async function mobileViewer(browser){
  const {context,page,state}=await setup(browser,true,false,true);
  try{
-  assert.match(await page.locator('h2').innerText(),/ক্যাম্পাস/);
+  assert.match(await page.locator('label[for="facilityCampusFilter"]').innerText(),/ক্যাম্পাস/);
   assert.equal(await page.locator('#facilityForm').count(),0);
   assert.equal(await page.locator('#facilityRows button').count(),0);
   assert.match(await page.locator('#facilityRows').innerText(),/সক্রিয়/);

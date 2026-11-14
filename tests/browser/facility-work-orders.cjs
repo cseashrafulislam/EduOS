@@ -20,7 +20,7 @@ const scheduleDate = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 
 const scheduleTime = hhmm => scheduleDate + 'T' + hhmm;
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 function html(bn, manager, approver = false) {
-    const a = view.indexOf('<section class="container-fluid py-3" id="facilityWorkflow"');
+    const a = view.search(/<section\b[^>]*\bid="facilityWorkflow"/);
     const b = view.indexOf('@section Scripts', a);
     assert(a >= 0 && b > a, 'Facility Work Orders Razor view contract changed');
     let h = view.slice(a, b);

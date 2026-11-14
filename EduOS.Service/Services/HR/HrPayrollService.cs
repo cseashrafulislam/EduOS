@@ -120,18 +120,19 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 var generatedCode = "CMP-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
                     System.Text.Encoding.UTF8.GetBytes(request.Name.Trim().ToUpperInvariant())).AsSpan(0, 10));
                 var code = string.IsNullOrWhiteSpace(request.Code) ? generatedCode : request.Code.Trim().ToUpperInvariant();
-                // Tenant-reviewed Tax/PF percentages are supported alongside manual amounts.
-                // We never infer statutory rates or exemptions from a component code.
-                if (code.StartsWith("STAT_", StringComparison.Ordinal) &&
-                    (request.Type != SalaryComponentType.Deduction || request.IsTaxable))
-                    return Error<SalaryComponentDto>(
-                        "STAT_ withholding components must be non-taxable deductions.");
+
                 var row = componentId.HasValue ? await _components.GetQueryable().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == componentId.Value && !x.IsDeleted, token) : null;
                 if (componentId.HasValue && row == null) return Error<SalaryComponentDto>("Component not found.", 404);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion))
                     return Error<SalaryComponentDto>("Salary component changed. Reload and retry.", 409);
                 if (row != null && string.IsNullOrWhiteSpace(request.Code)) code = row.Code;
+                // Tenant-reviewed Tax/PF percentages are supported alongside manual amounts.
+                // We never infer statutory rates or exemptions from a component code.
+                if (code.StartsWith("STAT_", StringComparison.Ordinal) &&
+                    (request.Type != SalaryComponentType.Deduction || request.IsTaxable))
+                    return Error<SalaryComponentDto>(
+                        "STAT_ withholding components must be non-taxable deductions.");
                 var other = await _components.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Code == code && !x.IsDeleted && (!componentId.HasValue || x.Id != componentId), token);
                 if (other != null)
