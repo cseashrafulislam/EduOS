@@ -1413,6 +1413,22 @@
             recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
             related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
         },
+        '/platforminstitutionmodulepresets/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Module Presets', 'প্রতিষ্ঠানের মডিউল প্রিসেট'],
+            purpose: ['Set the default modules for future institution onboarding by type, without rewriting any existing tenant selection.', 'প্রতিষ্ঠানের ধরন অনুযায়ী নতুন নিবন্ধনের ডিফল্ট মডিউল নির্ধারণ করুন; আগের প্রতিষ্ঠানের নির্বাচন অপরিবর্তিত থাকবে।'],
+            before: ['Sign in as platform SuperAdmin and choose an institution type. Mandatory core modules remain locked; inactive modules cannot be selected.', 'প্ল্যাটফর্ম SuperAdmin হিসেবে লগ ইন করে প্রতিষ্ঠানের ধরন নির্বাচন করুন। আবশ্যিক মূল মডিউল পরিবর্তনযোগ্য নয়; নিষ্ক্রিয় মডিউল বাছাই করা যাবে না।'],
+            steps: [
+                ['Select an institution type to load the current module defaults.', 'বর্তমান মডিউল ডিফল্ট দেখতে প্রতিষ্ঠানের ধরন নির্বাচন করুন।'],
+                ['For each editable module, select Required and/or Default enabled. Required automatically enables the default; disabling the default clears Required.', 'সম্পাদনযোগ্য মডিউলের জন্য আবশ্যক এবং/অথবা ডিফল্ট চালু বাছাই করুন। আবশ্যক করলে ডিফল্টও চালু হবে; ডিফল্ট বন্ধ করলে আবশ্যক সরে যাবে।'],
+                ['Save the chosen row once. If the institution type or module changed concurrently, review the reloaded values before trying again.', 'নির্বাচিত সারি একবার সংরক্ষণ করুন। একই সময়ে ধরন বা মডিউল বদলালে নতুন তথ্য দেখে আবার চেষ্টা করুন।']
+            ],
+            example: ['Example: enable an optional Library module by default for new school registrations without changing existing schools.', 'উদাহরণ: আগের স্কুল না বদলে নতুন স্কুল নিবন্ধনের জন্য ঐচ্ছিক লাইব্রেরি মডিউল ডিফল্ট চালু করুন।'],
+            result: ['The canonical onboarding preset is saved with optimistic concurrency and retry-safe request ID, leaving existing institutional module selections untouched.', 'মূল অনবোর্ডিং প্রিসেট নিরাপদ request ID ও সংস্করণ যাচাই করে সংরক্ষিত হয়; আগের প্রতিষ্ঠানের মডিউল নির্বাচন বদলায় না।'],
+            rules: ['Only SuperAdmin. Core modules and inactive modules are locked. Do not create new module catalogs or grant current tenants permissions through this future-onboarding preset.', 'শুধু SuperAdmin। মূল ও নিষ্ক্রিয় মডিউল লক থাকে। এই ভবিষ্যৎ-নিবন্ধনের প্রিসেট দিয়ে বর্তমান প্রতিষ্ঠানের অনুমতি বদলাবেন না।'],
+            recovery: ['If a save is uncertain after a network error, keep the same selection and retry. On concurrency conflict review the latest list before another decision.', 'নেটওয়ার্ক সমস্যায় সংরক্ষণ অনিশ্চিত হলে একই নির্বাচন রেখে পুনরায় চেষ্টা করুন। দ্বন্দ্ব হলে নতুন তালিকা দেখে সিদ্ধান্ত নিন।'],
+            related: [['/PlatformProductModuleAdministration/Index', 'Module catalog', 'মডিউল ক্যাটালগ']]
+        },
         '/platformproductmoduleadministration/index': {
             version: 1, reviewed: true,
             title: ['Product Module Catalog', 'প্রোডাক্ট মডিউল'],
