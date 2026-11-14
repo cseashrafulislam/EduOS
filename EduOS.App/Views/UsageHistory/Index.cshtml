@@ -2,7 +2,7 @@
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "প্রতিষ্ঠানের ব্যবহারের ইতিহাস" : "Institution Usage History";
 }
-<section id="usageHistoryWorkspace" class="container-fluid py-2">
+<section id="usageHistoryWorkspace" class="container-fluid py-2" data-bangla="@(bn ? "true" : "false")">
     @* The application shell supplies the page title; no duplicate heading or Refresh button. *@
     @Html.AntiForgeryToken()
     <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
