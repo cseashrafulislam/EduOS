@@ -1413,6 +1413,22 @@
             recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
             related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
         },
+        '/subscriptionplanadministration/index': {
+            version: 1, reviewed: true,
+            title: ['Subscription Plan Management', 'সাবস্ক্রিপশন প্ল্যান'],
+            purpose: ['Review and configure plan prices, capacity, features and new-subscription availability while keeping existing historical price snapshots unchanged.', 'পুরোনো মূল্য-স্ন্যাপশট অপরিবর্তিত রেখে প্ল্যানের মূল্য, সীমা, ফিচার ও নতুন সাবস্ক্রিপশনের উপলব্ধতা পরিচালনা করুন।'],
+            before: ['Only SuperAdmin may edit. Internal Plan Code is system-owned and read-only. A plan price edit does not retroactively change existing invoices.', 'শুধু SuperAdmin সম্পাদনা করবেন। অভ্যন্তরীণ প্ল্যান Code অপরিবর্তনীয়। মূল্য পরিবর্তন আগের ইনভয়েসে প্রযোজ্য হবে না।'],
+            steps: [
+                ['Review active/public status and monthly/yearly prices, then select Edit pricing & features for a plan.', 'প্ল্যানের সক্রিয় অবস্থা, প্রকাশ্য মূল্য, মাসিক/বার্ষিক মূল্য দেখে মূল্য ও ফিচার সম্পাদনা খুলুন।'],
+                ['Adjust prices, trial days, limits and eligible features. Blank feature limits mean unlimited; confirm the impact before saving.', 'মূল্য, ট্রায়াল দিন, সীমা ও ফিচার সংশোধন করুন। ফিচারের সীমা ফাঁকা মানে সীমাহীন; সংরক্ষণের আগে প্রভাব যাচাই করুন।'],
+                ['Use Activate/Deactivate and Publish/Hide pricing for new subscriptions separately. Existing paid subscriptions are not silently repriced.', 'নতুন সাবস্ক্রিপশনের জন্য সক্রিয়/নিষ্ক্রিয় ও মূল্য প্রকাশ/লুকানো আলাদাভাবে করুন। আগের সাবস্ক্রিপশনের মূল্য নীরবে বদলাবে না।']
+            ],
+            example: ['Example: update the future monthly price for a plan and keep previous invoice snapshots and current subscriptions unchanged.', 'উদাহরণ: আগের ইনভয়েস ও সাবস্ক্রিপশন অপরিবর্তিত রেখে নতুন নিবন্ধনের মাসিক মূল্য সংশোধন করুন।'],
+            result: ['Plan configuration changes use authorized API, optimistic row versions and retry-safe request IDs. Historical subscription pricing remains authoritative for old invoices.', 'অনুমোদিত API, row-version ও পুনরায় জমার নিরাপদ request ID দিয়ে প্ল্যান সংরক্ষিত হয়; পুরোনো ইনভয়েসে আগের মূল্যই প্রযোজ্য।'],
+            rules: ['Use valid non-negative monetary values with at most two fractional digits; only permitted limits. SuperAdmin permissions and server validation remain mandatory.', 'অঋণাত্মক মূল্য লিখুন, দশমিকের পরে সর্বোচ্চ দুই ঘর এবং অনুমোদিত সীমা দিন। SuperAdmin অনুমতি ও সার্ভার যাচাই বাধ্যতামূলক।'],
+            recovery: ['If a concurrent change is detected, reload and review the latest plan. If list loading fails after save, do not assume the save failed or submit a different request.', 'একসঙ্গে পরিবর্তন হলে নতুন প্ল্যান দেখে সম্পাদনা করুন। সংরক্ষণের পরে তালিকা না এলে সংরক্ষণ ব্যর্থ ধরে নতুন অনুরোধ দেবেন না।'],
+            related: [['/SubscriptionPaymentHistory/Index', 'Payment history', 'পেমেন্টের ইতিহাস'], ['/Account/PaymentVerification', 'Payment review', 'পেমেন্ট যাচাই']]
+        },
         '/platformmodulefeatures/index': {
             version: 1, reviewed: true,
             title: ['Module Feature Mapping', 'মডিউল ফিচার ম্যাপিং'],
