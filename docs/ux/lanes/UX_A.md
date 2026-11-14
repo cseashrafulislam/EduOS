@@ -24,7 +24,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - [x] `/PlatformFeatureAdministration/Index`
 - [x] `/PlatformProductModuleAdministration/Index`
 - [x] `/PlatformInstitutionModulePresets/Index`
-- [ ] `/PlatformModuleFeatures/Index`
+- [x] `/PlatformModuleFeatures/Index`
 
 ## platform:subscriptions (3)
 
@@ -133,5 +133,7 @@ Feature page delivered: compact responsive bilingual list/editor, no duplicate p
 
 **Institution Module Presets — UX Done:** `/PlatformInstitutionModulePresets/Index` view `03571986d80b4f561d02d239a78c14103d909695`, JS `d041bcaf5e16539280b59d8baa2f542a05279210`, contextual bilingual Help `78b3b756e2d3a6f0c1097e1d4b0c95186ab9ee58`. Compact type selector/table, no redundant header/Refresh, localized required/enabled checkboxes and core locks, existing CSRF-protected API, row-level save with retry-safe request intent, optimistic conflict reload, failure-only retry and stale response guard. No new persistence domain. **Final QA: deferred / NOT RUN**.
 
-**Current menu:** platform:features — `3 / 4 UX Done`. **Next route:** `/PlatformModuleFeatures/Index`. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
+**Module Feature Mapping — UX Done:** `/PlatformModuleFeatures/Index` view `e96f8c2fab0d61897fc743a7fef73eb63bb6a85c`, JS `99cdf17c51626d1ef02a2f7ce8fcfddbbf246203`, bilingual Help `a1ad152979dc1c94f4df996587c5acb7f9153562`. Responsive module selector/mapping table, no duplicate heading/Refresh, localized feature rows and locked core/inactive mappings, existing audited API and version fields, idempotent retry intent, conflict reload, failure-only retry, async sequence guard. **Final QA deferred / NOT RUN**, not counted as QA PASS.
+
+**Completed menu:** platform:features — `4 / 4 UX Done`. **Next UX A menu:** platform:subscriptions, starting with `/SubscriptionPlanAdministration/Index`. Final QA deferred until all UX routes are finished. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
 
