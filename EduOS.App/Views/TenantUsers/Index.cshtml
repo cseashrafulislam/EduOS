@@ -3,7 +3,7 @@
     ViewData["Title"] = bn ? "ব্যবহারকারী ও ভূমিকা ব্যবস্থাপনা" : "User & Role Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="container-fluid py-2" id="tenantUsersApp">
+<div class="container-fluid py-2" id="tenantUsersApp" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap justify-content-end gap-2 mb-2">
         <a href="/TenantUsers/Invitations" class="btn btn-sm btn-outline-primary">@(bn ? "আমন্ত্রণ ইতিহাস" : "Invitation History")</a>
@@ -11,29 +11,29 @@
     </div>
     <div id="adminMessage" class="alert d-none" role="alert" aria-live="polite"></div>
     <ul class="nav nav-tabs mb-3" role="tablist">
-        <li class="nav-item"><button id="tabUsers" class="nav-link active" type="button">Institution Users</button></li>
+        <li class="nav-item"><button id="tabUsers" class="nav-link active" type="button">@(bn ? "প্রতিষ্ঠানের ব্যবহারকারী" : "Institution Users")</button></li>
         <li class="nav-item"><button id="tabRoles" class="nav-link" type="button">Roles &amp; Permissions</button></li>
     </ul>
     <section id="usersSection">
         <div class="card border-0 shadow-sm mb-3">
             <div class="card-body">
-                <h5>Invite a user</h5>
-                <p class="small text-muted">An email invitation lets the user choose a password or authenticate an existing account. No password is shared with administrators.</p>
+                <h5>@(bn ? "ব্যবহারকারীকে আমন্ত্রণ" : "Invite a user")</h5>
+                <p class="small text-muted">@(bn ? "ইমেইল আমন্ত্রণে ব্যবহারকারী নিজেই পাসওয়ার্ড নির্ধারণ করবেন বা নিজের বিদ্যমান অ্যাকাউন্টে ঢুকবেন। প্রশাসক কোনো পাসওয়ার্ড জানতে পারবেন না।" : "An email invitation lets the user choose a password or authenticate an existing account. No password is shared with administrators.")</p>
                 <form id="inviteUserForm" class="row g-2">
                     <div class="col-md-4">
-                        <label class="form-label" for="inviteEmail">Email address</label>
+                        <label class="form-label" for="inviteEmail">@(bn ? "ইমেইল ঠিকানা" : "Email address")</label>
                         <input id="inviteEmail" class="form-control" type="email" maxlength="200" required autocomplete="off" />
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label" for="inviteRole">Initial institution role (optional)</label>
+                        <label class="form-label" for="inviteRole">@(bn ? "প্রাথমিক ভূমিকা (ঐচ্ছিক)" : "Initial institution role (optional)")</label>
                         <select id="inviteRole" class="form-select"></select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label" for="inviteCampus">Initial campus (optional)</label>
-                        <select id="inviteCampus" class="form-select" aria-label="Initial campus"><option value="">No campus (assign later)</option></select>
+                        <label class="form-label" for="inviteCampus">@(bn ? "প্রাথমিক ক্যাম্পাস (ঐচ্ছিক)" : "Initial campus (optional)")</label>
+                        <select id="inviteCampus" class="form-select" aria-label="Initial campus"><option value="">@(bn ? "ক্যাম্পাস পরে দিন" : "No campus (assign later)")</option></select>
                     </div>
                     <div class="col-md-2 d-flex align-items-end">
-                        <button class="btn btn-primary" type="submit">Send Invitation</button>
+                        <button class="btn btn-primary" type="submit">@(bn ? "আমন্ত্রণ পাঠান" : "Send Invitation")</button>
                     </div>
                 </form>
             </div>
@@ -42,24 +42,24 @@
             <div class="card-body">
                 <form id="memberSearchForm" class="row g-2 mb-3">
                     <div class="col-md-8">
-                        <label for="memberSearch" class="form-label">Search by name or email (starts with)</label>
+                        <label for="memberSearch" class="form-label">@(bn ? "নাম বা ইমেইলের শুরু দিয়ে খুঁজুন" : "Search by name or email (starts with)")</label>
                         <input type="search" class="form-control" id="memberSearch" maxlength="100" autocomplete="off" />
                     </div>
                     <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary me-2">Search</button>
+                        <button type="submit" class="btn btn-primary me-2">@(bn ? "খুঁজুন" : "Search")</button>
                     </div>
                 </form>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle" data-workspace-table="institution-users">
-                        <thead><tr><th scope="col" data-table-column="user">User</th><th scope="col" data-table-column="membership">Membership</th><th scope="col" data-table-column="roles">Roles</th><th scope="col" data-table-column="action">Action</th></tr></thead>
-                        <tbody id="tenantUsersBody"><tr><td colspan="4">Loading...</td></tr></tbody>
+                        <thead><tr><th scope="col" data-table-column="user">@(bn ? "ব্যবহারকারী" : "User")</th><th scope="col" data-table-column="membership">@(bn ? "সদস্যপদ" : "Membership")</th><th scope="col" data-table-column="roles">@(bn ? "ভূমিকা" : "Roles")</th><th scope="col" data-table-column="action">@(bn ? "কাজ" : "Action")</th></tr></thead>
+                        <tbody id="tenantUsersBody"><tr><td colspan="4">@(bn ? "লোড হচ্ছে…" : "Loading...")</td></tr></tbody>
                     </table>
                 </div>
                 <div class="d-flex justify-content-between align-items-center">
                     <small id="memberCount" class="text-muted"></small>
                     <div>
-                        <button id="prevMembers" type="button" class="btn btn-outline-secondary btn-sm">Previous</button>
-                        <button id="nextMembers" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
+                        <button id="prevMembers" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগের" : "Previous")</button>
+                        <button id="nextMembers" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "পরের" : "Next")</button>
                     </div>
                 </div>
             </div>
@@ -103,24 +103,24 @@
                 <form id="saveMemberRolesForm">
                     <div id="memberRoleOptions" class="row row-cols-1 row-cols-md-3 g-2 mb-3"></div>
                     <label id="memberUnscopedIdentityRoleApprovalLabel" class="form-check mb-3 d-none"><input id="memberUnscopedIdentityRoleApproval" class="form-check-input" type="checkbox" /><span class="form-check-label">I reviewed the existing global grants and approve removing them for this user's sole institution.</span></label>
-                    <button id="saveMemberRoles" class="btn btn-primary" type="submit">Save roles</button>
+                    <button id="saveMemberRoles" class="btn btn-primary" type="submit">@(bn ? "ভূমিকা সংরক্ষণ" : "Save roles")</button>
                 </form>
                 <hr />
-                <h6>Campus access</h6>
-                <p class="small text-muted">Available campuses are always restricted to the selected institution.</p>
+                <h6>@(bn ? "ক্যাম্পাস অনুমতি" : "Campus access")</h6>
+                <p class="small text-muted">@(bn ? "ক্যাম্পাস অনুমতি শুধু নির্বাচিত প্রতিষ্ঠানের মধ্যেই প্রযোজ্য।" : "Available campuses are always restricted to the selected institution.")</p>
                 <div id="memberCampusOptions" class="row g-2 mb-2"></div>
-                <label for="memberDefaultCampus" class="form-label">Default campus</label>
+                <label for="memberDefaultCampus" class="form-label">@(bn ? "ডিফল্ট ক্যাম্পাস" : "Default campus")</label>
                 <select id="memberDefaultCampus" class="form-select mb-2" style="max-width:320px"></select>
-                <button id="saveMemberCampuses" type="button" class="btn btn-outline-primary">Save campus access</button>
+                <button id="saveMemberCampuses" type="button" class="btn btn-outline-primary">@(bn ? "ক্যাম্পাস অনুমতি সংরক্ষণ" : "Save campus access")</button>
                 <hr />
-                <label for="memberStatusSelect" class="form-label">Membership status</label>
+                <label for="memberStatusSelect" class="form-label">@(bn ? "সদস্যপদের অবস্থা" : "Membership status")</label>
                 <div class="d-flex gap-2 align-items-center">
                     <select id="memberStatusSelect" class="form-select" style="max-width:260px">
-                        <option value="2">Active</option>
-                        <option value="3">Suspended</option>
-                        <option value="4">Left</option>
+                        <option value="2">@(bn ? "সক্রিয়" : "Active")</option>
+                        <option value="3">@(bn ? "স্থগিত" : "Suspended")</option>
+                        <option value="4">@(bn ? "চলে গেছেন" : "Left")</option>
                     </select>
-                    <button id="saveMemberStatus" type="button" class="btn btn-outline-danger">Update status</button>
+                    <button id="saveMemberStatus" type="button" class="btn btn-outline-danger">@(bn ? "অবস্থা পরিবর্তন" : "Update status")</button>
                 </div>
             </div>
         </div>
@@ -148,12 +148,12 @@
                 <h5 class="h6 fw-bold">@(bn ? "নতুন কাস্টম রোল" : "Create custom institution role")</h5>
                 <form id="createTenantRoleForm" class="row g-2">
                     <div class="col-md-4">
-                        <label class="form-label" for="newRoleName">Role name</label>
+                        <label class="form-label" for="newRoleName">@(bn ? "ভূমিকার নাম" : "Role name")</label>
                         <input id="newRoleName" class="form-control" maxlength="100" minlength="2" required />
                         <small id="newRoleHint" class="form-text text-muted">@(bn ? "বিল্ট-ইন রোল থাকলে ওপরের Enable ব্যবহার করুন" : "Use Enable above for built-in roles")</small>
                     </div>
                     <div class="col-md-5">
-                        <label class="form-label" for="newRoleDescription">Description</label>
+                        <label class="form-label" for="newRoleDescription">@(bn ? "বিবরণ" : "Description")</label>
                         <input id="newRoleDescription" class="form-control" maxlength="300" />
                     </div>
                     <div class="col-md-3 d-flex align-items-end">
@@ -164,28 +164,28 @@
         </div>
         <div class="card border-0 shadow-sm">
             <div class="card-body">
-                <h5>Permission assignment</h5>
+                <h5>@(bn ? "অনুমতি নির্ধারণ" : "Permission assignment")</h5>
                 <p class="text-muted small">Permissions shown here are the current global permission catalogue; assignments remain institution scoped.</p>
                 <div class="mb-3">
-                    <label for="permissionRole" class="form-label">Institution role</label>
+                    <label for="permissionRole" class="form-label">@(bn ? "প্রতিষ্ঠানের ভূমিকা" : "Institution role")</label>
                     <select id="permissionRole" class="form-select"></select>
                 </div>
                 <div class="row g-2 align-items-end mb-3">
                     <div class="col-md-7">
-                        <label for="editRoleDescription" class="form-label">Role description</label>
+                        <label for="editRoleDescription" class="form-label">@(bn ? "ভূমিকার বিবরণ" : "Role description")</label>
                         <input id="editRoleDescription" class="form-control" maxlength="300" />
                     </div>
                     <div class="col-md-2">
-                        <label for="editRoleActive" class="form-label d-block">Role active</label>
+                        <label for="editRoleActive" class="form-label d-block">@(bn ? "ভূমিকা সক্রিয়" : "Role active")</label>
                         <input id="editRoleActive" type="checkbox" class="form-check-input" />
                     </div>
                     <div class="col-md-3">
-                        <button id="saveRoleSettings" type="button" class="btn btn-outline-secondary">Save role settings</button>
+                        <button id="saveRoleSettings" type="button" class="btn btn-outline-secondary">@(bn ? "ভূমিকার সেটিংস সংরক্ষণ" : "Save role settings")</button>
                     </div>
                 </div>
                 <form id="saveRolePermissionsForm">
                     <div id="permissionOptions" class="row g-2 mb-3"></div>
-                    <button type="submit" class="btn btn-primary">Save permissions</button>
+                    <button type="submit" class="btn btn-primary">@(bn ? "অনুমতি সংরক্ষণ" : "Save permissions")</button>
                 </form>
             </div>
         </div>
