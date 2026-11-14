@@ -52,7 +52,9 @@ test('institution and restricted platform dashboards have real bilingual task ma
     const platform = read('EduOS.App/Views/Dashboard/Admin.cshtml');
     assert.match(controller, /\[Authorize\(Roles = "SuperAdmin"\)\]/);
     assert.match(institute, /id="dashboardWelcome"/);
-    assert.match(platform, /id="platformRefresh"/);
+    assert.doesNotMatch(platform, /id="platformRefresh"/);
+    assert.match(platform, /asp-controller="PlatformTenants"/);
+    assert.match(platform, /asp-action="PaymentVerification"/);
     for (const route of ['/Dashboard/Index', '/Dashboard/Admin']) {
         const en = guideFor(route, 'en-BD'), bn = guideFor(route, 'bn-BD');
         assert.ok(en && bn, route);
@@ -60,6 +62,13 @@ test('institution and restricted platform dashboards have real bilingual task ma
         assert.equal(en.steps.length, bn.steps.length);
         assert.match(en.title, /Dashboard/);
         assert.match(bn.title, /ড্যাশবোর্ড/);
+        if (route === '/Dashboard/Admin') {
+            assert.equal(en.version, 2);
+            assert.equal(bn.version, 2);
+            assert.match(en.steps.join(' '), /reload the dashboard/);
+            assert.doesNotMatch(en.steps.join(' '), /Refresh metrics/);
+            assert.match(bn.steps.join(' '), /পুনরায় খুলুন/);
+        }
         assert.deepEqual(en.related.map(x => x.path), bn.related.map(x => x.path));
     }
 });
