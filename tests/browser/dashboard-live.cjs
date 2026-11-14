@@ -40,7 +40,9 @@ async function run(name, fn) {
             try {
                 const page = await ctx.newPage();
                 const res = await visit(page, '/Dashboard/Admin');
-                assert.notEqual(res.status(), 200, 'Dashboard must not return private metrics anonymously');
+                if (res.status() === 200)
+                    assert.match(new URL(page.url()).pathname, /^\/(Account\/Login|Error)/,
+                        'Anonymous requests may render only a login/error page');
                 assert.equal(await page.locator('#platformDashboard').count(), 0);
             } finally { await ctx.close(); }
         });
@@ -122,7 +124,10 @@ async function run(name, fn) {
                     const denied=await ctx.request.get(base+'/api/dashboard/platform',{failOnStatusCode:false});
                     assert.equal(denied.status(),403,'Tenant cannot read platform-wide metrics');
                     const attempted=await ctx.request.get(base+'/Dashboard/Admin',{failOnStatusCode:false});
-                    assert.notEqual(attempted.status(),200,'Tenant must not render SuperAdmin page');
+                    if (attempted.status() === 200)
+                        assert.match(new URL(attempted.url()).pathname, /^\/(Account\/AccessDenied|Error)/,
+                            'Authorized tenant must not see the platform page even after redirect');
+                    assert.doesNotMatch(await attempted.text(), /id="platformDashboard"/);
                     const api=await ctx.request.get(base+'/api/dashboard',{failOnStatusCode:false});
                     assert.equal(api.status(),200);
                     assert.match(api.headers()['cache-control']||'',/no-store/);
