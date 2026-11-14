@@ -1,23 +1,31 @@
 @{
-    ViewData["Title"] = "Product Module Feature Mapping";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "মডিউল ফিচার ম্যাপিং" : "Module Feature Mapping";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section id="platformModuleFeatures" class="container-fluid py-3">
+<section id="platformModuleFeatures" class="container-fluid px-0" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
-    <h1 class="h4">Product Module Feature Mapping</h1>
-    <p class="text-muted">Configure which product modules expose each feature. This does not change subscription-plan entitlements or tenant overrides. Removing a mapping is blocked until affected institutions are reconciled.</p>
-    <div class="d-flex gap-2 align-items-end mb-3">
-        <div>
-            <label for="moduleFeatureModule" class="form-label">Product module</label>
-            <select id="moduleFeatureModule" class="form-select"><option value="">Select module</option></select>
+    <p class="small text-muted mb-2">@(bn ? "প্রোডাক্ট মডিউলে কোন ফিচার থাকবে তা নির্ধারণ করুন। বিদ্যমান প্ল্যানের অধিকার ও প্রতিষ্ঠানের override পরিবর্তিত হবে না।" : "Configure module-feature links without changing existing plan entitlements or tenant overrides.")</p>
+    <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+        <div class="flex-grow-1" style="max-width:460px">
+            <label for="moduleFeatureModule" class="form-label mb-1">@(bn ? "প্রোডাক্ট মডিউল" : "Product module")</label>
+            <select id="moduleFeatureModule" class="form-select">
+                <option value="">@(bn ? "মডিউল নির্বাচন করুন" : "Select module")</option>
+            </select>
         </div>
-        <button id="moduleFeatureRefresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+        <button id="moduleFeatureRetry" type="button" class="btn btn-sm btn-outline-secondary" hidden>@(bn ? "আবার চেষ্টা করুন" : "Try again")</button>
     </div>
-    <p id="moduleFeatureStatus" role="status" aria-live="polite"></p>
-    <div class="table-responsive">
-        <table class="table table-striped table-sm">
-            <thead><tr><th>Feature</th><th>Active</th><th>Mapped</th><th>Action</th></tr></thead>
-            <tbody id="moduleFeatureRows"><tr><td colspan="4">Choose a product module.</td></tr></tbody>
+    <p id="moduleFeatureStatus" class="small mb-2" role="status" aria-live="polite"></p>
+    <div class="table-responsive border rounded-3">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <caption class="visually-hidden">@(bn ? "মডিউল ও ফিচারের বর্তমান ম্যাপিং" : "Current module feature mapping")</caption>
+            <thead class="table-light"><tr>
+                <th scope="col">@(bn ? "ফিচার" : "Feature")</th>
+                <th scope="col">@(bn ? "সক্রিয়" : "Active")</th>
+                <th scope="col">@(bn ? "সংযুক্ত" : "Mapped")</th>
+                <th scope="col">@(bn ? "কাজ" : "Action")</th>
+            </tr></thead>
+            <tbody id="moduleFeatureRows"><tr><td colspan="4">@(bn ? "মডিউল নির্বাচন করুন।" : "Choose a product module.")</td></tr></tbody>
         </table>
     </div>
 </section>
