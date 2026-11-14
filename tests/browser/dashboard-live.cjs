@@ -66,8 +66,10 @@ async function run(name, fn) {
                 try {
                     const person = await login(ctx, adminEmail, adminPassword);
                     assert.match(person.redirectUrl || '', /\/Dashboard\/Admin/);
-                    if (bn) await ctx.addCookies([{
-                        name:'.AspNetCore.Culture',value:'c=bn-BD|uic=bn-BD',url:base
+                    await ctx.addCookies([{
+                        name:'.AspNetCore.Culture',
+                        value:bn?'c=bn-BD|uic=bn-BD':'c=en-BD|uic=en-BD',
+                        url:base
                     }]);
                     const page = await ctx.newPage();
                     page.on('pageerror', error => browserErrors.push(error.message));
@@ -86,8 +88,8 @@ async function run(name, fn) {
                     const anchors = await page.locator('#platformDashboard .platform-tool-card a').evaluateAll(els =>
                         els.map(x => x.pathname));
                     assert.deepEqual(anchors, [
-                        '/PlatformTenants', '/Account/PaymentVerification',
-                        '/SubscriptionPaymentHistory', '/SubscriptionPlanAdministration'
+                        '/PlatformTenants/Index', '/Account/PaymentVerification',
+                        '/SubscriptionPaymentHistory/Index', '/SubscriptionPlanAdministration/Index'
                     ]);
                     assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 5,
                         'Horizontal overflow in ' + (mobile ? 'mobile' : 'desktop'));
@@ -133,6 +135,13 @@ async function run(name, fn) {
                     assert.ok((await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth))<=5,
                         'Tenant dashboard mobile overflow');
                     const denied=await ctx.request.get(base+'/api/dashboard/platform',{failOnStatusCode:false});
+                    if (denied.status() !== 403) {
+                        const denialBody = await denied.text();
+                        console.error('Platform API denial status mismatch', {
+                            status:denied.status(), contentType:denied.headers()['content-type'],
+                            url:denied.url(), bodyPreview:denialBody.slice(0,160)
+                        });
+                    }
                     assert.equal(denied.status(),403,'Tenant cannot read platform-wide metrics');
                     const attempted=await ctx.request.get(base+'/Dashboard/Admin',{failOnStatusCode:false});
                     if (attempted.status() === 200)
