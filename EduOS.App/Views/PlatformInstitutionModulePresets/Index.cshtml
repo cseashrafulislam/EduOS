@@ -1,23 +1,33 @@
 @{
-    ViewData["Title"] = "Institution Module Presets";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "প্রতিষ্ঠানের মডিউল প্রিসেট" : "Institution Module Presets";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section id="institutionModulePresets" class="container-fluid py-3">
+<section id="institutionModulePresets" class="container-fluid px-0" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
-    <h1 class="h4">Institution Module Presets</h1>
-    <p class="text-muted">Configure future onboarding defaults for each institution type. Existing tenant selections are not rewritten. New required modules are blocked until existing institutions are reconciled.</p>
-    <div class="d-flex gap-2 align-items-end mb-3">
-        <div>
-            <label for="presetType" class="form-label">Institution type</label>
-            <select id="presetType" class="form-select"><option value="">Select institution type</option></select>
+    <p class="small text-muted mb-2">@(bn ? "প্রতিষ্ঠানের ধরন অনুযায়ী ভবিষ্যৎ নিবন্ধনের মডিউল ডিফল্ট নির্ধারণ করুন। বিদ্যমান প্রতিষ্ঠানের নির্বাচন পরিবর্তন হবে না।" : "Configure future-onboarding module defaults by institution type. Existing tenant selections are preserved.")</p>
+    <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+        <div class="flex-grow-1" style="max-width:460px">
+            <label for="presetType" class="form-label mb-1">@(bn ? "প্রতিষ্ঠানের ধরন" : "Institution type")</label>
+            <select id="presetType" class="form-select">
+                <option value="">@(bn ? "প্রতিষ্ঠানের ধরন নির্বাচন করুন" : "Select institution type")</option>
+            </select>
         </div>
-        <button id="presetRefresh" type="button" class="btn btn-outline-secondary">Refresh</button>
+        <button id="presetRetry" type="button" class="btn btn-sm btn-outline-secondary" hidden>@(bn ? "আবার চেষ্টা করুন" : "Try again")</button>
     </div>
-    <p id="presetMessage" role="status" aria-live="polite"></p>
-    <div class="table-responsive">
-        <table class="table table-striped table-sm">
-            <thead><tr><th>Module</th><th>Core</th><th>Active</th><th>Required</th><th>Default enabled</th><th>Action</th></tr></thead>
-            <tbody id="presetRows"><tr><td colspan="6">Choose an institution type.</td></tr></tbody>
+    <p id="presetMessage" class="small mb-2" role="status" aria-live="polite"></p>
+    <div class="table-responsive border rounded-3">
+        <table class="table table-hover table-sm align-middle mb-0">
+            <caption class="visually-hidden">@(bn ? "প্রতিষ্ঠান-ধরন অনুযায়ী নতুন নিবন্ধনের মডিউল প্রিসেট" : "Module defaults for future institution onboarding")</caption>
+            <thead class="table-light"><tr>
+                <th scope="col">@(bn ? "মডিউল" : "Module")</th>
+                <th scope="col">@(bn ? "মূল মডিউল" : "Core")</th>
+                <th scope="col">@(bn ? "সক্রিয়" : "Active")</th>
+                <th scope="col">@(bn ? "আবশ্যক" : "Required")</th>
+                <th scope="col">@(bn ? "ডিফল্ট চালু" : "Default enabled")</th>
+                <th scope="col">@(bn ? "কাজ" : "Action")</th>
+            </tr></thead>
+            <tbody id="presetRows"><tr><td colspan="6">@(bn ? "প্রতিষ্ঠানের ধরন নির্বাচন করুন।" : "Choose an institution type.")</td></tr></tbody>
         </table>
     </div>
 </section>
