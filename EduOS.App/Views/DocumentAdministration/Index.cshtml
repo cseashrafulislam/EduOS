@@ -31,11 +31,13 @@
             </div>
             <form id="docForm" class="row g-2">
                 <input type="hidden" id="docReference" /><input type="hidden" id="docVersion" />
-                <div class="col-lg-4"><label class="form-label" for="docFile">Scanned file reference (GUID)</label><input id="docFile" class="form-control" required autocomplete="off" /></div>
+                <div class="col-lg-4"><input id="docFile" type="hidden" />
+                    <div class="small text-muted pt-2" role="status" aria-live="polite" id="docSelectedFileLabel">Upload a scanned file or choose a verified upload above.</div>
+                </div>
                 <div class="col-lg-3"><label class="form-label" for="docType">Document type</label><select id="docType" class="form-select" required></select></div>
                 <div class="col-lg-5"><label class="form-label" for="docTitle">Title</label><input id="docTitle" class="form-control" maxlength="250" /></div>
                 <div class="col-lg-3"><label class="form-label" for="docEntityType">Attach to</label><select id="docEntityType" class="form-select"><option value="">Institution-wide</option><option value="Tenant">Institution profile</option></select></div>
-                <div class="col-lg-3"><label class="form-label" for="docEntityId">Linked ID (server-assigned)</label><input id="docEntityId" class="form-control" type="number" readonly placeholder="Current institution" /></div>
+                <input id="docEntityId" type="hidden" />
                 <div class="col-lg-3"><label class="form-label" for="docExpiry">Expires (UTC)</label><input id="docExpiry" class="form-control" type="datetime-local" /></div>
                 <div class="col-lg-3 d-flex align-items-end gap-2"><label class="form-check-label"><input id="docActive" class="form-check-input" type="checkbox" checked /> Active</label><button class="btn btn-primary" type="submit">Save document</button><button id="docCancel" class="btn btn-outline-secondary" type="button">Cancel</button></div>
             </form>

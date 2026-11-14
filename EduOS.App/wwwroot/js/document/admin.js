@@ -21,6 +21,10 @@
     return uploadRetry.id;
   }
   const val = id => el(id).value.trim(), set = (id,v) => el(id).value = v ?? "";
+  function useVerifiedFile(reference, label) {
+    set("docFile",reference);
+    el("docSelectedFileLabel").textContent = label || "Verified file selected.";
+  }
   const msg = (s,bad=false) => { const n=el("docAlert"); n.textContent=s; n.className="alert "+(bad?"alert-danger":"alert-success"); };
   async function api(path, method="GET", payload, multipart=false) {
     const headers = {Accept:"application/json"};
@@ -48,7 +52,8 @@
   }
   const date = s => s ? new Date(s).toLocaleString() : "—";
   function localDate(s) { if(!s) return "";const d=new Date(s);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); }
-  function resetDoc(){el("docForm").reset();set("docReference","");set("docVersion","");docGuard.markClean();}
+  function resetDoc(){el("docForm").reset();set("docReference","");set("docVersion","");
+    useVerifiedFile("","Upload a scanned file or choose a verified upload above.");docGuard.markClean();}
   function resetType(){el("typeForm").reset();set("typeId","");set("typeVersion","");typeRequest=null;el("typeCode").readOnly=false;el("typeActive").checked=true;typeGuard.markClean();}
   function resetTemplate(){el("templateForm").reset();set("templateId","");set("templateVersion","");templateRequest=null;el("templateCode").readOnly=false;el("templateActive").checked=true;templateGuard.markClean();}
   async function loadTypes() {
@@ -89,7 +94,7 @@
     for(const item of state.documents){
       const expired=item.expiresAt && new Date(item.expiresAt)<=new Date();
       row(tbody,[item.title||item.reference,item.documentTypeCode,item.entityType||"Institution-wide",date(item.expiresAt),item.isActive?"Active":"Inactive"],[
-        button("Edit",async()=>{if(!docGuard.confirmDiscard())return;set("docReference",item.reference);set("docVersion",item.rowVersion);set("docFile",item.fileReference);set("docType",item.documentTypeCode);set("docTitle",item.title);set("docEntityType",item.entityType||"");set("docEntityId",item.entityId);set("docExpiry",localDate(item.expiresAt));el("docActive").checked=item.isActive;docGuard.markClean();}),
+        button("Edit",async()=>{if(!docGuard.confirmDiscard())return;set("docReference",item.reference);set("docVersion",item.rowVersion);useVerifiedFile(item.fileReference,"Existing verified file selected.");set("docType",item.documentTypeCode);set("docTitle",item.title);set("docEntityType",item.entityType||"");set("docEntityId",item.entityId);set("docExpiry",localDate(item.expiresAt));el("docActive").checked=item.isActive;docGuard.markClean();}),
         button("Download",()=>download(item),!item.isActive||expired),
         button("Deactivate",async()=>{if(!confirm("Deactivate document?"))return;await api("/documents/"+item.reference+"/deactivate","POST",{rowVersion:item.rowVersion});await loadDocuments();msg("Document deactivated.");},!item.isActive)
       ]);
@@ -100,7 +105,7 @@
     const d=await api("/files/unattached?page="+state.pendingPage+"&pageSize=10");state.pending=d.items??[];state.pendingTotal=d.totalCount??0;
     const tbody=el("docPendingRows");tbody.replaceChildren();
     for(const f of state.pending)row(tbody,[f.originalFileName,f.sizeBytes+" bytes",date(f.createdAt)],[
-      button("Select",async()=>{set("docFile",f.reference);el("docFile").focus();})
+      button("Select",async()=>{useVerifiedFile(f.reference,"Selected: "+f.originalFileName);el("docType").focus();})
     ]);
     const pages=Math.max(1,Math.ceil(state.pendingTotal/10));el("docPendingInfo").textContent="Page "+state.pendingPage+" of "+pages;
     el("docPendingPrev").disabled=state.pendingPage<=1;el("docPendingNext").disabled=state.pendingPage>=pages;
@@ -109,7 +114,7 @@
     const file=el("docUploadFile").files[0];if(!file||file.size>5242880)throw Error("Choose a file up to 5 MB.");
     const data=new FormData();data.append("file",file);data.append("requestId",uploadRequestId(file));
     const f=await api("/files","POST",data,true);
-    uploadRetry=null;el("docUploadForm").reset();set("docFile",f.reference);
+    uploadRetry=null;el("docUploadForm").reset();useVerifiedFile(f.reference,"Selected: "+file.name);
     try { await loadPending();msg("Security-verified file uploaded. Save its document metadata."); }
     catch { msg("File uploaded; the pending-file list could not refresh. Save the document metadata or refresh the list."); }
   }, e.currentTarget);});
