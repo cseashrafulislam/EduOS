@@ -555,11 +555,12 @@
                             <span>@(currentCulture == "bn-BD" ? hrPage.Bn : hrPage.En)</span>
                         </a>
                     }
-                    <a class="nav-link @ActiveFor("/EmployeeAttendance")" href="/EmployeeAttendance/Index"><span>@(currentCulture == "bn-BD" ? "কর্মীর উপস্থিতি" : "Employee Attendance")</span></a>
-                    <a class="nav-link @ActiveFor("/LeaveEntitlements")" href="/LeaveEntitlements/Index"><span>@(currentCulture == "bn-BD" ? "ছুটির প্রাপ্যতা" : "Leave Entitlements")</span></a>
                 }
                 @if (User?.IsInRole("TenantAdmin") == true)
                 {
+                    @* These pages have TenantAdmin-only controllers. Do not expose dead links to Principal/HR. *@
+                    <a class="nav-link @ActiveFor("/EmployeeAttendance")" href="/EmployeeAttendance/Index"><span>@(currentCulture == "bn-BD" ? "কর্মীর উপস্থিতি" : "Employee Attendance")</span></a>
+                    <a class="nav-link @ActiveFor("/LeaveEntitlements")" href="/LeaveEntitlements/Index"><span>@(currentCulture == "bn-BD" ? "ছুটির প্রাপ্যতা" : "Leave Entitlements")</span></a>
                     @foreach (var hrSetup in new[] {
                         (Path: "/HR/ShiftAssignments", En: "Employee Shifts", Bn: "কর্মীর শিফট"),
                         (Path: "/HR/CampusAssignments", En: "Employee Campus Assignments", Bn: "কর্মীর ক্যাম্পাস বরাদ্দ"),
