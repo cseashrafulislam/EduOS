@@ -3,16 +3,9 @@
     var reviewer = User.IsInRole("TenantAdmin") || User.IsInRole("Teacher");
     ViewData["Title"] = bn ? "AI অধ্যয়ন সহকারী" : "AI Study Assistant";
 }
-<section class="admission-page" aria-labelledby="assistantHeading">
-    <header class="content-header-card d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div>
-            <span id="assistantHeading" class="visually-hidden">@(bn ? "AI অধ্যয়ন সহকারী" : "AI Study Assistant")</span>
-            <p class="small text-muted mb-0">@(bn ? "অনুমোদিত বইয়ের নির্দিষ্ট অধ্যায়ের প্রমাণভিত্তিক উদ্ধৃতি। উত্তর না পাওয়া গেলে অধ্যায়টি পড়ুন।" : "Short cited answers from reviewed licensed chapters. An unsupported question returns no answer.")</p>
-        </div>
-        <a asp-controller="Library" asp-action="Study" class="btn btn-sm btn-outline-secondary">@(bn ? "অধ্যয়ন সংগ্রহ" : "Study collections")</a>
-    </header>
+<section class="admission-page" >
     <div id="assistantAlert" class="d-none" role="alert" tabindex="-1"></div>
-    <form id="assistantForm" class="content-card row g-3 mt-3" autocomplete="off">
+    <form id="assistantForm" class="content-card mt-2" autocomplete="off"><div class="row g-2">
         @Html.AntiForgeryToken()
         <div class="col-12 col-lg-7">
             <label for="assistantSearch" class="form-label">@(bn ? "বই/অধ্যায় খুঁজুন" : "Find book or chapter")</label>
@@ -38,7 +31,7 @@
             <span id="assistantCount" class="small text-muted" aria-live="polite"></span>
             <button id="assistantAsk" type="submit" class="btn btn-primary">@(bn ? "উত্তর দেখুন" : "Get cited answer")</button>
         </div>
-    </form>
+    </div></form>
     <section class="content-card mt-3" aria-labelledby="assistantAnswerHeading">
         <h3 id="assistantAnswerHeading" class="h5">@(bn ? "অধ্যায়ভিত্তিক উত্তর" : "Grounded answer")</h3>
         <p id="assistantResult" class="mb-2" aria-live="polite">@(bn ? "একটি অধ্যায় নির্বাচন করে প্রশ্ন করুন।" : "Choose a chapter and ask a question.")</p>

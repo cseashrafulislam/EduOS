@@ -2,18 +2,6 @@
     ViewData["Title"] = "Library Liabilities";
 }
 <section id="libraryLiabilitiesApp" class="container-fluid py-2">
-    <header class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-3">
-        <div class="d-flex align-items-center gap-2">
-            <span class="visually-hidden" data-bn="লাইব্রেরি দায় ও অর্থায়ন">Library liabilities</span>
-            <details class="position-relative">
-                <summary class="btn btn-sm btn-outline-secondary" aria-label="Library liability help">ⓘ</summary>
-                <div class="card card-body position-absolute shadow-sm mt-1" style="width:min(21rem,85vw);z-index:5">
-                    Lost, damaged and overdue returned loans require a separate assessment and independent approval. Campus fine policies are effective-dated. Fully unpaid posted charges can be reversed through a second-person balanced journal; paid charges require Finance refund/credit-note controls.
-                </div>
-            </details>
-        </div>
-        <a asp-controller="Library" asp-action="Conditions" class="btn btn-sm btn-outline-secondary" data-bn="কপির অবস্থা">Copy conditions</a>
-    </header>
     <div id="liabilityAlert" class="d-none" role="alert" aria-live="polite"></div>
     <div class="row g-3">
         <div class="col-xl-6">

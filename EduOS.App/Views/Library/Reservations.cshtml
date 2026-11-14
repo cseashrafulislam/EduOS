@@ -4,14 +4,6 @@
     var canExportMine = User.IsInRole("Student");
 }
 <section id="reservationApp" class="container-fluid py-2" data-staff="@(canManage ? "true" : "false")">
-    <header class="content-header-card d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <div class="d-flex align-items-center gap-2"><span class="visually-hidden">Library reservations</span>
-            <details class="position-relative"><summary class="btn btn-sm btn-outline-secondary" aria-label="Reservation help" title="Help">ⓘ</summary>
-                <div class="card position-absolute p-2 shadow-sm" style="width:min(20rem,80vw);z-index:10;">Choose a circulating book and submit a reservation. Students reserve for themselves; staff select an eligible learner. Pending reservations expire after seven days and are fulfilled in queue order.</div>
-            </details>
-        </div>
-        <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
-    </header>
     <div id="reservationAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3">
         <div class="card-header"><h3 class="h6 mb-0">Find and reserve a book</h3></div>
