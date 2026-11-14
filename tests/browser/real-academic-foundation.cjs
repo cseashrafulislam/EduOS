@@ -48,9 +48,21 @@ async function catalogItem(page, group, name) {
         [group, name]);
 }
 async function waitForCatalogItem(page, group, name) {
-    await page.waitForFunction(([key, label]) =>
-        window.eduosAcademicManagement?.state?.catalog?.[key]?.some(x => x.name === label),
-        [group, name], {timeout: 25000});
+    try {
+        await page.waitForFunction(([key, label]) =>
+            window.eduosAcademicManagement?.state?.catalog?.[key]?.some(x => x.name === label),
+            [group, name], {timeout: 25000});
+    } catch {
+        const notice = await page.locator('#academicNotice').textContent().catch(() => '');
+        const catalog = await page.evaluate(key => ({
+            count: window.eduosAcademicManagement?.state?.catalog?.[key]?.length ?? -1,
+            names: (window.eduosAcademicManagement?.state?.catalog?.[key] || [])
+                .map(x => x.name).filter(x => x?.startsWith('QA ')).slice(0, 8)
+        }), group);
+        throw new Error('Failed to load ' + group + ' after real form submission; URL=' +
+            new URL(page.url()).pathname + '; notice=' + JSON.stringify(notice?.slice(0, 300)) +
+            '; catalog=' + JSON.stringify(catalog));
+    }
     const value = await catalogItem(page, group, name);
     assert(value && Number.isSafeInteger(value.id) && value.id > 0 && value.code,
         'Persistent backend-generated code missing: ' + group);
@@ -70,13 +82,17 @@ async function run() {
         page.setDefaultTimeout(20000);
         const failedWrites = [];
         page.on('response', response => {
-            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(response.request().method()) &&
-                response.status() >= 400)
-                failedWrites.push({endpoint: new URL(response.url()).pathname, status: response.status()});
+            const method = response.request().method(), path = new URL(response.url()).pathname;
+            if (method === 'POST' && (path.startsWith('/api/academic-setup/') ||
+                path.startsWith('/api/academic-sections')))
+                console.log('[QA form]', path, 'status', response.status());
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && response.status() >= 400)
+                failedWrites.push({endpoint: path, status: response.status()});
         });
         await login(page);
         await feature(page, 'Classes', 'classes');
         assert(!(await catalogItem(page, 'programs', programName)), 'Demo programme already exists');
+        console.log('[QA step] create programme');
         await reveal(page, 'programForm');
         await page.locator('#programName').fill(programName);
         await page.locator('#programForm button[type="submit"]').click();
@@ -84,6 +100,7 @@ async function run() {
         await page.reload({waitUntil: 'domcontentloaded'});
         await waitForCatalogItem(page, 'programs', programName);
 
+        console.log('[QA step] create class');
         await reveal(page, 'levelForm');
         await page.locator('#levelProgram').selectOption(String(program.id));
         await page.locator('#levelName').fill(levelName);
@@ -94,6 +111,7 @@ async function run() {
         await page.reload({waitUntil: 'domcontentloaded'});
         await waitForCatalogItem(page, 'levels', levelName);
 
+        console.log('[QA step] create subject');
         await feature(page, 'Subjects', 'subjects');
         await reveal(page, 'subjectForm');
         await page.locator('#subjectName').fill(subjectName);
@@ -103,6 +121,7 @@ async function run() {
         await page.reload({waitUntil: 'domcontentloaded'});
         await waitForCatalogItem(page, 'subjects', subjectName);
 
+        console.log('[QA step] create independent section');
         const sectionPage = await page.goto(origin + '/AcademicManagement/Sections',
             {waitUntil: 'domcontentloaded'});
         assert(sectionPage && sectionPage.status() === 200, 'Independent Sections register unavailable');
