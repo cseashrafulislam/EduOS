@@ -96,7 +96,7 @@ test('central income/cost UI keeps signed reversals and full-period totals separ
     assert.match(js, /detail\.lines \|\| \[\]/);
     assert.match(js, /debit !== credit/);
     assert.match(view, /Export Visible Page CSV/);
-    assert.match(view, /Accrual earnings and cash receipts are not the same/);
+    assert.match(view, /Accrual income\/expense and actual bank/);
 });
 
 test('module posting reconciliation is read-only, tenant-scoped and paged by source document', () => {

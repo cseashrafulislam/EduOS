@@ -34,7 +34,7 @@ test('digital resource UI is interactive, bounded, bilingual and avoids browser-
     assert.match(view, /id="digitalUploadForm"/);
     assert.match(view, /id="digitalRows"/);
     assert.match(view, /aria-labelledby="digitalListTitle"/);
-    assert.match(view, /asp-action="Index"/);
+    assert.match(view, /asp-action="OfficialBooks"/);
     assert.match(view, /CurrentUICulture/);
     assert.match(ui, /new FormData\(\)/);
     assert.match(ui, /crypto\.randomUUID\(\)/);

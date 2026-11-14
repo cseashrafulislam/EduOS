@@ -10,7 +10,7 @@ const nav = fs.readFileSync(path.join(root, "EduOS.App/Views/Shared/_Layout.csht
 test("product module configuration submits antiforgery, request ID and row version", () => {
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /requestId=crypto\.randomUUID\(\)/);
-    assert.match(js, /requestId, rowVersion: selected\.rowVersion/);
+    assert.match(js, /requestId,rowVersion:selected\.rowVersion/);
     assert.match(js, /\/api\/platform\/catalog\/modules\//);
     assert.doesNotMatch(js, /innerHTML/);
 });

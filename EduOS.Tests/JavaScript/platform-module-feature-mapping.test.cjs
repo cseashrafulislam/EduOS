@@ -10,7 +10,7 @@ test("module feature mapping uses antiforgery, concurrency, idempotency and safe
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /requestId=attemptIds\.get\(key\)\|\|crypto\.randomUUID\(\)/);
     assert.match(js, /attemptIds\.set\(key,requestId\)/);
-    assert.match(js, /moduleRowVersion: directory.moduleRowVersion/);
+    assert.match(js, /moduleRowVersion:directory\.moduleRowVersion/);
     assert.match(js, /featureRowVersion: item.featureRowVersion/);
     assert.match(js, /mappingRowVersion: item.mappingRowVersion/);
     assert.doesNotMatch(js, /innerHTML/);

@@ -12,7 +12,7 @@ test("plan configuration editor has validation, antiforgery and concurrency", ()
     assert.match(js, /requestId:editRequestId/);
     assert.match(js, /rowVersion:\s*editing\.rowVersion/);
     assert.match(js, /\/configuration/);
-    assert.match(js, /editorForm\.reportValidity\(\)/);
+    assert.match(js, /form\.reportValidity\(\)/);
     assert.doesNotMatch(js, /innerHTML/);
 });
 test("plan configuration form is wired to the existing admin view", () => {

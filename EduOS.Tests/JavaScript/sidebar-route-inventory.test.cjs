@@ -72,7 +72,7 @@ test('navigation declarations are duplicate-free across literal and computed sou
 test('every current sidebar destination belongs to a named task group, not a generic catch-all', () => {
     const { groupFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
     const sections = [...sidebar.matchAll(/<nav\b[^>]*data-sidebar-section="([^"]+)"[^>]*>([\s\S]*?)<\/nav>/g)];
-    assert.equal(sections.length, 4, 'all sidebar sections must be inventoried');
+    assert.equal(sections.length, 5, 'all sidebar sections must be inventoried');
     for (const [, section, markup] of sections) {
         const destinations = [
             ...[...markup.matchAll(/<a\b[^>]*\bhref="(\/[^\"]+)"/g)].map(m => m[1]),

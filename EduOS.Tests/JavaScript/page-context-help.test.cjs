@@ -30,7 +30,10 @@ const routes = ['/Account/Profile', '/FeeDiscountAttributionReview/Index', '/Fee
         .map(name => '/' + name + '/Index')];
 
 test('all reviewed route manuals have full bilingual structure, matching steps and examples', () => {
-    assert.deepEqual(coverage(), { routes: 153, en: 153, bn: 153 });
+    const inventory = coverage();
+    assert.ok(inventory.routes >= 189, 'reviewed route coverage must not regress');
+    assert.equal(inventory.en, inventory.routes);
+    assert.equal(inventory.bn, inventory.routes);
     for (const route of routes) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
@@ -153,7 +156,7 @@ test('twenty-five audited finance, academic and communication manuals match real
         ['OperationsInsights', 'operationsInsightsTitle'], ['AcademicRoutines', 'routineLoad'],
         ['AcademicInstruction', 'instructionLoad'], ['AcademicCalendar', 'calendarLoad'],
         ['StudentLeaves', 'leaveSubmit'], ['EmployeeAttendance', 'employeeAttendanceSave'],
-        ['LeaveEntitlements', 'leaveEntitlementTypeReset'], ['StudentPortal', 'studentPortalTitle'],
+        ['LeaveEntitlements', 'leaveEntitlementTypeReset'], ['StudentPortal', 'studentPortalTabs'],
         ['StudentSubjects', 'subjectsRequestButton'], ['LearnerIdentities', 'identitySubmit'],
         ['Learning', 'learningCourse'], ['AuditLogs', 'auditTitle'], ['ImportHistory', 'importHistoryTitle'],
         ['CommunicationAdministration', 'communicationTitle'], ['CustomFields', 'cfPage'],

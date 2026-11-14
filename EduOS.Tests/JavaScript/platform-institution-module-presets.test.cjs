@@ -10,7 +10,7 @@ test("preset administration includes antiforgery, concurrency, idempotency and s
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /requestId=attemptIds\.get\(key\)\|\|crypto\.randomUUID\(\)/);
     assert.match(js, /attemptIds\.set\(key,requestId\)/);
-    assert.match(js, /institutionTypeRowVersion: data.institutionTypeRowVersion/);
+    assert.match(js, /institutionTypeRowVersion:data\.institutionTypeRowVersion/);
     assert.match(js, /rowVersion: item.rowVersion/);
     assert.doesNotMatch(js, /innerHTML/);
 });

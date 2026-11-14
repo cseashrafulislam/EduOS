@@ -131,7 +131,10 @@ test('all new operation, library and LMS manuals are distinct validated English/
         ...['Branches', 'Reservations', 'Overdue', 'Conditions', 'Integrity', 'Liabilities'].map(action => `/Library/${action}`),
         ...['Quizzes', 'LiveClasses', 'CourseContent', 'AssignmentFiles', 'Certificates'].map(action => `/Learning/${action}`)
     ];
-    assert.deepEqual(coverage(), { routes: 153, en: 153, bn: 153 });
+    const inventory = coverage();
+    assert.ok(inventory.routes >= 189, 'reviewed operation manuals must not disappear');
+    assert.equal(inventory.en, inventory.routes);
+    assert.equal(inventory.bn, inventory.routes);
     for (const route of all) {
         const en = guideFor(route, 'en-BD');
         const bn = guideFor(route, 'bn-BD');
