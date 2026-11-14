@@ -32,33 +32,33 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - [x] `/AssessmentAdministration/ComponentMarks`
 - [x] `/AssessmentAdministration/Omr`
 - [x] `/AssessmentAdministration/SubjectCompletions`
-- [ ] `/AssessmentAdministration/AssessmentComponents`
-- [ ] `/AssessmentAdministration/AssessmentSchedules`
-- [ ] `/AssessmentAdministration/GradeSchemes`
-- [ ] `/AssessmentAdministration/CertificateTemplates`
-- [ ] `/AssessmentAdministration/Certificates`
-- [ ] `/AssessmentAdministration/Transcripts`
-- [ ] `/AssessmentAdministration/Marks`
-- [ ] `/AssessmentAdministration/MarkReviews`
-- [ ] `/AssessmentAdministration/Results`
-- [ ] `/AssessmentAdministration/Publications`
-- [ ] `/AssessmentAdministration/Setup`
-- [ ] `/AssessmentAdministration/Attempts`
-- [ ] `/AssessmentAdministration/ResultRescrutiny`
-- [ ] `/AssessmentAdministration/ResultFollowUp`
-- [ ] `/AssessmentAdministration/GradeDistribution`
-- [ ] `/AssessmentAdministration/ExamReports`
-- [ ] `/AssessmentAdministration/AdmitCards`
+- [x] `/AssessmentAdministration/AssessmentComponents`
+- [x] `/AssessmentAdministration/AssessmentSchedules`
+- [x] `/AssessmentAdministration/GradeSchemes`
+- [x] `/AssessmentAdministration/CertificateTemplates`
+- [x] `/AssessmentAdministration/Certificates`
+- [x] `/AssessmentAdministration/Transcripts`
+- [x] `/AssessmentAdministration/Marks`
+- [x] `/AssessmentAdministration/MarkReviews`
+- [x] `/AssessmentAdministration/Results`
+- [x] `/AssessmentAdministration/Publications`
+- [x] `/AssessmentAdministration/Setup`
+- [x] `/AssessmentAdministration/Attempts`
+- [x] `/AssessmentAdministration/ResultRescrutiny`
+- [x] `/AssessmentAdministration/ResultFollowUp`
+- [x] `/AssessmentAdministration/GradeDistribution`
+- [x] `/AssessmentAdministration/ExamReports`
+- [x] `/AssessmentAdministration/AdmitCards`
 
 ## academics:research (2)
 
-- [ ] `/ResearchProposals/Index`
-- [ ] `/ResearchGrants/Index`
+- [x] `/ResearchProposals/Index`
+- [x] `/ResearchGrants/Index`
 
 ## academics:accreditation (2)
 
-- [ ] `/Accreditation/Index`
-- [ ] `/Accreditation/Obe`
+- [x] `/Accreditation/Index`
+- [x] `/Accreditation/Obe`
 
 ## Learning menu — source implementation checkpoint (2026-11-14)
 
@@ -107,7 +107,26 @@ This is a source implementation checkpoint **only**; it is not browser, SQL, .NE
 | `/AssessmentAdministration/Omr` | `aa27e7a` | `EduOS.App/Views/AssessmentAdministration/Omr.cshtml`, Page Help | Deferred |
 | `/AssessmentAdministration/SubjectCompletions` | `aa27e7a` | `EduOS.App/Views/AssessmentAdministration/SubjectCompletions.cshtml`, Page Help | Deferred |
 
-**UX C cumulative status:** 17/38 source UX routes checked; 21/38 remain (17 assessment, 2 research, 2 accreditation). No claim of completion for those unchecked routes.
+**Historical checkpoint:** At this stage 17/38 UX C routes were complete. See the newer full source-implementation checkpoint below.
+
+## UX C source implementation complete — 2026-11-14
+
+**38/38 assigned routes marked UX Done (source implementation only): Learning 14; Examination 20; Research 2; Accreditation 2. Full Final QA is deferred and is NOT a PASS.** Five scheduled UX automations remain OFF.
+
+- Exam layouts: commits `ad020340`, `5ddcceb2`, `35c76e33` compact the seventeen remaining Examination routes across fifteen physical Razor views (Marks/Results/Publications share `AssessmentAdministration/Index.cshtml`), preserve forms/actions and remove redundant headers. Commit `a9d1dc67` adds six missing bilingual Page Help guides. All 38 route keys have contextual Page Help.
+- Server-owned internal create Codes: Assessment Component `e8504e3d`, Grade Scheme `e6999769`, Certificate Template `46cc3807`, Research Grant Scheme `e19f26fe`. Retry-stable request IDs and replay comparisons keep duplicate create requests from silently changing existing data; legacy explicit-Code API usage remains supported. Assessment Setup had already implemented server-owned assessment codes.
+- Research Grants `f171a947`: owner-only, campus-scoped, server-paged ethics-approved proposal selector replaces manual GUID entry. The server independently checks the proposed grant and scheme. Research Proposals/Accreditation layout and role-visible OBE navigation: `d90bbae4`. Remove obsolete hidden Refresh controls and dead JS handlers: `f5dec021`.
+- External semantic codes for accreditation standard, PLO and framework/version identity remain editable when needed for authoritative mapping and audit. They must not be replaced with arbitrary unrelated generated IDs.
+- Source audit of 15 distinct Examination views plus Research/Accreditation views found no extra top title/header and balanced form tags. This is a lightweight source review, not browser, SQL, tenant, accessibility, mobile or final workflow certification.
+- GitHub CI on commit `f171a947` completed the Core, Persistence and App **builds successfully**, but the overall JS contract suite **FAILED** (60 test failures across modules, including stale manual count assertions expecting 153 when 189 were registered). Current-head combined CI must be reviewed and failures fixed during the independent Final QA phase; no production release claim.
+
+### UX C remaining-route evidence
+
+| Area | UX route count newly completed | Primary source changes | Final QA |
+| --- | ---: | --- | --- |
+| Assessment administration | 17 | Layouts `ad020340`, `5ddcceb2`, `35c76e33`; generated-code DTO/service/JS `e8504e3d`, `e6999769`, `46cc3807`; Help `a9d1dc67` | Deferred |
+| Research proposals + grants | 2 | Views/JS `d90bbae4`, `f5dec021`; grant scheme `e19f26fe`; eligible proposal API + UI `f171a947` | Deferred |
+| Accreditation + OBE | 2 | Views/JS `35c76e33`, `d90bbae4`, `f5dec021` | Deferred |
 
 ## Verified completion evidence
 
@@ -116,4 +135,4 @@ This is a source implementation checkpoint **only**; it is not browser, SQL, .NE
 
 ## Current in-progress or blocked route
 
-`/AssessmentAdministration/AssessmentComponents` is the next unchecked route in the Exams menu; 21 routes remain. Full Final QA is deferred.
+All 38 assigned routes have source implementation checked. The separate combined Final QA has not passed and remains outstanding.
