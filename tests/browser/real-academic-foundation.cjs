@@ -107,8 +107,24 @@ async function run() {
         const programReload = await page.reload({waitUntil: 'domcontentloaded'});
         assert(programReload && programReload.status() === 200,
             'Programme page reload did not return HTTP 200');
-        await page.waitForFunction(() => !!window.eduosAcademicManagement?.state?.catalog,
-            null, {timeout: 25000});
+        try {
+            await page.waitForFunction(() => !!window.eduosAcademicManagement?.state?.catalog,
+                null, {timeout: 25000});
+        } catch (error) {
+            const diagnosis = await page.evaluate(() => ({
+                readyState: document.readyState,
+                path: location.pathname,
+                title: document.title?.slice(0, 100),
+                academicRoot: !!document.getElementById('academicManagement'),
+                scriptPresent: !![...document.scripts].find(x =>
+                    x.src.includes('/js/academic/management.js')),
+                scriptCount: document.scripts.length,
+                libraryReady: !!window.eduosAcademicManagement,
+                bodyPrefix: document.body?.innerText?.slice(0, 220)
+            })).catch(e => ({pageInspectionError: String(e.message)}));
+            console.error('[QA reload hydration diagnosis]', JSON.stringify(diagnosis));
+            throw error;
+        }
         console.log('[QA stage] academic catalogue loaded after programme reload');
         await waitForCatalogItem(page, 'programs', programName);
 
