@@ -411,6 +411,9 @@ public sealed partial class AssessmentAdministrationService
     {
         if (!CanPublish() || IsRestrictedCampusManager())
             return Task.FromResult(Error<GradeSchemeDto>("Tenant-wide grade scheme management permission required.", 403));
+        if (request != null && !gradeSchemeId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "GRD-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || gradeSchemeId is <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) ||
             request.Code.Trim().Length > 50 || request.Rules == null ||
@@ -432,6 +435,34 @@ public sealed partial class AssessmentAdministrationService
                     x.IsActive, token))
                 return Error<GradeSchemeDto>("Academic program has no active batches.", 409);
             var code = request.Code.Trim().ToUpperInvariant();
+            if (!gradeSchemeId.HasValue && request.ClientRequestId != Guid.Empty &&
+                code == "GRD-" + request.ClientRequestId.ToString("N").ToUpperInvariant())
+            {
+                var replay = await _gradeSchemes.GetQueryable().AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.TenantId == tenant && x.Code == code && !x.IsDeleted, token);
+                if (replay != null)
+                {
+                    var oldRules = await _grades.GetQueryable().AsNoTracking()
+                        .Where(x => x.TenantId == tenant && x.GradeSchemeId == replay.Id && !x.IsDeleted)
+                        .OrderBy(x => x.MinMarks).ToListAsync(token);
+                    var incoming = request.Rules.OrderBy(x => x.MinMarks).ToArray();
+                    var sameRules = oldRules.Count == incoming.Length &&
+                        oldRules.Zip(incoming, (a, b) =>
+                            a.MinMarks == b.MinMarks && a.MaxMarks == b.MaxMarks &&
+                            a.GradeLetter == b.GradeLetter.Trim() &&
+                            a.GradePoint == b.GradePoint && a.IsFailGrade == b.IsFailGrade &&
+                            a.DisplayOrder == (b.DisplayOrder == 0
+                                ? Array.IndexOf(incoming, b) + 1 : b.DisplayOrder)).All(x => x);
+                    if (replay.Name != request.Name.Trim() ||
+                        replay.AcademicProgramId != request.AcademicProgramId ||
+                        replay.IsActive != request.IsActive || replay.IsDefault != request.IsDefault ||
+                        replay.UseCreditWeightedGpa != request.UseCreditWeightedGpa ||
+                        replay.RepeatCourseGradePolicy != request.RepeatCourseGradePolicy || !sameRules)
+                        return Error<GradeSchemeDto>("Request ID was already used for different grade scheme data.", 409);
+                    return ApiResponse<GradeSchemeDto>.SuccessResponse(MapGradeScheme(replay, oldRules),
+                        "Grade scheme already saved.");
+                }
+            }
             if (await _gradeSchemes.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.Code == code && !x.IsDeleted &&
                 (!gradeSchemeId.HasValue || x.Id != gradeSchemeId.Value), token))

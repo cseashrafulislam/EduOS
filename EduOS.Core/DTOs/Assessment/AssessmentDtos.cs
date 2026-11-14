@@ -148,8 +148,9 @@ public class GradeSchemeDto
 
 public class SaveGradeSchemeRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     public long? AcademicProgramId { get; set; }
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;

@@ -10,8 +10,7 @@
 <p class="small text-muted mb-2">Create grading policies and inspect their rules. Saved schemes are immutable; create a new code for a revised policy.</p>
         <form id="gradeSchemeForm">
             <div class="row g-3">
-                <div class="col-md-4"><label for="gradeSchemeCode" class="form-label">Code</label>
-                    <input id="gradeSchemeCode" class="form-control" maxlength="50" required /></div>
+                <input id="gradeSchemeCode" type="hidden" />
                 <div class="col-md-5"><label for="gradeSchemeName" class="form-label">Name</label>
                     <input id="gradeSchemeName" class="form-control" maxlength="150" required /></div>
                 <div class="col-md-3"><label for="gradeSchemeProgram" class="form-label">Program ID (optional)</label>

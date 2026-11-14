@@ -6,7 +6,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const form = el('gradeSchemeForm');
     const formGuard = window.EduOSFormGuard?.create(form);
-    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, listGeneration: 0, detailGeneration: 0 };
+    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, listGeneration: 0, detailGeneration: 0, createRequestId: null, createFingerprint: null };
     function notice(message, error = false) {
         const box = el('gradeSchemeNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -149,7 +149,7 @@
             if (program && (!/^[1-9]\d*$/.test(program) || !Number.isSafeInteger(Number(program))))
                 throw new Error('Program ID must be a positive whole number.');
             body = {
-                code: el('gradeSchemeCode').value.trim(),
+                code: '',
                 name: el('gradeSchemeName').value.trim(),
                 academicProgramId: program ? Number(program) : null,
                 isActive: el('gradeSchemeActive').checked,
@@ -158,8 +158,14 @@
                 repeatCourseGradePolicy: Number(el('gradeSchemeRepeatPolicy').value),
                 rules: collectRules()
             };
-            if (!body.code || !body.name || body.code.length > 50 || body.name.length > 150)
-                throw new Error('Enter a valid name and code.');
+            if (!body.name || body.name.length > 150)
+                throw new Error('Enter a valid scheme name.');
+            const fingerprint = JSON.stringify(body);
+            if (state.createFingerprint !== fingerprint) {
+                state.createFingerprint = fingerprint;
+                state.createRequestId = crypto.randomUUID();
+            }
+            body.clientRequestId = state.createRequestId;
         } catch (error) { notice(error.message, true); return; }
         state.busy = true;
         const fields = [...form.querySelectorAll('input, select, button')];
@@ -180,6 +186,7 @@
         }
     }
     function clear() {
+        state.createRequestId = null; state.createFingerprint = null;
         el('gradeSchemeForm').reset();
         el('gradeSchemeRuleEditor').replaceChildren();
         addRule();
