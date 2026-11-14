@@ -95,9 +95,11 @@ public class AcademicProgramDto
 
 public class SaveAcademicProgramRequestDto
 {
+    // Stable across retries for server-generated immutable internal Code.
+    public Guid ClientRequestId { get; set; }
     public long? AcademicDepartmentId { get; set; }
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [MaxLength(100)] public string? ShortName { get; set; }
     [Range(0, 1200)] public int DurationInMonths { get; set; }
     [MaxLength(150)] public string? AwardTitle { get; set; }
@@ -147,9 +149,11 @@ public class AcademicLevelDto
 
 public class SaveAcademicLevelRequestDto
 {
+    // Stable across retries for server-generated immutable internal Code.
+    public Guid ClientRequestId { get; set; }
     public long AcademicProgramId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Range(1, 1000)] public int LevelNo { get; set; }
     public bool IsPromotable { get; set; } = true;
     public bool IsTerminalLevel { get; set; }
@@ -273,7 +277,7 @@ public class SaveAcademicBatchRequestDto
     public long? MediumId { get; set; }
     public long? ShiftId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     public DeliveryModeType DeliveryMode { get; set; } = DeliveryModeType.OnCampus;
     [Range(0, 100000)] public int Capacity { get; set; }
     public DateOnly? StartDate { get; set; }
@@ -321,8 +325,10 @@ public class SubjectDto
 
 public class SaveSubjectRequestDto
 {
+    // Stable across retries for server-generated immutable internal Code.
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [MaxLength(50)] public string? ShortName { get; set; }
     [Range(typeof(decimal), "0", "1000")] public decimal DefaultCreditHours { get; set; }
     public bool IsActive { get; set; } = true;
@@ -361,7 +367,7 @@ public class SaveAcademicCurriculumRequestDto
     public long? AcademicTrackId { get; set; }
     public long? MediumId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Range(1, int.MaxValue)] public int VersionNo { get; set; } = 1;
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
