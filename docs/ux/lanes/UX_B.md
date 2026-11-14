@@ -12,57 +12,57 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## academics:learners (20)
 
-- [ ] `/StudentSupport/Scholarships`
-- [ ] `/StudentSupport/Counseling`
-- [ ] `/Admissions/Forms`
-- [ ] `/Admissions/Offers`
-- [ ] `/Students/Index`
-- [ ] `/Students/Create`
-- [ ] `/StudentLifecycle/Index`
-- [ ] `/StudentDocuments/Index`
-- [ ] `/StudentGuardians/Index`
-- [ ] `/StudentTransferRequests/Index#destinationInbox`
-- [ ] `/EnrollmentManagement/Index`
-- [ ] `/LearnerIdentities/Index`
-- [ ] `/LearnerIdentities/AccessHistory`
-- [ ] `/Admissions/NewApplication`
-- [ ] `/Admissions/Applications`
-- [ ] `/Admissions/AssessmentSetup`
-- [ ] `/Admissions/Merit`
-- [ ] `/StudentImports/Index`
-- [ ] `/StudentReadmissions/Index`
-- [ ] `/StudentProgressions/Index`
+- [x] `/StudentSupport/Scholarships`
+- [x] `/StudentSupport/Counseling`
+- [x] `/Admissions/Forms`
+- [x] `/Admissions/Offers`
+- [x] `/Students/Index`
+- [x] `/Students/Create`
+- [x] `/StudentLifecycle/Index`
+- [x] `/StudentDocuments/Index`
+- [x] `/StudentGuardians/Index`
+- [x] `/StudentTransferRequests/Index#destinationInbox`
+- [x] `/EnrollmentManagement/Index`
+- [x] `/LearnerIdentities/Index`
+- [x] `/LearnerIdentities/AccessHistory`
+- [x] `/Admissions/NewApplication`
+- [x] `/Admissions/Applications`
+- [x] `/Admissions/AssessmentSetup`
+- [x] `/Admissions/Merit`
+- [x] `/StudentImports/Index`
+- [x] `/StudentReadmissions/Index`
+- [x] `/StudentProgressions/Index`
 
 ## academics:portal (3)
 
-- [ ] `/StudentPortal/Index`
-- [ ] `/StudentSubjects/Index`
-- [ ] `/Alumni/Index`
+- [x] `/StudentPortal/Index`
+- [x] `/StudentSubjects/Index`
+- [x] `/Alumni/Index`
 
 ## academics:operations (7)
 
-- [ ] `/AcademicRoutines/Index`
-- [ ] `/AcademicInstruction/Index`
-- [ ] `/AcademicCalendar/Index`
-- [ ] `/StudentLeaves/Index`
-- [ ] `/Attendance/Register`
-- [ ] `/Attendance/Reports`
-- [ ] `/Attendance/Corrections`
+- [x] `/AcademicRoutines/Index`
+- [x] `/AcademicInstruction/Index`
+- [x] `/AcademicCalendar/Index`
+- [x] `/StudentLeaves/Index`
+- [x] `/Attendance/Register`
+- [x] `/Attendance/Reports`
+- [x] `/Attendance/Corrections`
 
 ## management:library (12)
 
-- [ ] `/Library/Index`
-- [ ] `/Library/Study`
-- [ ] `/offline-study.html`
-- [ ] `/Library/StudyAssistant`
-- [ ] `/Library/Reservations`
-- [ ] `/Library/Branches`
-- [ ] `/Library/Overdue`
-- [ ] `/Library/Conditions`
-- [ ] `/Library/Integrity`
-- [ ] `/Library/Liabilities`
-- [ ] `/Library/Circulation`
-- [ ] `/Library/Digital`
+- [x] `/Library/Index`
+- [x] `/Library/Study`
+- [x] `/offline-study.html`
+- [x] `/Library/StudyAssistant`
+- [x] `/Library/Reservations`
+- [x] `/Library/Branches`
+- [x] `/Library/Overdue`
+- [x] `/Library/Conditions`
+- [x] `/Library/Integrity`
+- [x] `/Library/Liabilities`
+- [x] `/Library/Circulation`
+- [x] `/Library/Digital`
 
 ## Verified completion evidence
 
@@ -72,3 +72,21 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 ## Current in-progress or blocked route
 
 None assigned yet. Update when selecting the first unchecked page.
+
+## UX B source implementation completion — 2026-11-14
+
+**UX implementation: 42 / 42 canonical sidebar routes marked UX Done.**
+**Final QA: DEFERRED / NOT RUN for all routes as a single current-SHA acceptance run.** The UX status is based on source implementation, current branch audit and focused source contracts; it is **not** a full browser/SQL/security/production release sign-off.
+
+**Source implementation and handoff:** [UX B completion report](UX_B_UX_COMPLETION_20261114.md).
+The route inventory maps 42 destinations to 36 canonical Razor source views and one standalone offline-reader HTML document. Admissions and Attendance task routes intentionally share the same authorized canonical views and controller actions rather than duplicating UI/domain writes.
+
+**Source changes pushed on `Ashraful`:**
+- Server-managed internal Admission Intake, Book Category and Library Branch Codes with persistent, same-intent request IDs in browser and server validation; existing external explicit-Code API callers remain accepted. Initial change `c7b48c064a1ac6e0bdc021b657bc77e453a33ecf`, validation and replay hardening `522c6e92d5be77dc82e96a05f11a377ea8e1c1ae`, `033f7ea3a118c5c8ee069d90711543bc2aa14aeb`.
+- Compact spacing, removal of visually duplicated page headers, and hiding of decorative Refresh controls without breaking historical JS bindings; learner/admission `707af397554178a60958ef2c779588ce755f8798`, learner/portal `42b2beab9c904063ddca9a608fc3578bf6dd4479`, operations/library `093fea65fd87dfc170722195e9a7b790088656ef`, remaining library `99aa529dfae200a4c86ddc98cf200c6d3f6cde93`.
+- Eleven missing contextual bilingual Page Help guides added `01deb3a9c28bafec264f762e7dea4e4297cda21e`; the standalone offline reader received inline bilingual help `522c6e92d5be77dc82e96a05f11a377ea8e1c1ae`. Existing Help entries were retained.
+- Six focused, fast UX B source-integrity contracts created `47ab09d193ef643740bcfe3046bc6e740eee5363` and repaired `0b6df2d997e1e6f4ae8413c32ec2b1c6c4b4b61d`; generated-Code conflict regression adapted to the non-editable Code model `6d8e28d6d9d74b57b23e377465084100b5f2a6da`.
+
+**Source verification:** 36/36 source views have a shell title, no duplicate `h1`, balanced `thead` and existing linked local scripts; all 41 MVC routes have route-specific Page Help; offline reader has local Help; all four changed JS source files parse. The six new focused source checks **PASS** in [GitHub CI run 43573794856](https://github.com/cseashrafulislam/EduOS/actions/runs/43573794856), which overall **FAILS** due to other JavaScript tests; the repository-wide gate is not accepted. Follow-up legacy admission conflict test alignment is a new commit and its broader run must be checked independently. No test waiver and no database mutation.
+
+**Separate Final QA backlog:** Current-head .NET Release build and all tests, SQL Server migration/backfill and persistence with a disposable database, authenticated Chromium scenarios per role/tenant/campus, UI screenshot acceptance on desktop/mobile and Bangla/English, shared AI/Voice field and read-only commands, CSRF/IDOR and status/concurrency/replay, applicant/guardian identity privacy, admission to enrollment and attendance consistency, Library borrow/renew/return/reservation, browser accessibility, upload security, report reconciliation, performance and rollback. The five scheduled UX automations remain OFF. No production sign-off until those gates pass.
