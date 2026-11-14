@@ -14,6 +14,8 @@ public sealed partial class InventoryCatalogService
     {
         if (!CanWrite()) return Denied<InventoryLocationDto>();
         if (request == null) return ApiResponse<InventoryLocationDto>.ErrorResponse("Location details are required.");
+        if (!locationId.HasValue && request.ClientRequestId != Guid.Empty && string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "LOC-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         var code = Code(request.Code); var name = Trim(request.Name); var address = Trim(request.Address);
         if (code.Length is < 1 or > 50 || name == null || name.Length > 150 ||
             address?.Length > 500 || request.CampusId is <= 0 || locationId is <= 0)

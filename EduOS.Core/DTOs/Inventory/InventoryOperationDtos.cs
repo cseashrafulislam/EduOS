@@ -12,8 +12,9 @@ public sealed class InventoryLocationDto
 }
 public sealed class SaveInventoryLocationRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     public long? CampusId { get; set; }
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
     [MaxLength(500)] public string? Address { get; set; }
     public bool IsActive { get; set; } = true;
@@ -35,8 +36,9 @@ public sealed class InventoryItemDto
 }
 public sealed class SaveInventoryItemRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string UnitCode { get; set; } = "Each";
     [MaxLength(100)] public string? CategoryCode { get; set; }
     public bool IsStockTracked { get; set; } = true;

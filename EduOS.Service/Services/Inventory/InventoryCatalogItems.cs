@@ -30,6 +30,9 @@ public sealed partial class InventoryCatalogService
     {
         if (!CanWrite()) return Denied<InventoryItemDto>();
         if (request == null) return ApiResponse<InventoryItemDto>.ErrorResponse("Item details are required.");
+        // Server-issued internal Code: stable across retries, legacy explicit Codes remain supported.
+        if (!itemId.HasValue && request.ClientRequestId != Guid.Empty && string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "ITM-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         var code = Code(request.Code); var name = Trim(request.Name); var unit = Code(request.UnitCode);
         var category = Trim(request.CategoryCode);
         if (code.Length is < 1 or > 50 || name == null || name.Length > 200 ||
