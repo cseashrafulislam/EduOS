@@ -123,7 +123,10 @@ public sealed class ResearchGrantService(EduOSDbContext db, ResearchWorkflowAcce
         if (!ResearchWorkflowAccess.ResearchCoordinator(roles)) return Denied<ResearchGrantSchemeDto>();
         if (input == null || input.ClientRequestId == Guid.Empty)
             return ApiResponse<ResearchGrantSchemeDto>.ErrorResponse("A unique request ID is required.", 400);
-        var code = input.Code?.Trim().ToUpperInvariant() ?? "";
+        // Only internal scheme identifiers are generated. Preserve explicit codes for existing integrations.
+        var code = string.IsNullOrWhiteSpace(input.Code)
+            ? "RGS_" + input.ClientRequestId.ToString("N").ToUpperInvariant()
+            : input.Code.Trim().ToUpperInvariant();
         var name = input.Name?.Trim() ?? "";
         var currency = input.CurrencyCode?.Trim().ToUpperInvariant() ?? "";
         if (code.Length is < 2 or > 40 || !code.All(c => char.IsAsciiLetterUpper(c) || char.IsAsciiDigit(c) || c == '_') ||

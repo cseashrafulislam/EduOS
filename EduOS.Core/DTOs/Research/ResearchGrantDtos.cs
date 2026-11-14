@@ -5,7 +5,7 @@ namespace EduOS.Core.DTOs.Research;
 public sealed class ResearchGrantSchemeCreateDto
 {
     public Guid ClientRequestId { get; set; }
-    [Required, StringLength(40, MinimumLength = 2)] public string Code { get; set; } = "";
+    [StringLength(40, MinimumLength = 2)] public string Code { get; set; } = "";
     [Required, StringLength(200, MinimumLength = 3)] public string Name { get; set; } = "";
     [Required, RegularExpression("^[A-Z]{3}$")] public string CurrencyCode { get; set; } = "BDT";
     [Range(typeof(decimal), "0.01", "99999999999999999.99")] public decimal MaxAward { get; set; }

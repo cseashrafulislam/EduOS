@@ -366,7 +366,7 @@
         try {
             await api('/api/research/grants/schemes', {
                 clientRequestId: schemeRetry ||= crypto.randomUUID(),
-                code: get('grantSchemeCode').value.trim().toUpperCase(), name: get('grantSchemeName').value.trim(),
+                code: '', name: get('grantSchemeName').value.trim(),
                 currencyCode: get('grantCurrency').value.trim().toUpperCase(), maxAward: Number(get('grantSchemeMax').value)
             });
             schemeRetry = null; get('grantSchemeForm').reset(); await schemes(); notice(t('Scheme created.', 'স্কিম তৈরি হয়েছে।'));
