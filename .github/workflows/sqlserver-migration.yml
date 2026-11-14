@@ -5,6 +5,10 @@ on:
     branches: [Ashraful]
     paths:
       - '.github/workflows/sqlserver-migration.yml'
+      - 'EduOS.Tests/App/SqlServer*IntegrationTests.cs'
+      - 'EduOS.Tests/Services/**'
+      - 'EduOS.Service/Services/Academic/**'
+      - 'EduOS.Service/Services/Students/**'
   workflow_dispatch:
     inputs:
       run_40k:

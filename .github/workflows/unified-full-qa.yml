@@ -8,6 +8,11 @@ on:
     branches: [Ashraful]
     paths:
       - '.github/workflows/unified-full-qa.yml'
+      - 'EduOS.Tests/**'
+      - 'tests/browser/**'
+      - 'EduOS.Service/**'
+      - 'EduOS.App/wwwroot/js/**'
+      - 'EduOS.App/Views/**'
 
 permissions:
   contents: read
