@@ -31,7 +31,8 @@ public sealed class FeeHeadAccountingSetupDto
 }
 public sealed class SaveFeeHeadAccountingHeadRequestDto
 {
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    public Guid ClientRequestId { get; set; }
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(100)] public string Name { get; set; } = string.Empty;
     public FeeFrequencyType DefaultFrequency { get; set; } = FeeFrequencyType.Monthly;
     public bool IsRefundable { get; set; }

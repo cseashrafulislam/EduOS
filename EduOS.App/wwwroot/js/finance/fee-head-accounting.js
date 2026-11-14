@@ -6,7 +6,7 @@ const writable = root.dataset.write === 'true', base = '/api/finance/fee-head-ac
 const el = id => document.getElementById(id);
 const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value;
 let heads = [], accounts = [];
-let busy = false, readSequence = 0;
+let busy = false, readSequence = 0, createRequestId = null, createFingerprint = null;
 const context = [document.body?.dataset.authTenantId || '', document.body?.dataset.authSessionReference || ''];
 const live = () => context[0] === (document.body?.dataset.authTenantId || '') &&
     context[1] === (document.body?.dataset.authSessionReference || '') &&
@@ -86,7 +86,7 @@ function render() {
                 el('feeHeadCode').value = h.code; el('feeHeadName').value = h.name;
                 el('feeHeadFrequency').value = h.defaultFrequency;
                 el('feeHeadRefundable').checked = h.isRefundable; el('feeHeadActive').checked = h.isActive;
-                el('feeHeadCode').focus();
+                el('feeHeadName').focus();
                 guard?.markClean();
             });
             action.append(save, edit); row.append(action);
@@ -106,6 +106,7 @@ async function load() {
 }
 function reset() {
     el('feeHeadForm').reset(); el('feeHeadId').value = ''; el('feeHeadVersion').value = '';
+    createRequestId = null; createFingerprint = null;
     guard?.markClean();
 }
 async function run(action) { try { await action(); } catch (error) { notice(error.message, true); } }
@@ -118,9 +119,18 @@ if (writable) {
         run(async () => {
             if (busy || !live()) return;
             const id = el('feeHeadId').value;
-            const body = {code:el('feeHeadCode').value.trim(), name:el('feeHeadName').value.trim(),
+            const body = {code:id ? el('feeHeadCode').value.trim() : '', name:el('feeHeadName').value.trim(),
                 defaultFrequency:Number(el('feeHeadFrequency').value), isRefundable:el('feeHeadRefundable').checked,
                 isActive:el('feeHeadActive').checked, rowVersion:el('feeHeadVersion').value || null};
+            if (!id) {
+                // Retry the same payload with the same key, rotate only when its business fields change.
+                const fingerprint = JSON.stringify(body);
+                if (createFingerprint !== fingerprint) {
+                    createFingerprint = fingerprint;
+                    createRequestId = crypto.randomUUID();
+                }
+                body.clientRequestId = createRequestId;
+            }
             busy = true; const unlock = lockForm();
             try {
                 await request('/heads' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);

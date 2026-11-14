@@ -92,6 +92,10 @@ public sealed class FeeHeadAccountingService : IFeeHeadAccountingService
         long? headId, SaveFeeHeadAccountingHeadRequestDto request, CancellationToken ct = default)
     {
         if (!Writable) return Error<FeeHeadAccountingDto>("Institution administrator permission required.", 403);
+        // A new internal identifier is owned by the server; keep explicit legacy Code compatibility.
+        if (request != null && !headId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "FHD-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || headId is <= 0 || string.IsNullOrWhiteSpace(request.Code) ||
             string.IsNullOrWhiteSpace(request.Name) || request.Code.Trim().Length > 50 ||
             request.Name.Trim().Length > 100 || !Enum.IsDefined(request.DefaultFrequency))
