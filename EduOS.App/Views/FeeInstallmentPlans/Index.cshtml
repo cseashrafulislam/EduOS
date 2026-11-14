@@ -1,21 +1,10 @@
 @{
     ViewData["Title"] = "Student Instalment Agreements";
 }
-<section id="feePlanApp" class="container-fluid py-3">
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
-        <div class="d-flex align-items-center gap-2">
-            <h1 class="h4 mb-0">Student Instalment Agreements</h1>
-            <details class="position-relative">
-                <summary class="btn btn-outline-secondary btn-sm" aria-label="Instalment plan help" title="Plan guide">ⓘ</summary>
-                <div class="position-absolute border rounded bg-body p-2 small shadow-sm" style="z-index:5;width:min(23rem,80vw);right:0">
-                    Filter the register by student, state or your independent approval queue. Search a student, choose their academic batch and monthly fee structure, then save a gross plan draft. Optional positive monthly percentage shares must match the month count and total 100%; each fee head retains its full contractual total, with deterministic cent rounding. Submit for independent tenant-admin approval. Approved plans preserve fee-head amounts and due dates. Issue each approved month separately with idempotent invoice linkage; no payment is collected by issuing an invoice. Legacy batch billing remains blocked for planned months. Cancellation is audited and blocked after invoice issuance. Before any invoice exists, a separate tenant administrator may replace an approved agreement with a new submitted version; a different administrator must approve the replacement.
-                </div>
-            </details>
-        </div>
-        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Fees &amp; Billing</a>
-    </header>
+<section id="feePlanApp" class="container-fluid py-2">
+
     <div id="feePlanNotice" class="alert d-none d-print-none" role="status" aria-live="polite" tabindex="-1"></div>
-    <form id="feePlanCreate" class="card card-body mb-3 d-print-none">
+    <form id="feePlanCreate" class="card card-body mb-2 d-print-none">
         @Html.AntiForgeryToken()
         <div class="row g-2 align-items-end">
             <div class="col-lg-3"><label class="form-label" for="feePlanStudentSearch">Student code or name</label>
@@ -37,7 +26,8 @@
     <section class="card mb-3">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <strong>Agreement register</strong>
-            <div class="d-flex align-items-center gap-2 d-print-none">
+            <div class="d-flex flex-wrap align-items-center gap-2 d-print-none">
+                <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">Fees &amp; Billing</a>
                 <label for="feePlanCampus" class="visually-hidden">Campus</label>
                 <select id="feePlanCampus" class="form-select form-select-sm"><option value="">All authorized campuses</option></select>
                 <label for="feePlanFilterSearch" class="visually-hidden">Search student code or name</label>
@@ -55,7 +45,7 @@
                         My approval queue
                     </label>
                 }
-                <button id="feePlanRefresh" class="btn btn-outline-secondary btn-sm" type="button">Refresh</button>
+                <button id="feePlanRefresh" class="btn btn-outline-secondary btn-sm" type="button">Apply filters</button>
                 <button id="feePlanCsv" class="btn btn-outline-primary btn-sm" type="button" disabled>Export Page CSV</button>
                 <button id="feePlanPrint" class="btn btn-outline-secondary btn-sm" type="button" disabled>Print</button>
             </div>
@@ -72,9 +62,9 @@
         </div>
     </section>
     <section id="feePlanDetail" class="card d-none" aria-live="polite">
-        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <strong id="feePlanDetailTitle">Agreement</strong>
-            <div class="d-flex gap-2 d-print-none">
+            <div class="d-flex flex-wrap gap-2 d-print-none">
                 <button id="feePlanAuditOpen" class="btn btn-outline-secondary btn-sm" type="button">Billing Audit</button>
                 <button id="feePlanSubmit" class="btn btn-outline-primary btn-sm" type="button">Submit</button>
                 <label for="feePlanIssueMonth" class="visually-hidden">Invoice month</label>
