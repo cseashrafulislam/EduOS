@@ -29,6 +29,7 @@ function setup(name, formId, inputs) {
         id, value: '', checked: false, min: '0', disabled: false, inert: false, textContent: '',
         handlers: {}, options: [], children: [], resets: 0, scrollIntoView() {},
         classList: { add() {}, remove() {} },
+        setAttribute(name, value) { this[name] = value; },
         addEventListener(type, callback) { this.handlers[type] = callback; },
         reportValidity: () => true,
         querySelector: () => ({ disabled: false }),

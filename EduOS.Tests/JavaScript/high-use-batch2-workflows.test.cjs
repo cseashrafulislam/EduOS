@@ -234,7 +234,15 @@ test('Cash collection permits one preflight and one payment post while an identi
     const form = h.get('feePaymentForm');
     form.trigger('submit', { currentTarget: form, preventDefault() {} });
     form.trigger('submit', { currentTarget: form, preventDefault() {} });
-    assert.equal(h.calls.filter(x => x.url.endsWith('/payments/preflight')).length, 1);
+    assert.equal(h.calls.filter(x => x.url.endsWith('/payments/preflight')).length, 1,
+        'Cash preflight must start once: ' + JSON.stringify({
+            invoice: h.get('feePaymentInvoice').value,
+            amount: h.get('feePaymentAmount').value,
+            paymentDate: h.get('feePaymentDate').value,
+            selectedStudent: h.get('feeStudent').value,
+            message: h.get('feeAlert').textContent,
+            calls: h.calls.map(x => x.url)
+        }));
     assert.equal(h.get('feeCollect').disabled, true);
     call(h, '/payments/preflight').resolve(response({ amount: 12, currencyCode: 'BDT',
         invoices: [{ invoiceReference: 'invoice-A', allocating: 12, invoiceNumber: 'INV-1', dueAfter: 0 }] }));

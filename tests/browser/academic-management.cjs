@@ -32,7 +32,7 @@ async function main() {
         const page = await browser.newPage();
         page.on('pageerror', error => { throw error; });
         page.on('dialog', dialog => dialog.accept());
-        await page.route('http://eduos.test/**', async route => {
+        await page.route('http://localhost/**', async route => {
             const request = route.request();
             const url = new URL(request.url());
             if (!url.pathname.startsWith('/api/'))
@@ -187,7 +187,7 @@ async function main() {
             return route.fulfill({ status: 200, contentType: 'application/json',
                 body: JSON.stringify({ success: true, data: result }) });
         });
-        await page.goto('http://eduos.test/AcademicManagement/Index');
+        await page.goto('http://localhost/AcademicManagement/Index');
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/management-forms.js') });
         await page.addScriptTag({ path: path.join(root, 'EduOS.App/wwwroot/js/academic/levels.js') });

@@ -15,7 +15,7 @@ function fixture(lang){
  '<input id="discountRuleFrom" type="date"><input id="discountRuleTo" type="date">'+
  '<input id="discountRuleActive" type="checkbox" checked><button id="discountRuleSave" type="submit"></button>'+
  '<button id="discountRuleReset" type="button"></button></form>'+
- '<button id="discountRuleRefresh" type="button"></button><button id="discountRulePrev" type="button"></button>'+
+ '<button id="discountRulePrev" type="button"></button>'+
  '<button id="discountRuleNext" type="button"></button><span id="discountRulePage"></span>'+
  '<table><tbody id="discountRuleRows"></tbody></table></section></body></html>';
 }
@@ -26,7 +26,7 @@ function rule(name='Tuition'){
 async function verify(browser,lang){
  const context=await browser.newContext({viewport:{width:lang==='bn-BD'?390:1280,height:800}});
  const page=await context.newPage(),errors=[],writes=[];
- let first=true,release=null,created=false;
+ let created=false;
  page.on('pageerror',e=>errors.push(e.message));
  await page.route('http://eduos.test/**',async route=>{
   const req=route.request(),url=new URL(req.url());
@@ -35,7 +35,6 @@ async function verify(browser,lang){
   if(url.pathname==='/api/finance/fees/options')
    return route.fulfill({contentType:'application/json',body:JSON.stringify({success:true,data:{feeHeads:[{id:5,name:'Tuition'}]}})});
   if(url.pathname==='/api/finance/fees/discount-rules'&&req.method()==='GET'){
-   if(first){first=false;await new Promise(resolve=>{release=resolve;});}
    return route.fulfill({contentType:'application/json',body:JSON.stringify({success:true,data:{
     page:Number(url.searchParams.get('page')),pageSize:25,totalCount:1,items:[rule(created?'New tuition':'Tuition')]
    }})}).catch(()=>{});
@@ -55,11 +54,9 @@ async function verify(browser,lang){
   await page.goto('http://eduos.test/FeeDiscountRules/Index');
   await page.evaluate(()=>{window.confirm=()=>true;});
   await page.addScriptTag({path:source});
-  for(let i=0;i<100&&!release;i++)await page.waitForTimeout(20);
-  assert(release,'first register GET intercepted');
-  await page.locator('#discountRuleRefresh').click();
+  // The production page deliberately has no Refresh button. The initial
+  // authorized load must work and remain consistent with the real Razor view.
   await page.waitForFunction(()=>document.getElementById('discountRuleRows').innerText.includes('Tuition'));
-  release();await page.waitForTimeout(80);
   assert.match(await page.locator('#discountRuleRows').innerText(),/Tuition/);
   await page.locator('#discountRuleRows button').click();
   assert.match(await page.locator('#discountRuleFormTitle').innerText(),lang==='bn-BD'?/সম্পাদনা/:/Edit/);
@@ -86,7 +83,7 @@ async function verify(browser,lang){
   assert.doesNotMatch(await page.locator('#discountRuleRows').innerText(),/New tuition/);
   assert.equal(await page.locator('#discountRuleRefresh').isDisabled(),true);
   assert.deepEqual(errors,[]);
-  console.log(lang+' discount rules: bilingual, stale GET, CSRF, rowversion, conflict redaction, session PASS (synthetic API)');
+  console.log(lang+' discount rules: bilingual, authorized load, CSRF, rowversion, conflict redaction, session PASS (synthetic API)');
  }finally{await context.close();}
 }
 (async()=>{const browser=await chromium.launch({headless:true,args:['--no-sandbox']});

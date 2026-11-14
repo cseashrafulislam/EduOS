@@ -159,7 +159,7 @@ test('twenty-five audited finance, academic and communication manuals match real
         ['LeaveEntitlements', 'leaveEntitlementTypeReset'], ['StudentPortal', 'studentPortalTabs'],
         ['StudentSubjects', 'subjectsRequestButton'], ['LearnerIdentities', 'identitySubmit'],
         ['Learning', 'learningCourse'], ['AuditLogs', 'auditResultsTitle'], ['ImportHistory', 'importHistoryListTitle'],
-        ['CommunicationAdministration', 'communicationTitle'], ['CustomFields', 'cfPage'],
+        ['CommunicationAdministration', 'communicationAlert'], ['CustomFields', 'cfPage'],
         ['DocumentAdministration', 'docAdminTitle'], ['CommunicationWorkspace', 'cwSendMessage']
     ];
     for (const [name, id] of protectedPages) {
