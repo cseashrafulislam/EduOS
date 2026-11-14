@@ -16,7 +16,7 @@
 <div class="container-fluid institution-settings-workspace" id="institutionManagementApp" data-institution-feature="@feature">
     @Html.AntiForgeryToken()
     <div id="institutionMessage" role="alert" aria-live="polite" class="alert d-none"></div>
-    <ul class="nav nav-tabs mb-3 @(feature == "all" ? "" : "d-none")" role="tablist" aria-label="Institution management sections">
+    <ul class="nav nav-tabs mb-3 @(feature == "all" ? "" : "d-none")" role="tablist" aria-label="@(bn ? "প্রতিষ্ঠান পরিচালনার বিভাগ" : "Institution management sections")">
         <li class="nav-item"><button type="button" id="institutionProfileTab" class="nav-link active">@(bn ? "প্রতিষ্ঠানের প্রোফাইল" : "Institution Profile")</button></li>
         <li class="nav-item"><button type="button" id="institutionCampusTab" class="nav-link">@(bn ? "ক্যাম্পাস" : "Campuses")</button></li>
     </ul>
@@ -94,7 +94,7 @@
                     <div class="col-md-6">
                         <label for="institutionLogoFile" class="form-label">Logo</label>
                         <div class="d-flex align-items-center gap-3 mb-2">
-                            <img id="institutionLogoPreview" alt="Current institution logo" width="70" height="70" class="rounded border object-fit-contain d-none" />
+                            <img id="institutionLogoPreview" alt="@(bn ? "বর্তমান প্রতিষ্ঠানের লোগো" : "Current institution logo")" width="70" height="70" class="rounded border object-fit-contain d-none" />
                             <input id="institutionLogoFile" type="file" class="form-control" accept="image/png,image/jpeg,image/webp" />
                         </div>
                         <div class="d-flex gap-2">
@@ -105,7 +105,7 @@
                     <div class="col-md-6">
                         <label for="institutionFaviconFile" class="form-label">Favicon</label>
                         <div class="d-flex align-items-center gap-3 mb-2">
-                            <img id="institutionFaviconPreview" alt="Current institution favicon" width="48" height="48" class="rounded border object-fit-contain d-none" />
+                            <img id="institutionFaviconPreview" alt="@(bn ? "বর্তমান প্রতিষ্ঠানের ফেভিকন" : "Current institution favicon")" width="48" height="48" class="rounded border object-fit-contain d-none" />
                             <input id="institutionFaviconFile" type="file" class="form-control" accept="image/png,image/jpeg" />
                         </div>
                         <div class="d-flex gap-2">
@@ -127,7 +127,7 @@
                     <div class="col-md-4 d-flex align-items-end">
                         <button type="submit" class="btn btn-outline-primary">@(bn ? "যাচাই করে সাবডোমেইন সংরক্ষণ" : "Check & save subdomain")</button>
                     </div>
-                    <div class="col-12 small text-muted">Renaming a subdomain may affect existing bookmarks and integrations.</div>
+                    <div class="col-12 small text-muted">@(bn ? "সাবডোমেইন পরিবর্তন করলে আগের বুকমার্ক ও ইন্টিগ্রেশন প্রভাবিত হতে পারে।" : "Renaming a subdomain may affect existing bookmarks and integrations.")</div>
                 </form>
             </div>
         </div>
@@ -142,13 +142,13 @@
                 <div class="table-responsive">
                     <table class="table table-sm table-striped align-middle" data-workspace-table="institution-change-history">
                         <thead><tr><th scope="col" data-table-column="when">@(bn ? "সময়" : "When")</th><th scope="col" data-table-column="action">@(bn ? "কার্যক্রম" : "Action")</th><th scope="col" data-table-column="fields">@(bn ? "পরিবর্তিত ক্ষেত্র" : "Changed fields")</th><th scope="col" data-table-column="actor">@(bn ? "সম্পাদনকারী" : "Actor")</th></tr></thead>
-                        <tbody id="institutionHistoryBody"><tr><td colspan="4">Loading history...</td></tr></tbody>
+                        <tbody id="institutionHistoryBody"><tr><td colspan="4">@(bn ? "ইতিহাস আনা হচ্ছে…" : "Loading history...")</td></tr></tbody>
                     </table>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="institutionHistoryPrevious" disabled>Previous</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="institutionHistoryPrevious" disabled>@(bn ? "আগের" : "Previous")</button>
                     <span id="institutionHistoryPage" role="status" class="small text-muted"></span>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="institutionHistoryNext" disabled>Next</button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="institutionHistoryNext" disabled>@(bn ? "পরের" : "Next")</button>
                 </div>
             </div>
         </section>
@@ -160,12 +160,12 @@
                     <div>
                         <h2 class="h6 fw-semibold mb-0">@(bn ? "ক্যাম্পাস তালিকা" : "Campus directory")</h2>
                     </div>
-                    <button type="button" id="newCampus" class="btn btn-primary">Add campus</button>
+                    <button type="button" id="newCampus" class="btn btn-primary">@(bn ? "ক্যাম্পাস যোগ করুন" : "Add campus")</button>
                 </div>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle" data-workspace-table="institution-campuses">
                         <thead><tr><th data-table-column="campus">@(bn ? "ক্যাম্পাস" : "Campus")</th><th data-table-column="code">@(bn ? "কোড" : "Code")</th><th data-table-column="contact">@(bn ? "যোগাযোগ" : "Contact")</th><th data-table-column="type">@(bn ? "ধরন" : "Type")</th><th data-table-column="action">@(bn ? "পরিচালনা" : "Manage")</th></tr></thead>
-                        <tbody id="institutionCampusesBody"><tr><td colspan="5">Loading campuses...</td></tr></tbody>
+                        <tbody id="institutionCampusesBody"><tr><td colspan="5">@(bn ? "ক্যাম্পাস আনা হচ্ছে…" : "Loading campuses...")</td></tr></tbody>
                     </table>
                 </div>
                 <p class="text-muted small mb-0" id="institutionCampusesCount"></p>
@@ -176,49 +176,47 @@
                 <h2 id="campusEditorHeading" class="h6 fw-semibold mb-3">@(bn ? "ক্যাম্পাস যোগ করুন" : "Add campus")</h2>
                 <form id="institutionCampusForm" class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label" for="campusName">Campus name *</label>
+                        <label class="form-label" for="campusName">@(bn ? "ক্যাম্পাসের নাম *" : "Campus name *")</label>
                         <input id="campusName" maxlength="150" class="form-control" required />
                     </div>
+                    @* The onboarding API generates Code on create and preserves it on edit. *@
+                    <input id="campusCode" type="hidden" />
                     <div class="col-md-6">
-                        <label class="form-label" for="campusCode">Campus code *</label>
-                        <input id="campusCode" maxlength="50" class="form-control" required />
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label" for="campusPhone">Phone</label>
+                        <label class="form-label" for="campusPhone">@(bn ? "ফোন" : "Phone")</label>
                         <input id="campusPhone" maxlength="30" class="form-control" type="tel" />
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="campusEmail">Email</label>
+                        <label class="form-label" for="campusEmail">@(bn ? "ইমেইল" : "Email")</label>
                         <input id="campusEmail" maxlength="200" class="form-control" type="email" />
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="campusHeadName">Campus head name</label>
+                        <label class="form-label" for="campusHeadName">@(bn ? "ক্যাম্পাস প্রধানের নাম" : "Campus head name")</label>
                         <input id="campusHeadName" maxlength="150" class="form-control" />
                     </div>
                     <div class="col-md-6 d-flex align-items-center">
                         <div class="form-check">
                             <input id="campusHeadOffice" type="checkbox" class="form-check-input" />
-                            <label for="campusHeadOffice" class="form-check-label">Head office / main campus</label>
+                            <label for="campusHeadOffice" class="form-check-label">@(bn ? "প্রধান ক্যাম্পাস" : "Head office / main campus")</label>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label" for="campusTimeZone">Campus time zone (optional)</label>
+                        <label class="form-label" for="campusTimeZone">@(bn ? "ক্যাম্পাস সময় অঞ্চল (ঐচ্ছিক)" : "Campus time zone (optional)")</label>
                         <input id="campusTimeZone" maxlength="100" class="form-control" placeholder="Inherit institution time zone" />
-                        <div class="form-text">For example Asia/Dhaka. Blank inherits the institution time zone.</div>
+                        <div class="form-text">@(bn ? "যেমন Asia/Dhaka। ফাঁকা রাখলে প্রতিষ্ঠানের সময় অঞ্চল ব্যবহার হবে।" : "For example Asia/Dhaka. Blank inherits the institution time zone.")</div>
                     </div>
                     <div class="col-md-6 d-flex align-items-end">
                         <div class="form-check">
                             <input id="campusOnline" type="checkbox" class="form-check-input" />
-                            <label for="campusOnline" class="form-check-label">Online campus</label>
+                            <label for="campusOnline" class="form-check-label">@(bn ? "অনলাইন ক্যাম্পাস" : "Online campus")</label>
                         </div>
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="campusAddress">Address</label>
+                        <label class="form-label" for="campusAddress">@(bn ? "ঠিকানা" : "Address")</label>
                         <textarea id="campusAddress" maxlength="500" class="form-control" rows="2"></textarea>
                     </div>
                     <div class="col-12 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">Save campus</button>
-                        <button type="button" id="cancelCampus" class="btn btn-outline-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">@(bn ? "ক্যাম্পাস সংরক্ষণ" : "Save campus")</button>
+                        <button type="button" id="cancelCampus" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
                     </div>
                 </form>
             </div>
