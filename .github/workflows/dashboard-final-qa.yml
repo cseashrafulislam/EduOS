@@ -5,6 +5,7 @@ on:
     paths:
       - 'EduOS.App/Views/Dashboard/**'
       - 'EduOS.App/Controllers/DashboardController.cs'
+      - 'EduOS.App/Controllers/ErrorController.cs'
       - 'EduOS.App/Controllers/Api/DashboardController.cs'
       - 'EduOS.Service/Services/SaaS/DashboardService.cs'
       - 'EduOS.Tests/Services/DashboardServiceTests.cs'
