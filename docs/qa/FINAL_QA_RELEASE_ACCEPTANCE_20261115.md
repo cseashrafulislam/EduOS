@@ -30,3 +30,7 @@
 - Multi-tenant read-only staging: `.github/workflows/enterprise-trace-authenticated-staging.yml`; sidebar role staging: `.github/workflows/sidebar-role-staging.yml`. These use different synthetic fixtures and cannot certify the other nine gates merely because unit tests pass.
 - Verify release evidence by matching `head_sha`, workflow run, job steps, TRX test counts, scope and environment. A skipped, earlier-SHA or synthetic-only check is NOT PASS for authenticated UAT.
 - **Release decision:** BLOCKED until all required acceptance evidence is linked and independent institutional sign-off is recorded. Do not deploy, migrate production data or close #139 from these automated passes alone.
+
+## Repaired manual authenticated academic smoke contracts
+- The live smoke previously targeted non-existent login `#email` and removed `button[data-panel]` controls. Actual Razor login uses `#userNameOrEmail`; `AcademicManagement/Index` redirects to canonical `Years`; `Curricula`, `Batches` and `Sections` have distinct GET endpoints.
+- The smoke now validates these current routes and does not require existing academic year rows: an empty institution is a valid setup state. The read-only request guard remains in force. Source-only contract tests run in Node CI; **authenticated staging execution is still pending**.

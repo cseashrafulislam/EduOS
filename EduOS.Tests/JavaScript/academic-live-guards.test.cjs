@@ -39,6 +39,25 @@ test('academic browser allows only same-origin reads and the exact login POST', 
     ]) assert.equal(isAllowedReadOnlyRequest(url, verb, base), false, verb + ' ' + url);
 });
 
+test('academic authenticated smoke uses current login identifier and canonical features', () => {
+    const root = path.join(__dirname, '../..');
+    const script = fs.readFileSync(path.join(root,'tests/browser/academic-live.cjs'),'utf8');
+    const login = fs.readFileSync(path.join(root,'EduOS.App/Views/Account/Login.cshtml'),'utf8');
+    const controller = fs.readFileSync(path.join(root,
+        'EduOS.App/Controllers/AcademicManagementController.cs'),'utf8');
+    const view = fs.readFileSync(path.join(root,
+        'EduOS.App/Views/AcademicManagement/Index.cshtml'),'utf8');
+    assert(login.includes('id="userNameOrEmail"'));
+    assert(script.includes("page.locator('#userNameOrEmail').fill(email)"));
+    assert(!script.includes("page.locator('#email')"));
+    assert(controller.includes('Index() => RedirectToAction(nameof(Years))'));
+    assert(script.includes("['Curricula', 'curricula']"));
+    assert(script.includes("['Batches', 'sections']"));
+    assert(script.includes("'/AcademicManagement/Sections'"));
+    assert(view.includes('data-active-feature'));
+    assert(!script.includes('button[data-panel]'), 'Removed client-side feature tabs must not be tested');
+});
+
 test('workflow and browser enforce exact-SHA, target-host and read-only guard', () => {
     const root = path.join(__dirname, '../..');
     const workflow = fs.readFileSync(path.join(root,

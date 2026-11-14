@@ -39,28 +39,54 @@ async function main() {
                 response.url().includes('/api/institution-onboarding/'))
                 apiResults.push({ path: new URL(response.url()).pathname, status: response.status() });
         });
-        await page.goto(base + '/Account/Login', { waitUntil: 'domcontentloaded' });
-        await page.locator('#email').fill(email);
+        const loginPage = await page.goto(base + '/Account/Login', { waitUntil: 'domcontentloaded' });
+        assert(loginPage && loginPage.status() === 200, 'Login page unavailable');
+        await page.locator('#userNameOrEmail').fill(email);
         await page.locator('#password').fill(password);
         await page.locator('#loginBtn').click();
-        await page.waitForTimeout(1000);
+        const awaitLogin = async () => page.waitForFunction(() =>
+            location.pathname.toLowerCase() !== '/account/login' ||
+            !!document.querySelector('#institutionChoicePanel:not([hidden])') ||
+            !!document.querySelector('#alertContainer.alert-danger'), null, { timeout: 20000 });
+        await awaitLogin();
         if (await page.locator('#institutionChoicePanel').isVisible()) {
             if (!expectedTenant) throw new Error('Multi-institution test user needs EDUOS_E2E_TENANT_ID.');
             await page.locator('#institutionChoice').selectOption(expectedTenant);
             await page.locator('#loginBtn').click();
+            await awaitLogin();
         }
-        await page.waitForTimeout(1200);
+        assert.equal(await page.locator('#alertContainer.alert-danger').isVisible(), false,
+            'Synthetic login was rejected');
         if (page.url().includes('MfaChallenge'))
             throw new Error('MFA-enabled test user requires an interactive MFA test; this script does not bypass MFA.');
-        const response = await page.goto(base + '/AcademicManagement/Index', { waitUntil: 'domcontentloaded' });
-        assert.equal(response.status(), 200, 'TenantAdmin must access AcademicManagement/Index');
-        await page.locator('#academicManagement').waitFor();
-        await page.locator('#yearRows tr').first().waitFor({ timeout: 15000 });
-        assert.equal(await page.locator('button[data-panel]').count(), 6);
-        await page.locator('button[data-panel="curricula"]').click();
-        assert(await page.locator('section[data-section="curricula"]').isVisible());
-        await page.locator('button[data-panel="sections"]').click();
-        assert(await page.locator('section[data-section="sections"]').isVisible());
+        // Index is a legacy bookmark redirect; active features are distinct routes.
+        const response = await page.goto(base + '/AcademicManagement/Index', {
+            waitUntil: 'domcontentloaded'
+        });
+        assert(response && response.status() === 200, 'TenantAdmin must access Academic Management');
+        assert.equal(new URL(page.url()).pathname.toLowerCase(), '/academicmanagement/years',
+            'Index must redirect to canonical Academic Years');
+        await page.locator('#academicManagement[data-active-feature="years"]').waitFor();
+        await page.locator('#yearRows').waitFor();
+        await page.waitForFunction(() => !!window.eduosAcademicManagement?.state?.catalog,
+            null, { timeout: 20000 });
+        assert(await page.locator('section[data-section="years"]').isVisible());
+        for (const [route, feature] of [['Curricula', 'curricula'], ['Batches', 'sections']]) {
+            const pageResult = await page.goto(base + '/AcademicManagement/' + route, {
+                waitUntil: 'domcontentloaded'
+            });
+            assert(pageResult && pageResult.status() === 200, 'Canonical academic route failed: ' + route);
+            await page.locator('#academicManagement[data-active-feature="' + feature + '"]').waitFor();
+            assert(await page.locator('section[data-section="' + feature + '"]').isVisible(),
+                'Active academic feature not visible: ' + feature);
+            assert.equal(await page.locator('section[data-section="years"]').isVisible(), false,
+                'Unselected academic editor must stay hidden');
+        }
+        const sections = await page.goto(base + '/AcademicManagement/Sections', {
+            waitUntil: 'domcontentloaded'
+        });
+        assert(sections && sections.status() === 200, 'Canonical Academic Sections register unavailable');
+        await page.locator('#academicSectionsPage').waitFor();
         assert(apiResults.some(x => x.path.endsWith('/academic-years') && x.status === 200));
         assert(apiResults.some(x => x.path.endsWith('/academic-terms') && x.status === 200));
         assert(apiResults.some(x => x.path.endsWith('/catalog') && x.status === 200));
