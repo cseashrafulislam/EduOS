@@ -1,14 +1,8 @@
 @{
     ViewData["Title"] = "My transport trips";
 }
-<section class="container-fluid py-3" id="driverTrips" aria-labelledby="driverTripsTitle">
-    <header class="d-flex align-items-center gap-2 mb-3">
-        <h1 id="driverTripsTitle" class="h4 mb-0">My trips / আমার ট্রিপ</h1>
-        <details class="ms-auto">
-            <summary class="btn btn-sm btn-outline-secondary" aria-label="Driver trip guidance">i</summary>
-            <div class="small mt-2" style="max-width:20rem">Only today's trips dispatched to your verified employee/driver account appear. Record each rider as Boarded, Dropped or NoShow. / শুধু নিজের অনুমোদিত ট্রিপে উপস্থিতি দিন।</div>
-        </details>
-    </header>
+<section class="container-fluid py-1" id="driverTrips" aria-labelledby="driverTripsTitle">
+    <span id="driverTripsTitle" class="visually-hidden">My trips / আমার ট্রিপ</span>
     @Html.AntiForgeryToken()
     <p id="driverTripStatus" class="small text-muted" role="status" aria-live="polite"></p>
     <div class="d-flex gap-2 mb-2">
@@ -26,7 +20,10 @@
         <button id="driverTripNext" type="button" class="btn btn-outline-secondary btn-sm">Next</button>
     </div>
     <section id="driverManifest" hidden aria-labelledby="driverManifestTitle">
-        <h2 id="driverManifestTitle" class="h5">Assigned riders / নির্ধারিত যাত্রী</h2>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2"><h2 id="driverManifestTitle" class="h5">Assigned riders / নির্ধারিত যাত্রী</h2><div class="d-flex flex-wrap gap-2 align-items-center"><details class="ms-auto">
+            <summary class="btn btn-sm btn-outline-secondary" aria-label="Driver trip guidance">i</summary>
+            <div class="small mt-2" style="max-width:20rem">Only today's trips dispatched to your verified employee/driver account appear. Record each rider as Boarded, Dropped or NoShow. / শুধু নিজের অনুমোদিত ট্রিপে উপস্থিতি দিন।</div>
+        </details></div></div>
         <div class="d-flex gap-2 mb-2">
             <button id="driverTripPrint" class="btn btn-outline-secondary btn-sm" type="button">Print full manifest / সম্পূর্ণ প্রিন্ট</button>
             <button id="driverTripExport" class="btn btn-outline-primary btn-sm" type="button">CSV</button>

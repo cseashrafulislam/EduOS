@@ -13,19 +13,19 @@
     };
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("TransportManager");
 }
-<section id="transportWorkspace" class="container-fluid py-3" data-task-page="@taskPage" aria-labelledby="transportTitle">
-    <header class="mb-3"><h2 id="transportTitle">@ViewData["Title"]</h2></header>
+<section id="transportWorkspace" class="container-fluid py-1" data-task-page="@taskPage" aria-labelledby="transportTitle">
+    <span id="transportTitle" class="visually-hidden">@ViewData["Title"]</span>
     @if (showAssignments && (User.IsInRole("Student") || User.IsInRole("Guardian") || User.IsInRole("Parent")))
     {
-        <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Family">My transport schedule / আমার পরিবহন সূচি</a></div>
+        <div class="d-inline-flex align-items-center me-2 mb-1"><a class="btn btn-outline-primary btn-sm" asp-controller="TransportOperations" asp-action="Family">My transport schedule / আমার পরিবহন সূচি</a></div>
     }
     @if (canManage && showAssignments)
     {
-        <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="Trips">Trip dispatch / ট্রিপ পরিচালনা</a></div>
+        <div class="d-inline-flex align-items-center me-2 mb-1"><a class="btn btn-outline-primary btn-sm" asp-controller="TransportOperations" asp-action="Trips">Trip dispatch / ট্রিপ পরিচালনা</a></div>
     }
     @if (showAssignments && User.IsInRole("Staff"))
     {
-        <div class="mb-3"><a class="btn btn-outline-primary" asp-controller="TransportOperations" asp-action="DriverTrips">My driver trips / আমার ড্রাইভার ট্রিপ</a></div>
+        <div class="d-inline-flex align-items-center me-2 mb-1"><a class="btn btn-outline-primary btn-sm" asp-controller="TransportOperations" asp-action="DriverTrips">My driver trips / আমার ড্রাইভার ট্রিপ</a></div>
     }
     <div id="transportAlert" class="d-none" role="alert" tabindex="-1"></div>
     @if (showAssignments)

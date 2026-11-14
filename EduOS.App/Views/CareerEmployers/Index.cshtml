@@ -3,9 +3,9 @@
         ? "ক্যারিয়ার নিয়োগদাতা যাচাই" : "Career Employer Verification";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div id="careerEmployerWorkspace" class="container-fluid py-4">
+<div id="careerEmployerWorkspace" class="container-fluid py-1">
     @Html.AntiForgeryToken()
-    <header class="mb-3"><h1 class="h4 fw-bold" data-i18n="heading">Career employer verification</h1></header>
+    
     <div id="careerEmployerNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="row g-3">
         <section class="col-lg-4" aria-labelledby="careerCreateHeading">
@@ -32,7 +32,7 @@
                         <option value="1" data-i18n="draft">Awaiting verification</option>
                         <option value="2" data-i18n="verified">Verified</option>
                     </select>
-                    <button id="careerRefresh" class="btn btn-outline-secondary" type="button" data-i18n="refresh">Refresh</button>
+                    <button id="careerRefresh" class="btn btn-outline-secondary" type="button" data-i18n="refresh">Load records</button>
                     <a id="careerExport" class="btn btn-outline-secondary disabled" aria-disabled="true" data-i18n="export">Export verified page CSV</a>
                 </div>
                 <div class="table-responsive">
