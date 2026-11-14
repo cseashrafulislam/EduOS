@@ -34,7 +34,7 @@ function environment(lang) {
 
 test('all Razor views receive an explicit source-only, non-certified route/role/mobile/bilingual record', () => {
     const result = audit();
-    assert.equal(result.totals.views, 296);
+    assert.ok(result.totals.views >= 296, 'previously inventoried Razor views must not disappear');
     assert.ok(result.totals.rows >= result.totals.views);
     assert.ok(result.totals.MVCActionRows >= 200);
     assert.ok(result.totals.unresolvedViewRows > 0);

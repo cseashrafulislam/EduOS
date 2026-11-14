@@ -32,6 +32,7 @@ function harness(source, rootId, responder) {
     };
     get(rootId).querySelector = () => ({ value: 'csrf' });
     const document = {
+        documentElement: { lang: 'en-BD' },
         body: { dataset: { authTenantId: '25', authSessionReference: 'session-a' } },
         getElementById: get, createElement: create,
         querySelector: () => ({ content: 'csrf' }),

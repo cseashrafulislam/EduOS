@@ -28,6 +28,7 @@
     <div class="content-card mt-3">
         <div class="d-flex justify-content-between flex-wrap gap-2 align-items-center">
             <h3 class="h5 mb-0">@(bn ? "অনুমোদিত অধ্যয়ন উপকরণ" : "Reviewed study resources")</h3>
+            <a asp-controller="Library" asp-action="OfficialBooks" class="small ms-auto">@(bn ? "সরকারি পাঠ্যবই" : "Official textbooks")</a>
             <span id="studyCount" class="small text-muted" aria-live="polite"></span>
         </div>
         <div id="studyRows" class="row g-3 mt-1" aria-live="polite"></div>
