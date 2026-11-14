@@ -30,6 +30,7 @@ function boot(stages, currentPath = '/Account/InstitutionProfile') {
         console: { warn: () => {} },
         window: { location: { pathname: currentPath } },
         document: {
+            documentElement: { lang: 'en-BD' },
             getElementById: id => elements[id],
             createElement: createNode,
             addEventListener: (name, handler) => { if (name === 'DOMContentLoaded') domReady = handler; }

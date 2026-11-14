@@ -159,20 +159,22 @@ test('reset is canceled when user refuses to discard a dirty academic year', () 
     assert.equal(guard.dirty, false);
 });
 
-function offeringSetup() {
+async function offeringSetup() {
     const values = {
         offeringBatch: '10', offeringReference: '', offeringVersion: '',
         offeringCurriculumSubject: '30', offeringCode: 'BIO', offeringCapacity: '12',
-        offeringDelivery: '1', offeringActive: '', offeringSearch: ''
+        offeringDelivery: '1', offeringActive: '', offeringSearch: '', offeringSection: '44'
     };
     const nodes = new Map();
     for (const [id, value] of Object.entries(values))
-        nodes.set(id, { value, checked: id === 'offeringActive', disabled: false, handlers: {},
+        nodes.set(id, { value, checked: id === 'offeringActive', disabled: false, handlers: {}, options: [],
+            replaceChildren(...options) { this.options = options; },
+            add(option) { this.options.push(option); },
             addEventListener(type, callback) { this.handlers[type] = callback; } });
     for (const id of ['offeringCancel', 'offeringSearchButton', 'offeringPrevious', 'offeringNext',
-        'offeringCsv', 'offeringSave', 'offeringMessage']) {
+        'offeringCsv', 'offeringSave', 'offeringMessage', 'offeringPage', 'offeringRows']) {
         if (!nodes.has(id)) nodes.set(id, { handlers: {}, disabled: false, textContent: '',
-            addEventListener(type, callback) { this.handlers[type] = callback; } });
+            replaceChildren() {}, addEventListener(type, callback) { this.handlers[type] = callback; } });
     }
     const form = { id: 'offeringForm', handlers: {}, inert: false, resets: 0,
         reportValidity: () => true,
@@ -183,9 +185,19 @@ function offeringSetup() {
     const guard = { dirty: false, mayDiscard: false, cleans: 0,
         isDirty() { return this.dirty; }, confirmDiscard() { return this.mayDiscard; },
         markClean() { this.dirty = false; this.cleans++; } };
-    let apiImpl = async () => ({});
+    let apiImpl = async path => path.startsWith('/api/academic-sections?')
+        ? { items: [{ id: 44, name: 'Section A', code: 'A', isActive: true, capacity: 40 }] }
+        : { items: [], totalPages: 0 };
     const vmMock = {
-        state: { catalog: { batches: [{ id: 10, capacity: 40, academicYearId: 2, academicTermId: null }] } },
+        state: { catalog: {
+            batches: [{ id: 10, capacity: 40, academicYearId: 2, academicTermId: null,
+                academicProgramId: 20, academicLevelId: 30 }],
+            curricula: [{ id: 9, isActive: true, academicProgramId: 20,
+                academicTrackId: null, mediumId: null }],
+            curriculumSubjects: [{ id: 30, isActive: true, academicLevelId: 30,
+                academicCurriculumId: 9, subjectId: 5 }],
+            subjects: [{ id: 5, name: 'Biology', code: 'BIO' }]
+        } },
         el: id => nodes.get(id),
         api: (...args) => { calls.push(args); return apiImpl(...args); },
         notice: (message, danger) => notices.push({ message, danger }),
@@ -195,14 +207,20 @@ function offeringSetup() {
     const window = { eduosAcademicManagement: vmMock,
         addEventListener: (name, callback) => { subscriptions[name] = callback; } };
     vm.runInNewContext(offeringScript, { window, document: {}, crypto: webcrypto,
-        Option: class {}, URL, Blob, setTimeout }, { filename: 'subject-offerings.js' });
+        Option: class { constructor(text, value) { this.text = text; this.value = value; } },
+        URL, Blob, setTimeout }, { filename: 'subject-offerings.js' });
+    // Real page loads sections after its canonical academic catalog is available.
+    subscriptions['eduos:academic-reloaded']();
+    await new Promise(setImmediate);
+    await new Promise(setImmediate);
+    calls.length = 0;
     const submit = () => form.handlers.submit({ currentTarget: form, preventDefault() {} });
     return { nodes, calls, guard, notices, form, submit,
         setApi: fn => { apiImpl = fn; } };
 }
 
 test('offering retry reuses idempotency key only for unchanged payload', async () => {
-    const ctx = offeringSetup();
+    const ctx = await offeringSetup();
     ctx.setApi(() => { throw Error('connection lost'); });
     await ctx.submit();
     await ctx.submit();
@@ -216,8 +234,8 @@ test('offering retry reuses idempotency key only for unchanged payload', async (
     assert.equal(ctx.form.resets, 0);
 });
 
-test('offering cannot silently lose dirty draft on batch change', () => {
-    const ctx = offeringSetup();
+test('offering cannot silently lose dirty draft on batch change', async () => {
+    const ctx = await offeringSetup();
     ctx.guard.dirty = true;
     ctx.nodes.get('offeringBatch').value = '11';
     ctx.nodes.get('offeringBatch').handlers.change();
@@ -226,7 +244,7 @@ test('offering cannot silently lose dirty draft on batch change', () => {
 });
 
 test('offering single-flight save has distinct committed-but-refresh-failed outcome', async () => {
-    const ctx = offeringSetup();
+    const ctx = await offeringSetup();
     let release;
     ctx.setApi((path) => path.includes('offerings?')
         ? Promise.reject(Error('directory unavailable'))

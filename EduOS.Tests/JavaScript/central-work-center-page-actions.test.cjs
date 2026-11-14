@@ -12,7 +12,7 @@ function harness(fetchResponse) {
   const nodes = {}, requests = [], exports = [], prints = [];
   function element(tag = 'div') {
     return { tag, children: [], handlers: {}, textContent: '', value: '', disabled: false,
-      className: '', href: '', download: '', colSpan: 1,
+      className: '', href: '', download: '', colSpan: 1, style: {},
       appendChild(child) { this.children.push(child); return child; },
       append(...children) { this.children.push(...children); },
       setAttribute(name, value) { (this.attributes ||= {})[name] = String(value); },
