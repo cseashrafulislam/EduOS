@@ -497,11 +497,12 @@ public sealed class AcademicEnrollmentServiceTests
         await db.SaveChangesAsync();
         batch.AcademicLevelId = level.Id;
         db.AcademicBatches.Add(batch);
-        db.AcademicSections.Add(new AcademicSection
+        var section = new AcademicSection
         {
             TenantId = 101, CampusId = campus.Id, AcademicLevelId = level.Id,
             Name = "Section A", Code = "A", Capacity = capacity
-        });
+        };
+        db.AcademicSections.Add(section);
         await db.SaveChangesAsync();
         var core = new CurriculumSubject
         {
@@ -517,12 +518,14 @@ public sealed class AcademicEnrollmentServiceTests
         await db.SaveChangesAsync();
         var coreOffering = new SubjectOffering
         {
-            TenantId = 101, AcademicBatchId = batch.Id, CurriculumSubjectId = core.Id,
+            TenantId = 101, AcademicBatchId = batch.Id, AcademicSectionId = section.Id,
+            CurriculumSubjectId = core.Id,
             AcademicYearId = year.Id, Code = "G9-MATH", Capacity = capacity
         };
         var electiveOffering = new SubjectOffering
         {
-            TenantId = 101, AcademicBatchId = batch.Id, CurriculumSubjectId = elective.Id,
+            TenantId = 101, AcademicBatchId = batch.Id, AcademicSectionId = section.Id,
+            CurriculumSubjectId = elective.Id,
             AcademicYearId = year.Id, Code = "G9-MUSIC", Capacity = capacity
         };
         var slot = new RoutineTimeSlot
