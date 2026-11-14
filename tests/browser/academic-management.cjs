@@ -236,7 +236,22 @@ async function main() {
         await page.locator('#trackCreateName').fill('Science');
         assert.equal(await page.locator('#trackCreateCode').isVisible(), false, 'internal codes are server-generated');
         await page.locator('#trackCreateForm button[type="submit"]').click();
-        await page.waitForFunction(() => document.querySelector('#trackRows')?.textContent.includes('Science'));
+        try {
+            await page.waitForFunction(() => document.querySelector('#trackRows')?.textContent.includes('Science'),
+                null, { timeout: 8000 });
+        } catch (error) {
+            console.error('Track creation browser diagnostic:', JSON.stringify({
+                recentMutations: mutations.slice(-8),
+                savedTracks: catalog.tracks,
+                notice: await page.locator('#academicNotice').innerText(),
+                programFilter: await page.locator('#trackProgramFilter').inputValue(),
+                programChoice: await page.locator('#trackCreateProgram').inputValue(),
+                name: await page.locator('#trackCreateName').inputValue(),
+                formValid: await page.locator('#trackCreateForm').evaluate(el => el.checkValidity()),
+                visibleRows: await page.locator('#trackRows').innerText()
+            }, null, 2));
+            throw error;
+        }
         assert(mutations.some(x => x.path === '/api/academic-setup/tracks' && x.method === 'POST'));
         await page.locator('#trackRows button').first().click();
         await page.waitForFunction(() => !document.querySelector('#trackEditForm')?.classList.contains('d-none'));
