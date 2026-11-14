@@ -161,7 +161,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
         CancellationToken ct = default)
     {
         if (!CanManage()) return Task.FromResult(Denied<AcademicTrackDto>());
-        if (request == null || !ValidNameCode(request.Name, request.Code, 150) ||
+        if (request == null || !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "TRK-"), 150) ||
             request.AcademicProgramId is <= 0 || request.DisplayOrder < 0 || request.Description?.Length > 500)
             return Task.FromResult(Error<AcademicTrackDto>("Invalid academic track."));
         return ExecuteWriteAsync("create track", async () =>
@@ -170,7 +170,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             if (request.AcademicProgramId.HasValue && !await _programs.GetQueryable().AsNoTracking()
                 .AnyAsync(x => x.TenantId == tenant && x.Id == request.AcademicProgramId.Value && x.IsActive, ct))
                 return Error<AcademicTrackDto>("Academic program not found.", 404);
-            var code = NormalizeCode(request.Code);
+            var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "TRK-"));
             var existing = await _tracks.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Code == code, ct);
             if (existing != null)
@@ -744,7 +744,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
     {
         if (!CanManage()) return Task.FromResult(Denied<RoomDto>());
         if (request == null || request.CampusId <= 0 ||
-            !ValidNameCode(request.Name, request.Code, 100) ||
+            !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "ROM-"), 100) ||
             request.Capacity is < 0 or > 100000 || request.RoomType?.Length > 100)
             return Task.FromResult(Error<RoomDto>("Invalid room, campus or capacity."));
         return ExecuteWriteAsync("create room", async () =>
@@ -753,7 +753,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             if (!await _campuses.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.Id == request.CampusId && x.IsActive && !x.IsDeleted, ct))
                 return Error<RoomDto>("Campus not found.", 404);
-            var code = NormalizeCode(request.Code);
+            var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "ROM-"));
             var existing = await _rooms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.CampusId == request.CampusId && x.Code == code, ct);
             if (existing != null)
