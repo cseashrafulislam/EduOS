@@ -5,7 +5,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../..');
 const razor = fs.readFileSync(path.join(root, 'EduOS.App/Views/AssessmentAdministration/Transcripts.cshtml'), 'utf8');
-const start = razor.indexOf('<section class="container-fluid py-4" id="transcriptWorkspace">');
+const start = razor.search(/<section\b[^>]*\bid="transcriptWorkspace"[^>]*>/);
 const end = razor.indexOf('@section Scripts', start);
 assert(start >= 0 && end > start, 'Transcript register markup missing');
 const html = '<!doctype html><html><body>' + razor.slice(start, end)
