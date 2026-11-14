@@ -29,16 +29,17 @@ test('global app header is the only Academic Management page title on all eleven
     assert.doesNotMatch(index, /id="academicRefresh"/);
     assert.doesNotMatch(sections, /id="sectionRefresh"/);
     assert.match(sections, /id="sectionFilterButton"/);
-    assert.match(prerequisites, /id="prerequisiteRefresh"[^>]*>Search<\/button>/);
+    assert.match(prerequisites, /id="prerequisiteRefresh"[^>]*>@\(bn \? "খুঁজুন" : "Search"\)<\/button>/);
     assert.match(sections, /href="\/AcademicManagement\/Batches"/);
     assert.match(prerequisites, /asp-action="Curricula"/);
+    assert.match(prerequisites, /<thead><tr><th scope="col"/);
 });
 
 test('Academic Years and Terms start close to the shared header without a nested empty editor', () => {
     assert.doesNotMatch(index, /id="academicRefresh"/);
     assert.doesNotMatch(sections, /id="sectionRefresh"/);
     assert.match(sections, /id="sectionFilterButton"/);
-    assert.match(prerequisites, /id="prerequisiteRefresh"[^>]*>Search<\/button>/);
+    assert.match(prerequisites, /id="prerequisiteRefresh"[^>]*>@\(bn \? "খুঁজুন" : "Search"\)<\/button>/);
     assert.doesNotMatch(script, /academicRefresh|sectionRefresh|activeBar\.append\(refresh\)/);
     assert.match(script, /Object\.entries\(headings\)\.forEach/);
     assert.match(css, /\.page-body:has\(> :is\(#academicManagement/);
@@ -127,7 +128,7 @@ test('prerequisite page has no standalone back toolbar and every input has its o
     assert.match(prerequisites, /class="btn btn-outline-secondary academic-back-button w-100"/);
     assert.match(prerequisites, /asp-action="Curricula"/);
     assert.match(prerequisites, /class="col-6 col-xl-2 academic-check-cell"><label class="form-check academic-check-control"><input id="prerequisiteMandatory"/);
-    assert.match(prerequisites, /class="col-6 col-xl-2"><button type="submit" class="btn btn-primary w-100">Add link/);
+    assert.match(prerequisites, /class="col-6 col-xl-2"><button type="submit" class="btn btn-primary w-100">@\(bn \? "পূর্বশর্ত যোগ" : "Add link"\)/);
     assert.match(css, /#prerequisiteWorkspace \.academic-back-button\s*\{[\s\S]*?align-items:\s*center/);
     assert.match(css, /#prerequisiteWorkspace \.academic-editor-shell\.is-expanded\s*\{[\s\S]*?padding:\s*0/);
 });
