@@ -13,6 +13,10 @@ public sealed class SqlServerRealDataEntryEvidenceTests
         var conn = Environment.GetEnvironmentVariable("EDUOS_SQL_REAL_QA_CONNECTION");
         var yearName = Environment.GetEnvironmentVariable("QA_YEAR_NAME");
         var termName = Environment.GetEnvironmentVariable("QA_TERM_NAME");
+        // This expensive SQL/UI evidence is opt-in and only runs with the
+        // disposable real-browser QA job. Fail closed on partial configuration.
+        if (string.IsNullOrWhiteSpace(conn) && string.IsNullOrWhiteSpace(yearName) &&
+            string.IsNullOrWhiteSpace(termName)) return;
         Assert.False(string.IsNullOrWhiteSpace(conn));
         Assert.StartsWith("QA Academic Year ", yearName);
         Assert.StartsWith("QA First Term ", termName);
