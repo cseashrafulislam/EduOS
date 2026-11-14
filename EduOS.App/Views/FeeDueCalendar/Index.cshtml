@@ -3,16 +3,13 @@
     var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার" : "Student Fee Due Calendar";
 }
-<section id="feeDueCalendarApp" class="container-fluid py-3">
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
-        <h1 class="h4 mb-0">@(bn ? "শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার" : "Student Fee Due Calendar")</h1>
-        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@(bn ? "ফি ও বিলিং" : "Fees & Billing")</a>
-    </header>
+<section id="feeDueCalendarApp" class="container-fluid py-2">
+    
     <div class="d-none d-print-block"><h1 class="h5">@(bn ? "শিক্ষার্থী ফি পরিশোধের ক্যালেন্ডার — বর্তমান বকেয়া" : "Student Fee Due Calendar — Current outstanding")</h1>
         <p>@(bn ? "মাসের মোট সব মিলযুক্ত ইনভয়েসের; নিচের তালিকা শুধু বর্তমান পৃষ্ঠার।" : "Monthly totals cover all matching invoices; details show the current page only.")</p>
     </div>
     <div id="feeDueNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
-    <form id="feeDueFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
+    <form id="feeDueFilters" class="card card-body row g-2 align-items-end mb-2 d-print-none">
         <div class="col-md-2"><label for="feeDueFrom" class="form-label">@(bn ? "শুরুর শেষ তারিখ" : "Due from")</label><input id="feeDueFrom" type="date" class="form-control" required /></div>
         <div class="col-md-2"><label for="feeDueTo" class="form-label">@(bn ? "শেষের শেষ তারিখ" : "Due to")</label><input id="feeDueTo" type="date" class="form-control" required /></div>
         <div class="col-md-3"><label for="feeDueCampus" class="form-label">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="feeDueCampus" class="form-select"><option value="">@(bn ? "অনুমোদিত সব ক্যাম্পাস" : "All accessible")</option></select></div>
@@ -22,7 +19,8 @@
     </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <strong id="feeDueScope">@(bn ? "ইস্যুকৃত ইনভয়েসের বর্তমান বকেয়া" : "Current unpaid issued invoices")</strong>
-        <div class="d-flex gap-2 d-print-none">
+        <div class="d-flex flex-wrap gap-2 d-print-none">
+            <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@(bn ? "ফি ও বিলিং" : "Fees & Billing")</a>
             <button id="feeDueCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>@(bn ? "এই পৃষ্ঠার CSV" : "Export page CSV")</button>
             <button id="feeDuePrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "এই পৃষ্ঠা প্রিন্ট" : "Print page")</button>
         </div>

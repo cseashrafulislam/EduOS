@@ -3,16 +3,11 @@
     var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "ভবিষ্যৎ ফি প্রক্ষেপণ" : "Future Fee Projection";
 }
-<section id="feeProjectionApp" class="container-fluid py-3">
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
-        <div class="d-flex align-items-center gap-2">
-            <h1 class="h4 mb-0">@(bn ? "ভবিষ্যৎ ফি প্রক্ষেপণ" : "Future Fee Projection")</h1>
-        </div>
-        <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@(bn ? "ফি ও বিলিং" : "Fees &amp; Billing")</a>
-    </header>
+<section id="feeProjectionApp" class="container-fluid py-2">
+    
     <div class="d-none d-print-block mb-2"><h1 class="h5">@(bn ? "ভবিষ্যৎ ফি প্রক্ষেপণ — যাচাইকৃত মাসসমূহ" : "Future Fee Projection — Verified months")</h1><p>@(bn ? "এটি অনুমান, বিল বা কিস্তির প্রতিশ্রুতি নয়; কোনো ইনভয়েস বা GL এন্ট্রি তৈরি হয় না।" : "This is a non-binding estimate, not a bill or instalment agreement; no invoice or GL entry is created.")</p></div>
     <div id="feeProjectionNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
-    <form id="feeProjectionFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
+    <form id="feeProjectionFilters" class="card card-body row g-2 align-items-end mb-2 d-print-none">
         <div class="col-md-4"><label for="feeProjectionBatch" class="form-label">@(bn ? "একাডেমিক ব্যাচ" : "Academic batch")</label>
             <select id="feeProjectionBatch" class="form-select" required><option value="">@(bn ? "লোড হচ্ছে…" : "Loading…")</option></select></div>
         <div class="col-md-4"><label for="feeProjectionStructure" class="form-label">@(bn ? "কার্যকর মাসিক ফি কাঠামো" : "Effective monthly fee structure")</label>
@@ -25,7 +20,8 @@
     </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <strong id="feeProjectionScope">@(bn ? "কোনো যাচাইকৃত প্রক্ষেপণ লোড হয়নি" : "No verified projection loaded")</strong>
-        <div class="d-flex gap-2 d-print-none">
+        <div class="d-flex flex-wrap gap-2 d-print-none">
+            <a class="btn btn-outline-secondary btn-sm" href="/FeeOperations/Index">@(bn ? "ফি ও বিলিং" : "Fees &amp; Billing")</a>
             <button id="feeProjectionCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>@(bn ? "CSV রপ্তানি" : "Export CSV")</button>
             <button id="feeProjectionPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>@(bn ? "প্রিন্ট" : "Print")</button>
         </div>

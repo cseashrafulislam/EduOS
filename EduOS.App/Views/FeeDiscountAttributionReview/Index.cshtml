@@ -4,13 +4,10 @@
     string L(string en, string bd) => bn ? bd : en;
     ViewData["Title"] = L("Historical Discount Attribution", "পুরোনো ফি ছাড়ের খাত যাচাই");
 }
-<section id="feeAttributionApp" class="container-fluid py-3">
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 d-print-none">
-        <h1 class="h4 mb-0">@L("Historical Discount Attribution", "পুরোনো ফি ছাড়ের খাত যাচাই")</h1>
-        <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">@L("Fees & Billing", "ফি ও বিলিং")</a>
-    </header>
+<section id="feeAttributionApp" class="container-fluid py-2">
+    
     <div id="feeAttributionNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
-    <form id="feeAttributionFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
+    <form id="feeAttributionFilters" class="card card-body row g-2 align-items-end mb-2 d-print-none">
         <div class="col-md-3"><label class="form-label" for="feeAttributionCampus">@L("Campus", "ক্যাম্পাস")</label>
             <select class="form-select" id="feeAttributionCampus" required><option value="">@L("Loading…", "লোড হচ্ছে…")</option></select></div>
         <div class="col-md-2"><label class="form-label" for="feeAttributionFrom">@L("From", "শুরু")</label>
@@ -23,7 +20,8 @@
     </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <strong id="feeAttributionScope" aria-live="polite">@L("No verified report loaded", "কোনো যাচাইকৃত প্রতিবেদন লোড হয়নি")</strong>
-        <div class="d-flex gap-2 d-print-none">
+        <div class="d-flex flex-wrap gap-2 d-print-none">
+            <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">@L("Fees & Billing", "ফি ও বিলিং")</a>
             <button id="feeAttributionCsv" type="button" class="btn btn-outline-primary btn-sm" disabled>@L("Export page CSV", "পৃষ্ঠার CSV নিন")</button>
             <button id="feeAttributionPrint" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Print page", "পৃষ্ঠা প্রিন্ট")</button>
         </div>

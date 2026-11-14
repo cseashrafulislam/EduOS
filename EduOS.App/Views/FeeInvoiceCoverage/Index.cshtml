@@ -3,16 +3,11 @@
     var bn = CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "মাসিক ইনভয়েস কভারেজ" : "Monthly Invoice Coverage";
 }
-<section id="feeCoverageApp" class="container-fluid py-3">
-    <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 d-print-none">
-        <div class="d-flex align-items-center gap-2">
-            <h1 class="h4 mb-0">@(bn ? "মাসিক ইনভয়েস কভারেজ" : "Monthly Invoice Coverage")</h1>
-        </div>
-        <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">@(bn ? "ফি ও বিলিং" : "Fees &amp; Billing")</a>
-    </header>
+<section id="feeCoverageApp" class="container-fluid py-2">
+    
     <div class="d-none d-print-block mb-2"><h1 class="h5">@(bn ? "মাসিক ইনভয়েস কভারেজ — বর্তমান পৃষ্ঠা" : "Monthly Invoice Coverage — Current page")</h1><p>@(bn ? "মোট হিসাব সম্পূর্ণ ব্যাচের; তালিকা, CSV ও প্রিন্ট শুধু যাচাইকৃত বর্তমান পৃষ্ঠার।" : "Totals cover the entire batch; rows, CSV and print cover only the verified current page.")</p></div>
     <div id="feeCoverageNotice" class="alert d-none d-print-none" role="status" aria-live="polite"></div>
-    <form id="feeCoverageFilters" class="card card-body row g-2 align-items-end mb-3 d-print-none">
+    <form id="feeCoverageFilters" class="card card-body row g-2 align-items-end mb-2 d-print-none">
         <div class="col-md-4"><label for="feeCoverageBatch" class="form-label">@(bn ? "একাডেমিক ব্যাচ" : "Academic batch")</label><select id="feeCoverageBatch" class="form-select" required><option value="">@(bn ? "লোড হচ্ছে…" : "Loading…")</option></select></div>
         <div class="col-md-2"><label for="feeCoverageMonth" class="form-label">@(bn ? "বিলিং মাস" : "Billing month")</label><input id="feeCoverageMonth" class="form-control" type="month" required /></div>
         <div class="col-md-2"><label for="feeCoverageStatus" class="form-label">@(bn ? "কভারেজ" : "Coverage")</label><select id="feeCoverageStatus" class="form-select"><option value="all">@(bn ? "সব" : "All")</option><option value="unbilled">@(bn ? "বিল হয়নি" : "Unbilled")</option><option value="billed">@(bn ? "বিল হয়েছে" : "Billed")</option><option value="review">@(bn ? "যাচাই প্রয়োজন" : "Review")</option></select></div>
@@ -22,13 +17,14 @@
     </form>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
         <strong id="feeCoverageScope">@(bn ? "প্রতিবেদন লোড হয়নি" : "No report loaded")</strong>
-        <div class="d-flex gap-2 d-print-none">
+        <div class="d-flex flex-wrap gap-2 d-print-none">
+            <a href="/FeeOperations/Index" class="btn btn-outline-secondary btn-sm">@(bn ? "ফি ও বিলিং" : "Fees &amp; Billing")</a>
             <button id="feeCoverageCsv" class="btn btn-outline-primary btn-sm" type="button" disabled>@(bn ? "এই পৃষ্ঠার CSV" : "Export page CSV")</button>
             <button id="feeCoveragePrint" class="btn btn-outline-secondary btn-sm" type="button" disabled>@(bn ? "এই পৃষ্ঠা প্রিন্ট" : "Print page")</button>
         </div>
     </div>
     <p class="small text-muted">@(bn ? "বিল হয়নি মানে নির্বাচিত মাসে ইনভয়েস নেই; যাচাই প্রয়োজন মানে দ্বৈত বা অসামঞ্জস্যপূর্ণ ইনভয়েস। এই প্রতিবেদন ফি কাঠামো বা GL পোস্টিং নিশ্চিত করে না।" : "Unbilled means no invoice in the selected month; Review means duplicates or inconsistent invoice lines. This report does not confirm fee-structure compliance or GL posting.")</p>
-    <div class="row g-2 mb-3">
+    <div class="row g-2 mb-2">
         <div class="col-6 col-md-3"><div class="card card-body"><span>@(bn ? "যোগ্য" : "Eligible")</span><strong id="feeCoverageEligible">—</strong></div></div>
         <div class="col-6 col-md-3"><div class="card card-body"><span>@(bn ? "বিল হয়েছে" : "Billed")</span><strong id="feeCoverageBilled">—</strong></div></div>
         <div class="col-6 col-md-3"><div class="card card-body"><span>@(bn ? "বিল হয়নি" : "Unbilled")</span><strong id="feeCoverageUnbilled">—</strong></div></div>
