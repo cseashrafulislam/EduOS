@@ -1,25 +1,35 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
+const { validateTarget, isAllowedReadOnlyRequest } = require('./academic-live-guards.cjs');
 
-const base = (process.env.EDUOS_BASE_URL || '').trim().replace(/\/$/, '');
 const email = process.env.EDUOS_E2E_USER || '';
 const password = process.env.EDUOS_E2E_PASSWORD || '';
 const expectedTenant = process.env.EDUOS_E2E_TENANT_ID || '';
-if (!base || !email || !password) {
-    console.error('Missing EDUOS_BASE_URL, EDUOS_E2E_USER or EDUOS_E2E_PASSWORD. No production login attempted.');
-    process.exit(2);
-}
-const target = new URL(base);
-if (target.protocol !== 'https:' && !(target.hostname === 'localhost' || target.hostname === '127.0.0.1')) {
-    console.error('Authenticated browser checks require HTTPS except for loopback development.');
+let base;
+try {
+    base = validateTarget(process.env.EDUOS_BASE_URL, process.env.EDUOS_E2E_EXPECTED_HOST);
+    assert(email && password, 'Missing synthetic test login configuration');
+} catch (error) {
+    console.error('Academic authenticated smoke preflight rejected: ' + error.message);
     process.exit(2);
 }
 
 async function main() {
     const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
     try {
-        const context = await browser.newContext({ ignoreHTTPSErrors: false });
+        const context = await browser.newContext({
+            ignoreHTTPSErrors: false, serviceWorkers: 'block', acceptDownloads: false
+        });
+        const blockedWrites = [];
+        await context.route('**/*', route => {
+            const request = route.request();
+            if (isAllowedReadOnlyRequest(request.url(), request.method(), base))
+                return route.continue();
+            if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method()))
+                blockedWrites.push(request.method());
+            return route.abort('blockedbyclient');
+        });
         const page = await context.newPage();
         const errors = [];
         const apiResults = [];
@@ -54,6 +64,7 @@ async function main() {
         assert(apiResults.some(x => x.path.endsWith('/academic-years') && x.status === 200));
         assert(apiResults.some(x => x.path.endsWith('/academic-terms') && x.status === 200));
         assert(apiResults.some(x => x.path.endsWith('/catalog') && x.status === 200));
+        assert.equal(blockedWrites.length, 0, 'Browser attempted a non-login write during read-only QA');
         assert.equal(errors.length, 0, 'Unexpected browser JavaScript errors: ' + errors.join('; '));
         console.log('Academic authenticated browser E2E: PASS (read-only: login, tenant, catalog, year, term, sections, curriculum).');
     } finally { await browser.close(); }

@@ -11,14 +11,23 @@ permissions:
   contents: read
 jobs:
   read-only-smoke:
+    if: github.ref == 'refs/heads/Ashraful'
     runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact Ashraful SHA
+        run: |
+          test "$GITHUB_REF" = "refs/heads/Ashraful"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify fail-closed authenticated read-only guard
+        run: node --test EduOS.Tests/JavaScript/academic-live-guards.test.cjs
       - name: Install pinned browser dependencies
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.56.0
@@ -26,6 +35,7 @@ jobs:
       - name: Run read-only authenticated browser checks
         env:
           EDUOS_BASE_URL: ${{ vars.EDUOS_BASE_URL }}
+          EDUOS_E2E_EXPECTED_HOST: ${{ vars.EDUOS_E2E_EXPECTED_HOST }}
           EDUOS_E2E_USER: ${{ secrets.EDUOS_E2E_USER }}
           EDUOS_E2E_PASSWORD: ${{ secrets.EDUOS_E2E_PASSWORD }}
           EDUOS_E2E_TENANT_ID: ${{ vars.EDUOS_E2E_TENANT_ID }}
