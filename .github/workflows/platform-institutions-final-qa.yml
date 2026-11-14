@@ -48,7 +48,7 @@ jobs:
           dotnet restore EduOS.slnx
           dotnet build EduOS.slnx -c Release --no-restore
       - name: Run focused platform institution lifecycle and catalog tests
-        run: dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~PlatformTenantLifecycleServiceTests|FullyQualifiedName~PlatformTenantStateHistoryTests|FullyQualifiedName~PlatformCatalog" --logger "console;verbosity=normal"
+        run: dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~PlatformTenantLifecycleServiceTests|FullyQualifiedName~PlatformTenantStateHistoryTests|FullyQualifiedName~PlatformCatalog|FullyQualifiedName~PlatformInstitutionTypeMetadataTests" --logger "console;verbosity=normal"
       - name: Run institution lifecycle and catalog Node contracts
         run: |
           node --test EduOS.Tests/ClientAssets/platform-tenant-lifecycle-contract.test.cjs
