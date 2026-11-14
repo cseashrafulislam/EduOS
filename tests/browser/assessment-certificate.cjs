@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 const project = path.resolve(__dirname, '../..');
 const view = fs.readFileSync(path.join(project,
     'EduOS.App/Views/AssessmentAdministration/Certificates.cshtml'), 'utf8');
-const start = view.indexOf('<section class="container-fluid py-4" id="certificateIssueWorkspace">');
+const start = view.search(/<section\b[^>]*\bid="certificateIssueWorkspace"[^>]*>/);
 const end = view.indexOf('</section>', start);
 assert(start >= 0 && end > start, 'Certificate view missing');
 const html = '<!doctype html><html><body>' + view.slice(start, end + '</section>'.length)
