@@ -2,8 +2,8 @@
     ViewData["Title"] = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD" ? "পাঠদান ব্যবস্থাপনা" : "Academic Instruction";
     var canManage = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
 }
-<section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-can-teach="@User.IsInRole("Teacher").ToString().ToLowerInvariant()" class="container-fluid py-3">
-    <header class="mb-3 d-flex align-items-center justify-content-between gap-2"><h2 class="h4 mb-0">@(System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD" ? "পাঠদান ব্যবস্থাপনা" : "Academic Instruction")</h2></header>
+<section id="instructionApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-can-teach="@User.IsInRole("Teacher").ToString().ToLowerInvariant()" class="container-fluid py-2">
+    <header class="mb-3 d-flex align-items-center justify-content-between gap-2"><span class="visually-hidden">@(System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD" ? "পাঠদান ব্যবস্থাপনা" : "Academic Instruction")</span></header>
     <div id="instructionAlert" class="d-none" tabindex="-1" role="alert" aria-live="polite"></div>
     <form id="instructionFilters" class="card card-body mb-3">
         <div class="row g-3 align-items-end">

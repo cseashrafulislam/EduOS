@@ -2,10 +2,10 @@
     ViewData["Title"] = "Alumni / প্রাক্তন শিক্ষার্থী";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div id="alumniWorkspace" class="container-fluid py-4" data-admin="@(User.IsInRole("TenantAdmin") ? "true" : "false")">
+<div id="alumniWorkspace" class="container-fluid py-2" data-admin="@(User.IsInRole("TenantAdmin") ? "true" : "false")">
     @Html.AntiForgeryToken()
     <header class="mb-3">
-        <h1 class="h4 fw-bold" data-i18n="heading">Alumni &amp; Graduate Directory</h1>
+        <span class="visually-hidden" data-i18n="heading">Alumni &amp; Graduate Directory</span>
         <p class="text-muted" data-i18n="intro">Only verified graduates can register. Directory sharing is voluntary and can be revoked at any time.</p>
     </header>
     <div id="alumniNotice" class="alert d-none" role="status" aria-live="polite"></div>

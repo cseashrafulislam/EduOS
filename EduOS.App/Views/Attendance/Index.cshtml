@@ -15,7 +15,7 @@
 @Html.AntiForgeryToken()
 <header class="content-header-card"><div>
     <p class="dashboard-eyebrow">@(bn ? "একাডেমিক কার্যক্রম" : "Academic Operations")</p>
-    <h2 id="attendanceTitle">@ViewData["Title"]</h2>
+    <span id="attendanceTitle">@ViewData["Title"]</span>
 </div><button id="returnToAttendanceReports" type="button" class="btn btn-outline-primary d-none">@(bn ? "রিপোর্টে ফিরুন" : "Back to reports")</button></header>
 <section class="admission-page @(showRegister ? "" : "d-none")" aria-labelledby="attendanceFilterTitle" data-attendance-feature="@feature" data-can-correct="@((User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("VicePrincipal")).ToString().ToLowerInvariant())">
 

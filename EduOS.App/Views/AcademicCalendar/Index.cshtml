@@ -4,9 +4,9 @@
     var canManage = isTenantAdmin || User.IsInRole("Principal") || User.IsInRole("VicePrincipal");
 }
 @Html.AntiForgeryToken()
-<section id="academicCalendarApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-tenant-admin="@isTenantAdmin.ToString().ToLowerInvariant()" class="container-fluid py-3">
+<section id="academicCalendarApp" data-can-manage="@canManage.ToString().ToLowerInvariant()" data-tenant-admin="@isTenantAdmin.ToString().ToLowerInvariant()" class="container-fluid py-2">
     <header class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-        <div><h2 class="h4 mb-1">Academic Calendar</h2><p class="text-muted mb-0">Manage holidays and events, weekend policy, and working-day reports.</p></div>
+        <div><span class="visually-hidden">Academic Calendar</span><p class="text-muted mb-0">Manage holidays and events, weekend policy, and working-day reports.</p></div>
         @if (canManage) { <button id="calendarNewEvent" type="button" class="btn btn-primary" disabled>New event</button> }
     </header>
     <div id="calendarAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
