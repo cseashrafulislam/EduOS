@@ -10,11 +10,14 @@ public sealed partial class LibraryBranchService
         if (!CanManage()) return Denied<LibraryBranchDto>();
         if (request == null || id is <= 0 || request.CampusId <= 0 ||
             string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 150 ||
-            string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50 ||
-            request.Location?.Trim().Length > 500)
-            return ApiResponse<LibraryBranchDto>.ErrorResponse("Valid campus, branch name and code are required.");
+            (id.HasValue && string.IsNullOrWhiteSpace(request.Code)) ||
+            request.Code?.Trim().Length > 50 || request.Location?.Trim().Length > 500)
+            return ApiResponse<LibraryBranchDto>.ErrorResponse("Valid campus and branch name are required.");
         var tenant = _user.TenantId;
-        var name = request.Name.Trim(); var code = request.Code.Trim().ToUpperInvariant();
+        var name = request.Name.Trim();
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? "BR-" + (request.ClientRequestId is Guid key && key != Guid.Empty ? key : Guid.NewGuid()).ToString("N").ToUpperInvariant()
+            : request.Code.Trim().ToUpperInvariant();
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>

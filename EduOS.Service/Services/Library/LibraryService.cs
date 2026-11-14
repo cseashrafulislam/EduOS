@@ -69,10 +69,14 @@ public sealed partial class LibraryService : ILibraryService
     {
         if (!CanManage()) return Denied<BookCategoryDto>();
         if (request == null || categoryId is <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
-            request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 50)
-            return ApiResponse<BookCategoryDto>.ErrorResponse("Valid category name and code are required.");
+            request.Name.Trim().Length > 150 ||
+            (categoryId.HasValue && string.IsNullOrWhiteSpace(request.Code)) || request.Code?.Trim().Length > 50)
+            return ApiResponse<BookCategoryDto>.ErrorResponse("Valid category name is required.");
         var tenant = _user.TenantId;
-        var name = request.Name.Trim(); var code = request.Code.Trim().ToUpperInvariant();
+        var name = request.Name.Trim();
+        var code = string.IsNullOrWhiteSpace(request.Code)
+            ? "CAT-" + (request.ClientRequestId is Guid key && key != Guid.Empty ? key : Guid.NewGuid()).ToString("N").ToUpperInvariant()
+            : request.Code.Trim().ToUpperInvariant();
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>

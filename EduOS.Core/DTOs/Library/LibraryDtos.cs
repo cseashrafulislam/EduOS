@@ -12,7 +12,8 @@ public class BookCategoryDto
 public class SaveBookCategoryRequestDto
 {
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
+    public Guid? ClientRequestId { get; set; }
     public bool IsActive { get; set; } = true;
     public string? RowVersion { get; set; }
 }

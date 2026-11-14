@@ -380,8 +380,8 @@
                     <input id="intakeFormRequestId" type="hidden" />
                     <h3 class="h6 fw-semibold intake-editor-section-title">@(bn ? "ফরমের পরিচিতি" : "Form identity")</h3>
                     <div class="row g-3">
-                        <div class="col-md-4"><label class="form-label" for="intakeCode">@(bn ? "ফরম কোড" : "Form code") *</label><input id="intakeCode" class="form-control" minlength="2" maxlength="50" pattern="[A-Za-z][A-Za-z0-9_-]*" placeholder="ADM_2027" autocomplete="off" required /><div class="form-text">@(bn ? "ইংরেজি অক্ষর দিয়ে শুরু করুন; কোডটি আলাদা হতে হবে।" : "Start with a letter. Letters, numbers, _ and - only; unique per institution.")</div></div>
-                        <div class="col-md-8"><label class="form-label" for="intakeTitle">@(bn ? "শিরোনাম" : "Form title") *</label><input id="intakeTitle" class="form-control" minlength="2" maxlength="200" placeholder="@(bn ? "যেমন: প্রথম শ্রেণি ভর্তি ২০২৭" : "e.g. Class One Admission 2027")" required /><div class="form-text">@(bn ? "আবেদনকারীরা এই নামটি দেখবেন।" : "This title is shown to applicants.")</div></div>
+                        <input id="intakeCode" type="hidden" />
+                        <div class="col-md-12"><label class="form-label" for="intakeTitle">@(bn ? "শিরোনাম" : "Form title") *</label><input id="intakeTitle" class="form-control" minlength="2" maxlength="200" placeholder="@(bn ? "যেমন: প্রথম শ্রেণি ভর্তি ২০২৭" : "e.g. Class One Admission 2027")" required /><div class="form-text">@(bn ? "আবেদনকারীরা এই নামটি দেখবেন।" : "This title is shown to applicants.")</div></div>
                     </div>
                     <h3 class="h6 fw-semibold intake-editor-section-title">@(bn ? "একাডেমিক তথ্য" : "Academic scope")</h3>
                     <div class="row g-3">

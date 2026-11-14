@@ -796,9 +796,8 @@
         if (errors.length) return errors;
         if (status === 409 || status === 412) {
             if (/\bcode\b/i.test(message) && /exist|duplicate|unique/i.test(message))
-                return [{ row: document.getElementById('intakeCode'),
-                    message: intakeText('This form code already exists. Choose a different code.',
-                        'এই ফরম কোডটি আগে থেকেই আছে। অন্য কোড দিন।') }];
+                return [{ message: intakeText('This form was already submitted or changed. Reload the form register before retrying.',
+                    'ফরমটি আগেই জমা হয়েছে অথবা পরিবর্তিত হয়েছে। আবার চেষ্টা করার আগে ফরম তালিকা দেখুন।') }];
             if (/year|campus|term|academic level|reference/i.test(message))
                 return [{ row: document.getElementById('intakeYearId'),
                     message: intakeText('An academic selection is no longer valid. Review year, term, campus and class before saving.',

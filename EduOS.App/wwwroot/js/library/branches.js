@@ -3,6 +3,7 @@
     const el = id => document.getElementById(id);
     if (!el('branchForm')) return;
     let campuses = [], branches = [], generation = 0;
+    let branchCreateRequestId = crypto.randomUUID();
     function alertMessage(text, ok = false) {
         const node = el('branchAlert');
         node.className = 'alert alert-' + (ok ? 'success' : 'danger');
@@ -27,6 +28,7 @@
     function reset() {
         el('branchForm').reset(); el('branchId').value = ''; el('branchVersion').value = '';
         el('branchActive').checked = true;
+        branchCreateRequestId = crypto.randomUUID();
     }
     function cell(value) {
         const td = document.createElement('td'); td.textContent = value == null || value === '' ? '—' : String(value); return td;
@@ -68,7 +70,8 @@
         if (!el('branchForm').reportValidity()) return;
         const id = el('branchId').value, button = el('branchSave');
         const request = { campusId: Number(el('branchCampus').value), name: el('branchName').value.trim(),
-            code: el('branchCode').value.trim(), location: el('branchLocation').value.trim() || null,
+            code: el('branchCode').value.trim(), clientRequestId: id ? null : branchCreateRequestId,
+            location: el('branchLocation').value.trim() || null,
             isActive: el('branchActive').checked, rowVersion: el('branchVersion').value || null };
         button.disabled = true;
         try {

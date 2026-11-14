@@ -15,7 +15,8 @@ public sealed class SaveLibraryBranchRequestDto
 {
     [Range(1, long.MaxValue)] public long CampusId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
+    public Guid? ClientRequestId { get; set; }
     [MaxLength(500)] public string? Location { get; set; }
     public bool IsActive { get; set; } = true;
     public string? RowVersion { get; set; }

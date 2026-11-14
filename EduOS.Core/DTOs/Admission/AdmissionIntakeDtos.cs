@@ -6,7 +6,9 @@ namespace EduOS.Core.DTOs.Admission;
 
 public class AdmissionIntakeFormInputDto
 {
-    [Required, StringLength(50, MinimumLength = 2)]
+    // Optional for new forms: the server derives a retry-stable internal code from ClientRequestId.
+    // Explicit Code remains accepted for existing integrations.
+    [StringLength(50, MinimumLength = 2)]
     [RegularExpression("^[A-Za-z][A-Za-z0-9_-]*$")]
     public string Code { get; set; } = string.Empty;
 

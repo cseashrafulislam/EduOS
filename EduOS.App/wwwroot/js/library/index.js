@@ -307,6 +307,7 @@
     if (canManage) { el('libraryBookForm').addEventListener('submit', saveBook); el('bookReset').addEventListener('click', () => resetForm()); }
 
     let categoryLoadVersion = 0;
+    let categoryCreateRequestId = crypto.randomUUID();
     async function loadCategories() {
         if (!canManage) return;
         const version = ++categoryLoadVersion;
@@ -340,6 +341,7 @@
         if (!force && (categorySaving || !categoryGuard.confirmDiscard())) return;
         el('libraryCategoryForm').reset(); el('categoryId').value = ''; el('categoryRowVersion').value = '';
         el('categoryActive').checked = true;
+        categoryCreateRequestId = crypto.randomUUID();
         categoryGuard.markClean();
     }
     async function saveCategory(event) {
@@ -347,8 +349,9 @@
         if (categorySaving || !el('libraryCategoryForm').reportValidity()) return;
         const id = el('categoryId').value, button = el('categorySave');
         const body = { name: el('categoryName').value.trim(), code: el('categoryCode').value.trim(),
+            clientRequestId: id ? null : categoryCreateRequestId,
             isActive: el('categoryActive').checked, rowVersion: el('categoryRowVersion').value || null };
-        if (!body.name || !body.code) return message('Category name and code are required.');
+        if (!body.name) return message('Category name is required.');
         categorySaving = true; button.disabled = true;
         el('libraryCategoryForm').inert = true;
         try {
