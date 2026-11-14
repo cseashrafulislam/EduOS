@@ -14,14 +14,25 @@ if (!/^http:\/\/127\.0\.0\.1:\d+$/.test(base) || !adminEmail || !adminPassword |
 const failures = [];
 const browserErrors = [];
 async function login(context, email, password) {
-    const response = await context.request.post(base + '/api/auth/login', {
-        data: { userNameOrEmail: email, password, rememberMe: false, tenantId: null },
-        headers: { Accept: 'application/json' }, failOnStatusCode: false
-    });
-    const body = await response.json().catch(() => null);
-    assert.equal(response.status(), 200, 'Login failed for QA role: ' + String(body?.message || response.status()));
-    assert.equal(body?.success, true, 'Login did not confirm authenticated session');
-    return body.data || {};
+    // Use the actual Login Razor page and site.js anti-forgery fetch wrapper.
+    // Calling the API without a page-issued CSRF token correctly returns 400.
+    const page = await context.newPage();
+    try {
+        const response = await page.goto(base + '/Account/Login', {waitUntil:'domcontentloaded'});
+        assert.equal(response?.status(), 200, 'Public login page did not render');
+        assert.ok(await page.locator('meta[name="request-verification-token"]').getAttribute('content'),
+            'CSRF token must come from the real public layout');
+        await page.locator('#userNameOrEmail').fill(email);
+        await page.locator('#password').fill(password);
+        await page.locator('#loginBtn').click();
+        try {
+            await page.waitForURL(url => /^\/Dashboard(?:\/|$)/i.test(url.pathname), {timeout:15000});
+        } catch {
+            const notice=await page.locator('#alertContainer').innerText().catch(()=>'(no alert)');
+            throw new Error('Login UI did not establish dashboard session: ' + notice.slice(0,240));
+        }
+        return {redirectUrl:new URL(page.url()).pathname};
+    } finally { await page.close(); }
 }
 async function visit(page, route) {
     const response = await page.goto(base + route, {waitUntil:'domcontentloaded',timeout:30000});
