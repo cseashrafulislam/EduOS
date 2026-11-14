@@ -89,18 +89,35 @@ public sealed class AdmissionIntakeService : IAdmissionIntakeService
                 x.TenantId == tenant && x.Code == code, ct);
             if (existing != null)
             {
+                // An idempotent replay is successful ONLY if all editable inputs match.
+                // A reused request ID with changed fields must be a conflict, not false success.
                 if (generatedCode && existing.Title == request.Title.Trim() &&
                     existing.CampusId == request.CampusId &&
                     existing.AcademicYearId == request.AcademicYearId &&
+                    existing.AcademicTermId == request.AcademicTermId &&
                     existing.AcademicLevelId == request.AcademicLevelId &&
+                    existing.OpensAt == AdmissionIntakeRules.Utc(request.OpensAtUtc) &&
+                    existing.ClosesAt == AdmissionIntakeRules.Utc(request.ClosesAtUtc) &&
                     existing.ApplicationFee == request.ApplicationFee &&
-                    existing.CurrencyCode == request.Currency.Trim().ToUpperInvariant())
+                    existing.CurrencyCode == request.Currency.Trim().ToUpperInvariant() &&
+                    existing.DocumentRequirementsJson == AdmissionIntakeRules.SerializeRequirements(request.DocumentRequirements))
                 {
                     var persistedFields = await _fields.GetQueryable().AsNoTracking().Where(x =>
                         x.TenantId == tenant && x.AdmissionIntakeFormId == existing.Id && x.IsActive)
                         .OrderBy(x => x.DisplayOrder).ToListAsync(ct);
-                    return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(
-                        MapForm(existing, persistedFields.Select(MapField).ToArray()), "Admission form already created.");
+                    var sameFields = persistedFields.Count == request.Fields.Count &&
+                        persistedFields.All(row => request.Fields.Any(field =>
+                            field.FieldKey.Trim() == row.FieldKey &&
+                            field.Label.Trim() == row.Label &&
+                            field.DataType == row.DataType &&
+                            field.IsRequired == row.IsRequired &&
+                            field.DisplayOrder == row.DisplayOrder &&
+                            field.OptionsJson == row.OptionsJson &&
+                            field.ValidationJson == row.ValidationJson &&
+                            field.IsActive == row.IsActive));
+                    if (sameFields)
+                        return ApiResponse<AdmissionIntakeFormDto>.SuccessResponse(
+                            MapForm(existing, persistedFields.Select(MapField).ToArray()), "Admission form already created.");
                 }
                 return Error<AdmissionIntakeFormDto>("Admission form code already exists or the request was changed.", 409);
             }
