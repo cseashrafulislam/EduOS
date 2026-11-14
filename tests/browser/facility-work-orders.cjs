@@ -233,7 +233,7 @@ async function delayedRead(browser) {
     try {
         state.delayed = deferred();
         state.started = deferred();
-        await page.locator('#wfCampusFilter').fill('12');
+        await page.locator('#wfCampusFilter').selectOption('12');
         await page.locator('#workflowSearch button[type="submit"]').click();
         await state.started.promise;
         await page.evaluate(() => { document.body.dataset.authTenantId = '99'; });
@@ -247,7 +247,7 @@ async function delayedRead(browser) {
 async function mobileBangla(browser) {
     const { context, page, state } = await setup(browser, true, false, true);
     try {
-        assert.match(await page.locator('h2').innerText(), /ক্যাম্পাস/);
+        assert.match(await page.locator('label[for="wfCampusFilter"]').innerText(), /ক্যাম্পাস/);
         assert.match(await page.locator('#facilityWorkflow p.small.text-muted').first().innerText(),
             /নির্ধারিত টেকনিশিয়ান সময়ের মধ্যে/);
         assert.equal(await page.locator('#wfVendorPanel').count(), 0,
