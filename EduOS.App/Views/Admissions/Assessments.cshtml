@@ -10,7 +10,7 @@
 }
 <section class="admission-page" aria-labelledby="assessmentTitle">
     <header class="content-header-card">
-        <div><p class="dashboard-eyebrow">@(bn ? "ভর্তি" : "Admissions")</p><h2 id="assessmentTitle">@ViewData["Title"]</h2></div>
+        <div><p class="dashboard-eyebrow">@(bn ? "ভর্তি" : "Admissions")</p><span id="assessmentTitle">@ViewData["Title"]</span></div>
     </header>
     @Html.AntiForgeryToken()
     <div id="assessmentAlert" class="d-none" role="alert" tabindex="-1"></div>

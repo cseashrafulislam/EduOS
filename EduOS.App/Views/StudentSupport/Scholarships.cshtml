@@ -5,10 +5,10 @@
     var reviewer = User.IsInRole("TenantAdmin");
     ViewData["Title"] = L("Scholarships & Fee Assistance", "বৃত্তি ও ফি সহায়তা");
 }
-<section id="scholarshipsApp" class="container-fluid py-4" data-reviewer="@reviewer.ToString().ToLowerInvariant()">
+<section id="scholarshipsApp" class="container-fluid py-2" data-reviewer="@reviewer.ToString().ToLowerInvariant()">
     @Html.AntiForgeryToken()
     <header class="mb-3">
-        <h1 class="h4">@L("Scholarships & Fee Assistance", "বৃত্তি ও ফি সহায়তা")</h1>
+        <span class="visually-hidden">@L("Scholarships & Fee Assistance", "বৃত্তি ও ফি সহায়তা")</span>
         <p class="text-muted">@L("Apply for fee credit or a one-time cash grant. Approved fee credits affect only future invoices; cash grants need separate, independently confirmed Finance posting.", "ফি ছাড় অথবা এককালীন নগদ অনুদানের আবেদন করুন। অনুমোদিত ফি ছাড় শুধু ভবিষ্যৎ বিলে প্রযোজ্য; নগদ অনুদানে আলাদা স্বাধীন ফাইন্যান্স অনুমোদন লাগে।")</p>
         <a href="/FeeDiscountRules/Index" class="small">@L("Manage existing fee policies (administrator)", "বিদ্যমান ফি-ছাড় নীতিমালা (প্রশাসক)")</a>
     </header>
@@ -38,7 +38,7 @@
         </div>
         <div class="col-xl-7">
             <section class="card mb-3"><div class="card-body">
-                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2"><h2 class="h6 mb-0">@L("Application register", "আবেদনের তালিকা")</h2><button id="aidRefresh" class="btn btn-outline-primary btn-sm" type="button">@L("Refresh", "রিফ্রেশ")</button></div>
+                <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2"><h2 class="h6 mb-0">@L("Application register", "আবেদনের তালিকা")</h2><button id="aidRefresh" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary btn-sm" type="button">@L("Refresh", "রিফ্রেশ")</button></div>
                 <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead><tr><th>@L("Reference", "রেফারেন্স")</th><th>@L("State", "অবস্থা")</th><th>@L("Effective", "কার্যকর")</th><th>@L("Action", "কার্যক্রম")</th></tr></thead><tbody id="aidRows"><tr><td colspan="4">@L("Loading…", "লোড হচ্ছে…")</td></tr></tbody></table></div>
                 <div class="d-flex align-items-center gap-2"><button id="aidPrev" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Previous", "আগে")</button><span id="aidPage" class="small text-muted" aria-live="polite"></span><button id="aidNext" type="button" class="btn btn-outline-secondary btn-sm" disabled>@L("Next", "পরে")</button></div>
             </div></section>

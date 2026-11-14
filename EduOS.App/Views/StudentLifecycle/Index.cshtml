@@ -4,11 +4,11 @@
     ViewData["Title"] = bn ? "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ" : "Student Lifecycle & Transfer Certificate";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div id="studentLifecycle" data-bn="@bn.ToString().ToLowerInvariant()" class="container-fluid py-4">
+<div id="studentLifecycle" data-bn="@bn.ToString().ToLowerInvariant()" class="container-fluid py-2">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div>
-            <h1 class="h4 fw-bold mb-1">@(bn ? "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ" : "Student Exit & Transfer Certificate")</h1>
+            <span class="visually-hidden">@(bn ? "শিক্ষার্থী প্রস্থান ও স্থানান্তর সনদ" : "Student Exit & Transfer Certificate")</span>
             <p class="text-muted mb-0">@(bn ? "স্থানান্তর, শিক্ষা সমাপ্তি বা পড়াশোনা ত্যাগের চূড়ান্ত সিদ্ধান্ত; আগের ভর্তির ইতিহাস অক্ষত থাকে।" : "Controlled final transitions: Transfer, Completed or Dropout. Historical enrollments are retained.")</p>
         </div>
         <div class="d-flex gap-2"><a href="/StudentTransferRequests/Index" class="btn btn-outline-primary">@(bn ? "স্থানান্তর আবেদন" : "Transfer Requests")</a><a href="/Students/Index" class="btn btn-outline-secondary">@(bn ? "শিক্ষার্থী তালিকা" : "Student Directory")</a></div>

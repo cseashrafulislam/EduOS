@@ -2,10 +2,10 @@
     ViewData["Title"] = "Student Documents";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div id="studentDocumentsApp" class="container-fluid py-4">
+<div id="studentDocumentsApp" class="container-fluid py-2">
     @Html.AntiForgeryToken()
     <header class="mb-3">
-        <h1 class="h4">Student Documents</h1>
+        <span class="visually-hidden">Student Documents</span>
         <p class="text-muted">Private, malware-scanned student document attachments. Only institution administrators can access files. Sensitive or verification-required types use the separate protected verification process.</p>
     </header>
     <div id="documentNotice" class="alert alert-info" role="status" aria-live="polite">Find a student to begin.</div>
@@ -37,7 +37,7 @@
             <section class="card border-0 shadow-sm"><div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <h2 class="h6 mb-0">Student document history</h2>
-                    <button id="documentRefresh" class="btn btn-sm btn-outline-secondary" type="button" disabled>Refresh</button>
+                    <button id="documentRefresh" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-sm btn-outline-secondary" type="button" disabled>Refresh</button>
                 </div>
                 <div class="table-responsive"><table class="table table-sm align-middle">
                     <thead><tr><th>Type</th><th>Title / file</th><th>Status</th><th>Action</th></tr></thead>

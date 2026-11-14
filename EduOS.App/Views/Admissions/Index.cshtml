@@ -70,6 +70,7 @@
         "applications" => bn ? "আবেদন যাচাই ও ভর্তি" : "Admission Review & Enrollment",
         _ => T["AdmissionApplications"].Value
     };
+    ViewData["Title"] = focusedTitle;
 }
 
 <section class="admission-page" aria-labelledby="@(admissionFeature == "new" ? "newApplicationTitle" : "admissionTitle")" data-admission-feature="@admissionFeature">
@@ -79,7 +80,7 @@
         <header class="content-header-card admission-page-header">
             <div>
                 <p class="dashboard-eyebrow">@T["Admission"]</p>
-                <h2 id="admissionTitle">@focusedTitle</h2>
+                <span id="admissionTitle">@focusedTitle</span>
             </div>
         </header>
     }
