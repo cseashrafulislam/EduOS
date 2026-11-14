@@ -23,8 +23,8 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - [x] `/FeeOperations/Structures`
 - [x] `/FeeOperations/Billing`
 - [x] `/FeeOperations/Ledger`
-- [ ] `/StudentInvoicePosting/Index`
-- [ ] `/StudentPaymentPosting/Index`
+- [x] `/StudentInvoicePosting/Index`
+- [x] `/StudentPaymentPosting/Index`
 - [ ] `/FeeDueCalendar/Index`
 - [ ] `/FeeInstallmentProjection/Index`
 - [ ] `/FeeInstallmentPlans/Index`
@@ -63,7 +63,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## Current UX-first implementation checkpoint — 2026-11-14
 
-**11/39 UX D routes source-implemented; 28 remain.** Finance: 11/26, Inventory: 0/7, Communication: 0/4, Governance: 0/2. This means UX Done at source level only, **not Full Final QA** or production certification. Five scheduled UX automations stay OFF.
+**13/39 UX D routes source-implemented; 26 remain.** Finance: 13/26, Inventory: 0/7, Communication: 0/4, Governance: 0/2. This means UX Done at source level only, **not Full Final QA** or production certification. Five scheduled UX automations stay OFF.
 
 | Routes | UX implementation | Source commits | Final QA |
 | --- | --- | --- | --- |
@@ -73,6 +73,8 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 | `/FeeHeadAccounting/Index` | Compact mapping and checkboxes, backend-generated retry-stable fee head code, bilingual static labels | `8f10ac20`, `d2c58255` | Deferred |
 | `/AccountingSetup/Index` | Compact account/period/bank tabs and checkbox/action layout, server-generated new GL account code with retry replay, preserved historical account locks, bilingual labels | `e758bf0b`, `d2c58255` | Deferred |
 | `/AccountingJournals/Index` | Remove duplicate title, compact controls, label reversal date/reason, keep maker-checker/post/reverse flows | `e758bf0b`, `d2c58255` | Deferred |
+| `/StudentInvoicePosting/Index` | Remove misleading "cash posting unavailable" note, compact invoice filter/actions, bilingual labels and link to authorized cash posting route; preserve source-linked posted GL and reversal warning | `31f8b8dd` | Deferred |
+| `/StudentPaymentPosting/Index` | Remove duplicate title and link-only row, group receipt filters/actions and navigation, bilingual labels; preserve one-campus, posted-invoice-first accounting safeguards | `31f8b8dd` | Deferred |
 | `/InstitutionBudgets/Index` | Move Central Accounts action to budget register, group line addition and submit, place actual-vs-budget in detail actions | `09028510` | Deferred |
 | `/AccountingReports/Index` | Compact central ledger introduction and horizontally scrollable tabs, replace generic Refresh with specific Load saved drafts; preserve ledger report definitions | `09028510` | Deferred |
 | `/FeeOperations/Structures`, `/FeeOperations/Billing`, `/FeeOperations/Ledger` | Shared view removes redundant feature header, aligns active checkbox, puts batch/structure alongside and retains billing preflight | `09028510` | Deferred |
@@ -81,7 +83,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 **Verification state:** On commit `e758bf0b` GitHub Actions passed canonical Core, Persistence and app builds, while broader JavaScript contract CI failed. Current-head CI, Chromium, actual tenant SQL, accessibility, bilingual/mobile, idempotency/concurrency and Finance Final QA are pending; no full PASS is claimed.
 
-**Next Finance route:** `/StudentInvoicePosting/Index`. Finish the rest of Finance before Inventory, Communication and Governance.
+**Next Finance route:** `/FeeDueCalendar/Index`. Finish the rest of Finance before Inventory, Communication and Governance.
 
 ## Verified completion evidence
 

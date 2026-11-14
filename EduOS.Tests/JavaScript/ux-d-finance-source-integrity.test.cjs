@@ -3,7 +3,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const views=['FeeDiscountRules','AdmissionCashReceipts','FeeReceivablesAging','FeeHeadAccounting',
- 'AccountingSetup','AccountingJournals','InstitutionBudgets','AccountingReports','FeeOperations'];
+ 'AccountingSetup','AccountingJournals','InstitutionBudgets','AccountingReports','FeeOperations','StudentInvoicePosting','StudentPaymentPosting'];
 test('first UX D finance source views use one shared title and balanced forms',()=>{
  for(const name of views){const src=read('EduOS.App/Views/'+name+'/Index.cshtml');
   assert.match(src,/ViewData\["Title"\]/,name);
@@ -44,11 +44,22 @@ test('central accounts and fee billing retain scopes, reconciliation semantics a
   assert.ok(fees.includes('id="'+id+'"'),id);
  assert.match(fees,/data-active-feature=/);
 });
-test('ledger credits eleven out of thirty-nine routes and explicitly defers Final QA',()=>{
+test('invoice and receipt GL posting screens preserve related workflows without duplicate titles',()=>{
+ const invoice=read('EduOS.App/Views/StudentInvoicePosting/Index.cshtml');
+ const payment=read('EduOS.App/Views/StudentPaymentPosting/Index.cshtml');
+ assert.match(invoice,/asp-controller="StudentPaymentPosting"/);
+ assert.match(payment,/asp-controller="StudentInvoicePosting"/);
+ for(const id of ['invoicePostingPeriod','invoicePostingUnposted'])assert.ok(invoice.includes('id="'+id+'"'),id);
+ for(const id of ['paymentPostingCash','paymentPostingPeriod','paymentPostingUnposted'])
+  assert.ok(payment.includes('id="'+id+'"'),id);
+ assert.match(invoice,/Posted journals are immutable/);
+ assert.match(payment,/One campus per receipt/);
+});
+test('ledger credits thirteen out of thirty-nine routes and explicitly defers Final QA',()=>{
  const doc=read('docs/ux/lanes/UX_D.md');
  const routes=[...doc.matchAll(/^- \[([ x])\] \x60(\/[^\x60]+)\x60/gm)];
  assert.equal(routes.length,39);
- assert.equal(routes.filter(x=>x[1]==='x').length,11);
- assert.match(doc,/11\/39 UX D routes/);
+ assert.equal(routes.filter(x=>x[1]==='x').length,13);
+ assert.match(doc,/13\/39 UX D routes/);
  assert.match(doc,/Final QA/);
 });
