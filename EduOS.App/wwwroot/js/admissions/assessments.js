@@ -9,6 +9,8 @@ function selectTest() {
  el('assessmentPublish').disabled = !state.test || state.test.isPublished;
  el('assessmentRoster').replaceChildren();
  el('assessmentMeritList').replaceChildren();
+ el('assessmentMeritPanel')?.classList.add('d-none');
+ el('assessmentMerit').disabled = !state.test;
  roster().catch(e => notice(e.message));
 }
 function showTests(selected) {

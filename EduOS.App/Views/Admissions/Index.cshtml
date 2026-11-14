@@ -73,17 +73,9 @@
     ViewData["Title"] = focusedTitle;
 }
 
-<section class="admission-page" aria-labelledby="@(admissionFeature == "new" ? "newApplicationTitle" : "admissionTitle")" data-admission-feature="@admissionFeature">
+<section class="admission-page" data-admission-feature="@admissionFeature">
     @Html.AntiForgeryToken()
-    @if (admissionFeature != "new")
-    {
-        <header class="content-header-card admission-page-header">
-            <div>
-                <p class="dashboard-eyebrow">@T["Admission"]</p>
-                <span id="admissionTitle">@focusedTitle</span>
-            </div>
-        </header>
-    }
+
 
     <div id="admissionAlert" class="d-none" role="alert" tabindex="-1"></div>
 

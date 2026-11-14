@@ -2,31 +2,19 @@
     ViewData["Title"] = "Library Overdue Ageing";
 }
 <section id="libraryOverdueApp" class="container-fluid py-2">
-    <header class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <div class="d-flex align-items-center gap-2">
-            <span class="visually-hidden">Overdue Ageing</span>
-            <details class="position-relative">
-                <summary class="btn btn-sm btn-outline-secondary" aria-label="Overdue report help" title="Overdue report help">ⓘ</summary>
-                <div class="card card-body position-absolute shadow-sm end-0 mt-1" style="width:min(19rem,85vw);z-index:5">
-                    Counts are based on the current UTC date. Select a campus to narrow the report. Exports contain only this authorized page and no borrower details.
-                </div>
-            </details>
-        </div>
-        <a asp-controller="Library" asp-action="Circulation" class="btn btn-outline-secondary btn-sm">Circulation</a>
-    </header>
     <div id="libraryOverdueAlert" class="d-none" role="alert" aria-live="polite"></div>
-    <form id="libraryOverdueFilters" class="card card-body row g-2 align-items-end mb-3">
-        <div class="col-md-5">
+    <form id="libraryOverdueFilters" class="card mb-2"><div class="card-body"><div class="row g-2 align-items-end">
+        <div class="col-lg-4 col-md-6">
             <label for="libraryOverdueSearch" class="form-label">Branch name or code</label>
             <input id="libraryOverdueSearch" class="form-control" maxlength="100" autocomplete="off" />
         </div>
-        <div class="col-md-3">
+        <div class="col-lg-2 col-md-6">
             <label for="libraryOverdueCampus" class="form-label">Campus ID (optional)</label>
             <input id="libraryOverdueCampus" class="form-control" type="number" min="1" step="1" placeholder="All authorized campuses" />
         </div>
-        <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Apply</button></div>
-        <div class="col-md-2"><button id="libraryOverdueCsv" class="btn btn-outline-secondary w-100" type="button">CSV (page)</button></div>
-    </form>
+        <div class="col-lg-4 col-md-9 d-flex align-items-end flex-wrap gap-1"><button class="btn btn-primary w-100" type="submit">Apply</button></div>
+        <div class="col-lg-2 col-md-3"><button id="libraryOverdueCsv" class="btn btn-outline-secondary flex-grow-1" type="button">CSV (page)</button><a asp-controller="Library" asp-action="Circulation" class="btn btn-sm btn-outline-secondary">Circulation</a></div>
+    </div></div></form>
     <section id="libraryOverdueNoticeApp" class="card mb-3" aria-labelledby="libraryNoticeTitle">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
             <h3 id="libraryNoticeTitle" class="h6 mb-0">@(System.Globalization.CultureInfo.CurrentUICulture.Name.StartsWith("bn") ? "মেয়াদোত্তীর্ণ বইয়ের স্মরণবার্তা" : "Overdue borrower reminders")</h3>

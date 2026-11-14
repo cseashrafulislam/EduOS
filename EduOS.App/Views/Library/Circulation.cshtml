@@ -2,22 +2,6 @@
     ViewData["Title"] = "Library Circulation Register";
 }
 <section id="libraryCirculationApp" class="container-fluid py-2">
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div class="d-flex align-items-center gap-2">
-            <span class="visually-hidden">Library Circulation Register</span>
-            <details class="position-relative">
-                <summary class="btn btn-sm btn-outline-secondary" aria-label="Circulation help" title="Circulation help">ⓘ</summary>
-                <div class="card card-body position-absolute shadow-sm mt-1" style="width:min(19rem,85vw);z-index:5">
-                    <span data-bn="সক্রিয় শিক্ষার্থী ও ক্যাম্পাসে নিয়োজিত কর্মচারীরা বই ধার নিতে পারবেন। শিক্ষার্থীর বুকিং অগ্রাধিকার পাবে। ফেরত নেওয়ার সঙ্গে বইয়ের প্রাপ্যতা হালনাগাদ হয়; শিক্ষার্থীর পোস্ট করা চার্জ Library Liabilities থেকে পরিচালিত হয়।">Borrowers may be active students or campus-assigned employees. Student reservations take priority. Returns update availability; posted student charges are handled in Library Liabilities.</span>
-                </div>
-            </details>
-        </div>
-        <div class="d-flex gap-2">
-            <a asp-controller="Library" asp-action="Overdue" class="btn btn-outline-primary">Overdue ageing</a>
-            <a asp-controller="Library" asp-action="Integrity" class="btn btn-outline-primary">Copy integrity</a>
-            <a asp-controller="Library" asp-action="Index" class="btn btn-outline-secondary">Back to catalog</a>
-        </div>
-    </header>
     <div id="circulationAlert" class="d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     <section class="card mb-3" aria-labelledby="directIssueTitle">
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
@@ -54,7 +38,7 @@
             <p id="directIssueStatus" class="small text-muted mt-2 mb-0" role="status" aria-live="polite"></p>
         </div>
     </section>
-    <form id="circulationFilters" class="card card-body row g-2 align-items-end mb-3">
+    <form id="circulationFilters" class="card mb-2"><div class="card-body"><div class="row g-2 align-items-end">
         <div class="col-lg-4"><label for="circulationSearch" class="form-label">Borrower name/code, book or accession</label>
             <input id="circulationSearch" class="form-control" maxlength="100" autocomplete="off" /></div>
         <div class="col-lg-2"><label for="circulationStatus" class="form-label">Status</label>
@@ -67,8 +51,8 @@
         <div class="col-lg-2"><label for="circulationReturnDate" class="form-label">Return date (optional)</label>
             <input id="circulationReturnDate" class="form-control" type="date" />
 </div>
-        <div class="col-lg-2"><button type="submit" class="btn btn-primary w-100">Search</button></div>
-    </form>
+        <div class="col-lg-2 d-flex align-items-end flex-wrap gap-1"><button type="submit" class="btn btn-primary flex-grow-1">Search</button><a asp-controller="Library" asp-action="Overdue" class="btn btn-sm btn-outline-secondary">Overdue</a><a asp-controller="Library" asp-action="Integrity" class="btn btn-sm btn-outline-secondary">Integrity</a></div>
+    </div></div></form>
     <form id="circulationRenewalForm" class="card card-body mb-3 d-none" aria-label="Renew library loan">
         <div class="row g-2 align-items-end">
             <div class="col-md-5"><strong id="circulationRenewalTitle">Renew loan</strong>

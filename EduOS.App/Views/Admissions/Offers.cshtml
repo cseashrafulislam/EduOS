@@ -3,12 +3,6 @@
     ViewData["Title"] = bn ? "ভর্তির অফার ও গ্রহণ" : "Admission Offers & Enrollment";
 }
 <section class="content-card" aria-labelledby="admissionOfferTitle">
-    <header class="content-header-card mb-3">
-        <div>
-            <p class="dashboard-eyebrow">@(bn ? "ভর্তি" : "Admissions")</p>
-            <span id="admissionOfferTitle">@ViewData["Title"]</span>
-        </div>
-    </header>
     @Html.AntiForgeryToken()
     <input id="offerLocale" type="hidden" value="@(bn ? "bn-BD" : "en-BD")" />
     <div class="d-flex align-items-center gap-2 mb-2">

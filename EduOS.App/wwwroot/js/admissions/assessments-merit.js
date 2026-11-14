@@ -20,6 +20,7 @@ export async function merit() {
  const title = document.createElement('p');
  title.textContent = data.test.isPublished ? 'Published merit list' : 'Draft merit preview';
  target.replaceChildren(title, table);
+ el('assessmentMeritPanel')?.classList.remove('d-none');
 }
 export async function publish(refresh) {
  if (!state.test || state.test.isPublished || !window.confirm('Publish merit? Marks become locked.')) return;

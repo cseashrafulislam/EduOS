@@ -8,10 +8,7 @@
         _ => bn ? "ভর্তি পরীক্ষা ও মেধাতালিকা" : "Admission Assessment & Merit"
     };
 }
-<section class="admission-page" aria-labelledby="assessmentTitle">
-    <header class="content-header-card">
-        <div><p class="dashboard-eyebrow">@(bn ? "ভর্তি" : "Admissions")</p><span id="assessmentTitle">@ViewData["Title"]</span></div>
-    </header>
+<section class="admission-page">
     @Html.AntiForgeryToken()
     <div id="assessmentAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="content-card mb-3 @(feature == "all" || feature == "setup" ? "" : "d-none")" aria-labelledby="createAssessmentTitle">
@@ -47,7 +44,7 @@
             <button id="assessmentPublish" class="btn btn-danger" type="button">Publish merit</button>
         </div>
     </section>
-    <section class="content-card @(feature == "all" || feature == "merit" ? "" : "d-none")" aria-labelledby="meritTitle">
+    <section id="assessmentMeritPanel" class="content-card d-none" aria-labelledby="meritTitle">
         <div class="content-card-heading"><h3 id="meritTitle">@(bn ? "মেধাতালিকার প্রিভিউ" : "Merit preview")</h3></div>
         <div id="assessmentMeritList" aria-live="polite"></div>
     </section>
