@@ -24,7 +24,9 @@ public sealed class CreateAcademicSectionRequestDto
     [Range(1, long.MaxValue)] public long CampusId { get; set; }
     [Range(1, long.MaxValue)] public long AcademicLevelId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    // Optional for new clients: the service deterministically assigns a concurrency-safe
+    // code from ClientRequestId. Explicit codes remain accepted for older API clients.
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Range(0, 100000)] public int Capacity { get; set; }
     public int DisplayOrder { get; set; }
 }
