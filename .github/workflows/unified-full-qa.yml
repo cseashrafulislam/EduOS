@@ -1,0 +1,139 @@
+name: Unified Full QA - Independent Regression Gates
+
+# Run the core QA categories independently so a failing JS gate never hides
+# security, .NET, EF or browser results. Disposable DB/staging UAT is separate.
+on:
+  workflow_dispatch:
+  push:
+    branches: [Ashraful]
+    paths:
+      - '.github/workflows/unified-full-qa.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unified-full-qa-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  javascript-contracts:
+    name: All JavaScript and page contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Core contract checker
+        run: python3 scripts/check_core_contracts.py
+      - name: Run complete JavaScript suite (never skip due to other jobs)
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test EduOS.Tests/JavaScript/*.test.cjs 2>&1 | tee "$RUNNER_TEMP/js-contracts.tap"
+      - name: Upload full JS test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: final-qa-js-contracts
+          path: ${{ runner.temp }}/js-contracts.tap
+          if-no-files-found: ignore
+
+  dotnet-regressions:
+    name: All .NET security, workflow, and domain tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore EduOS.slnx
+      - name: Build full solution
+        run: dotnet build EduOS.slnx --configuration Release --no-restore
+      - name: Run all solution tests (including tenant and finance regressions)
+        run: dotnet test EduOS.slnx --configuration Release --no-build --logger "trx;LogFileName=full-qa.trx" --results-directory TestResults
+      - name: Upload .NET test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: final-qa-dotnet-results
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  ef-and-publish:
+    name: EF snapshot, idempotent SQL, and application publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore and build
+        run: |
+          dotnet restore EduOS.slnx
+          dotnet build EduOS.slnx --configuration Release --no-restore
+      - name: Install matching EF Core CLI
+        run: dotnet tool install --global dotnet-ef --version 10.0.14
+      - name: Reject pending EF model changes
+        run: dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build
+      - name: Generate idempotent SQL migration script
+        run: |
+          dotnet ef migrations script --idempotent --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --configuration Release --no-build --output "$RUNNER_TEMP/eduos-idempotent.sql"
+          test -s "$RUNNER_TEMP/eduos-idempotent.sql"
+          grep -q "CREATE TABLE" "$RUNNER_TEMP/eduos-idempotent.sql"
+      - name: Validate application publishing
+        run: dotnet publish EduOS.App/EduOS.App.csproj --configuration Release --no-build --output "$RUNNER_TEMP/eduos-publish"
+
+  chromium-ui:
+    name: Chromium UI, navigation, academic, fees, library
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned Playwright and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.56.0
+          npx playwright install --with-deps chromium
+      - name: Run independent browser suites without skipping later scopes
+        shell: bash
+        run: |
+          set -uo pipefail
+          failed=0
+          for script in \
+            tests/browser/sidebar-navigation.cjs \
+            tests/browser/ui-shell.cjs \
+            tests/browser/academic-management-layout.cjs \
+            tests/browser/academic-management.cjs \
+            tests/browser/student-enrollment.cjs \
+            tests/browser/student-lifecycle.cjs \
+            tests/browser/fee-bilingual.cjs \
+            tests/browser/library-digital-lifecycle.cjs; do
+            echo "::group::QA $script"
+            if node "$script"; then
+              echo "PASS $script" >> "$RUNNER_TEMP/browser-results.txt"
+            else
+              echo "FAIL $script" >> "$RUNNER_TEMP/browser-results.txt"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          cat "$RUNNER_TEMP/browser-results.txt"
+          exit "$failed"
+      - name: Upload browser results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: final-qa-chromium-results
+          path: ${{ runner.temp }}/browser-results.txt
+          if-no-files-found: ignore
+
+# IMPORTANT: These independent checks are QA evidence, not certification of
+# authenticated SQL Server business flows, institutional UAT or production.
