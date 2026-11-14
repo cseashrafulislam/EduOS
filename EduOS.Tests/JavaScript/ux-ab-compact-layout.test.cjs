@@ -103,3 +103,26 @@ test('All UX B aria-labelledby links reference a real element after header remov
             assert.ok(html.includes('id="' + match[1] + '"'), file + ': orphaned label ' + match[1]);
     }
 });
+test('Library campus scope uses a server-authorized name selector, never a typed internal ID', () => {
+    const controller = read('EduOS.App/Controllers/Api/LibraryController.cs');
+    const service = read('EduOS.Service/Services/Library/LibraryService.cs');
+    const js = read('EduOS.App/wwwroot/js/library/report-campus-filter.js');
+    assert.match(controller, /HttpGet\("report-campus-options"\)/);
+    assert.match(controller, /Authorize\(Roles = "TenantAdmin,Principal,Librarian"\)/);
+    assert.match(service, /GetReportCampusOptionsAsync/);
+    assert.match(service, /_user\.TenantId/);
+    assert.match(service, /AllowedStaffCampusIds/);
+    assert.match(service, /allowed\.Contains\(x\.Id\)/);
+    assert.match(js, /new Option\(campus\.name, String\(campus\.id\)\)/);
+    assert.match(js, /EduOSSessionTransitionPending/);
+    for (const [file, id] of [
+        ['Integrity', 'libraryIntegrityCampus'],
+        ['Overdue', 'libraryOverdueCampus'],
+        ['Circulation', 'circulationCampus']
+    ]) {
+        const view = read('EduOS.App/Views/Library/' + file + '.cshtml');
+        assert.ok(view.includes('<select id="' + id + '" class="form-select" disabled'));
+        assert.doesNotMatch(view, new RegExp('<input id="' + id + '"'));
+        assert.ok(view.includes('/js/library/report-campus-filter.js'));
+    }
+});
