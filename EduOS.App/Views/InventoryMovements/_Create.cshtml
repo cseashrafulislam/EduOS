@@ -3,8 +3,8 @@
     var facilityModuleEnabled = await TenantModules.IsCurrentTenantModuleAvailableAsync("FACILITIES");
     var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
 }
-<div class="card mb-3"><div class="card-body">
-    <h3 class="h5">Create stock movement draft</h3>
+<div class="card mb-2"><div class="card-body">
+    <h3 class="h6 mb-2">Create stock movement draft</h3>
     <form id="movementForm" class="row g-2">
         <input type="hidden" id="movementDraftState" value="" />
         <div class="col-md-2"><label for="movementType" class="form-label">Movement</label><select id="movementType" class="form-select"><option value="Receipt">Receipt</option><option value="Issue">Issue</option><option value="Transfer">Instant transfer</option><option value="TransferDispatch">Transfer dispatch (in transit)</option>@if (facilityModuleEnabled) { <option value="FacilityWorkOrder">@(bn ? "রক্ষণাবেক্ষণ যন্ত্রাংশ ইস্যু" : "Work-order parts issue")</option> }</select></div>
@@ -19,6 +19,7 @@
         <div class="col-md-4"><label for="movementLot" class="form-label">Lot / batch</label><input id="movementLot" class="form-control" maxlength="100" /></div>
         <div class="col-md-8 d-flex align-items-end"><button type="button" id="movementAddLine" class="btn btn-outline-primary">Add line</button></div>
         <div class="col-12 table-responsive"><table class="table table-sm"><thead><tr><th>Item</th><th>Lot</th><th>Quantity</th><th>Cost</th><th></th></tr></thead><tbody id="movementDraftLines"></tbody></table></div>
-        <div class="col-12"><button id="movementSave" class="btn btn-success" type="submit">Create draft</button> <span class="small text-muted">@(bn ? "অনুমোদিত কাজের যন্ত্রাংশ অন্য Inventory ব্যবহারকারী পোস্ট করবেন।" : "Work-order parts drafts require a different authorized Inventory poster.")</span></div>
+        <div class="col-12 d-flex flex-wrap align-items-center gap-2"><button id="movementSave" class="btn btn-success" type="submit">Create draft</button>
+            <a asp-controller="InventoryCatalog" asp-action="Index" class="btn btn-outline-secondary">@(bn ? "স্টক পণ্যের তালিকা" : "Item catalog")</a><span class="small text-muted">@(bn ? "অনুমোদিত কাজের যন্ত্রাংশ অন্য Inventory ব্যবহারকারী পোস্ট করবেন।" : "Work-order parts drafts require a different authorized Inventory poster.")</span></div>
     </form>
 </div></div>

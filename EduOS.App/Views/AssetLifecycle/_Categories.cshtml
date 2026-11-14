@@ -1,6 +1,12 @@
 @{ var canCategory = User.IsInRole("TenantAdmin") || User.IsInRole("Principal"); }
 <div class="card mb-3"><div class="card-body">
-    <h3 class="h5">Asset categories</h3>
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+        <h3 class="h6 mb-0">Asset categories</h3>
+        @if(User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("Accountant"))
+        {
+            <a href="/AssetAccounting" class="btn btn-outline-primary btn-sm">Asset Accounting / সম্পদ হিসাব</a>
+        }
+    </div>
     <div class="table-responsive"><table class="table table-sm table-striped"><thead><tr><th>Code</th><th>Name</th><th>Status</th>@if(canCategory){<th>Action</th>}</tr></thead><tbody id="assetCategoryRows"></tbody></table></div>
     @if(canCategory)
     {
@@ -8,7 +14,7 @@
             <input type="hidden" id="assetCategoryId" /><input type="hidden" id="assetCategoryVersion" />
             <div class="col-md-3"><label for="assetCategoryCode" class="form-label">Code</label><input id="assetCategoryCode" maxlength="50" required class="form-control" /></div>
             <div class="col-md-5"><label for="assetCategoryName" class="form-label">Name</label><input id="assetCategoryName" maxlength="150" required class="form-control" /></div>
-            <div class="col-md-2"><label><input id="assetCategoryActive" type="checkbox" checked /> Active</label></div>
+            <div class="col-md-2 d-flex align-items-center"><div class="form-check"><input id="assetCategoryActive" type="checkbox" class="form-check-input" checked /><label for="assetCategoryActive" class="form-check-label">Active</label></div></div>
             <div class="col-md-2 d-flex flex-wrap gap-1"><button type="submit" class="btn btn-success">Save category</button><button id="assetCategoryNew" type="button" class="btn btn-outline-secondary">New</button></div>
         </form>
     }

@@ -4,11 +4,10 @@
     var checker = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
     ViewData["Title"] = bn ? "যন্ত্রাংশের হিসাব সমন্বয়" : "Facilities Parts Finance Reconciliation";
 }
-<section id="fpfPage" class="container-fluid py-3" data-bn="@bn.ToString().ToLowerInvariant()"
+<section id="fpfPage" class="container-fluid py-2" data-bn="@bn.ToString().ToLowerInvariant()"
          data-maker="@maker.ToString().ToLowerInvariant()" data-checker="@checker.ToString().ToLowerInvariant()">
-    <h2 class="h4">@(bn ? "রক্ষণাবেক্ষণ যন্ত্রাংশের হিসাব" : "Facilities Parts Finance")</h2>
-    <div id="fpfStatus" class="alert alert-info" role="status" aria-live="polite"></div>
-    <section class="card mb-3"><div class="card-body">
+    <div id="fpfStatus" class="alert d-none" role="status" aria-live="polite"></div>
+    <section class="card mb-2"><div class="card-body">
         <form id="fpfSearchForm" class="row g-2 align-items-end">
             <div class="col-md-8"><label for="fpfSearch" class="form-label">@(bn ? "স্টক মুভমেন্ট নম্বর বা সার্ভিস অনুরোধ আইডি" : "Stock movement number or service request ID")</label>
                 <input id="fpfSearch" class="form-control" maxlength="80" /></div>

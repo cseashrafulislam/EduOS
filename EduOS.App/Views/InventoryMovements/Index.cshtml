@@ -17,18 +17,16 @@
     var canPost = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("InventoryManager");
     var canReverse = User.IsInRole("TenantAdmin") || User.IsInRole("Principal");
 }
-<section id="inventoryMovements" class="container-fluid py-3" data-task-page="@taskPage" data-create="@canCreate.ToString().ToLowerInvariant()" data-post="@canPost.ToString().ToLowerInvariant()" data-reverse="@canReverse.ToString().ToLowerInvariant()" data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
-    <header class="d-flex justify-content-between align-items-center mb-3 gap-2"><div>
-        <h2>@ViewData["Title"]</h2>
-        </div><a class="btn btn-outline-secondary" href="/InventoryCatalog/Index">@(inBangla ? "পণ্যের তালিকা" : "Inventory Catalog")</a></header>
+<section id="inventoryMovements" class="container-fluid py-2" data-task-page="@taskPage" data-create="@canCreate.ToString().ToLowerInvariant()" data-post="@canPost.ToString().ToLowerInvariant()" data-reverse="@canReverse.ToString().ToLowerInvariant()" data-user-id="@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)">
+
     <div id="movementAlert" class="d-none" role="alert"></div>
     @if (showTransactions)
     {
     <div data-inventory-area="transactions">
     @if (canCreate) { @await Html.PartialAsync("_Create") }
     @if (canCreate) {
-        <div class="card mb-3"><div class="card-body">
-            <h3 class="h5">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ট্রান্সফার গ্রহণ" : "Receive in-transit stock")</h3>
+        <div class="card mb-2"><div class="card-body">
+            <h3 class="h6 mb-2">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ট্রান্সফার গ্রহণ" : "Receive in-transit stock")</h3>
             <form id="transferReceiveForm" class="row g-2">
                 <div class="col-md-8"><label for="transferDispatchReference" class="form-label">@(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "ডিসপ্যাচ নম্বর বা UUID" : "Dispatch number or UUID")</label>
                     <input id="transferDispatchReference" class="form-control" required maxlength="36" autocomplete="off" /></div>
