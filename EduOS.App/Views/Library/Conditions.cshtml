@@ -13,8 +13,8 @@
                 <option value="issued" data-bn="ইস্যুকৃত">Issued</option><option value="lost" data-bn="হারানো">Lost</option>
                 <option value="damaged" data-bn="ক্ষতিগ্রস্ত">Damaged</option><option value="retired" data-bn="অবসৃত">Retired</option>
             </select></div>
-        <div class="col-lg-4 col-md-9 d-flex align-items-end flex-wrap gap-1"><button class="btn btn-primary w-100" type="submit" id="conditionApply" data-bn="প্রয়োগ">Apply</button></div>
-        <div class="col-lg-2 col-md-3"><button id="conditionExport" class="btn btn-outline-secondary flex-grow-1" type="button" data-bn="সিএসভি (পৃষ্ঠা)">CSV (page)</button>@if (isAdmin) { <a asp-controller="Library" asp-action="Liabilities" class="btn btn-sm btn-outline-primary" data-bn="দায় ও হিসাব">Liabilities &amp; Finance</a> }
+        <div class="col-lg-2 col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit" id="conditionApply" data-bn="প্রয়োগ">Apply</button></div>
+        <div class="col-lg-4 col-md-9 d-flex align-items-end flex-wrap gap-2"><button id="conditionExport" class="btn btn-outline-secondary flex-grow-1" type="button" data-bn="সিএসভি (পৃষ্ঠা)">CSV (page)</button>@if (isAdmin) { <a asp-controller="Library" asp-action="Liabilities" class="btn btn-sm btn-outline-primary" data-bn="দায় ও হিসাব">Liabilities &amp; Finance</a> }
 <a asp-controller="Library" asp-action="Circulation" class="btn btn-sm btn-outline-secondary" id="conditionBack" data-bn="ইস্যু ও ফেরত">Circulation</a></div>
     </div></div></form>
     <div class="card">
