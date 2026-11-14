@@ -235,7 +235,6 @@
         <div class="card-body">
             <a class="btn btn-sm btn-outline-secondary academic-related-link" href="/AcademicManagement/Sections">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</a>
             <form id="batchCreateForm" class="row g-2 align-items-end mb-3">
-                <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
                 <div class="col-md-3"><label for="batchCreateCampus" class="form-label">@(bn ? "ক্যাম্পাস *" : "Campus *")</label><select id="batchCreateCampus" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="batchCreateYear" class="form-label">@(bn ? "শিক্ষাবর্ষ *" : "Academic year *")</label><select id="batchCreateYear" class="form-select" required></select></div>
                 <div class="col-md-3"><label for="batchCreateProgram" class="form-label">@(bn ? "প্রোগ্রাম *" : "Programme *")</label><select id="batchCreateProgram" class="form-select" required></select></div>
