@@ -15,7 +15,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 ## platform:institutions (2)
 
 - [x] `/PlatformTenants/Index`
-- [ ] `/PlatformCatalogAdministration/Index`
+- [x] `/PlatformCatalogAdministration/Index`
 
 ## platform:features (4)
 
@@ -91,7 +91,8 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 | `/Dashboard/Admin` | `06d691fc2f130016c2a813f0994830cc431590df` | PASS / PASS / PASS / PASS / PASS | Anonymous denied; SuperAdmin; English desktop 1366px; Bangla mobile 390px; API vs rendered KPI, authenticated permissioned links, read-only Help and shared Assistant | **Verified Complete** — isolated Dashboard final QA PASS |
 | `/Dashboard/Index` | `06d691fc2f130016c2a813f0994830cc431590df` | PASS / PASS / PASS / PASS / PASS | TenantAdmin, Teacher, Student; demo tenant only, platform-wide API forbidden; financial counts absent for unauthorized non-admin roles; desktop and mobile | **Verified Complete** — isolated Dashboard final QA PASS |
 
-| `/PlatformTenants/Index` | `a9e699054127335c1a0c8e197f8aa45f8d00cc10` | PASS / PASS / PASS / PASS / PASS | SuperAdmin English desktop; Bengali mobile; anonymous/TenantAdmin/Teacher denied; SQL migration; real audited suspend/reactivate, idempotent retry, stale version 409, host system tenant immutable, paged history, shared Help/Assistant | **Verified Complete** — [dedicated SQL/Chromium gate PASS](https://github.com/cseashrafulislam/EduOS/actions/runs/43562055803) |
+| `/PlatformTenants/Index` | `7cf614874196ecf4a336fcfc6c3cd8b860d2d805` | PASS / PASS / PASS / PASS / PASS | SuperAdmin English desktop; Bangla mobile; anonymous/TenantAdmin/Teacher denied; audited suspend/reactivate; replay-safe mutations; stale version 409; immutable system tenant and paged history | **Verified Complete**, retested on [final two-page gate PASS](https://github.com/cseashrafulislam/EduOS/actions/runs/43564208667) |
+| `/PlatformCatalogAdministration/Index` | `7cf614874196ecf4a336fcfc6c3cd8b860d2d805` | PASS / PASS / PASS / PASS / PASS | SuperAdmin metadata edit/replay/restore, immutable Code, false/stale 409 + automatic reload + successful activation, activation replay and restore; mobile Bangla Help, forbidden tenant roles | **Verified Complete** — [final SQL/Chromium gate PASS](https://github.com/cseashrafulislam/EduOS/actions/runs/43564208667) |
 
 ### Exact-SHA QA evidence — 2026-11-14
 
@@ -108,6 +109,14 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - Preserved historical tenant Codes, subscription/accounting sources, existing APIs and approval rules. Added server-side guard for reserved bootstrap tenant. The dedicated gate is green; unrelated repository-wide CI failures still block broad product release certification.
 - Only the lifecycle route was marked verified; catalogue route remains unchecked until its own metadata/activation/browser QA completes. Tested source SHA is exact; this ledger-only commit changes no application code.
 
+### Platform Institution Management full-menu sign-off — 2026-11-14
+
+- **Final tested application commit:** `7cf614874196ecf4a336fcfc6c3cd8b860d2d805` (`Ashraful`); **[dedicated GitHub Actions real SQL/browser QA PASS](https://github.com/cseashrafulislam/EduOS/actions/runs/43564208667)**. All 18 applicable workflow steps concluded success/skipped as designed; **six browser scenarios PASS**. Both `/PlatformTenants/Index` and `/PlatformCatalogAdministration/Index` were included in that same final exact-code SHA run.
+- **Verified gates:** .NET 10 full solution Release build; focused lifecycle/history/catalog activation/metadata xUnit tests; lifecycle/catalog Node UI contract tests; EF migration, isolated SuperAdmin/tenant seed on disposable SQL Server 2022; real staging auth, CSRF, role separation and Chromium English desktop/Bangla mobile; shared Page Help/Assistant; operational read and mutation flows.
+- **Lifecycle:** paged list/search, recorded state history, Active→Suspended→Active, idempotent replay without duplicate audit, stale row-version 409, protected `EDUOS-SYSTEM`, anonymous/TenantAdmin/Teacher forbidden, no customer data migrated or altered outside the disposable QA database.
+- **Catalog:** immutable master Code, localized type/cycle list, edit name/Bangla name/description/default cycle/order, field validation, metadata idempotent retry and SQL round-trip restoration, activation/deactivation, stale UI version 409 followed by automatic list reload and valid retry, activation replay and restoration, role denial, mobile help. **Production bug fixed:** removed unnecessary manually started relational transaction from `PlatformCatalogService.MetadataAdministration.cs`; EF `SaveChangesAsync` still atomically writes metadata + audit while remaining compatible with SQL Server retrying execution strategy. Failure-only Try again and committed-but-refresh-failed messaging preserve truthful UI state.
+- **Scope limitation:** Dedicated Platform Institutions QA is fully green; unrelated general `CI` and product-wide SQL acceptance are separate release gates and may remain failing. This is page-scoped Final QA, not complete EduOS production/UAT or load-certification. Existing 5 scheduled UX automations remain OFF.
+
 ## Current in-progress or blocked route
 
-**Current menu:** platform:institutions. `/PlatformTenants/Index` Verified Complete; next route `/PlatformCatalogAdministration/Index` — implementation/Final QA pending. Do not proceed to platform:features until its metadata and activation acceptance gates PASS.
+**Completed menu:** platform:institutions (2/2 Verified Complete). **Next UX A menu:** platform:features (4 routes), starting with `/PlatformFeatureAdministration/Index`; do not mark any next-menu page complete until its own exact-SHA UX/SQL/browser QA succeeds. Previously verified Dashboard and Institution pages remain part of shared-regression checks.
