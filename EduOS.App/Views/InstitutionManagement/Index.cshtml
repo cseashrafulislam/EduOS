@@ -13,7 +13,7 @@
     };
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="container-fluid institution-settings-workspace" id="institutionManagementApp" data-institution-feature="@feature">
+<div class="container-fluid institution-settings-workspace" id="institutionManagementApp" data-institution-feature="@feature" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
     <div id="institutionMessage" role="alert" aria-live="polite" class="alert d-none"></div>
     <ul class="nav nav-tabs mb-3 @(feature == "all" ? "" : "d-none")" role="tablist" aria-label="@(bn ? "প্রতিষ্ঠান পরিচালনার বিভাগ" : "Institution management sections")">
