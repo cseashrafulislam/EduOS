@@ -23,98 +23,98 @@
     <section data-section="departments" class="card border-0 shadow-sm @(section == "departments" ? "" : "d-none")">
         <div class="card-body">
             <div class="row g-2 mb-3">
-                <div class="col-md-6"><label for="departmentSearch" class="form-label">Search name / code prefix</label><input id="departmentSearch" class="form-control" maxlength="80" /></div>
-                <div class="col-md-3 d-flex align-items-end"><button id="departmentSearchButton" type="button" class="btn btn-outline-primary">Search</button></div>
+                <div class="col-md-6"><label for="departmentSearch" class="form-label">@(bn ? "নাম / কোডের শুরু দিয়ে খুঁজুন" : "Search name / code prefix")</label><input id="departmentSearch" class="form-control" maxlength="80" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="departmentSearchButton" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button></div>
             </div>
             <form id="departmentForm" class="row g-2 align-items-end mb-3">
                 <input id="departmentId" type="hidden" /><input id="departmentVersion" type="hidden" />
-                <div class="col-md-4"><label for="departmentName" class="form-label">Name *</label><input id="departmentName" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-4"><label for="departmentName" class="form-label">@(bn ? "নাম *" : "Name *")</label><input id="departmentName" class="form-control" maxlength="150" required /></div>
                 <input id="departmentCode" type="hidden" />
-                <div class="col-md-4"><label for="departmentDescription" class="form-label">Description</label><input id="departmentDescription" class="form-control" maxlength="500" /></div>
-                <div class="col-md-1"><label class="form-check"><input id="departmentActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">Active</span></label></div>
-                <div class="col-md-2 d-flex gap-2"><button id="departmentSave" type="submit" class="btn btn-primary">Create Department</button><button id="departmentCancel" type="button" class="btn btn-outline-secondary">Clear</button></div>
+                <div class="col-md-4"><label for="departmentDescription" class="form-label">@(bn ? "বিবরণ" : "Description")</label><input id="departmentDescription" class="form-control" maxlength="500" /></div>
+                <div class="col-md-1"><label class="form-check"><input id="departmentActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
+                <div class="col-md-2 d-flex gap-2"><button id="departmentSave" type="submit" class="btn btn-primary">@(bn ? "বিভাগ যোগ করুন" : "Create Department")</button><button id="departmentCancel" type="button" class="btn btn-outline-secondary">@(bn ? "পরিষ্কার" : "Clear")</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Name</th><th>Code</th><th>Description</th><th>Status</th><th>Action</th></tr></thead><tbody id="departmentRows"></tbody></table></div>
-            <div class="d-flex gap-2 align-items-center"><button id="departmentPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="departmentPage" class="small text-muted"></span><button id="departmentNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button><button id="departmentCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button></div>
+            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th scope="col">@(bn ? "নাম" : "Name")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "বিবরণ" : "Description")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead><tbody id="departmentRows"></tbody></table></div>
+            <div class="d-flex gap-2 align-items-center"><button id="departmentPrev" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button><span id="departmentPage" class="small text-muted"></span><button id="departmentNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button><button id="departmentCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button></div>
         </div>
     </section>
     <section data-section="years" class="card border-0 shadow-sm @(section == "years" ? "" : "d-none")">
         <div class="card-body">
             <form id="yearForm" class="row g-3 mb-3">
                 <input id="yearId" type="hidden" /><input id="yearVersion" type="hidden" />
-                <div class="col-lg-5"><label for="yearName" class="form-label">Name *</label><input id="yearName" class="form-control" maxlength="100" required placeholder="Academic 2026" /></div>
+                <div class="col-lg-5"><label for="yearName" class="form-label">@(bn ? "নাম *" : "Name *")</label><input id="yearName" class="form-control" maxlength="100" required placeholder="Academic 2026" /></div>
                 <input id="yearCode" type="hidden" />
-                <div class="col-lg-3"><label for="yearCampus" class="form-label">Campus</label><select id="yearCampus" class="form-select"></select></div>
-                <div class="col-lg-2"><label for="yearStart" class="form-label">Start date *</label><input id="yearStart" type="date" class="form-control" required /></div>
-                <div class="col-lg-2"><label for="yearEnd" class="form-label">End date *</label><input id="yearEnd" type="date" class="form-control" required /></div>
-                <div class="col-md-4"><label for="yearCycle" class="form-label">Cycle</label><select id="yearCycle" class="form-select"><option value="1">Annual</option><option value="2">Semester</option><option value="3">Trimester</option><option value="4">Quarterly</option><option value="5">Modular</option><option value="6">Batch-based</option></select></div>
-                <div class="col-md-3 academic-check-cell"><label class="form-check academic-check-control"><input id="yearCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current year</span></label></div>
-                <div class="col-md-5 academic-form-actions"><button type="submit" class="btn btn-primary">Save Year</button><button type="button" data-reset="year" class="btn btn-outline-secondary">Clear</button></div>
+                <div class="col-lg-3"><label for="yearCampus" class="form-label">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="yearCampus" class="form-select"></select></div>
+                <div class="col-lg-2"><label for="yearStart" class="form-label">@(bn ? "শুরুর তারিখ *" : "Start date *")</label><input id="yearStart" type="date" class="form-control" required /></div>
+                <div class="col-lg-2"><label for="yearEnd" class="form-label">@(bn ? "শেষ তারিখ *" : "End date *")</label><input id="yearEnd" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label for="yearCycle" class="form-label">@(bn ? "সময়কাল" : "Cycle")</label><select id="yearCycle" class="form-select"><option value="1">@(bn ? "বার্ষিক" : "Annual")</option><option value="2">@(bn ? "সেমিস্টার" : "Semester")</option><option value="3">@(bn ? "ট্রাইমেস্টার" : "Trimester")</option><option value="4">@(bn ? "ত্রৈমাসিক" : "Quarterly")</option><option value="5">@(bn ? "মডিউলার" : "Modular")</option><option value="6">@(bn ? "ব্যাচভিত্তিক" : "Batch-based")</option></select></div>
+                <div class="col-md-3 academic-check-cell"><label class="form-check academic-check-control"><input id="yearCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "বর্তমান শিক্ষাবর্ষ" : "Current year")</span></label></div>
+                <div class="col-md-5 academic-form-actions"><button type="submit" class="btn btn-primary">@(bn ? "শিক্ষাবর্ষ সংরক্ষণ" : "Save Year")</button><button type="button" data-reset="year" class="btn btn-outline-secondary">@(bn ? "পরিষ্কার" : "Clear")</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Year</th><th>Code</th><th>Campus</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="yearRows"></tbody></table></div>
+            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th scope="col">@(bn ? "শিক্ষাবর্ষ" : "Year")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "ক্যাম্পাস" : "Campus")</th><th scope="col">@(bn ? "তারিখ" : "Dates")</th><th scope="col">@(bn ? "বর্তমান" : "Current")</th><th scope="col">@(bn ? "কার্যক্রম" : "Actions")</th></tr></thead><tbody id="yearRows"></tbody></table></div>
         </div>
     </section>
     <section data-section="terms" class="card border-0 shadow-sm @(section == "terms" ? "" : "d-none")">
         <div class="card-body">
             <form id="termForm" class="row g-3 mb-3">
                 <input id="termId" type="hidden" /><input id="termVersion" type="hidden" />
-                <div class="col-md-6"><label for="termYear" class="form-label">Academic year *</label><select id="termYear" class="form-select" required></select></div>
-                <div class="col-md-6"><label for="termName" class="form-label">Term name *</label><input id="termName" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-6"><label for="termYear" class="form-label">@(bn ? "শিক্ষাবর্ষ *" : "Academic year *")</label><select id="termYear" class="form-select" required></select></div>
+                <div class="col-md-6"><label for="termName" class="form-label">@(bn ? "টার্মের নাম *" : "Term name *")</label><input id="termName" class="form-control" maxlength="100" required /></div>
                 <input id="termCode" type="hidden" />
-                <div class="col-md-4"><label for="termStart" class="form-label">Start date *</label><input id="termStart" type="date" class="form-control" required /></div>
-                <div class="col-md-4"><label for="termEnd" class="form-label">End date *</label><input id="termEnd" type="date" class="form-control" required /></div>
-                <div class="col-md-4 academic-check-cell"><label class="form-check academic-check-control"><input id="termCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current term</span></label></div>
-                <div class="col-12 academic-form-actions"><button type="submit" class="btn btn-primary">Save Term</button><button type="button" data-reset="term" class="btn btn-outline-secondary">Clear</button></div>
+                <div class="col-md-4"><label for="termStart" class="form-label">@(bn ? "শুরুর তারিখ *" : "Start date *")</label><input id="termStart" type="date" class="form-control" required /></div>
+                <div class="col-md-4"><label for="termEnd" class="form-label">@(bn ? "শেষ তারিখ *" : "End date *")</label><input id="termEnd" type="date" class="form-control" required /></div>
+                <div class="col-md-4 academic-check-cell"><label class="form-check academic-check-control"><input id="termCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "বর্তমান টার্ম" : "Current term")</span></label></div>
+                <div class="col-12 academic-form-actions"><button type="submit" class="btn btn-primary">@(bn ? "টার্ম সংরক্ষণ" : "Save Term")</button><button type="button" data-reset="term" class="btn btn-outline-secondary">@(bn ? "পরিষ্কার" : "Clear")</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Term</th><th>Year</th><th>Code</th><th>Dates</th><th>Current</th><th>Actions</th></tr></thead><tbody id="termRows"></tbody></table></div>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th scope="col">@(bn ? "টার্ম" : "Term")</th><th scope="col">@(bn ? "শিক্ষাবর্ষ" : "Year")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "তারিখ" : "Dates")</th><th scope="col">@(bn ? "বর্তমান" : "Current")</th><th scope="col">@(bn ? "কার্যক্রম" : "Actions")</th></tr></thead><tbody id="termRows"></tbody></table></div>
         </div>
     </section>
     <section data-section="classes" class="card border-0 shadow-sm @(section == "classes" ? "" : "d-none")">
         <div class="card-body">
             <form id="programForm" class="row g-2 align-items-end mb-4">
                 <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
-                <div class="col-md-3"><label for="programName" class="form-label">Programme name *</label><input id="programName" class="form-control" maxlength="200" required placeholder="Secondary" /></div>
+                <div class="col-md-3"><label for="programName" class="form-label">@(bn ? "প্রোগ্রামের নাম *" : "Programme name *")</label><input id="programName" class="form-control" maxlength="200" required placeholder="Secondary" /></div>
                 <input id="programCode" type="hidden" />
-                <div class="col-md-2"><label for="programDuration" class="form-label">Months</label><input id="programDuration" type="number" min="0" max="1200" value="0" class="form-control" /></div>
-                <div class="col-md-3"><label for="programCampus" class="form-label">Offered at campuses (Ctrl/Cmd + click)</label><select id="programCampus" class="form-select" multiple size="3" aria-describedby="programCampusHelp"></select><small id="programCampusHelp" class="visually-hidden">Leave empty for all campuses.</small></div>
-                <div class="col-md-2"><label for="programDepartment" class="form-label">Department</label><select id="programDepartment" class="form-select"><option value="">No department</option></select><button type="submit" class="btn btn-primary w-100 mt-2">Add Programme</button></div>
+                <div class="col-md-2"><label for="programDuration" class="form-label">@(bn ? "মাস" : "Months")</label><input id="programDuration" type="number" min="0" max="1200" value="0" class="form-control" /></div>
+                <div class="col-md-3"><label for="programCampus" class="form-label">@(bn ? "যেসব ক্যাম্পাসে থাকবে (একাধিক নির্বাচন)" : "Offered at campuses (Ctrl/Cmd + click)")</label><select id="programCampus" class="form-select" multiple size="3" aria-describedby="programCampusHelp"></select><small id="programCampusHelp" class="visually-hidden">@(bn ? "সব ক্যাম্পাস হলে ফাঁকা রাখুন।" : "Leave empty for all campuses.")</small></div>
+                <div class="col-md-2"><label for="programDepartment" class="form-label">@(bn ? "বিভাগ" : "Department")</label><select id="programDepartment" class="form-select"><option value="">@(bn ? "বিভাগ নেই" : "No department")</option></select><button type="submit" class="btn btn-primary w-100 mt-2">@(bn ? "প্রোগ্রাম যোগ করুন" : "Add Programme")</button></div>
             </form>
-            <h3 class="visually-hidden">Available programmes</h3>
+            <h3 class="visually-hidden">@(bn ? "উপলব্ধ প্রোগ্রাম" : "Available programmes")</h3>
             <div id="programList" class="mb-2"></div>
             <div class="table-responsive mb-3"><table class="table table-hover align-middle">
-                <thead><tr><th>Programme</th><th>Campus availability</th><th>Action</th></tr></thead>
+                <thead><tr><th scope="col">@(bn ? "প্রোগ্রাম" : "Programme")</th><th scope="col">@(bn ? "ক্যাম্পাসভিত্তিক উপলব্ধতা" : "Campus availability")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead>
                 <tbody id="programCampusRows"></tbody>
             </table></div>
             <div class="border rounded p-3 mb-4">
                 <h3 class="visually-hidden">Programme metadata &amp; department reassignment</h3>
                 <div class="row g-2 mb-2">
-                    <div class="col-md-6"><label for="programmeSearch" class="form-label">Programme name / code prefix</label><input id="programmeSearch" class="form-control" maxlength="80" /></div>
-                    <div class="col-md-2 d-flex align-items-end"><button id="programmeSearchButton" type="button" class="btn btn-outline-primary">Search</button></div>
+                    <div class="col-md-6"><label for="programmeSearch" class="form-label">@(bn ? "প্রোগ্রামের নাম / কোড" : "Programme name / code prefix")</label><input id="programmeSearch" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-2 d-flex align-items-end"><button id="programmeSearchButton" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button></div>
                 </div>
                 <div class="table-responsive"><table class="table table-hover align-middle">
-                    <thead><tr><th>Programme</th><th>Code</th><th>Department</th><th>Months</th><th>Status</th><th>Action</th></tr></thead>
+                    <thead><tr><th scope="col">@(bn ? "প্রোগ্রাম" : "Programme")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "বিভাগ" : "Department")</th><th scope="col">@(bn ? "মাস" : "Months")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead>
                     <tbody id="programmeRows"></tbody>
                 </table></div>
                 <div class="d-flex gap-2 align-items-center mb-3">
-                    <button id="programmePrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+                    <button id="programmePrev" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button>
                     <span id="programmePage" class="small text-muted"></span>
-                    <button id="programmeNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
-                    <button id="programmeCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button>
+                    <button id="programmeNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button>
+                    <button id="programmeCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button>
                 </div>
                 <form id="programmeEditForm" class="row g-2 d-none">
                     <input id="programmeEditId" type="hidden" /><input id="programmeEditVersion" type="hidden" />
-                    <div class="col-md-2"><label for="programmeEditCode" class="form-label">Code (immutable)</label><input id="programmeEditCode" class="form-control" readonly /></div>
-                    <div class="col-md-4"><label for="programmeEditName" class="form-label">Name *</label><input id="programmeEditName" class="form-control" maxlength="200" required /></div>
-                    <div class="col-md-3"><label for="programmeEditShortName" class="form-label">Short name</label><input id="programmeEditShortName" class="form-control" maxlength="100" /></div>
-                    <div class="col-md-3"><label for="programmeEditDuration" class="form-label">Duration (months)</label><input id="programmeEditDuration" type="number" min="0" max="1200" class="form-control" required /></div>
-                    <div class="col-md-4"><label for="programmeDepartmentSearch" class="form-label">Find department by prefix</label><div class="input-group"><input id="programmeDepartmentSearch" class="form-control" maxlength="80" /><button id="programmeDepartmentSearchButton" type="button" class="btn btn-outline-secondary">Find</button></div></div>
-                    <div class="col-md-4"><label for="programmeEditDepartment" class="form-label">Department</label><select id="programmeEditDepartment" class="form-select"><option value="">No department</option></select></div>
-                    <div class="col-md-4"><label for="programmeEditAward" class="form-label">Award title</label><input id="programmeEditAward" class="form-control" maxlength="150" /></div>
-                    <div class="col-md-6"><label for="programmeEditDescription" class="form-label">Description</label><textarea id="programmeEditDescription" class="form-control" rows="2" maxlength="1000"></textarea></div>
-                    <div class="col-md-2"><label for="programmeEditOrder" class="form-label">Display order</label><input id="programmeEditOrder" type="number" min="0" class="form-control" required /></div>
-                    <div class="col-md-2 d-flex align-items-center"><label class="form-check"><input id="programmeEditAdmissions" type="checkbox" class="form-check-input" /><span class="form-check-label">Admissions open</span></label></div>
-                    <div class="col-md-2 d-flex align-items-center"><label class="form-check"><input id="programmeEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
-                    <div class="col-12 d-flex gap-2"><button id="programmeEditSave" type="submit" class="btn btn-primary">Save metadata</button><button id="programmeEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                    <div class="col-md-2"><label for="programmeEditCode" class="form-label">@(bn ? "কোড (অপরিবর্তনীয়)" : "Code (immutable)")</label><input id="programmeEditCode" class="form-control" readonly /></div>
+                    <div class="col-md-4"><label for="programmeEditName" class="form-label">@(bn ? "নাম *" : "Name *")</label><input id="programmeEditName" class="form-control" maxlength="200" required /></div>
+                    <div class="col-md-3"><label for="programmeEditShortName" class="form-label">@(bn ? "সংক্ষিপ্ত নাম" : "Short name")</label><input id="programmeEditShortName" class="form-control" maxlength="100" /></div>
+                    <div class="col-md-3"><label for="programmeEditDuration" class="form-label">@(bn ? "মেয়াদ (মাস)" : "Duration (months)")</label><input id="programmeEditDuration" type="number" min="0" max="1200" class="form-control" required /></div>
+                    <div class="col-md-4"><label for="programmeDepartmentSearch" class="form-label">@(bn ? "বিভাগ খুঁজুন" : "Find department by prefix")</label><div class="input-group"><input id="programmeDepartmentSearch" class="form-control" maxlength="80" /><button id="programmeDepartmentSearchButton" type="button" class="btn btn-outline-secondary">@(bn ? "খুঁজুন" : "Find")</button></div></div>
+                    <div class="col-md-4"><label for="programmeEditDepartment" class="form-label">@(bn ? "বিভাগ" : "Department")</label><select id="programmeEditDepartment" class="form-select"><option value="">@(bn ? "বিভাগ নেই" : "No department")</option></select></div>
+                    <div class="col-md-4"><label for="programmeEditAward" class="form-label">@(bn ? "সনদের নাম" : "Award title")</label><input id="programmeEditAward" class="form-control" maxlength="150" /></div>
+                    <div class="col-md-6"><label for="programmeEditDescription" class="form-label">@(bn ? "বিবরণ" : "Description")</label><textarea id="programmeEditDescription" class="form-control" rows="2" maxlength="1000"></textarea></div>
+                    <div class="col-md-2"><label for="programmeEditOrder" class="form-label">@(bn ? "প্রদর্শনের ক্রম" : "Display order")</label><input id="programmeEditOrder" type="number" min="0" class="form-control" required /></div>
+                    <div class="col-md-2 d-flex align-items-center"><label class="form-check"><input id="programmeEditAdmissions" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "ভর্তি চালু" : "Admissions open")</span></label></div>
+                    <div class="col-md-2 d-flex align-items-center"><label class="form-check"><input id="programmeEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
+                    <div class="col-12 d-flex gap-2"><button id="programmeEditSave" type="submit" class="btn btn-primary">@(bn ? "তথ্য সংরক্ষণ" : "Save metadata")</button><button id="programmeEditCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button></div>
                 </form>
             </div>
             <form id="programAllocationForm" class="card border-primary mb-4 d-none">
@@ -124,80 +124,80 @@
                     <input id="allocationRowVersion" type="hidden" />
                     <div class="row g-3">
                         <div class="col-md-5">
-                            <label for="allocationCampuses" class="form-label">Allowed campuses (Ctrl/Cmd + click)</label>
+                            <label for="allocationCampuses" class="form-label">@(bn ? "অনুমোদিত ক্যাম্পাস (একাধিক নির্বাচন)" : "Allowed campuses (Ctrl/Cmd + click)")</label>
                             <select id="allocationCampuses" class="form-select" multiple size="5"></select>
                         </div>
                         <div class="col-md-4">
-                            <label for="allocationPrimary" class="form-label">Primary campus</label>
+                            <label for="allocationPrimary" class="form-label">@(bn ? "প্রধান ক্যাম্পাস" : "Primary campus")</label>
                             <select id="allocationPrimary" class="form-select"></select>
                             <div class="form-check mt-3">
                                 <input id="allocationAllowAll" type="checkbox" class="form-check-input" />
                                 <label for="allocationAllowAll" class="form-check-label">Unrestricted — allow all tenant campuses</label>
                             </div>
-                            <small class="visually-hidden">Removing a campus is blocked when existing academic batches depend on it. A primary campus is required for restricted programmes.</small>
+                            <small class="visually-hidden">@(bn ? "ব্যাচে ব্যবহৃত ক্যাম্পাস সরানো যাবে না। সীমিত প্রোগ্রামের জন্য প্রধান ক্যাম্পাস আবশ্যক।" : "Removing a campus is blocked when existing academic batches depend on it. A primary campus is required for restricted programmes.")</small>
                         </div>
                         <div class="col-md-3 d-flex align-items-end gap-2">
-                            <button type="submit" class="btn btn-primary">Save allocation</button>
-                            <button id="allocationCancel" type="button" class="btn btn-outline-secondary">Cancel</button>
+                            <button type="submit" class="btn btn-primary">@(bn ? "ক্যাম্পাস বরাদ্দ সংরক্ষণ" : "Save allocation")</button>
+                            <button id="allocationCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
                         </div>
                     </div>
                 </div>
             </form>
             <form id="levelForm" class="row g-2 align-items-end mb-3">
                 <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
-                <div class="col-md-3"><label for="levelProgram" class="form-label">Programme *</label><select id="levelProgram" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="levelName" class="form-label">Class / Grade name *</label><input id="levelName" class="form-control" required maxlength="150" placeholder="Grade 9" /></div>
+                <div class="col-md-3"><label for="levelProgram" class="form-label">@(bn ? "প্রোগ্রাম *" : "Programme *")</label><select id="levelProgram" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="levelName" class="form-label">@(bn ? "শ্রেণি / গ্রেডের নাম *" : "Class / Grade name *")</label><input id="levelName" class="form-control" required maxlength="150" placeholder="Grade 9" /></div>
                 <input id="levelCode" type="hidden" />
-                <div class="col-md-2"><label for="levelNumber" class="form-label">Level number *</label><input id="levelNumber" class="form-control" required type="number" min="1" max="1000" value="1" /></div>
-                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Class</button></div>
+                <div class="col-md-2"><label for="levelNumber" class="form-label">@(bn ? "শ্রেণির নম্বর *" : "Level number *")</label><input id="levelNumber" class="form-control" required type="number" min="1" max="1000" value="1" /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">@(bn ? "শ্রেণি যোগ করুন" : "Add Class")</button></div>
             </form>
             <div class="border rounded p-3">
-                <h3 class="visually-hidden">Class / Grade administration</h3>
+                <h3 class="visually-hidden">@(bn ? "শ্রেণি / গ্রেড পরিচালনা" : "Class / Grade administration")</h3>
                 <form id="levelSearchForm" class="row g-2 mb-3">
-                    <div class="col-md-5"><label for="levelSearch" class="form-label">Level name / code prefix</label><input id="levelSearch" maxlength="80" class="form-control" /></div>
-                    <div class="col-md-4"><label for="levelProgramFilter" class="form-label">Programme</label><select id="levelProgramFilter" class="form-select"></select></div>
-                    <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">Search</button><button id="levelCsv" type="button" class="btn btn-outline-secondary">Export visible CSV</button></div>
+                    <div class="col-md-5"><label for="levelSearch" class="form-label">@(bn ? "শ্রেণির নাম / কোড" : "Level name / code prefix")</label><input id="levelSearch" maxlength="80" class="form-control" /></div>
+                    <div class="col-md-4"><label for="levelProgramFilter" class="form-label">@(bn ? "প্রোগ্রাম" : "Programme")</label><select id="levelProgramFilter" class="form-select"></select></div>
+                    <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button><button id="levelCsv" type="button" class="btn btn-outline-secondary">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button></div>
                 </form>
-                <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Class / Grade</th><th>Code</th><th>Programme</th><th>Level</th><th>Progression</th><th>Status</th><th>Action</th></tr></thead><tbody id="levelRows"></tbody></table></div>
-                <div class="d-flex align-items-center gap-2 mb-3"><button id="levelPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="levelPage" class="small text-muted"></span><button id="levelNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+                <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th scope="col">@(bn ? "শ্রেণি / গ্রেড" : "Class / Grade")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "প্রোগ্রাম" : "Programme")</th><th scope="col">@(bn ? "শ্রেণি" : "Level")</th><th scope="col">@(bn ? "পরবর্তী শ্রেণি" : "Progression")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead><tbody id="levelRows"></tbody></table></div>
+                <div class="d-flex align-items-center gap-2 mb-3"><button id="levelPrev" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button><span id="levelPage" class="small text-muted"></span><button id="levelNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button></div>
                 <form id="levelEditForm" class="row g-2 align-items-end border rounded p-3 d-none">
                     <input id="levelEditId" type="hidden" /><input id="levelEditVersion" type="hidden" />
-                    <div class="col-md-3"><span id="levelEditContext" class="small text-muted"></span><label for="levelEditName" class="form-label d-block">Name *</label><input id="levelEditName" class="form-control" maxlength="150" required /></div>
-                    <div class="col-md-2"><label for="levelEditNumber" class="form-label">Level number</label><input id="levelEditNumber" type="number" min="1" max="1000" class="form-control" required /></div>
-                    <div class="col-md-2"><label for="levelEditOrder" class="form-label">Display order</label><input id="levelEditOrder" type="number" min="0" class="form-control" required /></div>
-                    <div class="col-md-2"><label class="form-check"><input id="levelEditPromotable" type="checkbox" class="form-check-input" /><span class="form-check-label">Promotable</span></label><label class="form-check"><input id="levelEditTerminal" type="checkbox" class="form-check-input" /><span class="form-check-label">Terminal</span></label></div>
-                    <div class="col-md-1"><label class="form-check"><input id="levelEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
-                    <div class="col-md-2 d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><button id="levelEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                    <div class="col-md-3"><span id="levelEditContext" class="small text-muted"></span><label for="levelEditName" class="form-label d-block">@(bn ? "নাম *" : "Name *")</label><input id="levelEditName" class="form-control" maxlength="150" required /></div>
+                    <div class="col-md-2"><label for="levelEditNumber" class="form-label">@(bn ? "শ্রেণির নম্বর" : "Level number")</label><input id="levelEditNumber" type="number" min="1" max="1000" class="form-control" required /></div>
+                    <div class="col-md-2"><label for="levelEditOrder" class="form-label">@(bn ? "প্রদর্শনের ক্রম" : "Display order")</label><input id="levelEditOrder" type="number" min="0" class="form-control" required /></div>
+                    <div class="col-md-2"><label class="form-check"><input id="levelEditPromotable" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "উত্তীর্ণযোগ্য" : "Promotable")</span></label><label class="form-check"><input id="levelEditTerminal" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "শেষ শ্রেণি" : "Terminal")</span></label></div>
+                    <div class="col-md-1"><label class="form-check"><input id="levelEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
+                    <div class="col-md-2 d-flex gap-2"><button type="submit" class="btn btn-primary">@(bn ? "সংরক্ষণ" : "Save")</button><button id="levelEditCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button></div>
                 </form>
             </div>
             <div class="border rounded p-3 mt-4" id="trackWorkspace">
-                <h3 class="visually-hidden">Academic tracks / streams</h3>
+                <h3 class="visually-hidden">@(bn ? "শাখা / গ্রুপ" : "Academic tracks / streams")</h3>
                 <form id="trackSearchForm" class="row g-2 mb-3">
-                    <div class="col-md-4"><label for="trackSearch" class="form-label">Name / code prefix</label><input id="trackSearch" class="form-control" maxlength="80" /></div>
-                    <div class="col-md-4"><label for="trackProgramFilter" class="form-label">Programme</label><select id="trackProgramFilter" class="form-select"></select></div>
-                    <div class="col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">Search</button><button id="trackCsv" type="button" class="btn btn-outline-secondary">Export visible CSV</button></div>
+                    <div class="col-md-4"><label for="trackSearch" class="form-label">@(bn ? "নাম / কোডের শুরু" : "Name / code prefix")</label><input id="trackSearch" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-4"><label for="trackProgramFilter" class="form-label">@(bn ? "প্রোগ্রাম" : "Programme")</label><select id="trackProgramFilter" class="form-select"></select></div>
+                    <div class="col-md-4 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button><button id="trackCsv" type="button" class="btn btn-outline-secondary">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button></div>
                 </form>
                 <form id="trackCreateForm" class="row g-2 align-items-end mb-3">
-                    <div class="col-md-3"><label for="trackCreateProgram" class="form-label">Programme</label><select id="trackCreateProgram" class="form-select"></select></div>
-                    <div class="col-md-3"><label for="trackCreateName" class="form-label">Track name *</label><input id="trackCreateName" class="form-control" maxlength="150" required /></div>
-                    <div class="col-md-2"><label for="trackCreateCode" class="form-label">Code *</label><input id="trackCreateCode" class="form-control" maxlength="50" required /></div>
-                    <div class="col-md-2"><label for="trackCreateOrder" class="form-label">Order</label><input id="trackCreateOrder" type="number" class="form-control" min="0" value="0" required /></div>
-                    <div class="col-md-2"><label class="form-check"><input id="trackCreateDefault" type="checkbox" class="form-check-input" /><span class="form-check-label">Default</span></label><button type="submit" class="btn btn-primary mt-1">Add track</button></div>
-                    <div class="col-12"><label for="trackCreateDescription" class="form-label">Description</label><input id="trackCreateDescription" class="form-control" maxlength="500" /></div>
+                    <div class="col-md-3"><label for="trackCreateProgram" class="form-label">@(bn ? "প্রোগ্রাম" : "Programme")</label><select id="trackCreateProgram" class="form-select"></select></div>
+                    <div class="col-md-3"><label for="trackCreateName" class="form-label">@(bn ? "শাখার নাম *" : "Track name *")</label><input id="trackCreateName" class="form-control" maxlength="150" required /></div>
+                    <div class="col-md-2"><label for="trackCreateCode" class="form-label">@(bn ? "কোড *" : "Code *")</label><input id="trackCreateCode" class="form-control" maxlength="50" required /></div>
+                    <div class="col-md-2"><label for="trackCreateOrder" class="form-label">@(bn ? "ক্রম" : "Order")</label><input id="trackCreateOrder" type="number" class="form-control" min="0" value="0" required /></div>
+                    <div class="col-md-2"><label class="form-check"><input id="trackCreateDefault" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "ডিফল্ট" : "Default")</span></label><button type="submit" class="btn btn-primary mt-1">@(bn ? "শাখা যোগ করুন" : "Add track")</button></div>
+                    <div class="col-12"><label for="trackCreateDescription" class="form-label">@(bn ? "বিবরণ" : "Description")</label><input id="trackCreateDescription" class="form-control" maxlength="500" /></div>
                 </form>
                 <div class="row g-2 mb-2">
-                    <div class="col-md-5"><label for="trackProgrammeLookup" class="form-label">Find programmes by prefix (for large catalogs)</label><input id="trackProgrammeLookup" class="form-control" maxlength="80" /></div>
-                    <div class="col-md-2 d-flex align-items-end"><button id="trackProgrammeLookupButton" type="button" class="btn btn-sm btn-outline-secondary">Find programmes</button></div>
+                    <div class="col-md-5"><label for="trackProgrammeLookup" class="form-label">@(bn ? "বড় তালিকায় প্রোগ্রাম খুঁজুন" : "Find programmes by prefix (for large catalogs)")</label><input id="trackProgrammeLookup" class="form-control" maxlength="80" /></div>
+                    <div class="col-md-2 d-flex align-items-end"><button id="trackProgrammeLookupButton" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "প্রোগ্রাম খুঁজুন" : "Find programmes")</button></div>
                 </div>
-                <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Track</th><th>Code</th><th>Programme</th><th>Default</th><th>Status</th><th>Action</th></tr></thead><tbody id="trackRows"></tbody></table></div>
-                <div class="d-flex align-items-center gap-2 mb-3"><button id="trackPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="trackPage" class="small text-muted"></span><button id="trackNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+                <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th scope="col">@(bn ? "শাখা" : "Track")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "প্রোগ্রাম" : "Programme")</th><th scope="col">@(bn ? "ডিফল্ট" : "Default")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead><tbody id="trackRows"></tbody></table></div>
+                <div class="d-flex align-items-center gap-2 mb-3"><button id="trackPrev" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button><span id="trackPage" class="small text-muted"></span><button id="trackNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button></div>
                 <form id="trackEditForm" class="row g-2 align-items-end border rounded p-3 d-none">
                     <input id="trackEditId" type="hidden" /><input id="trackEditVersion" type="hidden" />
-                    <div class="col-md-3"><span id="trackEditContext" class="small text-muted"></span><label for="trackEditName" class="form-label d-block">Name *</label><input id="trackEditName" class="form-control" maxlength="150" required /></div>
-                    <div class="col-md-4"><label for="trackEditDescription" class="form-label">Description</label><input id="trackEditDescription" class="form-control" maxlength="500" /></div>
-                    <div class="col-md-2"><label for="trackEditOrder" class="form-label">Display order</label><input id="trackEditOrder" type="number" min="0" class="form-control" required /></div>
-                    <div class="col-md-3"><label class="form-check"><input id="trackEditDefault" type="checkbox" class="form-check-input" /><span class="form-check-label">Default</span></label><label class="form-check"><input id="trackEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
-                    <div class="col-12 d-flex gap-2"><button type="submit" class="btn btn-primary">Save track</button><button id="trackEditCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                    <div class="col-md-3"><span id="trackEditContext" class="small text-muted"></span><label for="trackEditName" class="form-label d-block">@(bn ? "নাম *" : "Name *")</label><input id="trackEditName" class="form-control" maxlength="150" required /></div>
+                    <div class="col-md-4"><label for="trackEditDescription" class="form-label">@(bn ? "বিবরণ" : "Description")</label><input id="trackEditDescription" class="form-control" maxlength="500" /></div>
+                    <div class="col-md-2"><label for="trackEditOrder" class="form-label">@(bn ? "প্রদর্শনের ক্রম" : "Display order")</label><input id="trackEditOrder" type="number" min="0" class="form-control" required /></div>
+                    <div class="col-md-3"><label class="form-check"><input id="trackEditDefault" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "ডিফল্ট" : "Default")</span></label><label class="form-check"><input id="trackEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
+                    <div class="col-12 d-flex gap-2"><button type="submit" class="btn btn-primary">@(bn ? "শাখা সংরক্ষণ" : "Save track")</button><button id="trackEditCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button></div>
                 </form>
             </div>
         </div>
@@ -205,27 +205,27 @@
     <section data-section="rooms" class="card border-0 shadow-sm @(section == "rooms" ? "" : "d-none")">
         <div class="card-body">
             <form id="roomSearchForm" class="row g-2 mb-3">
-                <div class="col-md-5"><label for="roomSearch" class="form-label">Room name/code prefix</label><input id="roomSearch" class="form-control" maxlength="80" /></div>
-                <div class="col-md-4"><label for="roomCampusFilter" class="form-label">Campus</label><select id="roomCampusFilter" class="form-select"></select></div>
-                <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">Search</button><button id="roomCsv" type="button" class="btn btn-outline-secondary">Export CSV</button></div>
+                <div class="col-md-5"><label for="roomSearch" class="form-label">@(bn ? "কক্ষের নাম / কোড" : "Room name/code prefix")</label><input id="roomSearch" class="form-control" maxlength="80" /></div>
+                <div class="col-md-4"><label for="roomCampusFilter" class="form-label">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="roomCampusFilter" class="form-select"></select></div>
+                <div class="col-md-3 d-flex align-items-end gap-2"><button type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button><button id="roomCsv" type="button" class="btn btn-outline-secondary">@(bn ? "CSV রপ্তানি" : "Export CSV")</button></div>
             </form>
             <form id="roomCreateForm" class="row g-2 align-items-end mb-3">
-                <div class="col-md-2"><label for="roomCreateCampus" class="form-label">Campus *</label><select id="roomCreateCampus" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="roomCreateName" class="form-label">Name *</label><input id="roomCreateName" class="form-control" maxlength="100" required /></div>
-                <div class="col-md-2"><label for="roomCreateCode" class="form-label">Code *</label><input id="roomCreateCode" class="form-control" maxlength="50" required /></div>
-                <div class="col-md-2"><label for="roomCreateCapacity" class="form-label">Capacity</label><input id="roomCreateCapacity" type="number" class="form-control" min="0" max="100000" value="40" required /></div>
-                <div class="col-md-2"><label for="roomCreateType" class="form-label">Type</label><input id="roomCreateType" class="form-control" maxlength="100" /></div>
-                <div class="col-md-1"><button type="submit" class="btn btn-primary">Add</button></div>
+                <div class="col-md-2"><label for="roomCreateCampus" class="form-label">@(bn ? "ক্যাম্পাস *" : "Campus *")</label><select id="roomCreateCampus" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="roomCreateName" class="form-label">@(bn ? "নাম *" : "Name *")</label><input id="roomCreateName" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-2"><label for="roomCreateCode" class="form-label">@(bn ? "কোড *" : "Code *")</label><input id="roomCreateCode" class="form-control" maxlength="50" required /></div>
+                <div class="col-md-2"><label for="roomCreateCapacity" class="form-label">@(bn ? "আসনসংখ্যা" : "Capacity")</label><input id="roomCreateCapacity" type="number" class="form-control" min="0" max="100000" value="40" required /></div>
+                <div class="col-md-2"><label for="roomCreateType" class="form-label">@(bn ? "ধরন" : "Type")</label><input id="roomCreateType" class="form-control" maxlength="100" /></div>
+                <div class="col-md-1"><button type="submit" class="btn btn-primary">@(bn ? "যোগ করুন" : "Add")</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Name</th><th>Code</th><th>Campus</th><th>Type</th><th>Capacity</th><th>Status</th><th>Action</th></tr></thead><tbody id="roomRows"></tbody></table></div>
-            <div class="d-flex gap-2 align-items-center mb-3"><button id="roomPrev" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="roomPage" class="small text-muted"></span><button id="roomNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th scope="col">@(bn ? "নাম" : "Name")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "ক্যাম্পাস" : "Campus")</th><th scope="col">@(bn ? "ধরন" : "Type")</th><th scope="col">@(bn ? "আসনসংখ্যা" : "Capacity")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead><tbody id="roomRows"></tbody></table></div>
+            <div class="d-flex gap-2 align-items-center mb-3"><button id="roomPrev" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button><span id="roomPage" class="small text-muted"></span><button id="roomNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button></div>
             <form id="roomEditForm" class="row g-2 align-items-end border rounded p-3 d-none">
                 <input id="roomEditId" type="hidden" /><input id="roomEditVersion" type="hidden" />
                 <div class="col-md-3"><span id="roomEditContext" class="small text-muted"></span></div>
-                <div class="col-md-3"><label for="roomEditName" class="form-label">Name *</label><input id="roomEditName" class="form-control" maxlength="100" required /></div>
-                <div class="col-md-2"><label for="roomEditCapacity" class="form-label">Capacity</label><input id="roomEditCapacity" type="number" class="form-control" min="0" max="100000" required /></div>
-                <div class="col-md-2"><label for="roomEditType" class="form-label">Type</label><input id="roomEditType" class="form-control" maxlength="100" /></div>
-                <div class="col-md-2 d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><button id="roomCancel" type="button" class="btn btn-outline-secondary">Cancel</button></div>
+                <div class="col-md-3"><label for="roomEditName" class="form-label">@(bn ? "নাম *" : "Name *")</label><input id="roomEditName" class="form-control" maxlength="100" required /></div>
+                <div class="col-md-2"><label for="roomEditCapacity" class="form-label">@(bn ? "আসনসংখ্যা" : "Capacity")</label><input id="roomEditCapacity" type="number" class="form-control" min="0" max="100000" required /></div>
+                <div class="col-md-2"><label for="roomEditType" class="form-label">@(bn ? "ধরন" : "Type")</label><input id="roomEditType" class="form-control" maxlength="100" /></div>
+                <div class="col-md-2 d-flex gap-2"><button type="submit" class="btn btn-primary">@(bn ? "সংরক্ষণ" : "Save")</button><button id="roomCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button></div>
             </form>
         </div>
     </section>
@@ -234,75 +234,75 @@
             <a class="btn btn-sm btn-outline-secondary academic-related-link" href="/AcademicManagement/Sections">@(bn ? "একাডেমিক শাখা" : "Academic Sections")</a>
             <form id="batchCreateForm" class="row g-2 align-items-end mb-3">
                 <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
-                <div class="col-md-3"><label for="batchCreateCampus" class="form-label">Campus *</label><select id="batchCreateCampus" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="batchCreateYear" class="form-label">Academic year *</label><select id="batchCreateYear" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="batchCreateProgram" class="form-label">Programme *</label><select id="batchCreateProgram" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="batchCreateLevel" class="form-label">Class / Grade *</label><select id="batchCreateLevel" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="batchCreateTerm" class="form-label">Term (optional)</label><select id="batchCreateTerm" class="form-select"></select></div>
-                <div class="col-md-3"><label for="batchCreateName" class="form-label">Batch name *</label><input id="batchCreateName" class="form-control" maxlength="150" required placeholder="HSC 2026–2028" /></div>
+                <div class="col-md-3"><label for="batchCreateCampus" class="form-label">@(bn ? "ক্যাম্পাস *" : "Campus *")</label><select id="batchCreateCampus" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateYear" class="form-label">@(bn ? "শিক্ষাবর্ষ *" : "Academic year *")</label><select id="batchCreateYear" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateProgram" class="form-label">@(bn ? "প্রোগ্রাম *" : "Programme *")</label><select id="batchCreateProgram" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateLevel" class="form-label">@(bn ? "শ্রেণি / গ্রেড *" : "Class / Grade *")</label><select id="batchCreateLevel" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="batchCreateTerm" class="form-label">@(bn ? "টার্ম (ঐচ্ছিক)" : "Term (optional)")</label><select id="batchCreateTerm" class="form-select"></select></div>
+                <div class="col-md-3"><label for="batchCreateName" class="form-label">@(bn ? "ব্যাচের নাম *" : "Batch name *")</label><input id="batchCreateName" class="form-control" maxlength="150" required placeholder="HSC 2026–2028" /></div>
                 <input id="batchCreateCode" type="hidden" />
-                <div class="col-md-2"><label for="batchCreateCapacity" class="form-label">Capacity</label><input id="batchCreateCapacity" class="form-control" type="number" min="0" max="100000" value="40" /></div>
-                <div class="col-md-3"><label for="batchCreateStart" class="form-label">Batch start *</label><input id="batchCreateStart" type="date" class="form-control" required /></div>
-                <div class="col-md-3"><label for="batchCreateEnd" class="form-label">Batch end *</label><input id="batchCreateEnd" type="date" class="form-control" required /></div>
-                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Batch</button></div>
+                <div class="col-md-2"><label for="batchCreateCapacity" class="form-label">@(bn ? "আসনসংখ্যা" : "Capacity")</label><input id="batchCreateCapacity" class="form-control" type="number" min="0" max="100000" value="40" /></div>
+                <div class="col-md-3"><label for="batchCreateStart" class="form-label">@(bn ? "ব্যাচ শুরু *" : "Batch start *")</label><input id="batchCreateStart" type="date" class="form-control" required /></div>
+                <div class="col-md-3"><label for="batchCreateEnd" class="form-label">@(bn ? "ব্যাচ শেষ *" : "Batch end *")</label><input id="batchCreateEnd" type="date" class="form-control" required /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">@(bn ? "ব্যাচ যোগ করুন" : "Add Batch")</button></div>
             </form>
             <hr />
-            <h3 class="visually-hidden">Academic Batch Register</h3>
+            <h3 class="visually-hidden">@(bn ? "একাডেমিক ব্যাচের তালিকা" : "Academic Batch Register")</h3>
             <form id="batchSearchForm" class="row g-2 align-items-end mb-3">
-                <div class="col-md-4"><label for="batchSearch" class="form-label">Name / code prefix</label><input id="batchSearch" maxlength="80" class="form-control" /></div>
-                <div class="col-md-3"><label for="batchCampusFilter" class="form-label">Campus</label><select id="batchCampusFilter" class="form-select"><option value="">All campuses</option></select></div>
-                <div class="col-md-3"><label for="batchYearFilter" class="form-label">Academic year</label><select id="batchYearFilter" class="form-select"><option value="">All years</option></select></div>
-                <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">Search</button></div>
+                <div class="col-md-4"><label for="batchSearch" class="form-label">@(bn ? "নাম / কোডের শুরু" : "Name / code prefix")</label><input id="batchSearch" maxlength="80" class="form-control" /></div>
+                <div class="col-md-3"><label for="batchCampusFilter" class="form-label">@(bn ? "ক্যাম্পাস" : "Campus")</label><select id="batchCampusFilter" class="form-select"><option value="">@(bn ? "সব ক্যাম্পাস" : "All campuses")</option></select></div>
+                <div class="col-md-3"><label for="batchYearFilter" class="form-label">@(bn ? "শিক্ষাবর্ষ" : "Academic year")</label><select id="batchYearFilter" class="form-select"><option value="">@(bn ? "সব শিক্ষাবর্ষ" : "All years")</option></select></div>
+                <div class="col-md-2"><button type="submit" class="btn btn-outline-primary w-100">@(bn ? "খুঁজুন" : "Search")</button></div>
             </form>
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <span id="batchPageStatus" class="small text-muted" aria-live="polite"></span>
-                <button id="batchExport" type="button" class="btn btn-sm btn-outline-secondary">Export visible CSV</button>
+                <button id="batchExport" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button>
             </div>
-            <div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th>Batch</th><th>Campus</th><th>Year</th><th>Programme / Class</th><th>Capacity</th><th>Status</th><th>Actions</th></tr></thead><tbody id="batchRegisterRows"></tbody></table></div>
+            <div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th scope="col">@(bn ? "ব্যাচ" : "Batch")</th><th scope="col">@(bn ? "ক্যাম্পাস" : "Campus")</th><th scope="col">@(bn ? "শিক্ষাবর্ষ" : "Year")</th><th scope="col">@(bn ? "প্রোগ্রাম / শ্রেণি" : "Programme / Class")</th><th scope="col">@(bn ? "আসনসংখ্যা" : "Capacity")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কার্যক্রম" : "Actions")</th></tr></thead><tbody id="batchRegisterRows"></tbody></table></div>
             <div class="d-flex gap-2 mb-3">
-                <button id="batchPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
-                <button id="batchNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
+                <button id="batchPrevious" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button>
+                <button id="batchNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button>
             </div>
             <form id="batchEditForm" class="row g-2 align-items-end border rounded p-3 d-none" aria-label="Edit academic batch">
                 <input id="batchEditId" type="hidden" /><input id="batchEditVersion" type="hidden" />
                 <div class="col-12"><strong id="batchEditContext"></strong></div>
-                <div class="col-md-5"><label for="batchEditName" class="form-label">Batch name *</label><input id="batchEditName" class="form-control" maxlength="150" required /></div>
-                <div class="col-md-2"><label for="batchEditCapacity" class="form-label">Capacity *</label><input id="batchEditCapacity" class="form-control" type="number" min="0" max="100000" required /></div>
-                <div class="col-md-2"><label for="batchEditOrder" class="form-label">Display order</label><input id="batchEditOrder" class="form-control" type="number" min="0" required /></div>
-                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Save batch</button></div>
-                <div class="col-12"><button id="batchEditCancel" type="button" class="btn btn-link">Cancel</button></div>
+                <div class="col-md-5"><label for="batchEditName" class="form-label">@(bn ? "ব্যাচের নাম *" : "Batch name *")</label><input id="batchEditName" class="form-control" maxlength="150" required /></div>
+                <div class="col-md-2"><label for="batchEditCapacity" class="form-label">@(bn ? "আসনসংখ্যা *" : "Capacity *")</label><input id="batchEditCapacity" class="form-control" type="number" min="0" max="100000" required /></div>
+                <div class="col-md-2"><label for="batchEditOrder" class="form-label">@(bn ? "প্রদর্শনের ক্রম" : "Display order")</label><input id="batchEditOrder" class="form-control" type="number" min="0" required /></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">@(bn ? "ব্যাচ সংরক্ষণ" : "Save batch")</button></div>
+                <div class="col-12"><button id="batchEditCancel" type="button" class="btn btn-link">@(bn ? "বাতিল" : "Cancel")</button></div>
             </form>
         </div>
     </section>
     <section data-section="subjects" class="card border-0 shadow-sm @(section == "subjects" ? "" : "d-none")">
         <div class="card-body">
             <form id="subjectSearchForm" class="row g-2 align-items-end mb-3">
-                <div class="col-md-6"><label for="subjectSearch" class="form-label">Search subject name / code prefix</label><input id="subjectSearch" maxlength="80" class="form-control" /></div>
-                <div class="col-md-3"><button type="submit" class="btn btn-outline-primary">Search</button></div>
+                <div class="col-md-6"><label for="subjectSearch" class="form-label">@(bn ? "বিষয়ের নাম / কোড খুঁজুন" : "Search subject name / code prefix")</label><input id="subjectSearch" maxlength="80" class="form-control" /></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button></div>
             </form>
             <form id="subjectForm" class="row g-2 align-items-end mb-3">
                 <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
-                <div class="col-md-4"><label for="subjectName" class="form-label">Subject name *</label><input id="subjectName" required maxlength="200" class="form-control" /></div>
+                <div class="col-md-4"><label for="subjectName" class="form-label">@(bn ? "বিষয়ের নাম *" : "Subject name *")</label><input id="subjectName" required maxlength="200" class="form-control" /></div>
                 <input id="subjectCode" type="hidden" />
-                <div class="col-md-3"><label for="subjectCredits" class="form-label">Default credits</label><input id="subjectCredits" type="number" min="0" max="1000" step="0.01" value="0" class="form-control" /></div>
-                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">Add Subject</button></div>
+                <div class="col-md-3"><label for="subjectCredits" class="form-label">@(bn ? "ডিফল্ট ক্রেডিট" : "Default credits")</label><input id="subjectCredits" type="number" min="0" max="1000" step="0.01" value="0" class="form-control" /></div>
+                <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">@(bn ? "বিষয় যোগ করুন" : "Add Subject")</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Subject</th><th>Code</th><th>Default credits</th><th>Status</th><th>Action</th></tr></thead><tbody id="subjectRows"></tbody></table></div>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th scope="col">@(bn ? "বিষয়" : "Subject")</th><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "ডিফল্ট ক্রেডিট" : "Default credits")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead><tbody id="subjectRows"></tbody></table></div>
             <div class="d-flex align-items-center gap-2 mb-3">
-                <button id="subjectPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button>
+                <button id="subjectPrevious" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button>
                 <span id="subjectPage" class="small text-muted" aria-live="polite"></span>
-                <button id="subjectNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button>
-                <button id="subjectCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button>
+                <button id="subjectNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button>
+                <button id="subjectCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button>
             </div>
             <form id="subjectEditForm" class="row g-2 align-items-end border rounded p-3 d-none" aria-label="Edit subject metadata">
                 <input id="subjectEditId" type="hidden" /><input id="subjectEditVersion" type="hidden" />
                 <div class="col-12"><strong>Editing subject: <span id="subjectEditCode"></span></strong></div>
-                <div class="col-md-4"><label for="subjectEditName" class="form-label">Name *</label><input id="subjectEditName" maxlength="200" required class="form-control" /></div>
-                <div class="col-md-3"><label for="subjectEditShortName" class="form-label">Short name</label><input id="subjectEditShortName" maxlength="50" class="form-control" /></div>
-                <div class="col-md-2"><label for="subjectEditCredits" class="form-label">Default credits</label><input id="subjectEditCredits" type="number" min="0" max="1000" step="0.01" required class="form-control" /></div>
-                <div class="col-md-2"><label class="form-check"><input id="subjectEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">Active</span></label></div>
-                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Save subject</button></div>
-                <div class="col-md-2"><button id="subjectEditCancel" type="button" class="btn btn-outline-secondary w-100">Cancel</button></div>
+                <div class="col-md-4"><label for="subjectEditName" class="form-label">@(bn ? "নাম *" : "Name *")</label><input id="subjectEditName" maxlength="200" required class="form-control" /></div>
+                <div class="col-md-3"><label for="subjectEditShortName" class="form-label">@(bn ? "সংক্ষিপ্ত নাম" : "Short name")</label><input id="subjectEditShortName" maxlength="50" class="form-control" /></div>
+                <div class="col-md-2"><label for="subjectEditCredits" class="form-label">@(bn ? "ডিফল্ট ক্রেডিট" : "Default credits")</label><input id="subjectEditCredits" type="number" min="0" max="1000" step="0.01" required class="form-control" /></div>
+                <div class="col-md-2"><label class="form-check"><input id="subjectEditActive" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
+                <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">@(bn ? "বিষয় সংরক্ষণ" : "Save subject")</button></div>
+                <div class="col-md-2"><button id="subjectEditCancel" type="button" class="btn btn-outline-secondary w-100">@(bn ? "বাতিল" : "Cancel")</button></div>
             </form>
         </div>
     </section>
@@ -310,58 +310,58 @@
         <div class="card-body">
             <form id="curriculumForm" class="row g-2 align-items-end mb-4">
                 <p class="col-12 small text-muted mb-0">@(bn ? "অভ্যন্তরীণ কোড সিস্টেম নিজে তৈরি করবে।" : "Internal Code is generated automatically.")</p>
-                <div class="col-md-3"><label for="curriculumProgram" class="form-label">Programme *</label><select id="curriculumProgram" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="curriculumName" class="form-label">Curriculum name *</label><input id="curriculumName" maxlength="150" class="form-control" required /></div>
+                <div class="col-md-3"><label for="curriculumProgram" class="form-label">@(bn ? "প্রোগ্রাম *" : "Programme *")</label><select id="curriculumProgram" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="curriculumName" class="form-label">@(bn ? "পাঠ্যক্রমের নাম *" : "Curriculum name *")</label><input id="curriculumName" maxlength="150" class="form-control" required /></div>
                 <input id="curriculumCode" type="hidden" />
-                <div class="col-md-2"><label for="curriculumVersion" class="form-label">Version *</label><input id="curriculumVersion" type="number" min="1" value="1" class="form-control" required /></div>
-                <div class="col-md-2"><label for="curriculumFrom" class="form-label">Effective from *</label><input id="curriculumFrom" type="date" class="form-control" required /></div>
+                <div class="col-md-2"><label for="curriculumVersion" class="form-label">@(bn ? "সংস্করণ *" : "Version *")</label><input id="curriculumVersion" type="number" min="1" value="1" class="form-control" required /></div>
+                <div class="col-md-2"><label for="curriculumFrom" class="form-label">@(bn ? "কার্যকর হবে *" : "Effective from *")</label><input id="curriculumFrom" type="date" class="form-control" required /></div>
                 <div class="col-12 academic-curriculum-actions">
-                    <label class="form-check academic-check-control" for="curriculumCurrent"><input id="curriculumCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">Current curriculum</span></label>
-                    <button type="submit" class="btn btn-primary academic-curriculum-create">Create Curriculum</button>
+                    <label class="form-check academic-check-control" for="curriculumCurrent"><input id="curriculumCurrent" type="checkbox" class="form-check-input" /><span class="form-check-label">@(bn ? "বর্তমান পাঠ্যক্রম" : "Current curriculum")</span></label>
+                    <button type="submit" class="btn btn-primary academic-curriculum-create">@(bn ? "পাঠ্যক্রম তৈরি" : "Create Curriculum")</button>
                 </div>
             </form>
-            <div class="academic-curriculum-related"><a asp-controller="AcademicManagement" asp-action="Prerequisites" class="btn btn-outline-primary">Manage Subject Prerequisites</a></div>
-            <h3 class="visually-hidden">Add subject to an existing curriculum</h3>
+            <div class="academic-curriculum-related"><a asp-controller="AcademicManagement" asp-action="Prerequisites" class="btn btn-outline-primary">@(bn ? "বিষয়ের পূর্বশর্ত পরিচালনা" : "Manage Subject Prerequisites")</a></div>
+            <h3 class="visually-hidden">@(bn ? "বিদ্যমান পাঠ্যক্রমে বিষয় যোগ" : "Add subject to an existing curriculum")</h3>
             <form id="curriculumSubjectForm" class="row g-2 align-items-end mb-4">
-                <div class="col-md-3"><label for="curriculumSelection" class="form-label">Curriculum *</label><select id="curriculumSelection" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="mappingLevel" class="form-label">Class *</label><select id="mappingLevel" class="form-select" required></select></div>
-                <div class="col-md-3"><label for="mappingSubject" class="form-label">Subject *</label><select id="mappingSubject" class="form-select" required></select></div>
-                <div class="col-md-1"><label for="mappingMarks" class="form-label">Marks</label><input id="mappingMarks" type="number" min="1" max="100000" value="100" class="form-control" /></div>
-                <div class="col-md-1"><label for="mappingPassMarks" class="form-label">Pass</label><input id="mappingPassMarks" type="number" min="0" max="100000" value="33" class="form-control" required /></div>
-                <div class="col-md-2"><button id="curriculumMappingSubmit" type="submit" class="btn btn-outline-primary w-100" disabled>Add Mapping</button></div>
+                <div class="col-md-3"><label for="curriculumSelection" class="form-label">@(bn ? "পাঠ্যক্রম *" : "Curriculum *")</label><select id="curriculumSelection" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="mappingLevel" class="form-label">@(bn ? "শ্রেণি *" : "Class *")</label><select id="mappingLevel" class="form-select" required></select></div>
+                <div class="col-md-3"><label for="mappingSubject" class="form-label">@(bn ? "বিষয় *" : "Subject *")</label><select id="mappingSubject" class="form-select" required></select></div>
+                <div class="col-md-1"><label for="mappingMarks" class="form-label">@(bn ? "নম্বর" : "Marks")</label><input id="mappingMarks" type="number" min="1" max="100000" value="100" class="form-control" /></div>
+                <div class="col-md-1"><label for="mappingPassMarks" class="form-label">@(bn ? "পাস নম্বর" : "Pass")</label><input id="mappingPassMarks" type="number" min="0" max="100000" value="33" class="form-control" required /></div>
+                <div class="col-md-2"><button id="curriculumMappingSubmit" type="submit" class="btn btn-outline-primary w-100" disabled>@(bn ? "ম্যাপিং যোগ" : "Add Mapping")</button></div>
             </form>
             <p id="curriculumMappingNotice" class="small text-muted" aria-live="polite"></p>
             <form id="curriculumSearchForm" class="row g-2 align-items-end mb-3">
-                <div class="col-md-3"><label for="curriculumSearch" class="form-label">Name / code prefix</label><input id="curriculumSearch" maxlength="80" class="form-control" /></div>
-                <div class="col-md-3"><label for="curriculumProgramFilter" class="form-label">Programme</label><select id="curriculumProgramFilter" class="form-select"></select></div>
-                <div class="col-md-2"><label for="curriculumEffectiveOn" class="form-label">Effective on</label><input id="curriculumEffectiveOn" type="date" class="form-control" /></div>
-                <div class="col-md-4 d-flex gap-2"><button type="submit" class="btn btn-outline-primary">Search versions</button><button id="curriculumCsv" type="button" class="btn btn-outline-secondary">Export visible CSV</button></div>
+                <div class="col-md-3"><label for="curriculumSearch" class="form-label">@(bn ? "নাম / কোডের শুরু" : "Name / code prefix")</label><input id="curriculumSearch" maxlength="80" class="form-control" /></div>
+                <div class="col-md-3"><label for="curriculumProgramFilter" class="form-label">@(bn ? "প্রোগ্রাম" : "Programme")</label><select id="curriculumProgramFilter" class="form-select"></select></div>
+                <div class="col-md-2"><label for="curriculumEffectiveOn" class="form-label">@(bn ? "কার্যকরের তারিখ" : "Effective on")</label><input id="curriculumEffectiveOn" type="date" class="form-control" /></div>
+                <div class="col-md-4 d-flex gap-2"><button type="submit" class="btn btn-outline-primary">@(bn ? "সংস্করণ খুঁজুন" : "Search versions")</button><button id="curriculumCsv" type="button" class="btn btn-outline-secondary">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button></div>
             </form>
-            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Curriculum</th><th>Programme</th><th>Version</th><th>Effective dates</th><th>Subjects</th><th>Offerings</th><th>Enrollments</th><th>Status</th><th>Action</th></tr></thead><tbody id="curriculumRows"></tbody></table></div>
-            <div class="d-flex align-items-center gap-2 mb-3"><button id="curriculumPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="curriculumPage" class="small text-muted" aria-live="polite"></span><button id="curriculumNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button></div>
+            <div class="table-responsive"><table class="table table-hover"><thead><tr><th scope="col">@(bn ? "পাঠ্যক্রম" : "Curriculum")</th><th scope="col">@(bn ? "প্রোগ্রাম" : "Programme")</th><th scope="col">@(bn ? "সংস্করণ" : "Version")</th><th scope="col">@(bn ? "কার্যকরের সময়" : "Effective dates")</th><th scope="col">@(bn ? "বিষয়সমূহ" : "Subjects")</th><th scope="col">@(bn ? "বিষয় অফারিং" : "Offerings")</th><th scope="col">@(bn ? "ভর্তি তালিকা" : "Enrollments")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead><tbody id="curriculumRows"></tbody></table></div>
+            <div class="d-flex align-items-center gap-2 mb-3"><button id="curriculumPrevious" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button><span id="curriculumPage" class="small text-muted" aria-live="polite"></span><button id="curriculumNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button></div>
             <div id="curriculumDetails" class="border rounded p-3 d-none" aria-live="polite"></div>
         </div>
     </section>
     <section data-section="offerings" class="card border-0 shadow-sm @(section == "offerings" ? "" : "d-none")">
         <div class="card-body">
             <div class="row g-2 mb-3">
-                <div class="col-md-5"><label for="offeringBatch" class="form-label">Academic batch *</label><select id="offeringBatch" class="form-select"></select></div>
-                <div class="col-md-4"><label for="offeringSearch" class="form-label">Search offering code / subject</label><input id="offeringSearch" maxlength="80" class="form-control" /></div>
-                <div class="col-md-3 d-flex align-items-end"><button id="offeringSearchButton" type="button" class="btn btn-outline-primary">Search</button></div>
+                <div class="col-md-5"><label for="offeringBatch" class="form-label">@(bn ? "একাডেমিক ব্যাচ *" : "Academic batch *")</label><select id="offeringBatch" class="form-select"></select></div>
+                <div class="col-md-4"><label for="offeringSearch" class="form-label">@(bn ? "অফারিং কোড / বিষয় খুঁজুন" : "Search offering code / subject")</label><input id="offeringSearch" maxlength="80" class="form-control" /></div>
+                <div class="col-md-3 d-flex align-items-end"><button id="offeringSearchButton" type="button" class="btn btn-outline-primary">@(bn ? "খুঁজুন" : "Search")</button></div>
             </div>
             <form id="offeringForm" class="row g-2 align-items-end mb-3">
                 <input id="offeringReference" type="hidden" /><input id="offeringVersion" type="hidden" />
-                <div class="col-md-4"><label for="offeringSection" class="form-label">Academic section *</label><select id="offeringSection" class="form-select" required></select></div>
-                <div class="col-md-4"><label for="offeringCurriculumSubject" class="form-label">Curriculum subject *</label><select id="offeringCurriculumSubject" class="form-select" required></select></div>
-                <div class="col-md-2"><label for="offeringCode" class="form-label">Offering code *</label><input id="offeringCode" maxlength="50" class="form-control" required /></div>
-                <div class="col-md-2"><label for="offeringCapacity" class="form-label">Capacity *</label><input id="offeringCapacity" type="number" min="1" max="100000" class="form-control" required /></div>
-                <div class="col-md-2"><label for="offeringDelivery" class="form-label">Delivery</label><select id="offeringDelivery" class="form-select"><option value="1">On campus</option><option value="2">Online live</option><option value="3">Self-paced</option><option value="4">Hybrid</option></select></div>
-                <div class="col-md-2 academic-check-cell"><label class="form-check academic-check-control"><input id="offeringActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">Active</span></label></div>
-                <div class="col-md-4 d-flex gap-2"><button id="offeringSave" type="submit" class="btn btn-primary">Create Offering</button><button id="offeringCancel" type="button" class="btn btn-outline-secondary">Clear</button></div>
+                <div class="col-md-4"><label for="offeringSection" class="form-label">@(bn ? "একাডেমিক শাখা *" : "Academic section *")</label><select id="offeringSection" class="form-select" required></select></div>
+                <div class="col-md-4"><label for="offeringCurriculumSubject" class="form-label">@(bn ? "পাঠ্যক্রমের বিষয় *" : "Curriculum subject *")</label><select id="offeringCurriculumSubject" class="form-select" required></select></div>
+                <div class="col-md-2"><label for="offeringCode" class="form-label">@(bn ? "অফারিং কোড *" : "Offering code *")</label><input id="offeringCode" maxlength="50" class="form-control" required /></div>
+                <div class="col-md-2"><label for="offeringCapacity" class="form-label">@(bn ? "আসনসংখ্যা *" : "Capacity *")</label><input id="offeringCapacity" type="number" min="1" max="100000" class="form-control" required /></div>
+                <div class="col-md-2"><label for="offeringDelivery" class="form-label">@(bn ? "শিক্ষাদানের ধরন" : "Delivery")</label><select id="offeringDelivery" class="form-select"><option value="1">@(bn ? "ক্যাম্পাসে" : "On campus")</option><option value="2">@(bn ? "অনলাইন লাইভ" : "Online live")</option><option value="3">@(bn ? "স্বগতিতে" : "Self-paced")</option><option value="4">@(bn ? "মিশ্র" : "Hybrid")</option></select></div>
+                <div class="col-md-2 academic-check-cell"><label class="form-check academic-check-control"><input id="offeringActive" type="checkbox" class="form-check-input" checked /><span class="form-check-label">@(bn ? "সক্রিয়" : "Active")</span></label></div>
+                <div class="col-md-4 d-flex gap-2"><button id="offeringSave" type="submit" class="btn btn-primary">@(bn ? "অফারিং তৈরি" : "Create Offering")</button><button id="offeringCancel" type="button" class="btn btn-outline-secondary">@(bn ? "পরিষ্কার" : "Clear")</button></div>
             </form>
             <div id="offeringMessage" role="status" aria-live="polite" class="small text-muted mb-2"></div>
-            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th>Code</th><th>Section</th><th>Subject</th><th>Capacity</th><th>Pending</th><th>Allocated</th><th>Reserved</th><th>Available</th><th>Mode</th><th>Status</th><th>Action</th></tr></thead><tbody id="offeringRows"></tbody></table></div>
-            <div class="d-flex align-items-center gap-2"><button id="offeringPrevious" type="button" class="btn btn-sm btn-outline-secondary">Previous</button><span id="offeringPage" class="small text-muted"></span><button id="offeringNext" type="button" class="btn btn-sm btn-outline-secondary">Next</button><button id="offeringCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">Export visible CSV</button></div>
+            <div class="table-responsive"><table class="table table-hover align-middle"><thead><tr><th scope="col">@(bn ? "কোড" : "Code")</th><th scope="col">@(bn ? "শাখা" : "Section")</th><th scope="col">@(bn ? "বিষয়" : "Subject")</th><th scope="col">@(bn ? "আসনসংখ্যা" : "Capacity")</th><th scope="col">@(bn ? "অপেক্ষমাণ" : "Pending")</th><th scope="col">@(bn ? "বরাদ্দ" : "Allocated")</th><th scope="col">@(bn ? "সংরক্ষিত" : "Reserved")</th><th scope="col">@(bn ? "উপলব্ধ" : "Available")</th><th scope="col">@(bn ? "ধরন" : "Mode")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead><tbody id="offeringRows"></tbody></table></div>
+            <div class="d-flex align-items-center gap-2"><button id="offeringPrevious" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "আগের" : "Previous")</button><span id="offeringPage" class="small text-muted"></span><button id="offeringNext" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "পরের" : "Next")</button><button id="offeringCsv" type="button" class="btn btn-sm btn-outline-primary ms-auto">@(bn ? "দেখানো তথ্য CSV" : "Export visible CSV")</button></div>
         </div>
     </section>
 </div>
