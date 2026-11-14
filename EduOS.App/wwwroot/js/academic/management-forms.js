@@ -108,7 +108,8 @@
         const campusIds = [...el('programCampus').selectedOptions]
             .map(x => Number(x.value)).filter(x => x > 0);
         await api('/api/academic-setup/programmes', { method: 'POST', body: JSON.stringify({
-            name: field('programName'), code: field('programCode').toUpperCase(),
+            clientRequestId: requestId(event.currentTarget),
+            name: field('programName'), code: '',
             durationInMonths: Number(field('programDuration')) || 0,
             academicDepartmentId: idOf('programDepartment'), campusIds,
             isAdmissionOpen: true, isActive: true, displayOrder: 0
@@ -117,7 +118,8 @@
     el('levelForm').addEventListener('submit', event => submit(event, async () => {
         await api('/api/academic-setup/levels', { method: 'POST', body: JSON.stringify({
             academicProgramId: idOf('levelProgram'),
-            name: field('levelName'), code: field('levelCode').toUpperCase(),
+            clientRequestId: requestId(event.currentTarget),
+            name: field('levelName'), code: '',
             levelNo: Number(field('levelNumber')),
             isPromotable: true, isTerminalLevel: false, isActive: true, displayOrder: 0
         }) });
@@ -142,7 +144,7 @@
             clientRequestId: requestId(form), campusId, academicYearId: year.id,
             academicTermId: term?.id || null, academicProgramId: program.id,
             academicLevelId: classLevel.id, name: field('batchCreateName'),
-            code: field('batchCreateCode').toUpperCase(),
+            code: '',
             capacity: Number(field('batchCreateCapacity')) || 0,
             startDate, endDate, deliveryMode: 1,
             isDefault: false, isActive: true, displayOrder: 0
@@ -150,7 +152,8 @@
     }, 'Academic Batch created.'));
     el('subjectForm').addEventListener('submit', event => submit(event, async () => {
         await api('/api/academic-setup/subjects', { method: 'POST', body: JSON.stringify({
-            name: field('subjectName'), code: field('subjectCode').toUpperCase(),
+            clientRequestId: requestId(event.currentTarget),
+            name: field('subjectName'), code: '',
             defaultCreditHours: Number(field('subjectCredits')) || 0, isActive: true
         }) });
     }, 'Subject created.'));
@@ -158,7 +161,7 @@
         await api('/api/academic-setup/curricula', { method: 'POST', body: JSON.stringify({
             clientRequestId: requestId(event.currentTarget),
             academicProgramId: idOf('curriculumProgram'),
-            name: field('curriculumName'), code: field('curriculumCode').toUpperCase(),
+            name: field('curriculumName'), code: '',
             versionNo: Number(field('curriculumVersion')),
             effectiveFrom: field('curriculumFrom'),
             isCurrent: checked('curriculumCurrent'), isActive: true, subjects: []
