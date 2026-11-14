@@ -22,7 +22,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 ## platform:features (4)
 
 - [x] `/PlatformFeatureAdministration/Index`
-- [ ] `/PlatformProductModuleAdministration/Index`
+- [x] `/PlatformProductModuleAdministration/Index`
 - [ ] `/PlatformInstitutionModulePresets/Index`
 - [ ] `/PlatformModuleFeatures/Index`
 
@@ -129,5 +129,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 Feature page delivered: compact responsive bilingual list/editor, no duplicate page title or decorative Refresh, read-only immutable Code, existing authorized metadata API retained, server-generated request ID client-side per intent for retry semantics, checkbox-style availability, loading/empty/error status, failure-only retry control, stale row-version conflict handling, and shared Page Help. Authoring check: JavaScript parsed and Razor element IDs/source references reviewed; **no authenticated browser/SQL/independent QA run was performed on these new changes**. Keep previously implemented feature backend and plan assignments as the single source of truth.
 
-**Current menu:** platform:features — `1 / 4 UX Done`. **Next route:** `/PlatformProductModuleAdministration/Index`. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
+**Product Module Catalog — UX Done:** `/PlatformProductModuleAdministration/Index` implemented in view `ca1290e628dd57de399f6c86787d5ee4cb8b466c`, JS `59308c21950188e5986719a649d68a1b4e80e5d6`, bilingual Help `235cffd08607cf80618fa4a434f761e5bc3dfaa8`. Compact mobile-friendly module list/form, no duplicate heading/Refresh, immutable read-only Code, core-module always-active control, existing authorized server APIs and rowversion, failure-only Try again, conflict reload, locale labels and shared Help. Basic code/syntax review only. **Final QA deferred / NOT RUN**.
+
+**Current menu:** platform:features — `2 / 4 UX Done`. **Next route:** `/PlatformInstitutionModulePresets/Index`. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
 
