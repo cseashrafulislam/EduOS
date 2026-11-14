@@ -3,10 +3,10 @@
     ViewData["Title"] = "Result Re-scrutiny";
     var bn = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
 }
-<section class="container-fluid py-3" id="resultRescrutinyWorkspace" data-lang="@(bn ? "bn" : "en")">
+<section class="container-fluid py-2" id="resultRescrutinyWorkspace" data-lang="@(bn ? "bn" : "en")">
     @Html.AntiForgeryToken()
     <header class="d-flex flex-wrap align-items-center gap-2 mb-3">
-        <h1 class="h4 mb-0">@(bn ? "ফলাফল পুনর্নিরীক্ষণ" : "Result re-scrutiny")</h1>
+        <span class="visually-hidden">@(bn ? "ফলাফল পুনর্নিরীক্ষণ" : "Result re-scrutiny")</span>
     </header>
     <div id="rescrutinyNotice" class="d-none" role="alert" aria-live="polite"></div>
     <section class="card mb-3">

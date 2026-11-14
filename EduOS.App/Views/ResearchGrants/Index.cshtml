@@ -4,7 +4,7 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
     var coordinator = User.IsInRole("TenantAdmin") || User.IsInRole("Principal") || User.IsInRole("ResearchCoordinator");
 }
-<div id="researchGrantWorkspace" class="container-fluid py-4">
+<div id="researchGrantWorkspace" class="container-fluid py-2">
     @Html.AntiForgeryToken()
     <div id="grantNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="row g-3">
@@ -67,7 +67,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between gap-2 align-items-center mb-2">
                         <h2 id="grantQueueHeading" class="h5 mb-0" data-g-en="Grant applications & projects" data-g-bn="অনুদান আবেদন ও প্রকল্প">Grant applications & projects</h2>
-                        <button id="grantRefresh" type="button" class="btn btn-sm btn-outline-secondary" data-g-en="Refresh" data-g-bn="রিফ্রেশ">Refresh</button>
+                        <button id="grantRefresh" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-sm btn-outline-secondary" data-g-en="Refresh" data-g-bn="রিফ্রেশ">Refresh</button>
                     </div>
                     <div class="table-responsive"><table class="table table-sm table-striped align-middle">
                         <thead><tr><th data-g-en="Project" data-g-bn="প্রকল্প">Project</th><th data-g-en="Status" data-g-bn="অবস্থা">Status</th><th data-g-en="Budget" data-g-bn="বাজেট">Budget</th><th data-g-en="Action" data-g-bn="কার্যক্রম">Action</th></tr></thead>

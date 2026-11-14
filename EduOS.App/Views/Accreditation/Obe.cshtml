@@ -3,10 +3,10 @@
     ViewData["Title"] = bn ? "OBE শিক্ষণফল মূল্যায়ন" : "University OBE Attainment";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div class="container-fluid py-4" id="obeWorkspace">
+<div class="container-fluid py-2" id="obeWorkspace">
     @Html.AntiForgeryToken()
     <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-        <h1 class="h4 mb-0" data-o-en="University OBE attainment" data-o-bn="বিশ্ববিদ্যালয় OBE শিক্ষণফল মূল্যায়ন">University OBE attainment</h1>
+        <span class="visually-hidden" data-o-en="University OBE attainment" data-o-bn="বিশ্ববিদ্যালয় OBE শিক্ষণফল মূল্যায়ন">University OBE attainment</span>
         <a class="btn btn-sm btn-outline-secondary" asp-controller="Accreditation" asp-action="Index"
            data-o-en="Accreditation" data-o-bn="স্বীকৃতি">Accreditation</a>
     </div>

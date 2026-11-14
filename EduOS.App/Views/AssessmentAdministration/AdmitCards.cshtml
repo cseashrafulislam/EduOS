@@ -1,10 +1,10 @@
 @{
     ViewData["Title"] = "Exam Admit Cards";
 }
-<section class="container-fluid py-3" id="examAdmitCards">
+<section class="container-fluid py-2" id="examAdmitCards">
     @Html.AntiForgeryToken()
     <header class="d-flex flex-wrap align-items-center gap-2 mb-3 admit-controls">
-        <h1 class="h4 mb-0">Exam admit cards</h1>
+        <span class="visually-hidden">Exam admit cards</span>
     </header>
     <div id="admitAlert" class="alert d-none admit-controls" role="alert" aria-live="polite"></div>
     <form id="admitFilters" class="card card-body mb-3 admit-controls">
