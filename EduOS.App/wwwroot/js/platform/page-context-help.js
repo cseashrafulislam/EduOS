@@ -1413,6 +1413,22 @@
             recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
             related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
         },
+        '/platformproductmoduleadministration/index': {
+            version: 1, reviewed: true,
+            title: ['Product Module Catalog', 'প্রোডাক্ট মডিউল'],
+            purpose: ['Manage the global product module name, description, display order and future catalog availability while preserving tenant assignments.', 'আগের প্রতিষ্ঠানের অধিকার অপরিবর্তিত রেখে মডিউলের নাম, বিবরণ, ক্রম ও নতুন ব্যবহারকারীর জন্য উপলব্ধতা পরিচালনা করুন।'],
+            before: ['Only SuperAdmin can edit. Module Code and core status are system-defined and cannot be edited. Existing modules in use cannot be disabled.', 'শুধু SuperAdmin সম্পাদনা করবেন। মডিউলের Code ও Core অবস্থা সিস্টেম নির্ধারিত; ব্যবহৃত মডিউল বন্ধ করা যাবে না।'],
+            steps: [
+                ['Review each module’s Code, name, core flag, order and availability.', 'প্রতিটি মডিউলের Code, নাম, মূল-মডিউল অবস্থা, ক্রম ও উপলব্ধতা দেখুন।'],
+                ['Select Edit, update the name/description/order and, when allowed, choose availability. A core module stays active.', 'সম্পাদনা খুলে নাম, বিবরণ ও ক্রম পরিবর্তন করুন; অনুমোদিত হলে উপলব্ধতা বদলান। মূল মডিউল সক্রিয় থাকবে।'],
+                ['Save and confirm once. When another administrator changed the module, review the latest values before trying again.', 'একবার সংরক্ষণ করে নিশ্চিত করুন। অন্য প্রশাসক মডিউল বদলালে নতুন তথ্য দেখে পুনরায় চেষ্টা করুন।']
+            ],
+            example: ['Example: rename a module for clearer navigation without changing its immutable Code or current tenant permissions.', 'উদাহরণ: মূল Code বা প্রতিষ্ঠানের বর্তমান অনুমতি না বদলে নেভিগেশনের সুবিধার জন্য নাম সংশোধন করুন।'],
+            result: ['The existing product-module catalog is updated through its authorized audited API, without rewriting tenant configuration.', 'অনুমোদিত ও নিরীক্ষিত API দিয়ে মূল মডিউল ক্যাটালগ বদলায়; প্রতিষ্ঠানের পুরোনো সেটিংস পরিবর্তিত হয় না।'],
+            rules: ['Core status and Code are immutable; status changes may be blocked when modules are assigned to institutions or presets. Do not bypass those server rules.', 'মূল-মডিউল অবস্থা ও Code অপরিবর্তনীয়; প্রতিষ্ঠান বা preset-এ ব্যবহৃত মডিউল বন্ধ করতে সার্ভার বাধা দিতে পারে।'],
+            recovery: ['On a version conflict, reopen the latest row. If the list fails to load, use Try again. Do not create a duplicate module to bypass protection.', 'সংস্করণ দ্বন্দ্ব হলে নতুন তথ্য দেখে সম্পাদনা করুন। তালিকা না এলে আবার চেষ্টা করুন। সুরক্ষা এড়াতে নকল মডিউল বানাবেন না।'],
+            related: [['/PlatformFeatureAdministration/Index', 'Feature catalog', 'ফিচার পরিচালনা']]
+        },
         '/platformfeatureadministration/index': {
             version: 1, reviewed: true,
             title: ['Feature Catalog Management', 'ফিচার পরিচালনা'],
