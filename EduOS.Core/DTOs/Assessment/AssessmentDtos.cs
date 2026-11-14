@@ -222,8 +222,9 @@ public class CertificateTemplateDto
 
 public class SaveCertificateTemplateRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     [Required, MaxLength(150)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Required] public string HtmlTemplate { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     public bool IsActive { get; set; } = true;

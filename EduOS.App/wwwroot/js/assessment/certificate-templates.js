@@ -6,7 +6,7 @@
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const form = el('certificateTemplateForm');
     const formGuard = window.EduOSFormGuard?.create(form);
-    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, editLoading: false, listGeneration: 0 };
+    const state = { page: 1, pageSize: 20, total: 0, rows: [], busy: false, editLoading: false, listGeneration: 0, createRequestId: null, createFingerprint: null };
     const notice = (text, error = false) => {
         const box = el('certificateTemplateNotice');
         box.className = 'alert ' + (error ? 'alert-danger' : 'alert-success');
@@ -63,6 +63,7 @@
         if ((state.busy || state.editLoading) && !force) return false;
         if (!force && formGuard && !formGuard.confirmDiscard()) return false;
         form.reset();
+        state.createRequestId = null; state.createFingerprint = null;
         el('certificateTemplateId').value = '';
         el('certificateTemplateVersion').value = '';
         el('certificateTemplateActive').checked = true;
@@ -99,14 +100,24 @@
             notice('Only escaped text without angle brackets is permitted (max 50000 characters).', true); return;
         }
         const body = {
-            code: el('certificateTemplateCode').value.trim(),
+            code: id ? el('certificateTemplateCode').value.trim() : '',
             name: el('certificateTemplateName').value.trim(),
             htmlTemplate, isActive: el('certificateTemplateActive').checked,
             isDefault: el('certificateTemplateDefault').checked,
             rowVersion: id ? el('certificateTemplateVersion').value : null
         };
-        if (!body.code || !body.name || body.code.length > 50 || body.name.length > 150 ||
-            (id && !body.rowVersion)) { notice('Enter a valid code, name and version.', true); return; }
+        if (!body.name || body.name.length > 150 ||
+            (id && (!body.code || body.code.length > 50 || !body.rowVersion))) {
+            notice('Enter a valid template name and version.', true); return;
+        }
+        if (!id) {
+            const fingerprint = JSON.stringify(body);
+            if (state.createFingerprint !== fingerprint) {
+                state.createFingerprint = fingerprint;
+                state.createRequestId = crypto.randomUUID();
+            }
+            body.clientRequestId = state.createRequestId;
+        }
         state.busy = true; form.inert = true; el('certificateTemplateSave').disabled = true;
         try {
             await api('/api/assessment-administration/certificate-templates' + (id ? '/' + encodeURIComponent(id) : ''),

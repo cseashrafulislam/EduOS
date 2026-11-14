@@ -289,6 +289,9 @@ public sealed partial class AssessmentAdministrationService
     {
         if (!CanPublish() || IsRestrictedCampusManager())
             return Task.FromResult(Error<CertificateTemplateDto>("Tenant-wide certificate template management denied.", 403));
+        if (request != null && !templateId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "CTP-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (templateId is <= 0 || request == null || string.IsNullOrWhiteSpace(request.Name) ||
             request.Name.Trim().Length > 150 || string.IsNullOrWhiteSpace(request.Code) ||
             request.Code.Trim().Length > 50 || string.IsNullOrWhiteSpace(request.HtmlTemplate) ||
@@ -300,6 +303,21 @@ public sealed partial class AssessmentAdministrationService
         {
             var tenant = _user.TenantId;
             var code = request.Code.Trim().ToUpperInvariant();
+            if (!templateId.HasValue && request.ClientRequestId != Guid.Empty &&
+                code == "CTP-" + request.ClientRequestId.ToString("N").ToUpperInvariant())
+            {
+                var replay = await _templates.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant && x.Code == code && !x.IsDeleted, token);
+                if (replay != null)
+                {
+                    if (replay.Name != request.Name.Trim() ||
+                        replay.HtmlTemplate != request.HtmlTemplate ||
+                        replay.IsDefault != request.IsDefault || replay.IsActive != request.IsActive)
+                        return Error<CertificateTemplateDto>("Request ID was already used for different template data.", 409);
+                    return ApiResponse<CertificateTemplateDto>.SuccessResponse(
+                        MapTemplate(replay), "Certificate template already saved.");
+                }
+            }
             if (await _templates.GetQueryable().AsNoTracking().AnyAsync(x =>
                 x.TenantId == tenant && x.Code == code && !x.IsDeleted &&
                 (!templateId.HasValue || x.Id != templateId), token))
