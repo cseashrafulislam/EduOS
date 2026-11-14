@@ -12,17 +12,17 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## management:finance (26)
 
-- [ ] `/FeeDiscountRules/Index`
-- [ ] `/AdmissionCashReceipts/Index`
-- [ ] `/FeeReceivablesAging/Index`
-- [ ] `/FeeHeadAccounting/Index`
-- [ ] `/AccountingSetup/Index`
-- [ ] `/AccountingJournals/Index`
-- [ ] `/InstitutionBudgets/Index`
-- [ ] `/AccountingReports/Index`
-- [ ] `/FeeOperations/Structures`
-- [ ] `/FeeOperations/Billing`
-- [ ] `/FeeOperations/Ledger`
+- [x] `/FeeDiscountRules/Index`
+- [x] `/AdmissionCashReceipts/Index`
+- [x] `/FeeReceivablesAging/Index`
+- [x] `/FeeHeadAccounting/Index`
+- [x] `/AccountingSetup/Index`
+- [x] `/AccountingJournals/Index`
+- [x] `/InstitutionBudgets/Index`
+- [x] `/AccountingReports/Index`
+- [x] `/FeeOperations/Structures`
+- [x] `/FeeOperations/Billing`
+- [x] `/FeeOperations/Ledger`
 - [ ] `/StudentInvoicePosting/Index`
 - [ ] `/StudentPaymentPosting/Index`
 - [ ] `/FeeDueCalendar/Index`
@@ -61,12 +61,34 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - [ ] `/AuditLogs/Index`
 - [ ] `/ImportHistory/Index`
 
+## Current UX-first implementation checkpoint — 2026-11-14
+
+**11/39 UX D routes source-implemented; 28 remain.** Finance: 11/26, Inventory: 0/7, Communication: 0/4, Governance: 0/2. This means UX Done at source level only, **not Full Final QA** or production certification. Five scheduled UX automations stay OFF.
+
+| Routes | UX implementation | Source commits | Final QA |
+| --- | --- | --- | --- |
+| `/FeeDiscountRules/Index` | Compact editor, no duplicate header/Refresh; safe failure retry and 409 conflict reload | `fa4aecf4` (previously implemented) | Deferred |
+| `/AdmissionCashReceipts/Index` | Remove redundant title, move Admissions link to result toolbar, compact cash collection form and bilingual feedback; preserve posted GL and reversal semantics | `d31abb5a` | Deferred |
+| `/FeeReceivablesAging/Index` | Single shared title, compact aging filter, preserve current-not-as-of accounting caveat and reconciliation | `d31abb5a` | Deferred |
+| `/FeeHeadAccounting/Index` | Compact mapping and checkboxes, backend-generated retry-stable fee head code, bilingual static labels | `8f10ac20`, `d2c58255` | Deferred |
+| `/AccountingSetup/Index` | Compact account/period/bank tabs and checkbox/action layout, server-generated new GL account code with retry replay, preserved historical account locks, bilingual labels | `e758bf0b`, `d2c58255` | Deferred |
+| `/AccountingJournals/Index` | Remove duplicate title, compact controls, label reversal date/reason, keep maker-checker/post/reverse flows | `e758bf0b`, `d2c58255` | Deferred |
+| `/InstitutionBudgets/Index` | Move Central Accounts action to budget register, group line addition and submit, place actual-vs-budget in detail actions | `09028510` | Deferred |
+| `/AccountingReports/Index` | Compact central ledger introduction and horizontally scrollable tabs, replace generic Refresh with specific Load saved drafts; preserve ledger report definitions | `09028510` | Deferred |
+| `/FeeOperations/Structures`, `/FeeOperations/Billing`, `/FeeOperations/Ledger` | Shared view removes redundant feature header, aligns active checkbox, puts batch/structure alongside and retains billing preflight | `09028510` | Deferred |
+
+**Safety/compatibility:** No schema/data migration, no posted accounting changes. Financial server authorization, tenant-owned queries, audit, rowversion and reversal rules retained. New internal code generation is server-owned and retry-stable; legacy explicit Code API calls remain. Source-level review preserves critical DOM IDs and form counts.
+
+**Verification state:** On commit `e758bf0b` GitHub Actions passed canonical Core, Persistence and app builds, while broader JavaScript contract CI failed. Current-head CI, Chromium, actual tenant SQL, accessibility, bilingual/mobile, idempotency/concurrency and Finance Final QA are pending; no full PASS is claimed.
+
+**Next Finance route:** `/StudentInvoicePosting/Index`. Finish the rest of Finance before Inventory, Communication and Governance.
+
 ## Verified completion evidence
 
 | Route | Final commit SHA | Build / JS / .NET / Browser / SQL | Roles / Tenant / Device / Locale | Result / Notes |
 | --- | --- | --- | --- | --- |
 
-## Current in-progress or blocked route
+## Archived prior checkpoint (QA-first policy superseded by UX-first)
 
 **Selected route:** `/FeeDiscountRules/Index` (first unchecked, remains unchecked). **Status: Implemented / QA Pending / Blocked** — resume this same route next execution; no route marked Verified Complete.
 
