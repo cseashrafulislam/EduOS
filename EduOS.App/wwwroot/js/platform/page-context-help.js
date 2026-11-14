@@ -1413,6 +1413,22 @@
             recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
             related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
         },
+        '/platformcatalogadministration/index': {
+            version: 1, reviewed: true,
+            title: ['Institution Type Catalog', 'প্রতিষ্ঠানের ধরন পরিচালনা'],
+            purpose: ['Control which institution types appear to new registrants and their default academic cycles, without rewriting registered institutions.', 'নতুন নিবন্ধনে কোন ধরনের প্রতিষ্ঠান দেখা যাবে এবং তাদের ডিফল্ট একাডেমিক সময়কাল নির্ধারণ করুন; আগের প্রতিষ্ঠানের তথ্য পাল্টাবে না।'],
+            before: ['Sign in as SuperAdmin and review the existing global institution types. Internal Code is immutable and displayed for reference only.', 'SuperAdmin হিসেবে লগ ইন করে বিদ্যমান প্রতিষ্ঠান-ধরনের তালিকা দেখুন। অভ্যন্তরীণ Code অপরিবর্তনীয়, শুধু শনাক্ত করার জন্য দেখানো হয়।'],
+            steps: [
+                ['Review type name, Code, academic cycle and signup availability from the list.', 'তালিকা থেকে ধরন, কোড, একাডেমিক সময়কাল ও নিবন্ধনে উপলব্ধতা দেখুন।'],
+                ['Select Edit to update name, Bangla name, description, cycle or display order and save once. Code cannot be entered or changed here.', 'সম্পাদনা নির্বাচন করে নাম, বাংলা নাম, বিবরণ, সময়কাল বা ক্রম বদলে একবার সংরক্ষণ করুন। এখানে Code লেখা বা বদলানো যাবে না।'],
+                ['Use Hide from signup or Enable signup only when intended, and confirm the action. Changes affect future registration choices.', 'প্রয়োজনে নতুন নিবন্ধনে লুকান বা চালু করুন এবং নিশ্চিত করুন। পরিবর্তনটি ভবিষ্যৎ নিবন্ধনের বিকল্পে প্রযোজ্য।']
+            ],
+            example: ['Example: rename a future-registration type and set Semester as its default; an existing institution keeps its own academic settings.', 'উদাহরণ: ভবিষ্যৎ নিবন্ধনের একটি ধরনের নাম বদলে ডিফল্ট সেমিস্টার করুন; আগের প্রতিষ্ঠান নিজের একাডেমিক সেটিংস বজায় রাখবে।'],
+            result: ['Global catalog metadata or availability is saved with row-version concurrency and an audited request ID. Existing tenants are not overwritten.', 'মূল ক্যাটালগ তথ্য বা উপলব্ধতা row-version ও নিরীক্ষিত request ID দিয়ে সংরক্ষিত হয়। আগের প্রতিষ্ঠান বদলে যায় না।'],
+            rules: ['Only SuperAdmin may edit. Do not duplicate manually assigned Code or add parallel institution type tables. Never treat hiding a type as deleting historical registrations.', 'শুধু SuperAdmin সম্পাদনা করতে পারেন। নতুন Code বা আলাদা প্রতিষ্ঠান-ধরনের টেবিল বানাবেন না। একটি ধরন লুকানো মানে পুরোনো নিবন্ধন মুছে ফেলা নয়।'],
+            recovery: ['On a 409 concurrency conflict review the latest type row and repeat the decision; if a network attempt is uncertain, retry the unchanged action instead of resubmitting altered content.', '409 দ্বন্দ্ব হলে নতুন তালিকা দেখে আবার সিদ্ধান্ত নিন; নেটওয়ার্ক সমস্যা হলে বদলানো তথ্য না দিয়ে আগের একই অনুরোধ পুনরায় পাঠান।'],
+            related: [['/PlatformTenants/Index', 'Institution lifecycle', 'প্রতিষ্ঠান পরিচালনা'], ['/Dashboard/Admin', 'Platform dashboard', 'প্ল্যাটফর্ম ড্যাশবোর্ড']]
+        },
         '/platformtenants/index': {
             version: 1, reviewed: true,
             title: ['Institution Lifecycle', 'প্রতিষ্ঠান পরিচালনা'],
