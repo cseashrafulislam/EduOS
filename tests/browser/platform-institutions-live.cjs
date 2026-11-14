@@ -181,6 +181,15 @@ function stateCode(row){return typeof row.state==='number'?row.state:
     assert.equal(restore.status,200,'original metadata restored in disposable DB');
     const next=(await request(page,'/api/platform/catalog/institution-types')).payload.data.find(x=>x.id===item.id);
     assert.equal(next.description||'',oldDescription);
+    // The out-of-band metadata restoration invalidates the pre-restoration UI
+    // RowVersion. The first click MUST be rejected and reload the latest data.
+    const conflict=page.waitForResponse(r=>r.url().endsWith('/activation')&&r.request().method()==='POST');
+    await page.locator('#catalogRows tr').filter({hasText:item.code})
+       .getByRole('button',{name:'Hide from signup'}).click();
+    assert.equal((await conflict).status(),409,'stale activation must fail closed');
+    await page.waitForFunction(()=>
+       document.getElementById('catalogMessage')?.textContent?.includes('Review the latest record'),
+       null,{timeout:10000});
     let activationBody=null;
     await page.route('**/api/platform/catalog/institution-types/*/activation',async route=>{
        if(route.request().method()==='POST')activationBody=route.request().postDataJSON();
