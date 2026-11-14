@@ -29,9 +29,9 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## academics:assessments (20)
 
-- [ ] `/AssessmentAdministration/ComponentMarks`
-- [ ] `/AssessmentAdministration/Omr`
-- [ ] `/AssessmentAdministration/SubjectCompletions`
+- [x] `/AssessmentAdministration/ComponentMarks`
+- [x] `/AssessmentAdministration/Omr`
+- [x] `/AssessmentAdministration/SubjectCompletions`
 - [ ] `/AssessmentAdministration/AssessmentComponents`
 - [ ] `/AssessmentAdministration/AssessmentSchedules`
 - [ ] `/AssessmentAdministration/GradeSchemes`
@@ -92,6 +92,23 @@ This is a source implementation checkpoint **only**; it is not browser, SQL, .NE
 
 **Next menu:** `academics:assessments` (20 routes), then Research (2), Accreditation (2).
 
+
+## Examination menu — initial source implementation checkpoint (2026-11-14)
+
+**3/20 assessment routes credited UX Done (Component Marks, Smart OMR, Subject Completions).** These are source/UI workflow implementation checks, **not Final QA** or certification of exam posting, scoring, images, roles, tenant isolation or database behavior.
+
+- `aa27e7a787d89c36aecfcc38fce7d32888c3ec66` removes duplicated title/info-only headers; moves the JS-bound OMR manual button inside the selected assessment/component filter; repairs the Subject Completion filter as a real nested Bootstrap grid and preserves the year-end published-assessment eligibility note.
+- `367dc693bd709ae80f39b28ee800a1ad4ebc3022` adds complete bilingual Page Help for all three routes without duplicating the global assistant.
+- `f54b9b3ec0a95a5d5a957948f2735ca8f6a93bbc` adds five focused source-integrity contracts for title/header ownership, OMR manual button wiring, valid filter grids, bilingual help, and original role/operation controls. Current-head full CI and actual interactive OMR/posting testing remain separate.
+
+| Route | UX source commit | Files | Final QA |
+| --- | --- | --- | --- |
+| `/AssessmentAdministration/ComponentMarks` | `aa27e7a` | `EduOS.App/Views/AssessmentAdministration/ComponentMarks.cshtml`, Page Help | Deferred |
+| `/AssessmentAdministration/Omr` | `aa27e7a` | `EduOS.App/Views/AssessmentAdministration/Omr.cshtml`, Page Help | Deferred |
+| `/AssessmentAdministration/SubjectCompletions` | `aa27e7a` | `EduOS.App/Views/AssessmentAdministration/SubjectCompletions.cshtml`, Page Help | Deferred |
+
+**UX C cumulative status:** 17/38 source UX routes checked; 21/38 remain (17 assessment, 2 research, 2 accreditation). No claim of completion for those unchecked routes.
+
 ## Verified completion evidence
 
 | Route | Final commit SHA | Build / JS / .NET / Browser / SQL | Roles / Tenant / Device / Locale | Result / Notes |
@@ -99,4 +116,4 @@ This is a source implementation checkpoint **only**; it is not browser, SQL, .NE
 
 ## Current in-progress or blocked route
 
-None assigned yet. Update when selecting the first unchecked page.
+`/AssessmentAdministration/AssessmentComponents` is the next unchecked route in the Exams menu; 21 routes remain. Full Final QA is deferred.
