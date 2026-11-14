@@ -32,18 +32,8 @@
 
 @Html.AntiForgeryToken()
 
-<article class="setup-page payment-page" aria-labelledby="verificationTitle">
-    <header class="setup-header">
-        <div>
-            <p class="dashboard-eyebrow">@T["SubscriptionPayment"]</p>
-            <h2 id="verificationTitle">@T["ManualPaymentVerification"]</h2>
-            <p>@T["ManualPaymentVerificationHelp"]</p>
-        </div>
-
-        <button type="button" class="btn btn-outline-primary" id="btnRefresh">
-            @T["Refresh"]
-        </button>
-    </header>
+<article class="setup-page payment-page" aria-label="@T["ManualPaymentVerification"]">
+    <p class="small text-muted mb-2">@T["ManualPaymentVerificationHelp"]</p>
 
     <div id="alertContainer" class="d-none" role="alert" tabindex="-1"></div>
 
@@ -78,9 +68,9 @@
 
             <div id="paymentList" class="verification-list d-none"></div>
             <div class="d-flex justify-content-between align-items-center gap-2 mt-3" id="paymentPager">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnPreviousPage">← Previous</button>
-                <span class="small text-muted" id="paymentPageStatus" aria-live="polite">Page 1</span>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnNextPage">Next →</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnPreviousPage">← @(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "আগের" : "Previous")</button>
+                <span class="small text-muted" id="paymentPageStatus" aria-live="polite">@(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "পৃষ্ঠা" : "Page") 1</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnNextPage">@(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn" ? "পরের" : "Next") →</button>
             </div>
         </section>
 
