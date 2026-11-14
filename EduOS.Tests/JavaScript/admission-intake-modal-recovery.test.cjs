@@ -44,14 +44,15 @@ test('Admission editor scrolls inside its modal while Save draft remains visible
     assert.match(js, /querySelectorAll\('\.intake-field-row'\)\.length >= 50/);
     assert.match(js, /querySelectorAll\('\.intake-document-row'\)\.length >= 20/);
 });
-test('a duplicate admission code is linked to Code, not mislabeled as a stale edit', () => {
+test('a server-generated admission code conflict asks for a safe saved-form check', () => {
     const api = errorApi();
     const items = api.errors({ status: 409 }, {
         success: false, message: 'Admission form code already exists; choose a unique code.'
     });
     assert.equal(items.length, 1);
-    assert.equal(items[0].row, api.nodes.get('intakeCode'));
-    assert.match(items[0].message, /code already exists/i);
+    assert.equal(items[0].row, undefined);
+    assert.match(items[0].message, /already submitted or changed/i);
+    assert.match(items[0].message, /reload the form register/i);
 });
 test('ASP.NET validation errors are mapped back to field controls', () => {
     const api = errorApi();
