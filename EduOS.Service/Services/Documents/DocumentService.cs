@@ -290,6 +290,9 @@ public sealed class DocumentService(EduOSDbContext db, ICurrentUserService user,
         CancellationToken ct = default)
     {
         if (!CanManage) return ApiResponse<DocumentTemplateDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (request != null && !templateId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "DTP-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 100 ||
             string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200 ||
             string.IsNullOrWhiteSpace(request.TemplateContent) || request.TemplateContent.Length > 200000 ||
@@ -302,9 +305,21 @@ public sealed class DocumentService(EduOSDbContext db, ICurrentUserService user,
         if (row != null && !VersionMatches(row.RowVersion, request.RowVersion))
             return ApiResponse<DocumentTemplateDto>.ErrorResponse("Template changed. Reload and retry.", 409);
         if (row != null && row.Code != code) return ApiResponse<DocumentTemplateDto>.ErrorResponse("Template code cannot change.", 409);
-        if (await db.DocumentTemplates.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId && !x.IsDeleted &&
-            x.Code == code && (!templateId.HasValue || x.Id != templateId.Value), ct))
+        var existingTemplateCode = await db.DocumentTemplates.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && x.Code == code &&
+            (!templateId.HasValue || x.Id != templateId.Value), ct);
+        if (existingTemplateCode != null)
+        {
+            if (!templateId.HasValue && request.ClientRequestId != Guid.Empty &&
+                code == "DTP-" + request.ClientRequestId.ToString("N").ToUpperInvariant() &&
+                existingTemplateCode.CreatedBy == user.UserId &&
+                existingTemplateCode.Name == request.Name.Trim() &&
+                existingTemplateCode.TemplateContent == request.TemplateContent &&
+                existingTemplateCode.Format == request.Format &&
+                existingTemplateCode.IsActive == request.IsActive)
+                return ApiResponse<DocumentTemplateDto>.SuccessResponse(Map(existingTemplateCode));
             return ApiResponse<DocumentTemplateDto>.ErrorResponse("Template code already exists.", 409);
+        }
         row ??= new DocumentTemplate { TenantId = user.TenantId, Code = code, CreatedBy = user.UserId };
         row.Name = request.Name.Trim();
         row.TemplateContent = request.TemplateContent;
@@ -340,6 +355,9 @@ public sealed class DocumentService(EduOSDbContext db, ICurrentUserService user,
         SaveDocumentTypeDefinitionRequestDto request, CancellationToken ct = default)
     {
         if (!CanManage) return ApiResponse<DocumentTypeDefinitionDto>.ErrorResponse("Tenant administrator required.", 403);
+        if (request != null && !documentTypeId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "DCT-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || string.IsNullOrWhiteSpace(request.Code) || request.Code.Trim().Length > 100 ||
             string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 200 || request.Description?.Length > 1000)
             return ApiResponse<DocumentTypeDefinitionDto>.ErrorResponse("Invalid document type.");
@@ -350,9 +368,22 @@ public sealed class DocumentService(EduOSDbContext db, ICurrentUserService user,
         if (row != null && !VersionMatches(row.RowVersion, request.RowVersion))
             return ApiResponse<DocumentTypeDefinitionDto>.ErrorResponse("Document type changed. Reload and retry.", 409);
         if (row != null && row.Code != code) return ApiResponse<DocumentTypeDefinitionDto>.ErrorResponse("Document type code cannot change.", 409);
-        if (await db.DocumentTypeDefinitions.AsNoTracking().AnyAsync(x => x.TenantId == user.TenantId && !x.IsDeleted &&
-            x.Code == code && (!documentTypeId.HasValue || x.Id != documentTypeId.Value), ct))
+        var existingDocumentType = await db.DocumentTypeDefinitions.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TenantId == user.TenantId && !x.IsDeleted && x.Code == code &&
+            (!documentTypeId.HasValue || x.Id != documentTypeId.Value), ct);
+        if (existingDocumentType != null)
+        {
+            if (!documentTypeId.HasValue && request.ClientRequestId != Guid.Empty &&
+                code == "DCT-" + request.ClientRequestId.ToString("N").ToUpperInvariant() &&
+                existingDocumentType.CreatedBy == user.UserId &&
+                existingDocumentType.Name == request.Name.Trim() &&
+                existingDocumentType.Description == request.Description?.Trim() &&
+                existingDocumentType.RequiresVerification == request.RequiresVerification &&
+                existingDocumentType.IsSensitive == request.IsSensitive &&
+                existingDocumentType.IsActive == request.IsActive)
+                return ApiResponse<DocumentTypeDefinitionDto>.SuccessResponse(Map(existingDocumentType));
             return ApiResponse<DocumentTypeDefinitionDto>.ErrorResponse("Document type code already exists.", 409);
+        }
         // Never silently weaken verification/sensitivity for a type with existing
         // documents. Even inactive documents must retain their security policy.
         // Evaluate before mutating the tracked type or recording a success audit.

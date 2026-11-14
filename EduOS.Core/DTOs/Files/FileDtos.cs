@@ -64,7 +64,8 @@ public class DocumentTemplateDto
 
 public class SaveDocumentTemplateRequestDto
 {
-    [Required, MaxLength(100)] public string Code { get; set; } = string.Empty;
+    public Guid ClientRequestId { get; set; }
+    [MaxLength(100)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
     [Required] public string TemplateContent { get; set; } = string.Empty;
     [Required, MaxLength(50)] public string Format { get; set; } = "HTML";
@@ -86,7 +87,8 @@ public sealed class DocumentTypeDefinitionDto
 
 public sealed class SaveDocumentTypeDefinitionRequestDto
 {
-    [Required, MaxLength(100)] public string Code { get; set; } = string.Empty;
+    public Guid ClientRequestId { get; set; }
+    [MaxLength(100)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
     [MaxLength(1000)] public string? Description { get; set; }
     public bool RequiresVerification { get; set; }
