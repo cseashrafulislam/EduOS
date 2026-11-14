@@ -2,12 +2,10 @@
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "কেন্দ্রীয় হিসাব ও অর্থ বিভাগ" : "Central Accounts & Finance";
 }
-<section class="container-fluid py-3" id="institutionAccountingReports">
-    <h2>@(bn ? "কেন্দ্রীয় হিসাব ও অর্থ বিভাগ" : "Central Accounts & Finance")</h2>
-    <p class="text-muted">@(bn ? "ফি, বেতন, ক্রয়, সম্পদ ও অন্যান্য বিভাগের হিসাব একটি কেন্দ্রীয় GL থেকে। আলাদা হিসাবখাতা নয়; SaaS সাবস্ক্রিপশন বিলিং এখানে নেই।" : "One institutional General Ledger for fees, payroll, procurement, assets and other operations. No parallel ledgers; SaaS subscription billing is excluded.")</p>
-    <p class="small text-muted">@(bn ? "আয়-ব্যয় রিপোর্ট হলো পোস্ট করা উপার্জন ও খরচের হিসাব। বাস্তবে নগদ/ব্যাংকে টাকা আসা-যাওয়া দেখতে Bank Book ব্যবহার করুন; দুটো এক নয়।" : "Income/expense reports show posted earnings and costs; use the Bank Book for actual bank movements. Accrual earnings and cash receipts are not the same.")</p>
+<section class="container-fluid py-2" id="institutionAccountingReports">
+    <p class="small text-muted mb-2">@(bn ? "সমস্ত প্রতিষ্ঠানের হিসাব একটি GL থেকে; SaaS বিলিং আলাদা। আয়-ব্যয়ের ফল ও ব্যাংকের প্রকৃত নগদ প্রবাহ এক নয়।" : "One institutional GL, excluding SaaS billing. Accrual income/expense and actual bank cash movements are different reports.")</p>
     <div id="reportNotice" class="alert d-none" role="alert" aria-live="polite"></div>
-    <ul class="nav nav-tabs mb-3">
+    <ul class="nav nav-tabs flex-nowrap overflow-auto mb-2" role="tablist">
         @if (User.IsInRole("TenantAdmin"))
         {
             <li class="nav-item"><button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#incomeDetailsPanel">Income &amp; Cost Details</button></li>
@@ -344,7 +342,7 @@
                 <section class="border-top pt-3 mb-3" aria-label="Saved bank statement drafts">
                     <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                         <h3 class="h6 mb-0">Saved Statement Drafts</h3>
-                        <button id="statementDraftRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh</button>
+                        <button id="statementDraftRefresh" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "সংরক্ষিত খসড়া লোড" : "Load saved drafts")</button>
                     </div>
                     <div id="statementDraftSummary" class="small mb-2" role="status" aria-live="polite"></div>
                     <div class="table-responsive"><table class="table table-sm table-striped">
