@@ -83,11 +83,17 @@ async function run() {
         const failedWrites = [];
         page.on('response', response => {
             const method = response.request().method(), path = new URL(response.url()).pathname;
-            if (method === 'POST' && (path.startsWith('/api/academic-setup/') ||
+            if ((method === 'POST' || method === 'GET') &&
+                (path.startsWith('/api/academic-setup/catalog') ||
+                path.startsWith('/api/academic-setup/programmes') ||
                 path.startsWith('/api/academic-sections')))
-                console.log('[QA form]', path, 'status', response.status());
+                console.log('[QA HTTP]', method, path, 'status', response.status());
             if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && response.status() >= 400)
                 failedWrites.push({endpoint: path, status: response.status()});
+        });
+        page.on('pageerror', error => console.error('[QA JavaScript error]', String(error.message).slice(0, 250)));
+        page.on('framenavigated', frame => {
+            if (frame === page.mainFrame()) console.log('[QA navigation]', new URL(frame.url()).pathname);
         });
         await login(page);
         await feature(page, 'Classes', 'classes');
@@ -97,7 +103,13 @@ async function run() {
         await page.locator('#programName').fill(programName);
         await page.locator('#programForm button[type="submit"]').click();
         const program = await waitForCatalogItem(page, 'programs', programName);
-        await page.reload({waitUntil: 'domcontentloaded'});
+        console.log('[QA stage] programme visible after save; beginning full reload');
+        const programReload = await page.reload({waitUntil: 'domcontentloaded'});
+        assert(programReload && programReload.status() === 200,
+            'Programme page reload did not return HTTP 200');
+        await page.waitForFunction(() => !!window.eduosAcademicManagement?.state?.catalog,
+            null, {timeout: 25000});
+        console.log('[QA stage] academic catalogue loaded after programme reload');
         await waitForCatalogItem(page, 'programs', programName);
 
         console.log('[QA step] create class');
