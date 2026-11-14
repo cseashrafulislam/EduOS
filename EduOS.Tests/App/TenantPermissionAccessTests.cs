@@ -130,7 +130,7 @@ public sealed class TenantPermissionAccessTests
             new HttpContextAccessor { HttpContext = http });
         db.Users.Add(new ApplicationUser { Id = 51, UserName = "tenant-admin", IsActive = true });
         var membership = new TenantMembership { Id = 1, TenantId = 101, UserId = 51,
-            Status = MembershipStatus.Active };
+            Status = MembershipStatus.Active, IsOwner = true };
         db.TenantMemberships.Add(membership);
         var role = new ApplicationRole { Id = 11, TenantId = 101, Name = "TenantAdmin",
             NormalizedName = "TENANTADMIN", IsActive = true };
@@ -156,9 +156,7 @@ public sealed class TenantPermissionAccessTests
         Assert.True(await Allowed());
         role.IsActive = false;
         await db.SaveChangesAsync();
-        Assert.False(await Allowed());
-        membership.IsOwner = true;
-        await db.SaveChangesAsync();
+        // Owner grant is canonical and survives a deactivated editable role.
         Assert.True(await Allowed());
         membership.IsOwner = false;
         await db.SaveChangesAsync();

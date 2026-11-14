@@ -66,6 +66,14 @@ public sealed class AcademicBatchRegisterTests
         updated.Code.Should().Be("A");
         updated.CampusId.Should().Be(5);
         updated.UpdatedBy.Should().Be(17);
+        // A reduction is forbidden only when it would evict existing learners.
+        db.StudentEnrollments.AddRange(Enumerable.Range(1, 21).Select(i => new StudentEnrollment
+        {
+            TenantId = 401, AcademicBatchId = row.Id, StudentId = i,
+            State = EduOS.Core.Enums.Domain.EnrollmentState.Active,
+            IsCurrent = true, RollNo = i.ToString(), ClientRequestId = Guid.NewGuid()
+        }));
+        await db.SaveChangesAsync();
         (await sut.UpdateBatchAsync(row.Id, new UpdateAcademicBatchRequestDto
         { Name = "Reduced", Capacity = 20, RowVersion = Convert.ToBase64String(Version) })).StatusCode.Should().Be(409);
         (await sut.UpdateBatchAsync(row.Id, new UpdateAcademicBatchRequestDto

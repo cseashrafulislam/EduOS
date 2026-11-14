@@ -263,6 +263,11 @@ public class AdmissionEnrollmentServiceTests
             Title = "Primary admissions", Code = "ADM-2026", State = AdmissionFormState.Published
         };
         context.AddRange(batch, form);
+        context.AcademicSections.Add(new AcademicSection
+        {
+            TenantId = tenant, CampusId = campus.Id, AcademicLevelId = level.Id,
+            Name = "Section A", Code = "A", Capacity = 60
+        });
         await context.SaveChangesAsync();
         var application = new AdmissionApplicant
         {

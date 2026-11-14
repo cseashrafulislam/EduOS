@@ -169,9 +169,11 @@ public sealed class StudentAttendanceCampusWorkflowTests
         db.StudentEnrollments.AddRange(
             new StudentEnrollment { Id = 110, TenantId = 71, StudentId = 100,
                 AcademicBatchId = 10, CampusId = 8, AcademicYearId = 3,
+                AcademicSectionId = 30,
                 RollNo = "01", IsCurrent = true, State = EnrollmentState.Active },
             new StudentEnrollment { Id = 111, TenantId = 71, StudentId = 101,
                 AcademicBatchId = 10, CampusId = 8, AcademicYearId = 3,
+                AcademicSectionId = 30,
                 RollNo = "02", IsCurrent = true, State = EnrollmentState.Active });
         db.StudentSubjectRegistrations.Add(new StudentSubjectRegistration
         {
@@ -361,11 +363,11 @@ public sealed class StudentAttendanceCampusWorkflowTests
             new CurriculumSubject { Id = 61, TenantId = 71, SubjectId = 51, AcademicLevelId = 4 });
         db.SubjectOfferings.AddRange(
             new SubjectOffering { Id = 70, TenantId = 71, AcademicBatchId = 10,
-                CurriculumSubjectId = 60, AcademicYearId = 3, Code = "N-MATH", IsActive = true },
+                AcademicSectionId = 30, CurriculumSubjectId = 60, AcademicYearId = 3, Code = "N-MATH", IsActive = true },
             new SubjectOffering { Id = 71, TenantId = 71, AcademicBatchId = 10,
-                CurriculumSubjectId = 61, AcademicYearId = 3, Code = "N-ENG", IsActive = true },
+                AcademicSectionId = 30, CurriculumSubjectId = 61, AcademicYearId = 3, Code = "N-ENG", IsActive = true },
             new SubjectOffering { Id = 72, TenantId = 71, AcademicBatchId = 11,
-                CurriculumSubjectId = 61, AcademicYearId = 3, Code = "S-ENG", IsActive = true });
+                AcademicSectionId = 31, CurriculumSubjectId = 61, AcademicYearId = 3, Code = "S-ENG", IsActive = true });
         await db.SaveChangesAsync();
     }
 
@@ -388,6 +390,11 @@ public sealed class StudentAttendanceCampusWorkflowTests
             Id = 4, TenantId = 71, AcademicProgramId = 2,
             Name = "Nine", Code = "N9", IsActive = true
         });
+        db.AcademicSections.AddRange(
+            new AcademicSection { Id = 30, TenantId = 71, CampusId = 8,
+                AcademicLevelId = 4, Name = "North A", Code = "A", Capacity = 40 },
+            new AcademicSection { Id = 31, TenantId = 71, CampusId = 9,
+                AcademicLevelId = 4, Name = "South A", Code = "A", Capacity = 40 });
         db.AcademicBatches.AddRange(
             new AcademicBatch { Id = 10, TenantId = 71, CampusId = 8,
                 AcademicYearId = 3, AcademicProgramId = 2, AcademicLevelId = 4,
@@ -429,7 +436,8 @@ public sealed class StudentAttendanceCampusWorkflowTests
         new GenericRepository<InstructorAssignment>(db),
         new GenericRepository<SubjectOffering>(db),
         db, db, user, TimeProvider.System,
-        NullLogger<StudentAttendanceService>.Instance);
+        NullLogger<StudentAttendanceService>.Instance,
+        new GenericRepository<AcademicSection>(db));
 
     private sealed class Actor(string role) : ICurrentUserService
     {

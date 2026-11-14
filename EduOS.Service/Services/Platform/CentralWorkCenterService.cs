@@ -37,8 +37,12 @@ public sealed class CentralWorkCenterService(
             (long)(page - 1) * pageSize > int.MaxValue)
             return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work list page or campus.", 400);
 
+        // Validate raw user input before trimming; a trailing newline must not
+        // silently turn an invalid reference into a different valid search.
+        if (reference != null && reference.Any(char.IsControl))
+            return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work search or ordering.", 400);
         reference = reference?.Trim();
-        if (reference is { Length: > 80 } || (reference != null && reference.Any(char.IsControl)) ||
+        if (reference is { Length: > 80 } ||
             (order != null && order is not ("oldest" or "newest")))
             return ApiResponse<CentralWorkCenterPageDto>.ErrorResponse("Invalid work search or ordering.", 400);
 
