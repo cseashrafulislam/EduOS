@@ -1413,6 +1413,22 @@
             recovery: ['If a card or shortcut is missing, confirm the active institution, permissions and plan; refresh after a completed workflow. Do not assume a hidden shortcut grants access.', 'কোনো কার্ড বা শর্টকাট না থাকলে বর্তমান প্রতিষ্ঠান, অনুমতি ও প্ল্যান যাচাই করুন; কাজ শেষ হলে পৃষ্ঠা রিফ্রেশ করুন। লুকানো শর্টকাটকে অনুমতি মনে করবেন না।'],
             related: [['/Students/Index', 'Student register', 'শিক্ষার্থী তালিকা'], ['/Attendance/Index', 'Attendance', 'উপস্থিতি']]
         },
+        '/platformmodulefeatures/index': {
+            version: 1, reviewed: true,
+            title: ['Module Feature Mapping', 'মডিউল ফিচার ম্যাপিং'],
+            purpose: ['Choose which existing features are mapped to an existing product module without changing assigned tenant and plan entitlements.', 'বিদ্যমান প্ল্যান বা প্রতিষ্ঠানের অধিকার না বদলে প্রোডাক্ট মডিউলের সঙ্গে ফিচার সংযুক্ত করুন।'],
+            before: ['Sign in as platform SuperAdmin and choose an existing product module. The module, feature and mapping versions are validated on save.', 'SuperAdmin হিসেবে লগ ইন করে একটি মডিউল নির্বাচন করুন। সংরক্ষণের সময় মডিউল, ফিচার ও ম্যাপিংয়ের সংস্করণ যাচাই করা হয়।'],
+            steps: [
+                ['Choose a module to review its currently mapped features.', 'বর্তমান ফিচার ম্যাপিং দেখতে মডিউল নির্বাচন করুন।'],
+                ['For an editable feature, select or clear Mapped. Core-module mappings and inactive combinations may be locked by server rules.', 'সম্পাদনযোগ্য ফিচারের সংযুক্ত নির্বাচন বদলান। মূল মডিউল বা নিষ্ক্রিয় ফিচারের ম্যাপিং সার্ভারের নিয়মে লক থাকতে পারে।'],
+                ['Save the selected feature row after confirmation; if another change conflicts, review the reloaded values before trying again.', 'নির্বাচিত ফিচার সারি নিশ্চিত করে সংরক্ষণ করুন। অন্য পরিবর্তনের সঙ্গে দ্বন্দ্ব হলে নতুন তথ্য দেখে আবার চেষ্টা করুন।']
+            ],
+            example: ['Example: expose an existing report feature in an eligible product module for future plan configuration, preserving existing subscriptions.', 'উদাহরণ: বিদ্যমান সাবস্ক্রিপশন না বদলে ভবিষ্যৎ প্ল্যানের জন্য একটি মডিউলে রিপোর্ট ফিচার সংযুক্ত করুন।'],
+            result: ['The canonical module-feature mapping is updated via its permissioned API and audited request ID.', 'অনুমোদিত API ও নিরীক্ষিত request ID দিয়ে মূল মডিউল-ফিচার ম্যাপিং সংরক্ষিত হয়।'],
+            rules: ['Only SuperAdmin. Mapping is not a substitute for subscription permissions; existing plan entitlements and tenant overrides remain authoritative.', 'শুধু SuperAdmin। ম্যাপিং সাবস্ক্রিপশনের অনুমতির বিকল্প নয়; বিদ্যমান প্ল্যান ও প্রতিষ্ঠানের override মূল তথ্য হিসেবে থাকবে।'],
+            recovery: ['On a concurrent update, reload the module and decide again. On uncertain network delivery, retry the same selection without repeatedly toggling it.', 'একসঙ্গে পরিবর্তন হলে মডিউল আবার খুলে সিদ্ধান্ত নিন। নেটওয়ার্কে অনিশ্চয়তা থাকলে নির্বাচন না বদলে একই অনুরোধ পুনরায় পাঠান।'],
+            related: [['/PlatformProductModuleAdministration/Index', 'Product modules', 'প্রোডাক্ট মডিউল'], ['/PlatformFeatureAdministration/Index', 'Feature catalog', 'ফিচার ক্যাটালগ']]
+        },
         '/platforminstitutionmodulepresets/index': {
             version: 1, reviewed: true,
             title: ['Institution Module Presets', 'প্রতিষ্ঠানের মডিউল প্রিসেট'],
