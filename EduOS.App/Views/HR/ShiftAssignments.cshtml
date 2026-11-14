@@ -1,17 +1,12 @@
 @{
     ViewData["Title"] = "Employee Shift Assignments";
 }
-<section id="hrShiftWorkspace" class="container-fluid py-3">
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div>
-            <h2 class="h4">Employee Shift Assignments</h2>
-            <p class="text-muted mb-0">Assign effective-dated work shifts and inspect immutable assignment history. Institution administrator access only.</p>
-        </div>
-        <a class="btn btn-outline-secondary" href="/HR/Index">Employee Administration</a>
-    </header>
+<section id="hrShiftWorkspace" class="container-fluid py-1">
+    
     <div id="hrShiftAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body">
-        <h3 class="h6">Find employee</h3>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">Find employee</h3><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-outline-secondary" href="/HR/Index">Employee Administration</a></div></div>
+<p class="small text-muted mb-2">Assign effective-dated work shifts and inspect immutable assignment history. Institution administrator access only.</p>
         <div class="row g-2 align-items-end">
             <div class="col-md-5"><label class="form-label" for="hrShiftSearch">Employee name or code</label><input id="hrShiftSearch" class="form-control" maxlength="100" placeholder="At least 2 characters" /></div>
             <div class="col-md-2"><button id="hrShiftFind" class="btn btn-outline-primary w-100" type="button">Search</button></div>

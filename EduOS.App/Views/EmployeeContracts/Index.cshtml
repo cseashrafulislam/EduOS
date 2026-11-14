@@ -1,17 +1,6 @@
 @{ ViewData["Title"] = "Employee Contracts"; }
-<section id="employeeContracts" class="container-fluid py-3">
-    <header class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-3">
-        <h2 class="h4 mb-0">Employee Contracts</h2>
-        <div class="d-flex gap-2">
-            <a href="/HrEmployeeRecords/Index" class="btn btn-sm btn-outline-secondary">Employees</a>
-            <details class="position-relative">
-                <summary class="btn btn-sm btn-outline-secondary" aria-label="Contract help" title="Page help">ⓘ</summary>
-                <div class="card card-body position-absolute end-0 shadow-sm mt-1" style="width:min(320px,85vw);z-index:10">
-                    Draft effective-dated terms require a different tenant administrator for approval. After approval, upload the manually signed PDF; a different administrator must verify its scanned copy and checksum. This is manual document verification, not cryptographic e-signature validation.
-                </div>
-            </details>
-        </div>
-    </header>
+<section id="employeeContracts" class="container-fluid py-1">
+    
     @Html.AntiForgeryToken()
     <div id="contractAlert" class="alert d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     <form id="contractFind" class="card card-body mb-3">
@@ -22,7 +11,13 @@
         <select id="contractEmployee" class="form-select"><option value="">Select employee</option></select>
     </form>
     <form id="contractForm" class="card card-body row g-2 mb-3">
-        <div class="col-12"><h3 class="h6">New contract draft</h3></div>
+        <div class="col-12"><div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">New contract draft</h3><div class="d-flex flex-wrap align-items-center gap-2"><a href="/HrEmployeeRecords/Index" class="btn btn-sm btn-outline-secondary">Employees</a>
+<details class="position-relative">
+                <summary class="btn btn-sm btn-outline-secondary" aria-label="Contract help" title="Page help">ⓘ</summary>
+                <div class="card card-body position-absolute end-0 shadow-sm mt-1" style="width:min(320px,85vw);z-index:10">
+                    Draft effective-dated terms require a different tenant administrator for approval. After approval, upload the manually signed PDF; a different administrator must verify its scanned copy and checksum. This is manual document verification, not cryptographic e-signature validation.
+                </div>
+            </details></div></div></div>
         <div class="col-md-4"><label for="contractCode" class="form-label">Reference *</label><input id="contractCode" class="form-control" maxlength="50" required /></div>
         <div class="col-md-4"><label for="contractFrom" class="form-label">Effective from *</label><input id="contractFrom" class="form-control" type="date" required /></div>
         <div class="col-md-4"><label for="contractTo" class="form-label">Effective to</label><input id="contractTo" class="form-control" type="date" /></div>

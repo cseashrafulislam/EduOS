@@ -1,14 +1,12 @@
 @{
     ViewData["Title"] = "Employee Leave Entitlements";
 }
-<section class="container-fluid py-3" id="leaveEntitlementRoot">
-    <header class="d-flex justify-content-between flex-wrap align-items-center mb-3">
-        <div><h2>Employee Leave Entitlements</h2><p class="text-muted">Institution-wide policy, annual allowances and audited adjustments. Tenant administrators only.</p></div>
-        <a class="btn btn-outline-secondary" href="/HR/Index">HR Administration</a>
-    </header>
+<section class="container-fluid py-1" id="leaveEntitlementRoot">
+    
     <div id="leaveEntitlementAlert" class="d-none" role="alert" tabindex="-1"></div>
     <div class="card mb-3"><div class="card-body">
-        <h3 class="h5">Leave types</h3>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h5">Leave types</h3><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-outline-secondary" href="/HR/Index">HR Administration</a></div></div>
+<p class="small text-muted mb-2">Institution-wide policy, annual allowances and audited adjustments. Tenant administrators only.</p>
         <form id="leaveEntitlementTypeForm" class="row g-2 align-items-end mb-3">
             <input id="leaveEntitlementTypeId" type="hidden" /><input id="leaveEntitlementTypeVersion" type="hidden" />
             <div class="col-md-3"><label for="leaveEntitlementTypeName" class="form-label">Name</label><input id="leaveEntitlementTypeName" class="form-control" maxlength="100" required /></div>

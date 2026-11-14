@@ -1,21 +1,16 @@
 @{ ViewData["Title"] = "Recruitment & Hiring"; }
-<section class="container-fluid py-3" id="recruitmentApp">
-    <header class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-        <h2 class="h4 mb-0">Recruitment & Hiring</h2>
-        <div class="d-flex gap-2">
-            <a href="/HR/Index" class="btn btn-sm btn-outline-secondary">HR overview</a>
-            <details class="position-relative">
+<section class="container-fluid py-1" id="recruitmentApp">
+    
+    @Html.AntiForgeryToken()
+    <div class="alert d-none" id="recruitmentNotice" role="alert" tabindex="-1" aria-live="polite"></div>
+    <section class="card card-body mb-3">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">New application</h3><div class="d-flex flex-wrap align-items-center gap-2"><a href="/HR/Index" class="btn btn-sm btn-outline-secondary">HR overview</a>
+<details class="position-relative">
                 <summary class="btn btn-sm btn-outline-secondary" title="Page help" aria-label="Recruitment help">ⓘ</summary>
                 <div class="card card-body shadow-sm position-absolute end-0 mt-1" style="width:min(330px,85vw);z-index:10">
                     Recruit applicants with recorded consent; independently approve offers. Hiring links an existing, verified employee after HR onboarding. No automatic account or Person creation occurs.
                 </div>
-            </details>
-        </div>
-    </header>
-    @Html.AntiForgeryToken()
-    <div class="alert d-none" id="recruitmentNotice" role="alert" tabindex="-1" aria-live="polite"></div>
-    <section class="card card-body mb-3">
-        <h3 class="h6">New application</h3>
+            </details></div></div>
         <form id="recruitmentCreate">
             <div class="row g-2">
                 <div class="col-md-4"><label for="recruitCampus" class="form-label">Campus *</label>

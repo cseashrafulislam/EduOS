@@ -3,14 +3,15 @@
     // The canonical payroll run register is tenant-wide; campus-limited roles must not see it.
     var manager = User.IsInRole("TenantAdmin");
 }
-<section id="payrollApp" data-manager="@manager.ToString().ToLowerInvariant()" class="container-fluid py-3">
-    <header class="mb-3"><h2 class="h4 mb-1">Payroll Operations</h2><p class="text-muted">Calculate monthly payroll, independently approve it, review employee snapshots and inspect posted payslips.</p></header>
+<section id="payrollApp" data-manager="@manager.ToString().ToLowerInvariant()" class="container-fluid py-1">
+    
     @Html.AntiForgeryToken()
     <div id="payrollAlert" class="alert d-none" role="alert" tabindex="-1" aria-live="polite"></div>
     @if(manager)
     {
         <section class="card card-body mb-3">
             <h3 class="h6">Monthly payroll run</h3>
+<p class="small text-muted mb-2">Calculate monthly payroll, independently approve it, review employee snapshots and inspect posted payslips.</p>
             <div class="row g-2 align-items-end">
                 <div class="col-md-3"><label for="payrollMonth" class="form-label">Month</label><select id="payrollMonth" class="form-select">@for(var m=1;m<=12;m++){<option value="@m">@System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(m)</option>}</select></div>
                 <div class="col-md-3"><label for="payrollYear" class="form-label">Year</label><input id="payrollYear" type="number" min="2000" max="2200" class="form-control" required /></div>
@@ -84,7 +85,7 @@
         </section>
     }
     <section class="card">
-        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">My posted payslips</h3><button id="payrollMy" type="button" class="btn btn-sm btn-outline-secondary">Refresh</button></div>
+        <div class="card-header d-flex justify-content-between align-items-center"><h3 class="h6 m-0">My posted payslips</h3><button id="payrollMy" type="button" class="btn btn-sm btn-outline-secondary">Load payslips</button></div>
         <div class="table-responsive"><table class="table table-sm table-striped mb-0">
             <thead><tr><th>Period</th><th>Employee</th><th>Gross (BDT)</th><th>Deductions (BDT)</th><th>Net (BDT)</th><th>Components</th><th>Print</th></tr></thead>
             <tbody id="payrollSlipRows"></tbody>

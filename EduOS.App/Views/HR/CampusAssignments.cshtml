@@ -1,18 +1,13 @@
 @{
     ViewData["Title"] = "Employee Campus Assignments";
 }
-<section id="hrCampusWorkspace" class="container-fluid py-3">
+<section id="hrCampusWorkspace" class="container-fluid py-1">
     @Html.AntiForgeryToken()
-    <header class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div>
-            <h2 class="h4">Employee Campus Assignments</h2>
-            <p class="text-muted mb-0">Assign primary or secondary campuses with effective dates and review the original campus assignment records. Tenant administrator access only.</p>
-        </div>
-        <a class="btn btn-outline-secondary" href="/HR/Index">Employee Administration</a>
-    </header>
+    
     <div id="hrCampusAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-3"><div class="card-body">
-        <h3 class="h6">Find employee</h3>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h3 class="h6">Find employee</h3><div class="d-flex flex-wrap align-items-center gap-2"><a class="btn btn-outline-secondary" href="/HR/Index">Employee Administration</a></div></div>
+<p class="small text-muted mb-2">Assign primary or secondary campuses with effective dates and review the original campus assignment records. Tenant administrator access only.</p>
         <div class="row g-2 align-items-end">
             <div class="col-md-5"><label class="form-label" for="hrCampusSearch">Employee name or code</label><input id="hrCampusSearch" class="form-control" maxlength="100" placeholder="At least 2 characters" /></div>
             <div class="col-md-2"><button id="hrCampusFind" class="btn btn-outline-primary w-100" type="button">Search</button></div>

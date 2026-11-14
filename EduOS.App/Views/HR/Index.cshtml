@@ -3,16 +3,14 @@
     var feature = ViewData["HrFeature"] as string == "leaves" ? "leaves" : "directory";
     ViewData["Title"] = feature == "leaves" ? (bangla ? "কর্মীর ছুটির আবেদন" : "Employee Leave Review") : (bangla ? "কর্মী তালিকা" : "Employee Directory");
 }
-<section id="hrWorkspaceRoot" class="container-fluid py-3" data-active-feature="@feature" aria-labelledby="hrTitle">
+<section id="hrWorkspaceRoot" class="container-fluid py-1" data-active-feature="@feature" aria-labelledby="hrTitle">
     @Html.AntiForgeryToken()
-    <header class="mb-3">
-        <h2 id="hrTitle">@ViewData["Title"]</h2>
-        <p class="text-muted">@(feature == "leaves" ? (bangla ? "কর্মীর ছুটির আবেদন যাচাই ও সিদ্ধান্ত দিন। সব সিদ্ধান্ত প্রতিষ্ঠানের অনুমতি অনুযায়ী যাচাই হয়।" : "Review and decide employee leave requests. Every decision is checked against your institution and role.") : (bangla ? "কর্মীর নাম, কোড, পদবি ও অবস্থা অনুসন্ধান করুন।" : "Search employees by name, code, designation and status."))</p>
-    </header>
+    <span id="hrTitle" class="visually-hidden">@ViewData["Title"]</span>
     <div id="hrAlert" class="d-none" role="alert" tabindex="-1"></div>
     <section class="card mb-4 @(feature == "leaves" ? "d-none" : "")">
         <div class="card-body">
             <h3 class="h5">Employees</h3>
+<p class="small text-muted mb-2">@(feature == "leaves" ? (bangla ? "কর্মীর ছুটির আবেদন যাচাই ও সিদ্ধান্ত দিন। সব সিদ্ধান্ত প্রতিষ্ঠানের অনুমতি অনুযায়ী যাচাই হয়।" : "Review and decide employee leave requests. Every decision is checked against your institution and role.") : (bangla ? "কর্মীর নাম, কোড, পদবি ও অবস্থা অনুসন্ধান করুন।" : "Search employees by name, code, designation and status."))</p>
             <form id="hrEmployeeSearch" class="row g-2 align-items-end">
                 <div class="col-md-5"><label class="form-label" for="hrEmployeeText">Employee name or code</label><input id="hrEmployeeText" class="form-control" type="search" maxlength="100" /></div>
                 <div class="col-md-3"><label class="form-label" for="hrEmployeeTeacher">Type</label><select id="hrEmployeeTeacher" class="form-select"><option value="">All</option><option value="true">Teachers</option><option value="false">Other staff</option></select></div>
