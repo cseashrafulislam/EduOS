@@ -5,6 +5,7 @@
     const channel = { 1: 'In-app', 2: 'Email', 3: 'SMS', 4: 'Push' };
     const gatewayChannelBn = { 1: 'অ্যাপের ভেতরে', 2: 'ইমেইল', 3: 'SMS', 4: 'পুশ' };
     const state = { category: [], template: [], gateway: [], page: 1, pages: 1 };
+    const createRequests = {category:{key:null,fingerprint:null},template:{key:null,fingerprint:null}};
     const config = {
         category: { route: 'notice-categories', fields: ['code', 'name', 'isActive'], columns: ['code', 'name', 'isActive'] },
         template: { route: 'templates', fields: ['code', 'name', 'channel', 'subjectTemplate', 'bodyTemplate', 'isActive'], columns: ['code', 'name', 'channel', 'isActive'] },
@@ -66,6 +67,7 @@
         return input.value.trim();
     }
     function clear(kind) {
+        if (createRequests[kind]) { createRequests[kind].key = null; createRequests[kind].fingerprint = null; }
         el(kind + 'Form').reset();
         el(kind + 'Id').value = '';
         el(kind + 'Version').value = '';
@@ -141,6 +143,16 @@
         for (const field of config[kind].fields) data[field] = value(kind, field);
         if (kind === 'gateway' && !data.credential) data.credential = null;
         if (id) data.rowVersion = el(kind + 'Version').value;
+        else if (createRequests[kind]) {
+            data.code = '';
+            const fingerprint = JSON.stringify(data);
+            const request = createRequests[kind];
+            if (request.fingerprint !== fingerprint) {
+                request.fingerprint = fingerprint;
+                request.key = crypto.randomUUID();
+            }
+            data.clientRequestId = request.key;
+        }
         button.disabled = true;
         try {
             await api('/' + config[kind].route + (id ? '/' + encodeURIComponent(id) : ''),
