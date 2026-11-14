@@ -3,6 +3,9 @@
     const root = document.getElementById('institutionManagementApp');
     if (!root) return;
     const el = id => document.getElementById(id);
+    const bn = root.dataset.bangla === 'true';
+    const t = (en, bangla) => bn ? bangla : en;
+    const locale = bn ? 'bn-BD' : 'en-BD';
     const state = { profile: null, campuses: [], editing: null, historyPage: 1 };
     const token = () => root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
 
@@ -84,13 +87,13 @@
         body.replaceChildren();
         if (!history.items?.length) {
             const row = make('tr', '');
-            const cell = make('td', 'No recorded changes on this page.');
+            const cell = make('td', t('No recorded changes on this page.', 'এই পৃষ্ঠায় পরিবর্তনের ইতিহাস নেই।'));
             cell.colSpan = 4; row.append(cell); body.append(row);
         }
         for (const entry of history.items || []) {
             const row = make('tr', '');
             const date = new Date(entry.occurredAt);
-            row.append(make('td', Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()),
+            row.append(make('td', Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(locale)),
                 make('td', entry.action),
                 make('td', entry.changedFields || '—'),
                 make('td', entry.actorName || ('User #' + (entry.actorId || 'unknown'))));
@@ -99,7 +102,7 @@
         el('institutionHistoryPrevious').disabled = !history.hasPreviousPage;
         el('institutionHistoryNext').disabled = !history.hasNextPage;
         el('institutionHistoryPage').textContent =
-            'Page ' + history.page + ' of ' + Math.max(1, history.totalPages) +
+            t('Page ', 'পৃষ্ঠা ') + history.page + t(' of ', ' / ') + Math.max(1, history.totalPages) +
             ' · ' + history.totalCount + ' changes';
     }
 
@@ -109,7 +112,7 @@
         tbody.replaceChildren();
         if (!state.campuses.length) {
             const row = make('tr', '');
-            const td = make('td', 'No campuses configured.');
+            const td = make('td', t('No campuses configured.', 'কোনো ক্যাম্পাস নেই।'));
             td.colSpan = 5; row.append(td); tbody.append(row);
         }
         for (const campus of state.campuses) {
@@ -118,7 +121,7 @@
             name.append(make('div', campus.address || '', 'small text-muted'));
             row.append(name, make('td', campus.code),
                 make('td', campus.email || campus.phone || '—'),
-                make('td', (campus.isHeadOffice ? 'Head Office' : 'Campus') +
+                make('td', (campus.isHeadOffice ? t('Head Office', 'প্রধান ক্যাম্পাস') : t('Campus', 'ক্যাম্পাস')) +
                     (campus.isOnlineCampus ? ' · Online' : '') +
                     (campus.timeZoneId ? ' · ' + campus.timeZoneId : '')));
             const actions = make('td', '');
@@ -130,7 +133,7 @@
             archive.addEventListener('click', () => archiveCampus(campus, archive));
             actions.append(edit, archive); row.append(actions); tbody.append(row);
         }
-        el('institutionCampusesCount').textContent = state.campuses.length + ' campuses shown';
+        el('institutionCampusesCount').textContent = state.campuses.length + t(' campuses shown', ' টি ক্যাম্পাস');
     }
 
     function resetCampusEditor() {
@@ -152,7 +155,7 @@
         el('campusOnline').checked = campus?.isOnlineCampus === true;
         el('campusHeadOffice').checked = campus?.isHeadOffice === true || state.campuses.length === 0;
         el('campusHeadOffice').disabled = campus?.isHeadOffice === true || state.campuses.length === 0;
-        el('campusEditorHeading').textContent = campus ? 'Edit campus' : 'Add campus';
+        el('campusEditorHeading').textContent = campus ? t('Edit campus', 'ক্যাম্পাস সম্পাদনা') : t('Add campus', 'ক্যাম্পাস যোগ করুন');
         el('campusEditor').classList.remove('d-none');
         el('campusEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -164,15 +167,15 @@
                 encodeURIComponent(campus.id) + '/archive-impact');
             if (!preview.canArchive) {
                 const blockers = Array.isArray(preview.blockers) ? preview.blockers : [];
-                notify('Campus cannot be archived: ' + blockers.join(' '), true);
+                notify(t('Campus cannot be archived: ', 'ক্যাম্পাস আর্কাইভ করা যাবে না: ') + blockers.join(' '), true);
                 return;
             }
-            if (!confirm('Archive ' + campus.name + '? This action preserves history but removes the campus from active use.')) return;
+            if (!confirm(t('Archive ', 'আর্কাইভ করবেন: ') + campus.name + t('? This action preserves history but removes the campus from active use.', '? ইতিহাস থাকবে, কিন্তু সক্রিয় ব্যবহার থেকে সরবে।'))) return;
             await api('/api/institution-onboarding/campus/' + encodeURIComponent(campus.id) +
                 '?rowVersion=' + encodeURIComponent(campus.rowVersion), { method: 'DELETE' });
             if (state.editing?.id === campus.id) resetCampusEditor();
             await loadCampuses();
-            notify('Campus archived.');
+            notify(t('Campus archived.', 'ক্যাম্পাস আর্কাইভ করা হয়েছে।'));
         } catch (error) { notify(error.message, true); }
         finally { button.disabled = false; }
     }
@@ -201,7 +204,7 @@
             });
             setProfile(result);
             await loadHistory(1);
-            notify('Institution profile updated.');
+            notify(t('Institution profile updated.', 'প্রতিষ্ঠানের প্রোফাইল সংরক্ষিত হয়েছে।'));
         });
     }
 
@@ -220,7 +223,7 @@
             });
             setProfile(result);
             await loadHistory(1);
-            notify('Regional settings saved.');
+            notify(t('Regional settings saved.', 'আঞ্চলিক সেটিংস সংরক্ষিত হয়েছে।'));
         });
     }
 
@@ -230,7 +233,7 @@
             if (!state.profile) throw new Error('Reload the institution profile first.');
             const subdomain = value('institutionSubdomain').toLowerCase();
             if (subdomain !== state.profile.subdomain) {
-                if (!confirm('Changing the subdomain may affect bookmarks and integrations. Continue?')) return;
+                if (!confirm(t('Changing the subdomain may affect bookmarks and integrations. Continue?', 'সাবডোমেইন বদলালে আগের বুকমার্ক ও ইন্টিগ্রেশন প্রভাবিত হতে পারে। এগোবেন?'))) return;
                 const available = await api('/api/tenant-profile/subdomain/check?subdomain=' +
                     encodeURIComponent(subdomain));
                 if (!available?.isAvailable) throw new Error(available?.reason || 'Subdomain is unavailable.');
@@ -240,7 +243,7 @@
             });
             setProfile(result);
             await loadHistory(1);
-            notify('Subdomain updated.');
+            notify(t('Subdomain updated.', 'সাবডোমেইন সংরক্ষিত হয়েছে।'));
         });
     }
 
@@ -263,7 +266,7 @@
                 })
             });
             resetCampusEditor(); await loadCampuses();
-            notify('Campus saved.');
+            notify(t('Campus saved.', 'ক্যাম্পাস সংরক্ষিত হয়েছে।'));
         });
     }
 
@@ -283,18 +286,18 @@
             await api('/api/tenant-profile/' + type, { method: 'POST', body: data });
             field.value = '';
             await Promise.all([loadProfile(), loadHistory(1)]);
-            notify('Institution ' + type + ' uploaded.');
+            notify(t('Institution ', 'প্রতিষ্ঠানের ') + type + t(' uploaded.', ' আপলোড হয়েছে।'));
         });
     }
 
     async function removeBranding(type, button) {
-        if (!state.profile) return notify('Reload the profile first.', true);
-        if (!confirm('Remove this institution ' + type + '?')) return;
+        if (!state.profile) return notify(t('Reload the profile first.', 'আগে প্রোফাইল আবার খুলুন।'), true);
+        if (!confirm(t('Remove this institution ', 'প্রতিষ্ঠানের ') + type + t('?', ' সরাবেন?'))) return;
         await submit(button, async () => {
             await api('/api/tenant-profile/' + type + '?rowVersion=' +
                 encodeURIComponent(state.profile.rowVersion), { method: 'DELETE' });
             await Promise.all([loadProfile(), loadHistory(1)]);
-            notify('Institution ' + type + ' removed.');
+            notify(t('Institution ', 'প্রতিষ্ঠানের ') + type + t(' removed.', ' সরানো হয়েছে।'));
         });
     }
 
