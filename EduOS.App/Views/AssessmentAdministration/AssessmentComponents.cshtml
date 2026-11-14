@@ -4,15 +4,11 @@
 }
 <section class="container-fluid py-2" id="assessmentComponentWorkspace">
     @Html.AntiForgeryToken()
-    <header class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-        <div><span class="visually-hidden">Assessment components</span>
-            <p class="text-muted mb-0">Configure component marks and weightage for draft assessments. Existing marks and published results remain protected.</p></div>
-        <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Marks &amp; results</a>
-    </header>
     <div id="componentNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card mb-3"><div class="card-body">
         <form id="componentForm">
-            <h2 class="h6" id="componentFormTitle">New assessment component</h2>
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h2 class="h6 mb-0" id="componentFormTitle">New assessment component</h2><div class="d-flex flex-wrap align-items-center gap-2"><a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Marks &amp; results</a></div></div>
+<p class="small text-muted mb-2">Configure component marks and weightage for draft assessments. Existing marks and published results remain protected.</p>
             <div class="row g-3">
                 <div class="col-lg-6"><label for="componentSubject" class="form-label">Assessment / Batch / Subject</label>
                     <select id="componentSubject" class="form-select" required><option value="">Loading assessment subjects…</option></select></div>

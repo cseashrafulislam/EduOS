@@ -4,14 +4,10 @@
 }
 <section class="container-fluid py-2" id="gradeSchemeWorkspace">
     @Html.AntiForgeryToken()
-    <header class="d-flex justify-content-between flex-wrap gap-2 mb-3">
-        <div><span class="visually-hidden">Grade schemes</span>
-            <p class="text-muted mb-0">Create grading policies and inspect their rules. Saved schemes are immutable; create a new code for a revised policy.</p></div>
-        <a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Exam marks &amp; results</a>
-    </header>
     <div id="gradeSchemeNotice" class="alert d-none" role="alert" aria-live="polite"></div>
     <div class="card mb-3" id="gradeSchemeCreatePanel"><div class="card-body">
-        <h2 class="h6">New grade scheme</h2>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2"><h2 class="h6 mb-0">New grade scheme</h2><div class="d-flex flex-wrap align-items-center gap-2"><a asp-controller="AssessmentAdministration" asp-action="Index" class="btn btn-outline-secondary">Exam marks &amp; results</a></div></div>
+<p class="small text-muted mb-2">Create grading policies and inspect their rules. Saved schemes are immutable; create a new code for a revised policy.</p>
         <form id="gradeSchemeForm">
             <div class="row g-3">
                 <div class="col-md-4"><label for="gradeSchemeCode" class="form-label">Code</label>
@@ -20,9 +16,9 @@
                     <input id="gradeSchemeName" class="form-control" maxlength="150" required /></div>
                 <div class="col-md-3"><label for="gradeSchemeProgram" class="form-label">Program ID (optional)</label>
                     <input id="gradeSchemeProgram" type="number" class="form-control" min="1" step="1" placeholder="Tenant-wide if blank" /></div>
-                <div class="col-auto form-check ms-3"><input id="gradeSchemeActive" class="form-check-input" type="checkbox" checked />
+                <div class="col-auto d-flex gap-2 align-items-center ps-3"><input id="gradeSchemeActive" class="form-check-input" type="checkbox" checked />
                     <label for="gradeSchemeActive" class="form-check-label">Active</label></div>
-                <div class="col-auto form-check"><input id="gradeSchemeDefault" class="form-check-input" type="checkbox" />
+                <div class="col-auto d-flex gap-2 align-items-center"><input id="gradeSchemeDefault" class="form-check-input" type="checkbox" />
                     <label for="gradeSchemeDefault" class="form-check-label">Default for this program scope</label></div>
                 <div class="col-md-4"><label for="gradeSchemeGpaMode" class="form-label">GPA calculation</label>
                     <select id="gradeSchemeGpaMode" class="form-select">
