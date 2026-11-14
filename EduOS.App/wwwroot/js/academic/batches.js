@@ -149,9 +149,13 @@
             if (sameSession()) notice(committed ? 'Batch saved, but the display failed.' : error.message, true);
         } finally { editSaving = false; button.disabled = false; form.inert = false; }
     });
+    // The canonical Sections route is server-selected. The removed multi-tab
+    // strip is not an activation signal; load its register on this route.
+    const sectionsActive = () =>
+        document.getElementById('academicManagement')?.dataset.activeFeature === 'sections';
     window.addEventListener('eduos:academic-reloaded', () => {
         refreshFilters();
-        if (loaded || document.querySelector('button[data-panel="sections"]')?.classList.contains('active'))
+        if (loaded || sectionsActive())
             load().catch(e => notice(e.message, true));
     });
     document.querySelector('button[data-panel="sections"]')?.addEventListener('click', () => {
