@@ -1,33 +1,83 @@
 @{
-    ViewData["Title"] = "Institution Lifecycle";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "bn";
+    ViewData["Title"] = bn ? "প্রতিষ্ঠান পরিচালনা" : "Institution Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<section id="platformTenantWorkspace" class="container-fluid">
+<section id="platformTenantWorkspace" class="container-fluid px-0" data-bangla="@(bn ? "true" : "false")">
     @Html.AntiForgeryToken()
-    <h2>Institution Lifecycle</h2>
-    <form id="platformTenantFilter">
-        <label for="platformTenantSearch">Search institutions</label><input id="platformTenantSearch" class="form-control" maxlength="100" />
-        <label for="platformTenantState">Status</label><select id="platformTenantState" class="form-select"><option value="">All</option><option value="1">Pending</option><option value="2">Active</option><option value="3">Suspended</option><option value="4">Closed</option></select>
-        <button type="submit" class="btn btn-primary">Search</button>
+    <form id="platformTenantFilter" class="row g-2 align-items-end mb-3" role="search">
+        <div class="col-12 col-md-6 col-lg-5">
+            <label for="platformTenantSearch" class="form-label mb-1">@(bn ? "প্রতিষ্ঠান, কোড বা ইমেইল খুঁজুন" : "Search institution, code or email")</label>
+            <input id="platformTenantSearch" type="search" class="form-control" maxlength="100" autocomplete="off" placeholder="@(bn ? "নাম / কোড / ইমেইল" : "Name / code / email")" />
+        </div>
+        <div class="col-7 col-md-3 col-lg-3">
+            <label for="platformTenantState" class="form-label mb-1">@(bn ? "অবস্থা" : "Status")</label>
+            <select id="platformTenantState" class="form-select">
+                <option value="">@(bn ? "সব প্রতিষ্ঠান" : "All institutions")</option>
+                <option value="1">@(bn ? "যাচাই বাকি" : "Pending verification")</option>
+                <option value="2">@(bn ? "সক্রিয়" : "Active")</option>
+                <option value="3">@(bn ? "স্থগিত" : "Suspended")</option>
+                <option value="4">@(bn ? "বন্ধ" : "Closed")</option>
+            </select>
+        </div>
+        <div class="col-5 col-md-3 col-lg-2">
+            <button type="submit" class="btn btn-primary w-100">@(bn ? "খুঁজুন" : "Search")</button>
+        </div>
     </form>
-    <button id="platformTenantRefresh" type="button" class="btn btn-secondary">Refresh</button>
-    <p id="platformTenantStatus" role="status" aria-live="polite"></p>
-    <div class="table-responsive"><table class="table"><thead><tr><th>Institution</th><th>Code</th><th>State</th><th>Onboarding</th><th>Created</th><th>Action</th></tr></thead><tbody id="platformTenantRows"></tbody></table></div>
-    <button id="platformTenantPrevious" type="button">Previous</button><span id="platformTenantPage"></span><button id="platformTenantNext" type="button">Next</button>
-    <section id="platformTenantHistory" hidden aria-label="Institution state history">
-        <h3 id="platformTenantHistoryTitle">Institution state history</h3>
-        <p id="platformTenantHistoryStatus" role="status" aria-live="polite"></p>
-        <div class="table-responsive"><table class="table"><thead><tr><th>Date</th><th>Actor</th><th>Previous state</th><th>New state</th><th>Reason</th><th>Request ID</th></tr></thead><tbody id="platformTenantHistoryRows"></tbody></table></div>
-        <button id="platformTenantHistoryPrevious" type="button">Previous</button>
-        <span id="platformTenantHistoryPage"></span>
-        <button id="platformTenantHistoryNext" type="button">Next</button>
-        <button id="platformTenantHistoryClose" type="button">Close history</button>
+    <p id="platformTenantStatus" class="small mb-2" role="status" aria-live="polite"></p>
+    <div class="table-responsive border rounded-3">
+        <table class="table table-sm table-hover align-middle mb-0">
+            <caption class="visually-hidden">@(bn ? "প্রতিষ্ঠান ও তাদের বর্তমান অবস্থা" : "Institutions and their current lifecycle state")</caption>
+            <thead class="table-light"><tr>
+                <th scope="col">@(bn ? "প্রতিষ্ঠান" : "Institution")</th>
+                <th scope="col">@(bn ? "কোড" : "Code")</th>
+                <th scope="col">@(bn ? "অবস্থা" : "State")</th>
+                <th scope="col">@(bn ? "সেটআপ" : "Onboarding")</th>
+                <th scope="col">@(bn ? "নিবন্ধন" : "Created")</th>
+                <th scope="col">@(bn ? "কাজ" : "Actions")</th>
+            </tr></thead>
+            <tbody id="platformTenantRows"></tbody>
+        </table>
+    </div>
+    <nav class="d-flex align-items-center justify-content-end gap-2 mt-2" aria-label="@(bn ? "প্রতিষ্ঠান তালিকার পৃষ্ঠা" : "Institution list pagination")">
+        <button id="platformTenantPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগের" : "Previous")</button>
+        <span id="platformTenantPage" class="small text-muted" aria-live="polite"></span>
+        <button id="platformTenantNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরের" : "Next")</button>
+    </nav>
+    <section id="platformTenantHistory" hidden aria-labelledby="platformTenantHistoryTitle" class="border rounded-3 p-3 mt-3">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+            <h2 id="platformTenantHistoryTitle" class="h6 mb-0">@(bn ? "অবস্থার ইতিহাস" : "State history")</h2>
+            <button id="platformTenantHistoryClose" type="button" class="btn btn-sm btn-outline-secondary">@(bn ? "বন্ধ করুন" : "Close")</button>
+        </div>
+        <p id="platformTenantHistoryStatus" class="small" role="status" aria-live="polite"></p>
+        <div class="table-responsive">
+            <table class="table table-sm align-middle">
+                <caption class="visually-hidden">@(bn ? "প্রতিষ্ঠানের অবস্থা পরিবর্তনের নিরীক্ষা" : "Audited institution state changes")</caption>
+                <thead><tr>
+                    <th scope="col">@(bn ? "তারিখ" : "Date")</th>
+                    <th scope="col">@(bn ? "পরিবর্তনকারী" : "Actor")</th>
+                    <th scope="col">@(bn ? "আগের অবস্থা" : "Previous")</th>
+                    <th scope="col">@(bn ? "নতুন অবস্থা" : "New")</th>
+                    <th scope="col">@(bn ? "কারণ" : "Reason")</th>
+                    <th scope="col">@(bn ? "অনুরোধ আইডি" : "Request ID")</th>
+                </tr></thead>
+                <tbody id="platformTenantHistoryRows"></tbody>
+            </table>
+        </div>
+        <nav class="d-flex justify-content-end align-items-center gap-2" aria-label="@(bn ? "ইতিহাসের পৃষ্ঠা" : "History pagination")">
+            <button id="platformTenantHistoryPrevious" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "আগের" : "Previous")</button>
+            <span id="platformTenantHistoryPage" class="small text-muted"></span>
+            <button id="platformTenantHistoryNext" type="button" class="btn btn-sm btn-outline-secondary" disabled>@(bn ? "পরের" : "Next")</button>
+        </nav>
     </section>
-    <form id="platformTenantDecision" hidden>
-        <h3 id="platformTenantDecisionTitle">Confirm state change</h3>
-        <label for="platformTenantReason">Reason (10–500 characters)</label>
-        <textarea id="platformTenantReason" minlength="10" maxlength="500" required></textarea>
-        <button id="platformTenantSubmit" type="submit">Confirm</button><button id="platformTenantCancel" type="button">Cancel</button>
+    <form id="platformTenantDecision" class="border border-warning rounded-3 p-3 mt-3" hidden>
+        <h2 id="platformTenantDecisionTitle" class="h6 mb-2">@(bn ? "অবস্থা পরিবর্তন নিশ্চিত করুন" : "Confirm state change")</h2>
+        <label for="platformTenantReason" class="form-label">@(bn ? "নিরীক্ষার কারণ (১০–৫০০ অক্ষর)" : "Audit reason (10–500 characters)")</label>
+        <textarea id="platformTenantReason" class="form-control mb-2" rows="2" minlength="10" maxlength="500" required></textarea>
+        <div class="d-flex flex-wrap gap-2">
+            <button id="platformTenantSubmit" type="submit" class="btn btn-warning">@(bn ? "নিশ্চিত করুন" : "Confirm change")</button>
+            <button id="platformTenantCancel" type="button" class="btn btn-outline-secondary">@(bn ? "বাতিল" : "Cancel")</button>
+        </div>
     </form>
 </section>
 @section Scripts { <script src="~/js/platform/tenant-lifecycle.js" asp-append-version="true"></script> }
