@@ -2,10 +2,10 @@
 @{
     ViewData["Title"] = "Student Import Preflight";
 }
-<section class="container-fluid py-3" aria-labelledby="studentImportTitle" data-import-tenant="@CurrentUser.TenantId">
+<section class="container-fluid py-2" aria-labelledby="studentImportTitle" data-import-tenant="@CurrentUser.TenantId">
     <header class="mb-3">
         <div class="d-flex align-items-center gap-2">
-            <h2 id="studentImportTitle" class="h4 mb-0">Student Import</h2>
+            <span id="studentImportTitle" class="visually-hidden">Student Import</span>
             <details class="small"><summary class="btn btn-sm btn-outline-secondary" aria-label="Import help">ⓘ</summary>
                 <div class="border rounded p-2 mt-2">Download the fixed-column Excel template and keep its headers unchanged. Preview before committing in recoverable 100-row transactions. Source files determine the number of students; existing global identities are never auto-merged.</div>
             </details>
@@ -109,7 +109,7 @@
             <h3 id="studentImportCommittedTitle" class="h5">Committed batch reconciliation</h3>
             <p id="studentImportCommittedSummary"></p>
             <div class="d-flex flex-wrap gap-2">
-                <button id="studentImportReload" type="button" class="btn btn-outline-primary btn-sm">Refresh reconciliation</button>
+                <button id="studentImportReload" type="button" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-outline-primary btn-sm">Refresh reconciliation</button>
                 <button id="studentImportVerifyIntegrity" type="button" class="btn btn-outline-primary btn-sm">Verify links &amp; required subjects</button>
                 <button id="studentImportIntegrityExport" type="button" class="btn btn-outline-secondary btn-sm d-none">Export integrity CSV</button>
                 <button id="studentImportRepairAcademics" type="button" class="btn btn-outline-warning btn-sm d-none">Repair missing required subjects</button>

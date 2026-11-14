@@ -1,10 +1,10 @@
 @{
     ViewData["Title"] = "Learner Identity Access History";
 }
-<section class="container-fluid py-3" aria-labelledby="identityHistoryTitle">
+<section class="container-fluid py-2" aria-labelledby="identityHistoryTitle">
     <header class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-3">
         <div>
-            <h2 id="identityHistoryTitle">Learner Identity Access History</h2>
+            <span id="identityHistoryTitle">Learner Identity Access History</span>
             <p class="text-muted mb-0">Read-only, institution-scoped identity registrations, consent decisions and grant revocations. Dates are UTC.</p>
         </div>
         <a class="btn btn-outline-secondary" asp-controller="LearnerIdentities" asp-action="Index">Identity registration</a>

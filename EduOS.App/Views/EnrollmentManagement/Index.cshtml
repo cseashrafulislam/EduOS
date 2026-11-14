@@ -2,11 +2,11 @@
     ViewData["Title"] = "Student Enrollment Management";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div id="enrollmentManagement" class="container-fluid py-4">
+<div id="enrollmentManagement" class="container-fluid py-2">
     @Html.AntiForgeryToken()
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <div>
-            <h1 class="h4 fw-bold mb-1">Student Enrollment Management</h1>
+            <span class="visually-hidden">Student Enrollment Management</span>
             <p class="text-muted mb-0">Assign an existing student to an eligible academic section without creating a second student record.</p>
         </div>
         <a class="btn btn-outline-secondary" href="/Students/Index">Student Directory</a>

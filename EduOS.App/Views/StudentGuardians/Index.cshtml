@@ -2,10 +2,10 @@
     ViewData["Title"] = "Student Guardians";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-<div id="guardianWorkspace" class="container-fluid py-4">
+<div id="guardianWorkspace" class="container-fluid py-2">
     @Html.AntiForgeryToken()
     <header class="mb-3">
-        <h1 class="h4">Student Guardians</h1>
+        <span class="visually-hidden">Student Guardians</span>
         <p class="text-muted">Manage guardian relationships, primary, emergency and financial contacts, and communication/pickup permissions. Changes are limited to your institution.</p>
     </header>
     <div id="guardianNotice" class="alert alert-info" role="status" aria-live="polite">Search for a student to begin.</div>
@@ -20,7 +20,7 @@
                 <div id="guardianMatches" class="list-group mt-3" aria-live="polite"></div>
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <h2 id="guardianSelected" class="h6 mb-0"></h2>
-                    <button id="guardianRefresh" class="btn btn-sm btn-outline-secondary" type="button" disabled>Refresh</button>
+                    <button id="guardianRefresh" hidden aria-hidden="true" tabindex="-1" class="d-none btn btn-sm btn-outline-secondary" type="button" disabled>Refresh</button>
                 </div>
             </div></section>
             <section class="card shadow-sm border-0 mt-3" aria-labelledby="guardianContactHeading"><div class="card-body">
