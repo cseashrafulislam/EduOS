@@ -241,8 +241,10 @@ async function attendance(browser) {
     await page.locator('#attendanceCorrectionReason').fill('Reconcile archived leave');
     failHistoricalRefresh = true;
     await page.locator('#attendanceCorrectionConfirm').click();
-    await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent.includes('Roster refresh unavailable.'));
-    assert.match(await page.locator('#attendanceAlert').getAttribute('class'), /alert-danger/);
+    await page.waitForFunction(() => document.querySelector('#attendanceAlert')?.textContent
+        .includes('Correction saved with audit, but roster refresh failed.'));
+    assert.match(await page.locator('#attendanceAlert').getAttribute('class'), /alert-warning/);
+    assert.doesNotMatch(await page.locator('#attendanceAlert').innerText(), /Attendance corrected with an audit record/);
     assert.equal(corrections.length, 3);
     await page.locator('#attendanceSessionsRows button').first().click();
     await page.waitForFunction(() => document.querySelector('#attendanceRosterPage')?.textContent.includes('Page 1 of 1'));
