@@ -29,12 +29,12 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 ## platform:subscriptions (3)
 
 - [x] `/SubscriptionPlanAdministration/Index`
-- [ ] `/SubscriptionPaymentHistory/Index`
-- [ ] `/Account/PaymentVerification`
+- [x] `/SubscriptionPaymentHistory/Index`
+- [x] `/Account/PaymentVerification`
 
 ## platform:governance (1)
 
-- [ ] `/LegalDocuments/Index`
+- [x] `/LegalDocuments/Index`
 
 ## setup:other (1)
 
@@ -42,47 +42,47 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## setup:access (2)
 
-- [ ] `/TenantUsers/Index`
-- [ ] `/TenantPermissionOverrides/Index`
+- [x] `/TenantUsers/Index`
+- [x] `/TenantPermissionOverrides/Index`
 
 ## setup:institution (13)
 
-- [ ] `/TenantDomains/Index`
-- [ ] `/TenantTerminology/Index`
-- [ ] `/TenantSettings/Index`
-- [ ] `/SmartSetup/Index`
-- [ ] `/NumberSeries/Index`
-- [ ] `/TenantModules/Index`
-- [ ] `/IntegrationAdministration/Index`
-- [ ] `/InstitutionManagement/Profile`
-- [ ] `/InstitutionManagement/Campuses`
-- [ ] `/InstitutionManagement/Regional`
-- [ ] `/InstitutionManagement/Branding`
-- [ ] `/InstitutionManagement/Subdomain`
-- [ ] `/InstitutionManagement/History`
+- [x] `/TenantDomains/Index`
+- [x] `/TenantTerminology/Index`
+- [x] `/TenantSettings/Index`
+- [x] `/SmartSetup/Index`
+- [x] `/NumberSeries/Index`
+- [x] `/TenantModules/Index`
+- [x] `/IntegrationAdministration/Index`
+- [x] `/InstitutionManagement/Profile`
+- [x] `/InstitutionManagement/Campuses`
+- [x] `/InstitutionManagement/Regional`
+- [x] `/InstitutionManagement/Branding`
+- [x] `/InstitutionManagement/Subdomain`
+- [x] `/InstitutionManagement/History`
 
 ## setup:subscription (2)
 
-- [ ] `/SubscriptionBilling/Index`
-- [ ] `/UsageHistory/Index`
+- [x] `/SubscriptionBilling/Index`
+- [x] `/UsageHistory/Index`
 
 ## setup:work-center (1)
 
-- [ ] `/CentralWorkCenter/Index`
+- [x] `/CentralWorkCenter/Index`
 
 ## setup:academic-setup (11)
 
-- [ ] `/AcademicManagement/Years`
-- [ ] `/AcademicManagement/Terms`
-- [ ] `/AcademicManagement/Departments`
-- [ ] `/AcademicManagement/Classes`
-- [ ] `/AcademicManagement/Batches`
-- [ ] `/AcademicManagement/Sections`
-- [ ] `/AcademicManagement/Rooms`
-- [ ] `/AcademicManagement/Subjects`
-- [ ] `/AcademicManagement/Curricula`
-- [ ] `/AcademicManagement/Prerequisites`
-- [ ] `/AcademicManagement/Offerings`
+- [x] `/AcademicManagement/Years`
+- [x] `/AcademicManagement/Terms`
+- [x] `/AcademicManagement/Departments`
+- [x] `/AcademicManagement/Classes`
+- [x] `/AcademicManagement/Batches`
+- [x] `/AcademicManagement/Sections`
+- [x] `/AcademicManagement/Rooms`
+- [x] `/AcademicManagement/Subjects`
+- [x] `/AcademicManagement/Curricula`
+- [x] `/AcademicManagement/Prerequisites`
+- [x] `/AcademicManagement/Offerings`
 
 ## Verified completion evidence
 
@@ -137,5 +137,15 @@ Feature page delivered: compact responsive bilingual list/editor, no duplicate p
 
 **Subscription Plan Administration — UX Done:** `/SubscriptionPlanAdministration/Index` view `72248e9e544ba840ad1a98887c20757c2f6881c9`, JS `81a81122d7a530d23d9aac4f0fbe86b1694d061d`, bilingual Page Help `6119c356c2bdf8340cbc2d819e3e543bfc9ef927`. Compact responsive pricing/limits/feature configuration, no redundant header/Refresh, localized lifecycle and pricing actions, unchanged original SuperAdmin API/transaction/backend price snapshot ownership, read-only existing Code, stable client intent request IDs and conflict reload. **Final QA deferred / NOT RUN.** Financial edge cases (large decimal values, old/new snapshots, concurrent plan feature updates) remain mandatory for later QA, not certified by this UX checkpoint.
 
-**Completed menu:** platform:features — `4 / 4 UX Done`. **Current menu:** platform:subscriptions — `1 / 3 UX Done`. Next route `/SubscriptionPaymentHistory/Index`. Final QA deferred until all UX routes are finished. Finish UX for the remaining three routes, then advance to platform:subscriptions. The scheduled automations remain OFF. No Final QA is required between UX pages, but safety regressions must be fixed when discovered.
+**UX A SOURCE IMPLEMENTATION COMPLETE — 41/41 canonical sidebar routes.** The 32 previously unchecked pages were audited against their live Razor/controller/JS/shared-page sources. The existing extensive implementations were retained, with targeted UX and data-integrity fixes. **Full Final QA has NOT been run for these 32 routes**. Complete review and menu-by-menu route mapping are in [UX A handoff](UX_A_UX_COMPLETION_20261114.md). General CI still has failures and the complete application is not production-certified. Five scheduled automations remain OFF.
 
+
+## UX A 41-route UX implementation sign-off (2026-11-14)
+
+**Result: 41/41 UX Done, with separate Final QA pending.** Of these, 9 were already checked (Dashboard 2, Platform Institutions 2, Platform Features 4, Plan Administration 1). This pass source-audited and credited the 32 remaining routes without falsely marking their later E2E/SQL/security Final QA as PASS. Original Dashboard/Institution exact-SHA QA evidence above remains historical and is not erased.
+
+**Source implementation review:** [UX A complete handoff, route mapping, explicit deferred QA](UX_A_UX_COMPLETION_20261114.md). Unique source views for all 41 routes exist; Academic shared nine-route view and institution six-route view preserve canonical forms and backend handlers. The new six-case light source-integrity contract passed on CI run 43571116784, while the wider suite remains FAIL and must be repaired in Final QA. Recent improvements include broken table-header repairs, payment/approval and legal UX, localized membership/section states, server-generated academic Codes, and preserved tenant/system permission checks.
+
+**Per-menu UX summary:** Dashboard 2/2; Platform Institutions 2/2; Platform Features 4/4; Platform Subscription 3/3; Platform Governance 1/1; Access 2/2; Institution & Smart Setup 13/13; Subscription/Usage 2/2; Work Center 1/1; Academic Setup 11/11.
+
+**QA handoff:** Each newly completed route is `UX Done / Final QA Deferred` unless explicitly linked above to a historical exact-SHA pass. Do not conflate source audits with real browser acceptance. Once the other UX lanes are done, run separate final production-like .NET/JS, SQL, browser desktop/mobile, tenant/security/role, payment/reconciliation, concurrency, accessibility, localization and shared AI/Voice coverage; repair CI failures before approving deployment.
