@@ -16,8 +16,9 @@ public class AccountDto
 
 public class SaveAccountRequestDto
 {
+    public Guid ClientRequestId { get; set; }
     public long? ParentAccountId { get; set; }
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string Code { get; set; } = string.Empty;
     [Required, MaxLength(200)] public string Name { get; set; } = string.Empty;
     public AccountType AccountType { get; set; }
     public bool IsGroup { get; set; }

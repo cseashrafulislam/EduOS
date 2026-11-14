@@ -5,6 +5,7 @@ if (root) {
     const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
     let page = 1, totalPages = 1, accounts = [], periods = [], banks = [], groups = [], assetLedgers = [];
+    let createAccountRequestId = null, createAccountFingerprint = null;
     let cashPage = 1, cashPages = 1, cashProposals = [], cashSelected = null, cashGeneration = 0;
     let cashSubmitKey = crypto.randomUUID(), cashReviewKey = null, cashReviewAction = null, cashBusy = false;
     const alert = (message, error = false) => { const el = $('accountingNotice'); el.textContent = message; el.className = 'alert ' + (error ? 'alert-danger' : 'alert-success'); };
@@ -44,7 +45,8 @@ if (root) {
     const originalIdentity = identity();
     const sameSession = () => identity() === originalIdentity && !originalIdentity.startsWith('|') && !originalIdentity.endsWith('|');
     const types = {1:'Asset',2:'Liability',3:'Equity',4:'Income',5:'Expense'};
-    const resetAccount = () => { $('accountForm')?.reset(); if (!writable) return; $('accountId').value = ''; $('accountVersion').value = ''; $('accountActive').checked = true; markClean('accountForm'); };
+    const resetAccount = () => { $('accountForm')?.reset(); if (!writable) return; $('accountId').value = ''; $('accountVersion').value = '';
+        $('accountActive').checked = true; createAccountRequestId = null; createAccountFingerprint = null; markClean('accountForm'); };
     const resetPeriod = () => { $('periodForm')?.reset(); if (!writable) return; $('periodId').value = ''; $('periodVersion').value = ''; markClean('periodForm'); };
     const resetBank = () => { $('bankForm')?.reset(); if (!writable) return; $('bankId').value = ''; $('bankVersion').value = ''; $('bankActive').checked = true; markClean('bankForm'); };
     async function loadAccounts() {
@@ -138,12 +140,23 @@ if (root) {
             markClean('accountForm');
         }));
         $('accountForm').addEventListener('submit', e => { e.preventDefault(); runForm(e.currentTarget, async () => {
-            const id = $('accountId').value, body = {code:$('accountCode').value.trim(), name:$('accountName').value.trim(),
+            const id = $('accountId').value, body = {code:id ? $('accountCode').value.trim() : '', name:$('accountName').value.trim(),
                 accountType:Number($('accountType').value), parentAccountId:$('accountParent').value ? Number($('accountParent').value) : null,
                 isGroup:$('accountGroup').checked, isActive:$('accountActive').checked,
                 isCashInHand:$('accountCash').checked, rowVersion:$('accountVersion').value || null};
+            if (!id) {
+                const fingerprint = JSON.stringify(body);
+                if (createAccountFingerprint !== fingerprint) {
+                    createAccountFingerprint = fingerprint;
+                    createAccountRequestId = crypto.randomUUID();
+                }
+                body.clientRequestId = createAccountRequestId;
+            }
             await request('/accounts' + (id ? '/' + id : ''), id ? 'PUT' : 'POST', body);
-            resetAccount(); await Promise.all([loadAccounts(), loadAccountOptions()]); alert('Account saved.');
+            // A committed write must not be reported as failed because the subsequent list GET failed.
+            resetAccount();
+            try { await Promise.all([loadAccounts(), loadAccountOptions()]); alert('Account saved.'); }
+            catch { alert('Account saved, but the register could not reload. Search before another create.', true); }
         }); });
         const pendingPeriodCloses = new Set();
         $('periodRows').addEventListener('click', e => run(async () => {

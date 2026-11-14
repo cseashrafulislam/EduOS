@@ -83,6 +83,11 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
     public async Task<ApiResponse<AccountDto>> SaveAccountAsync(long? accountId, SaveAccountRequestDto request, CancellationToken ct = default)
     {
         if (!Writable) return Denied<AccountDto>();
+        // The chart-of-accounts hierarchy is authoritative; new internal codes are server-owned.
+        // Explicit codes from existing clients and the code of an existing account remain valid.
+        if (request != null && !accountId.HasValue && request.ClientRequestId != Guid.Empty &&
+            string.IsNullOrWhiteSpace(request.Code))
+            request.Code = "ACC-" + request.ClientRequestId.ToString("N").ToUpperInvariant();
         if (request == null || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name) ||
             !Enum.IsDefined(request.AccountType))
             return ApiResponse<AccountDto>.ErrorResponse("Account code, name and type are required.");
@@ -97,8 +102,21 @@ public sealed partial class AccountingSetupService : IAccountingSetupService
             if (markCash && (request.AccountType != AccountType.Asset || request.IsGroup || !request.IsActive))
                 return ApiResponse<AccountDto>.ErrorResponse("Cash-in-hand must be an active asset posting account.", 400);
             if (row != null && !Version(row.RowVersion, request.RowVersion)) return ApiResponse<AccountDto>.ErrorResponse("Account changed; reload.", 409);
-            if (await Accounts.AnyAsync(x => x.Code == code && (row == null || x.Id != row.Id), ct))
+            var matchingCode = await Accounts.FirstOrDefaultAsync(x =>
+                x.Code == code && (row == null || x.Id != row.Id), ct);
+            if (matchingCode != null)
+            {
+                if (!accountId.HasValue && request.ClientRequestId != Guid.Empty &&
+                    code == "ACC-" + request.ClientRequestId.ToString("N").ToUpperInvariant() &&
+                    matchingCode.CreatedBy == user.UserId &&
+                    matchingCode.Name == name && matchingCode.AccountType == request.AccountType &&
+                    matchingCode.ParentAccountId == request.ParentAccountId &&
+                    matchingCode.IsGroup == request.IsGroup && matchingCode.IsActive == request.IsActive &&
+                    matchingCode.IsCashInHand == markCash)
+                    return ApiResponse<AccountDto>.SuccessResponse(AccountMap(matchingCode),
+                        "Previously saved account returned.");
                 return ApiResponse<AccountDto>.ErrorResponse("Account code already exists.", 409);
+            }
             if (row != null)
             {
                 // Include legacy soft-deleted lines: journal history must never be
