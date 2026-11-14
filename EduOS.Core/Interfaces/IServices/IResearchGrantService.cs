@@ -5,6 +5,8 @@ namespace EduOS.Core.Interfaces.IServices;
 
 public interface IResearchGrantService
 {
+    Task<ApiResponse<PagedResult<ResearchGrantEligibleProposalDto>>> EligibleProposalsAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default);
     Task<ApiResponse<List<ResearchGrantSchemeDto>>> SchemesAsync(CancellationToken ct = default);
     Task<ApiResponse<ResearchGrantSchemeDto>> CreateSchemeAsync(ResearchGrantSchemeCreateDto input, CancellationToken ct = default);
     Task<ApiResponse<ResearchGrantDto>> CreateAsync(ResearchGrantCreateDto input, CancellationToken ct = default);

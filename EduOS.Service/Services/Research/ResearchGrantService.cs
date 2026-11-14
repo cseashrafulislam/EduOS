@@ -168,6 +168,34 @@ public sealed class ResearchGrantService(EduOSDbContext db, ResearchWorkflowAcce
         { return ApiResponse<ResearchGrantSchemeDto>.ErrorResponse("Scheme code already exists.", 409); }
     }
 
+    public async Task<ApiResponse<PagedResult<ResearchGrantEligibleProposalDto>>> EligibleProposalsAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        var roles = await access.RolesAsync(ct);
+        if (!ResearchWorkflowAccess.Has(roles, "TEACHER", "RESEARCHER", "RESEARCHCOORDINATOR", "TENANTADMIN", "PRINCIPAL"))
+            return Denied<PagedResult<ResearchGrantEligibleProposalDto>>();
+        if (page is < 1 or > 100000 || pageSize is < 1 or > 50 ||
+            page > int.MaxValue / pageSize || search?.Length > 100)
+            return ApiResponse<PagedResult<ResearchGrantEligibleProposalDto>>.ErrorResponse("Invalid proposal search.", 400);
+        var term = search?.Trim() ?? "";
+        const string sql = """
+            FROM dbo.ResearchProposals AS p
+            JOIN dbo.Campuses AS c ON c.Id = p.CampusId AND c.TenantId = p.TenantId
+            WHERE p.TenantId = {0} AND p.OwnerUserId = {1} AND p.StateCode = N'EthicsApproved'
+              AND c.IsActive = 1 AND c.IsDeleted = 0
+              AND ({2} = N'' OR p.Title LIKE N'%' + {2} + N'%')
+            """;
+        var filter = sql + " AND " + CampusGrant;
+        var count = await db.Database.SqlQueryRaw<int>("SELECT COUNT(*) AS Value " + filter,
+            access.TenantId, access.UserId, term).SingleAsync(ct);
+        var items = await db.Database.SqlQueryRaw<ResearchGrantEligibleProposalDto>(
+            "SELECT p.PublicId AS Reference, p.Title, p.CampusId, c.Name AS CampusName " +
+            filter + " ORDER BY p.UpdatedAtUtc DESC, p.Id DESC OFFSET {3} ROWS FETCH NEXT {4} ROWS ONLY",
+            access.TenantId, access.UserId, term, (page - 1) * pageSize, pageSize).ToListAsync(ct);
+        return ApiResponse<PagedResult<ResearchGrantEligibleProposalDto>>.SuccessResponse(new()
+        { Page = page, PageSize = pageSize, TotalCount = count, Items = items });
+    }
+
     public async Task<ApiResponse<ResearchGrantDto>> CreateAsync(ResearchGrantCreateDto input, CancellationToken ct = default)
     {
         if (input == null || input.ClientRequestId == Guid.Empty || input.ProposalReference == Guid.Empty || input.SchemeId <= 0 ||

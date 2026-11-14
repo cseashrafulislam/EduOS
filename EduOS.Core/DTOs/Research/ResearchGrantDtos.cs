@@ -11,6 +11,14 @@ public sealed class ResearchGrantSchemeCreateDto
     [Range(typeof(decimal), "0.01", "99999999999999999.99")] public decimal MaxAward { get; set; }
 }
 
+public sealed class ResearchGrantEligibleProposalDto
+{
+    public Guid Reference { get; set; }
+    public string Title { get; set; } = "";
+    public long CampusId { get; set; }
+    public string CampusName { get; set; } = "";
+}
+
 public sealed class ResearchGrantSchemeDto
 {
     public long Id { get; set; }

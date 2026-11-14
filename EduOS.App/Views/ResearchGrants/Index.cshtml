@@ -46,10 +46,19 @@
             <section class="card border-0 shadow-sm" aria-labelledby="grantCreateHeading">
                 <div class="card-body">
                     <h2 class="h5" id="grantCreateHeading" data-g-en="New grant application" data-g-bn="নতুন অনুদান আবেদন">New grant application</h2>
-                    <p class="small text-muted" data-g-en="A proposal must already have independent ethics approval. Find its reference on the Research & Ethics page." data-g-bn="প্রস্তাবে আগে স্বতন্ত্র নৈতিক অনুমোদন থাকতে হবে। Research & Ethics পৃষ্ঠা থেকে রেফারেন্স নিন।">A proposal must already have independent ethics approval. Find its reference on the Research & Ethics page.</p>
+                    <p class="small text-muted mb-2" data-g-en="Choose one of your independently ethics-approved proposals. No reference ID needs to be entered." data-g-bn="আপনার স্বতন্ত্র নৈতিক অনুমোদিত প্রস্তাব বেছে নিন; রেফারেন্স আইডি লিখতে হবে না।">Choose one of your independently ethics-approved proposals. No reference ID needs to be entered.</p>
                     <form id="grantCreateForm">
-                        <label for="grantProposal" class="form-label" data-g-en="Ethics-approved proposal reference" data-g-bn="নৈতিকভাবে অনুমোদিত প্রস্তাব রেফারেন্স">Ethics-approved proposal reference</label>
-                        <input id="grantProposal" class="form-control mb-2" required maxlength="36" />
+                        <label for="grantProposalSearch" class="form-label" data-g-en="Approved research proposal" data-g-bn="অনুমোদিত গবেষণা প্রস্তাব">Approved research proposal</label>
+                        <div class="input-group mb-2">
+                            <input id="grantProposalSearch" class="form-control" type="search" maxlength="100" data-g-placeholder-en="Search by proposal title" data-g-placeholder-bn="প্রস্তাবের শিরোনাম দিয়ে খুঁজুন" placeholder="Search by proposal title" />
+                            <button id="grantProposalFind" type="button" class="btn btn-outline-primary" data-g-en="Find" data-g-bn="খুঁজুন">Find</button>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <select id="grantProposal" class="form-select flex-grow-1" style="min-width:12rem" required aria-label="Ethics-approved proposal"></select>
+                            <button id="grantProposalPrev" type="button" class="btn btn-outline-secondary btn-sm" aria-label="Previous proposals">‹</button>
+                            <span id="grantProposalPage" class="small text-muted" aria-live="polite"></span>
+                            <button id="grantProposalNext" type="button" class="btn btn-outline-secondary btn-sm" aria-label="Next proposals">›</button>
+                        </div>
                         <label for="grantScheme" class="form-label" data-g-en="Grant scheme" data-g-bn="অনুদান স্কিম">Grant scheme</label>
                         <select id="grantScheme" class="form-select mb-2" required></select>
                         <label for="grantTitle" class="form-label" data-g-en="Project title" data-g-bn="প্রকল্পের শিরোনাম">Project title</label>

@@ -32,6 +32,11 @@ public sealed class ResearchGrantsApiController(IResearchGrantService service,
     public async Task<IActionResult> List(long? campusId, int page = 1, int pageSize = 20,
         CancellationToken ct = default) => Reply(await service.ListAsync(campusId, page, pageSize, ct));
 
+    [HttpGet("eligible-proposals")]
+    public async Task<IActionResult> EligibleProposals(string? search, int page = 1, int pageSize = 20,
+        CancellationToken ct = default) =>
+        Reply(await service.EligibleProposalsAsync(search, page, pageSize, ct));
+
     [HttpGet("schemes")]
     public async Task<IActionResult> Schemes(CancellationToken ct) => Reply(await service.SchemesAsync(ct));
 

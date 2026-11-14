@@ -14,6 +14,7 @@
     let outputPage = 1, outputTotal = 0, outputRetry = null, outputReview = null, reviewRetry = null;
     let outputGeneration = 0, reportGeneration = 0;
     let financeMappingRetry = null, financeLinkRetry = null;
+    let proposalPage = 1, proposalTotal = 0, proposalGeneration = 0;
     const names = {
         submit: ['Submit application', 'আবেদন জমা'], award: ['Approve award', 'অনুদান অনুমোদন'],
         reject: ['Reject application', 'আবেদন প্রত্যাখ্যান'], 'request-amend': ['Request budget change', 'বাজেট পরিবর্তন অনুরোধ'],
@@ -76,7 +77,10 @@
         target.appendChild(row);
     }
     function controls() {
-        get('grantCreateButton').disabled = busy || !get('grantScheme').value;
+        get('grantCreateButton').disabled = busy || !get('grantScheme').value || !get('grantProposal').value;
+        get('grantProposalFind').disabled = busy;
+        get('grantProposalPrev').disabled = busy || proposalPage <= 1;
+        get('grantProposalNext').disabled = busy || proposalPage * 20 >= proposalTotal;
         get('grantRefresh').disabled = busy;
         get('grantPrevious').disabled = busy || page === 1;
         get('grantNext').disabled = busy || page * 20 >= total;
@@ -210,6 +214,27 @@
         } catch (e) { if (generation === reportGeneration) notice(e.message, true); }
         finally { busy = false; controls(); }
     });
+    async function eligibleProposals() {
+        const generation = ++proposalGeneration;
+        const select = get('grantProposal');
+        select.replaceChildren(); option(select, '', t('Choose an approved proposal', 'অনুমোদিত প্রস্তাব নির্বাচন'));
+        try {
+            const search = get('grantProposalSearch').value.trim();
+            const result = await api('/api/research/grants/eligible-proposals?page=' + proposalPage +
+                '&pageSize=20&search=' + encodeURIComponent(search));
+            if (generation !== proposalGeneration || !sessionValid()) return;
+            proposalTotal = result.totalCount;
+            (result.items || []).forEach(item => option(select, item.reference, item.title + ' — ' + item.campusName));
+            get('grantProposalPage').textContent = proposalPage + ' / ' +
+                Math.max(1, Math.ceil(proposalTotal / 20));
+            if (!result.items.length)
+                notice(t('No eligible proposals found. Obtain independent ethics approval first.',
+                    'উপযুক্ত প্রস্তাব নেই। আগে স্বতন্ত্র নৈতিক অনুমোদন সম্পন্ন করুন।'));
+        } catch (e) {
+            if (generation === proposalGeneration) notice(e.message, true);
+        }
+        controls();
+    }
     async function schemes() {
         try {
             const list = await api('/api/research/grants/schemes');
@@ -320,6 +345,21 @@
     get('grantRefresh').addEventListener('click', () => { page = 1; loadList(); });
     get('grantPrevious').addEventListener('click', () => { if (page > 1) { page--; loadList(); } });
     get('grantNext').addEventListener('click', () => { if (page * 20 < total) { page++; loadList(); } });
+    get('grantProposalFind').addEventListener('click', () => {
+        createRetry = null; proposalPage = 1; void eligibleProposals();
+    });
+    get('grantProposalSearch').addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+            event.preventDefault(); createRetry = null; proposalPage = 1; void eligibleProposals();
+        }
+    });
+    get('grantProposalPrev').addEventListener('click', () => {
+        if (proposalPage > 1) { createRetry = null; proposalPage--; void eligibleProposals(); }
+    });
+    get('grantProposalNext').addEventListener('click', () => {
+        if (proposalPage * 20 < proposalTotal) { createRetry = null; proposalPage++; void eligibleProposals(); }
+    });
+    get('grantProposal').addEventListener('change', () => { createRetry = null; controls(); });
     get('grantCreateForm').addEventListener('input', () => { createRetry = null; });
     get('grantCreateForm').addEventListener('change', () => { createRetry = null; });
     get('grantCreateForm').addEventListener('submit', async event => {
@@ -332,7 +372,8 @@
         busy = true; controls();
         try {
             const created = await api('/api/research/grants', body);
-            createRetry = null; get('grantCreateForm').reset(); page = 1; await loadList();
+            createRetry = null; get('grantCreateForm').reset(); proposalPage = 1;
+            await eligibleProposals(); page = 1; await loadList();
             await open(created.reference); notice(t('Grant draft saved.', 'অনুদানের খসড়া সংরক্ষিত।'));
         } catch (e) { notice(e.message, true); }
         finally { busy = false; controls(); }
@@ -405,5 +446,5 @@
         } catch (e) { notice(e.message, true); }
         finally { busy = false; controls(); }
     });
-    schemes(); loadList();
+    schemes(); eligibleProposals(); loadList();
 })();
