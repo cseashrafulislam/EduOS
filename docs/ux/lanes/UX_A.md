@@ -14,7 +14,7 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 
 ## platform:institutions (2)
 
-- [ ] `/PlatformTenants/Index`
+- [x] `/PlatformTenants/Index`
 - [ ] `/PlatformCatalogAdministration/Index`
 
 ## platform:features (4)
@@ -91,6 +91,8 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 | `/Dashboard/Admin` | `06d691fc2f130016c2a813f0994830cc431590df` | PASS / PASS / PASS / PASS / PASS | Anonymous denied; SuperAdmin; English desktop 1366px; Bangla mobile 390px; API vs rendered KPI, authenticated permissioned links, read-only Help and shared Assistant | **Verified Complete** — isolated Dashboard final QA PASS |
 | `/Dashboard/Index` | `06d691fc2f130016c2a813f0994830cc431590df` | PASS / PASS / PASS / PASS / PASS | TenantAdmin, Teacher, Student; demo tenant only, platform-wide API forbidden; financial counts absent for unauthorized non-admin roles; desktop and mobile | **Verified Complete** — isolated Dashboard final QA PASS |
 
+| `/PlatformTenants/Index` | `a9e699054127335c1a0c8e197f8aa45f8d00cc10` | PASS / PASS / PASS / PASS / PASS | SuperAdmin English desktop; Bengali mobile; anonymous/TenantAdmin/Teacher denied; SQL migration; real audited suspend/reactivate, idempotent retry, stale version 409, host system tenant immutable, paged history, shared Help/Assistant | **Verified Complete** — [dedicated SQL/Chromium gate PASS](https://github.com/cseashrafulislam/EduOS/actions/runs/43562055803) |
+
 ### Exact-SHA QA evidence — 2026-11-14
 
 - **Build and tests:** `dotnet restore EduOS.slnx`, Release full-solution build, filtered xUnit `DashboardServiceTests|PlatformDashboardServiceTests`, dashboard Node contracts, reviewed bilingual Dashboard Page Help Node tests and browser script syntax all PASS on the tested commit.
@@ -99,6 +101,13 @@ Source: [canonical route ownership](../UX_ROUTE_OWNERSHIP_20261114.json). Branch
 - **Scope:** Dashboard-specific verification is complete. The repository-wide **CI** workflow on this commit still reports FAILURE due to other JavaScript contracts; the separate general **SQL Server Migration Smoke** run was in progress when this acceptance evidence was recorded. Those are **product-wide release blockers and must not be described as a fully green repository/release gate**. This scoped page sign-off does not certify unrelated modules, load benchmarks, production institution UAT or deployment.
 - **Automation:** remains OFF per owner's earlier instruction. No production database or existing tenant data was changed by these QA fixtures.
 
+### Platform Tenant Lifecycle exact-SHA QA — 2026-11-14
+
+- Commit `a9e699054127335c1a0c8e197f8aa45f8d00cc10`: .NET 10 Release build, focused `PlatformTenantLifecycleServiceTests` + `PlatformTenantStateHistoryTests` xUnit tests, lifecycle/catalog Node contracts and real Chromium on disposable migrated SQL Server 2022 **PASS**.
+- Real browser five PASS scenarios: anonymous denied; SuperAdmin English desktop end-to-end search and state history, Active → Suspended → Active; replayed request does not duplicate audits; stale RowVersion returns 409; reserved `EDUOS-SYSTEM` denies mutations; Bangla mobile and reviewed Help; tenant-role API and page denied.
+- Preserved historical tenant Codes, subscription/accounting sources, existing APIs and approval rules. Added server-side guard for reserved bootstrap tenant. The dedicated gate is green; unrelated repository-wide CI failures still block broad product release certification.
+- Only the lifecycle route was marked verified; catalogue route remains unchecked until its own metadata/activation/browser QA completes. Tested source SHA is exact; this ledger-only commit changes no application code.
+
 ## Current in-progress or blocked route
 
-**Both Dashboard routes Verified Complete.** Per canonical menu order, the next unverified UX A menu is **platform:institutions** and its first page is `/PlatformTenants/Index`. Do not rework either Dashboard without new defects; preserve their focused browser/SQL regression workflow whenever shared authorization, layout, dashboard services or error handling changes.
+**Current menu:** platform:institutions. `/PlatformTenants/Index` Verified Complete; next route `/PlatformCatalogAdministration/Index` — implementation/Final QA pending. Do not proceed to platform:features until its metadata and activation acceptance gates PASS.
