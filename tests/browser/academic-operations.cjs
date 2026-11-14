@@ -468,7 +468,9 @@ async function leaves(browser) {
         document.querySelector('#leaveReason').value = 'Private draft';
         document.body.dataset.authTenantId = 'other-institute';
     });
-    await page.locator('#leaveRefresh').click();
+    // Refresh is intentionally hidden on this compact page. Use a real
+    // visible filter change to trigger the same mandatory tenant-session check.
+    await page.locator('#leaveFilter').selectOption('2');
     await page.waitForFunction(() => document.querySelector('#leaveNotice')?.textContent.includes('Institution session changed'));
     assert.equal(await page.locator('#leaveReason').inputValue(), '');
     assert.equal(await page.locator('#leaveSubmit').isDisabled(), true);
