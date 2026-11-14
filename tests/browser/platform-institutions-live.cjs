@@ -117,6 +117,84 @@ function stateCode(row){return typeof row.state==='number'?row.state:
     assert.equal(errors.length,0,errors.join(' | '));
    }finally{await c.close()}
   });
+  await check('SuperAdmin catalog metadata edit, retry, conflict, activation and restoration',async()=>{
+   const c=await browser.newContext({viewport:{width:1366,height:850},serviceWorkers:'block'});
+   try{
+    await login(c,adminEmail,adminPassword);
+    await c.addCookies([{name:'.AspNetCore.Culture',value:'c=en-BD|uic=en-BD',url:base}]);
+    const page=await c.newPage(), errors=[];page.on('pageerror',e=>errors.push(e.message));
+    page.on('dialog',d=>d.accept());
+    const res=await page.goto(base+'/PlatformCatalogAdministration/Index',{waitUntil:'domcontentloaded'});
+    assert.equal(res.status(),200);
+    assert.equal(await page.locator('h1').count(),1,'only shared shell page title');
+    assert.equal(await page.locator('#catalogRefresh').count(),0);
+    assert.equal(await page.locator('#catalogRetry').isHidden(),true);
+    const response=await request(page,'/api/platform/catalog/institution-types');
+    assert.equal(response.status,200,response.preview);
+    assert.match(response.cache,/no-store/);
+    const types=response.payload.data;
+    assert.ok(Array.isArray(types)&&types.length>0,'seeded global catalog required');
+    const item=types.find(x=>x.isActive&&x.rowVersion);
+    assert.ok(item,'one active institution type with optimistic version required');
+    const metadataRoute='/api/platform/catalog/institution-types/'+item.id+'/metadata';
+    const activationRoute='/api/platform/catalog/institution-types/'+item.id+'/activation';
+    const bad=await request(page,metadataRoute,'POST',{
+      requestId:crypto.randomUUID(),rowVersion:item.rowVersion,name:'',
+      nameBangla:'',description:'',academicCycleType:item.academicCycleType,displayOrder:item.displayOrder
+    });
+    assert.equal(bad.status,400,'empty name cannot change authoritative catalog');
+    const stale=await request(page,metadataRoute,'POST',{
+      requestId:crypto.randomUUID(),rowVersion:'AQ==',name:item.name,
+      nameBangla:item.nameBangla||'',description:item.description||'',
+      academicCycleType:item.academicCycleType,displayOrder:item.displayOrder
+    });
+    assert.equal(stale.status,409,'stale metadata version must not be applied');
+    const row=page.locator('#catalogRows tr').filter({hasText:item.code});
+    await row.getByRole('button',{name:'Edit'}).click();
+    assert.equal(await page.locator('#catalogEditor').isVisible(),true);
+    assert.equal((await page.locator('#catalogEditCode').innerText()).trim(),item.code);
+    assert.equal(await page.locator('input[id*="Code"]').count(),0,'system code cannot be editable');
+    const oldDescription=item.description||'';
+    const qaDescription='QA temporary catalog metadata, disposable test only.';
+    await page.locator('#catalogEditDescription').fill(qaDescription);
+    let recordedMetadata=null;
+    await page.route('**/api/platform/catalog/institution-types/*/metadata',async route=>{
+      if(route.request().method()==='POST')recordedMetadata=route.request().postDataJSON();
+      await route.continue();
+    });
+    const saveWait=page.waitForResponse(r=>r.url().endsWith('/metadata')&&r.request().method()==='POST');
+    await page.locator('#catalogSave').click();
+    assert.equal((await saveWait).status(),200,'metadata edit must commit');
+    assert.ok(recordedMetadata?.requestId);
+    const duplicate=await request(page,metadataRoute,'POST',recordedMetadata);
+    assert.equal(duplicate.status,200,'unchanged metadata replay must be idempotent');
+    const saved=(await request(page,'/api/platform/catalog/institution-types')).payload.data.find(x=>x.id===item.id);
+    assert.equal(saved.description,qaDescription);
+    const restore=await request(page,metadataRoute,'POST',{
+      requestId:crypto.randomUUID(),rowVersion:saved.rowVersion,name:item.name,
+      nameBangla:item.nameBangla||'',description:oldDescription,
+      academicCycleType:item.academicCycleType,displayOrder:item.displayOrder
+    });
+    assert.equal(restore.status,200,'original metadata restored in disposable DB');
+    const next=(await request(page,'/api/platform/catalog/institution-types')).payload.data.find(x=>x.id===item.id);
+    assert.equal(next.description||'',oldDescription);
+    await page.locator('#catalogRows tr').filter({hasText:item.code})
+       .getByRole('button',{name:'Hide from signup'}).click();
+    const hiddenWait=page.waitForResponse(r=>r.url().endsWith('/activation')&&r.request().method()==='POST');
+    // The click above triggers the request; waitForResponse is intentionally
+    // followed by the next response check only if still pending.
+    const hidden=await request(page,'/api/platform/catalog/institution-types');
+    const afterHide=hidden.payload.data.find(x=>x.id===item.id);
+    assert.equal(afterHide.isActive,false,'signup type must be hidden');
+    const reactivate=await request(page,activationRoute,'POST',{
+       requestId:crypto.randomUUID(),rowVersion:afterHide.rowVersion,isActive:true
+    });
+    assert.equal(reactivate.status,200,'catalog restored to originally active');
+    const current=(await request(page,'/api/platform/catalog/institution-types')).payload.data.find(x=>x.id===item.id);
+    assert.equal(current.isActive,true);
+    assert.equal(errors.length,0,errors.join(' | '));
+   }finally{await c.close()}
+  });
   await check('SuperAdmin Bangla mobile with contextual manual',async()=>{
    const c=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'block'});
    try{
@@ -143,6 +221,10 @@ function stateCode(row){return typeof row.state==='number'?row.state:
      await page.goto(base+'/Dashboard/Index',{waitUntil:'domcontentloaded'});
      const api=await request(page,'/api/platform/tenants?page=1&pageSize=20');
      assert.equal(api.status,403);
+     const catalog=await request(page,'/api/platform/catalog/institution-types');
+     assert.equal(catalog.status,403,'Tenant role must not list platform catalog');
+     await page.goto(base+'/PlatformCatalogAdministration/Index',{waitUntil:'domcontentloaded'});
+     assert.equal(await page.locator('#institutionTypeAdministration').count(),0);
      await page.goto(base+'/PlatformTenants/Index',{waitUntil:'domcontentloaded'});
      assert.equal(await page.locator('#platformTenantWorkspace').count(),0);
     }finally{await c.close()}
