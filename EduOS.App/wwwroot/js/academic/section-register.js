@@ -3,6 +3,8 @@
     const root = document.getElementById('academicSectionsPage');
     if (!root) return;
     const el = id => document.getElementById(id);
+    const bn = (document.documentElement.lang || '').toLowerCase().startsWith('bn');
+    const t = (en, bangla) => bn ? bangla : en;
     const form = el('sectionCreateForm');
     const guard = window.EduOSFormGuard?.create(form);
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
@@ -58,7 +60,7 @@
         el('sectionCampus').value = campusId;
         el('sectionLevel').value = levelId;
         el('sectionCode').readOnly = false;
-        el('sectionSave').textContent = 'Add Section';
+        el('sectionSave').textContent = t('Add Section', 'শাখা যোগ করুন');
         el('sectionAdvanced').open = false;
         state.requestId = null;
         state.requestBody = null;
@@ -74,8 +76,8 @@
         state.campuses = (campuses || []).filter(x => x.isActive !== false);
         state.levels = (catalog?.levels || []).filter(x => x.isActive !== false);
         state.programs = (catalog?.programs || []).filter(x => x.isActive !== false);
-        menu('sectionCampus', state.campuses, 'Select campus', x => x.name);
-        menu('sectionLevel', state.levels, 'Select class / grade', levelName);
+        menu('sectionCampus', state.campuses, t('Select campus', 'ক্যাম্পাস নির্বাচন করুন'), x => x.name);
+        menu('sectionLevel', state.levels, t('Select class / grade', 'শ্রেণি নির্বাচন করুন'), levelName);
         if (!state.initialized) {
             state.initialized = true;
             const fromBatch = new URLSearchParams(location.search).get('academicBatchId');
@@ -88,7 +90,7 @@
                     if (state.levels.some(x => x.id === batch.academicLevelId))
                         el('sectionLevel').value = String(batch.academicLevelId);
                 } catch {
-                    notice('Linked cohort is unavailable; choose a campus and class.', true);
+                    notice(t('Linked cohort is unavailable; choose a campus and class.', 'সংশ্লিষ্ট গ্রুপ পাওয়া যায়নি; ক্যাম্পাস ও শ্রেণি নির্বাচন করুন।'), true);
                 }
             }
         }
@@ -99,7 +101,7 @@
         body.replaceChildren();
         if (!rows.length) {
             const tr = document.createElement('tr'), td = document.createElement('td');
-            td.colSpan = 7; td.className = 'text-muted'; td.textContent = 'No sections match these filters.';
+            td.colSpan = 7; td.className = 'text-muted'; td.textContent = t('No sections match these filters.', 'এই ফিল্টারে কোনো শাখা নেই।');
             tr.append(td); body.append(tr); return;
         }
         for (const item of rows) {
@@ -116,11 +118,11 @@
             const actions = document.createElement('td');
             const edit = document.createElement('button');
             edit.type = 'button'; edit.className = 'btn btn-sm btn-outline-primary me-2';
-            edit.textContent = 'Edit';
+            edit.textContent = t('Edit', 'সম্পাদনা');
             edit.addEventListener('click', () => beginEdit(item));
             const remove = document.createElement('button');
             remove.type = 'button'; remove.className = 'btn btn-sm btn-outline-danger';
-            remove.textContent = 'Delete';
+            remove.textContent = t('Delete', 'মুছুন');
             remove.addEventListener('click', () => removeSection(item));
             actions.append(edit, remove);
             tr.append(actions); body.append(tr);
@@ -137,14 +139,14 @@
         const total = data.totalCount || 0;
         el('sectionPrevious').disabled = state.page <= 1;
         el('sectionNext').disabled = state.page * 20 >= total;
-        el('sectionPageStatus').textContent = 'Page ' + state.page + ' · ' + total + ' sections';
+        el('sectionPageStatus').textContent = t('Page ', 'পৃষ্ঠা ') + state.page + ' · ' + total + t(' sections', ' টি শাখা');
         render(data.items || []);
     }
     function beginEdit(item) {
         if (state.busy || !sameSession() || !clearEditor()) return;
         if (!state.campuses.some(x => x.id === item.campusId) ||
             !state.levels.some(x => x.id === item.academicLevelId)) {
-            notice('Class or campus not in the current catalog. Refresh the setup directory.', true);
+            notice(t('Class or campus not in the current catalog. Reload the setup directory.', 'বর্তমান তালিকায় শ্রেণি বা ক্যাম্পাস নেই। সেটআপ পেজটি পুনরায় খুলুন।'), true);
             return;
         }
         el('sectionCampus').value = String(item.campusId);
@@ -159,7 +161,7 @@
         el('sectionCapacity').value = String(item.capacity);
         el('sectionOrder').value = String(item.displayOrder);
         el('sectionActive').value = String(item.isActive);
-        el('sectionSave').textContent = 'Save Section';
+        el('sectionSave').textContent = t('Save Section', 'শাখা সংরক্ষণ');
         el('sectionAdvanced').open = true;
         guard?.markClean();
         form.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -171,7 +173,7 @@
             await api('/api/academic-sections/' + encodeURIComponent(item.id), {
                 method: 'DELETE', body: JSON.stringify({ rowVersion: item.rowVersion })
             });
-            if (sameSession()) { notice('Section removed.'); await load(); }
+            if (sameSession()) { notice(t('Section removed.', 'শাখা সরানো হয়েছে।')); await load(); }
         } catch (error) { if (sameSession()) notice(error.message, true); }
         finally { setBusy(false); }
     }
@@ -182,9 +184,9 @@
         const capacity = Number(text('sectionCapacity')), displayOrder = Number(text('sectionOrder'));
         if (!Number.isInteger(capacity) || capacity < 0 || capacity > 100000 ||
             !Number.isInteger(displayOrder) || displayOrder < 0)
-            return notice('Invalid section capacity or display order.', true);
+            return notice(t('Invalid section capacity or display order.', 'আসনসংখ্যা বা প্রদর্শনের ক্রম ভুল।'), true);
         if (!editing && (!selectedCampus() || !selectedLevel()))
-            return notice('Select a valid campus and class / grade.', true);
+            return notice(t('Select a valid campus and class / grade.', 'সঠিক ক্যাম্পাস ও শ্রেণি নির্বাচন করুন।'), true);
         const data = editing
             ? { name: text('sectionName'), capacity, displayOrder,
                 isActive: text('sectionActive') === 'true', rowVersion: text('sectionVersion') }
@@ -197,7 +199,7 @@
                 state.requestId = window.crypto?.randomUUID?.() || '';
                 state.requestBody = fingerprint;
             }
-            if (!state.requestId) return notice('Secure request ID unavailable. Reload using HTTPS.', true);
+            if (!state.requestId) return notice(t('Secure request ID unavailable. Reload using HTTPS.', 'নিরাপদ অনুরোধ নম্বর পাওয়া যায়নি। HTTPS দিয়ে পেজ পুনরায় খুলুন।'), true);
             data.clientRequestId = state.requestId;
         }
         setBusy(true);
@@ -208,10 +210,10 @@
             saved = true;
             if (!sameSession()) return;
             clearEditor(false);
-            notice('Academic Section saved.');
+            notice(t('Academic Section saved.', 'একাডেমিক শাখা সংরক্ষিত হয়েছে।'));
             await load();
         } catch (error) {
-            if (sameSession()) notice(saved ? 'Saved, but register refresh failed.' : error.message, true);
+            if (sameSession()) notice(saved ? t('Saved, but register reload failed.', 'সংরক্ষণ হয়েছে, তবে তালিকা আনা যায়নি।') : error.message, true);
         } finally { setBusy(false); }
     });
     el('sectionCancel').addEventListener('click', () => { if (!state.busy) clearEditor(); });
