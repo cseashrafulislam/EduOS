@@ -150,8 +150,8 @@ public sealed class AcademicSectionService
         if (!Allowed) return Error<AcademicSectionDto>("Section administration requires tenant administrator access.", 403);
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.CampusId <= 0 || request.AcademicLevelId <= 0 ||
-            string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code) ||
-            request.Name.Trim().Length > 150 || request.Code.Trim().Length > 50 ||
+            string.IsNullOrWhiteSpace(request.Name) ||
+            request.Name.Trim().Length > 150 || request.Code?.Trim().Length > 50 ||
             request.Capacity is < 0 or > 100000 || request.DisplayOrder < 0)
             return Error<AcademicSectionDto>("Invalid section details.");
         try
@@ -160,7 +160,12 @@ public sealed class AcademicSectionService
             {
                 var tenant = _user.TenantId;
                 var name = request.Name.Trim();
-                var code = request.Code.Trim().ToUpperInvariant();
+                // Stable across HTTP retries: duplicate ClientRequestId produces the
+                // same Code, never MAX()+1 or a second code on a retried request.
+                // Honor existing explicit codes for backward-compatible integrations.
+                var code = string.IsNullOrWhiteSpace(request.Code)
+                    ? "SEC-" + request.ClientRequestId.ToString("N")[..12].ToUpperInvariant()
+                    : request.Code.Trim().ToUpperInvariant();
                 var replay = await _sections.GetQueryable().AsNoTracking()
                     .FirstOrDefaultAsync(x => x.TenantId == tenant && x.ClientRequestId == request.ClientRequestId, token);
                 if (replay != null)
