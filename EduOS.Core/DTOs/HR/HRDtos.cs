@@ -93,7 +93,7 @@ public class CreateEmployeeRequestDto
     public long? UserId { get; set; }
     public long? OrganizationUnitId { get; set; }
     public long DesignationId { get; set; }
-    [Required, MaxLength(50)] public string EmployeeCode { get; set; } = string.Empty;
+    [MaxLength(50)] public string? EmployeeCode { get; set; }
     [Required, MaxLength(200)] public string FullName { get; set; } = string.Empty;
     [MaxLength(30)] public string? Phone { get; set; }
     [EmailAddress, MaxLength(200)] public string? Email { get; set; }

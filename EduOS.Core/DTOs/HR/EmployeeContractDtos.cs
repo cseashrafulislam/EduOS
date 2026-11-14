@@ -4,7 +4,7 @@ public sealed class CreateEmployeeContractRequestDto
 {
     public Guid ClientRequestId { get; set; }
     public Guid EmployeeReference { get; set; }
-    [Required, MaxLength(50)] public string ContractCode { get; set; } = string.Empty;
+    [MaxLength(50)] public string? ContractCode { get; set; }
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
     [MaxLength(500)] public string? Remarks { get; set; }

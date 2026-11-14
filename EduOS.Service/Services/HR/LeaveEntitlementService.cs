@@ -91,10 +91,12 @@ public sealed class LeaveEntitlementService : ILeaveEntitlementService
     {
         if (!Authorized) return Error<LeaveTypeDto>("Institution administrator permission required.", 403);
         if (request == null || leaveTypeId is <= 0 || string.IsNullOrWhiteSpace(request.Name) ||
-            request.Name.Trim().Length > 100 || string.IsNullOrWhiteSpace(request.Code) ||
-            request.Code.Trim().Length > 30 || request.MaxDaysPerYear is < 0 or > 366)
+            request.Name.Trim().Length > 100 ||
+            request.Code?.Trim().Length > 30 || request.MaxDaysPerYear is < 0 or > 366)
             return Error<LeaveTypeDto>("Invalid leave type.");
-        var code = request.Code.Trim().ToUpperInvariant();
+        var generatedCode = "LT-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(request.Name.Trim().ToUpperInvariant())).AsSpan(0, 10));
+        var code = string.IsNullOrWhiteSpace(request.Code) ? generatedCode : request.Code.Trim().ToUpperInvariant();
         try
         {
             return await ((IUnitOfWork)db).ExecuteInTransactionAsync(async token =>
@@ -103,8 +105,17 @@ public sealed class LeaveEntitlementService : ILeaveEntitlementService
                 if (leaveTypeId.HasValue && row == null) return Error<LeaveTypeDto>("Leave type not found.", 404);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion))
                     return Error<LeaveTypeDto>("Leave type changed; reload.", 409);
-                if (await Types.AnyAsync(x => x.Code == code && (!leaveTypeId.HasValue || x.Id != leaveTypeId.Value), token))
+                if (row != null && string.IsNullOrWhiteSpace(request.Code)) code = row.Code;
+                var other = await Types.AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.Code == code && (!leaveTypeId.HasValue || x.Id != leaveTypeId.Value), token);
+                if (other != null)
+                {
+                    if (row == null && string.IsNullOrWhiteSpace(request.Code) &&
+                        other.Name == request.Name.Trim() && other.MaxDaysPerYear == request.MaxDaysPerYear &&
+                        other.IsPaid == request.IsPaid && other.IsActive == request.IsActive)
+                        return ApiResponse<LeaveTypeDto>.SuccessResponse(Map(other), "Leave type already exists.");
                     return Error<LeaveTypeDto>("Leave type code already exists.", 409);
+                }
                 var now = clock.GetUtcNow().UtcDateTime;
                 if (row == null)
                 {

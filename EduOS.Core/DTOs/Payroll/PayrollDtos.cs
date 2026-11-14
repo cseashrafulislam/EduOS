@@ -21,7 +21,7 @@ public class SalaryComponentDto
 public class SaveSalaryComponentRequestDto
 {
     [Required, MaxLength(100)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(50)] public string Code { get; set; } = string.Empty;
+    [MaxLength(50)] public string? Code { get; set; }
     public SalaryComponentType Type { get; set; }
     public bool IsTaxable { get; set; }
     public bool IsActive { get; set; } = true;

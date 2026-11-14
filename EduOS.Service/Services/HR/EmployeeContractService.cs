@@ -79,7 +79,9 @@ public sealed partial class EmployeeContractService : IEmployeeContractService
         CreateEmployeeContractRequestDto request, CancellationToken ct = default)
     {
         if (!Allowed) return Error<EmployeeContractDto>("Tenant admin required.", 403);
-        var code = request?.ContractCode?.Trim() ?? "";
+        var code = string.IsNullOrWhiteSpace(request?.ContractCode)
+            ? "CON-" + (request?.ClientRequestId ?? Guid.Empty).ToString("N")[..20].ToUpperInvariant()
+            : request.ContractCode.Trim().ToUpperInvariant();
         var remarks = string.IsNullOrWhiteSpace(request?.Remarks) ? null : request.Remarks.Trim();
         if (request == null || request.ClientRequestId == Guid.Empty ||
             request.EmployeeReference == Guid.Empty || code.Length is < 1 or > 50 ||

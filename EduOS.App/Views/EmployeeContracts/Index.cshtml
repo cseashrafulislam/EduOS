@@ -18,9 +18,9 @@
                     Draft effective-dated terms require a different tenant administrator for approval. After approval, upload the manually signed PDF; a different administrator must verify its scanned copy and checksum. This is manual document verification, not cryptographic e-signature validation.
                 </div>
             </details></div></div></div>
-        <div class="col-md-4"><label for="contractCode" class="form-label">Reference *</label><input id="contractCode" class="form-control" maxlength="50" required /></div>
-        <div class="col-md-4"><label for="contractFrom" class="form-label">Effective from *</label><input id="contractFrom" class="form-control" type="date" required /></div>
-        <div class="col-md-4"><label for="contractTo" class="form-label">Effective to</label><input id="contractTo" class="form-control" type="date" /></div>
+        <input id="contractCode" type="hidden" />
+        <div class="col-md-6"><label for="contractFrom" class="form-label">Effective from *</label><input id="contractFrom" class="form-control" type="date" required /></div>
+        <div class="col-md-6"><label for="contractTo" class="form-label">Effective to</label><input id="contractTo" class="form-control" type="date" /></div>
         <div class="col-md-9"><label for="contractRemarks" class="form-label">Remarks / terms reference</label><input id="contractRemarks" class="form-control" maxlength="500" /></div>
         <div class="col-md-3"><button id="contractCreate" class="btn btn-primary" type="submit">Register draft</button></div>
     </form>

@@ -84,7 +84,7 @@ public class LeaveTypeDto
 public class SaveLeaveTypeRequestDto
 {
     [Required, MaxLength(100)] public string Name { get; set; } = string.Empty;
-    [Required, MaxLength(30)] public string Code { get; set; } = string.Empty;
+    [MaxLength(30)] public string? Code { get; set; }
     [Range(0, 366)] public int MaxDaysPerYear { get; set; }
     public bool IsPaid { get; set; } = true;
     public bool IsActive { get; set; } = true;

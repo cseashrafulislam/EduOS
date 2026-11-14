@@ -53,7 +53,7 @@
         clear(true);el('componentCode').value=code;el('componentName').value=name;
         el('componentType').value='2';el('componentTaxable').checked=false;
         el('componentFormTitle').textContent='Set up '+name;
-        el('componentCode').focus();
+        el('componentName').focus();
     }
     function textCell(value) {const c=document.createElement('td');c.textContent=String(value??'');return c;}
     function render() {
@@ -92,7 +92,7 @@
         const payload={code:el('componentCode').value.trim(),name:el('componentName').value.trim(),
             type:Number(el('componentType').value),isTaxable:el('componentTaxable').checked,
             isActive:el('componentActive').checked,rowVersion:editing?.rowVersion||null};
-        if(!payload.code||!payload.name||!types[payload.type])return notice('Enter valid component details.',true);
+        if(!payload.name||!types[payload.type])return notice('Enter valid component details.',true);
         if(payload.isActive&&payload.code.toUpperCase().startsWith('STAT_')&&
             (!editing||!editing.isActive)&&!confirm('Activate '+payload.code+'? Every eligible employee will need an explicit salary structure deduction (including reviewed zero exemptions) before payroll can run.'))return;
         if(editing?.isActive&&!payload.isActive&&

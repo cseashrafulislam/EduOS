@@ -131,7 +131,7 @@ public sealed class HrAdminService : IHrAdminService
         // New employees have no verified campus assignment yet: only a tenant administrator may create them.
         if (!CanHr() || !_user.IsTenantAdmin) return Error<EmployeeDto>("Tenant administrator permission required to register an employee.", 403);
         if (request == null || request.ClientRequestId == Guid.Empty ||
-            !ValidNameCode(request.FullName, request.EmployeeCode) || request.DesignationId <= 0 ||
+            (!ValidName(request.FullName) || !string.IsNullOrWhiteSpace(request.EmployeeCode) && !ValidName(request.EmployeeCode, 50)) || request.DesignationId <= 0 ||
             request.JoiningDate == default || request.PersonId is <= 0 || request.UserId is <= 0 ||
             request.OrganizationUnitId is <= 0 || request.Phone?.Length > 30 ||
             request.Email?.Length > 200 || request.Address?.Length > 1000 ||
@@ -143,7 +143,9 @@ public sealed class HrAdminService : IHrAdminService
         if (err != null) return Error<EmployeeDto>(err, 409);
         return await WriteAsync("create employee", async token =>
         {
-            var code = request.EmployeeCode.Trim().ToUpperInvariant();
+            var code = string.IsNullOrWhiteSpace(request.EmployeeCode)
+                ? "EMP-" + request.ClientRequestId.ToString("N")[..20].ToUpperInvariant()
+                : request.EmployeeCode.Trim().ToUpperInvariant();
             var existing = await _employees.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.EmployeeCode == code && !x.IsDeleted, token);
             if (existing != null)

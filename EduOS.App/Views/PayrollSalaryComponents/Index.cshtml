@@ -22,9 +22,9 @@
         </div>
         <form id="componentForm">
             <div class="row g-2">
-                <div class="col-md-4"><label class="form-label" for="componentCode">Code *</label><input class="form-control" id="componentCode" maxlength="50" required /></div>
-                <div class="col-md-4"><label class="form-label" for="componentName">Name *</label><input class="form-control" id="componentName" maxlength="100" required /></div>
-                <div class="col-md-4"><label class="form-label" for="componentType">Type *</label>
+                <input type="hidden" id="componentCode" />
+                <div class="col-md-6"><label class="form-label" for="componentName">Name *</label><input class="form-control" id="componentName" maxlength="100" required /></div>
+                <div class="col-md-6"><label class="form-label" for="componentType">Type *</label>
                     <select class="form-select" id="componentType" required>
                         <option value="1">Earning</option><option value="2">Deduction</option><option value="3">Employer contribution</option>
                     </select>

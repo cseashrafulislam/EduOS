@@ -109,15 +109,17 @@ public sealed class HrPayrollService : IPayrollAdministrationService
         long? componentId, SaveSalaryComponentRequestDto request, CancellationToken ct = default)
     {
         if (!Manager()) return Denied<SalaryComponentDto>();
-        if (request == null || !ValidNameCode(request.Name, request.Code, 100) ||
-            !Enum.IsDefined(request.Type) || componentId is <= 0)
+        if (request == null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Trim().Length > 100 ||
+            request.Code?.Trim().Length > 50 || !Enum.IsDefined(request.Type) || componentId is <= 0)
             return Error<SalaryComponentDto>("Salary component name, code or type is invalid.");
         try
         {
             return await _uow.ExecuteInTransactionAsync(async token =>
             {
                 var tenant = _user.TenantId;
-                var code = request.Code.Trim().ToUpperInvariant();
+                var generatedCode = "CMP-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(request.Name.Trim().ToUpperInvariant())).AsSpan(0, 10));
+                var code = string.IsNullOrWhiteSpace(request.Code) ? generatedCode : request.Code.Trim().ToUpperInvariant();
                 // Tenant-reviewed Tax/PF percentages are supported alongside manual amounts.
                 // We never infer statutory rates or exemptions from a component code.
                 if (code.StartsWith("STAT_", StringComparison.Ordinal) &&
@@ -129,9 +131,17 @@ public sealed class HrPayrollService : IPayrollAdministrationService
                 if (componentId.HasValue && row == null) return Error<SalaryComponentDto>("Component not found.", 404);
                 if (row != null && !Matches(row.RowVersion, request.RowVersion))
                     return Error<SalaryComponentDto>("Salary component changed. Reload and retry.", 409);
+                if (row != null && string.IsNullOrWhiteSpace(request.Code)) code = row.Code;
                 var other = await _components.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Code == code && !x.IsDeleted && (!componentId.HasValue || x.Id != componentId), token);
-                if (other != null) return Error<SalaryComponentDto>("Salary component code already exists.", 409);
+                if (other != null)
+                {
+                    if (row == null && string.IsNullOrWhiteSpace(request.Code) &&
+                        other.Name == request.Name.Trim() && other.Type == request.Type &&
+                        other.IsTaxable == request.IsTaxable && other.IsActive == request.IsActive)
+                        return ApiResponse<SalaryComponentDto>.SuccessResponse(Map(other), "Salary component already exists.");
+                    return Error<SalaryComponentDto>("Salary component code already exists.", 409);
+                }
                 if (row != null && row.Type != request.Type && await _structureLines.GetQueryable().AsNoTracking()
                     .AnyAsync(x => x.TenantId == tenant && x.SalaryComponentId == row.Id && !x.IsDeleted, token))
                     return Error<SalaryComponentDto>("Component type cannot change after salary structure usage.", 409);
