@@ -688,6 +688,28 @@ public sealed partial class LibraryService : ILibraryService
         try { return current.AsSpan().SequenceEqual(Convert.FromBase64String(encoded)); }
         catch (FormatException) { return false; }
     }
+    public async Task<ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>> GetReportCampusOptionsAsync(
+        CancellationToken ct = default)
+    {
+        if (!CanManage()) return Denied<IReadOnlyList<LibraryCampusOptionDto>>();
+        if (_campuses == null)
+            return ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>.ErrorResponse("Campus lookup unavailable.", 503);
+
+        var tenant = _user.TenantId;
+        var query = _campuses.GetQueryable().AsNoTracking()
+            .Where(x => x.TenantId == tenant && x.IsActive && !x.IsDeleted);
+        if (IsCampusScopedStaff)
+        {
+            var allowed = AllowedStaffCampusIds(tenant, DateOnly.FromDateTime(_clock.GetUtcNow().UtcDateTime));
+            if (allowed == null) return Denied<IReadOnlyList<LibraryCampusOptionDto>>();
+            query = query.Where(x => allowed.Contains(x.Id));
+        }
+        var result = await query.OrderBy(x => x.Name).ThenBy(x => x.Id).Take(1000)
+            .Select(x => new LibraryCampusOptionDto { Id = x.Id, Name = x.Name, Code = x.Code })
+            .ToListAsync(ct);
+        return ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>.SuccessResponse(result);
+    }
+
     private bool CanRead() => _user.IsAuthenticated && _user.TenantId > 0;
     private bool CanManage() => CanRead() && (_user.IsTenantAdmin ||
         _user.IsInRole("Principal") || _user.IsInRole("Librarian"));

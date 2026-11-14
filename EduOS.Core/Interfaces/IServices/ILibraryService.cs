@@ -6,6 +6,9 @@ namespace EduOS.Core.Interfaces.IServices;
 /// <summary>Library catalog and issue/return workflow. Server validates copy availability and tenant/student scope atomically.</summary>
 public interface ILibraryService
 {
+    // Server-authorized campus options for library report filters: staff sees only assigned campuses.
+    Task<ApiResponse<IReadOnlyList<LibraryCampusOptionDto>>> GetReportCampusOptionsAsync(
+        CancellationToken cancellationToken = default);
     Task<ApiResponse<IReadOnlyList<BookCategoryDto>>> GetCategoriesAsync(CancellationToken cancellationToken = default);
     Task<ApiResponse<BookCategoryDto>> SaveCategoryAsync(long? categoryId, SaveBookCategoryRequestDto request, CancellationToken cancellationToken = default);
     Task<ApiResponse<PagedResult<BookDto>>> GetCatalogAsync(string? search, int page, int pageSize, CancellationToken cancellationToken = default);

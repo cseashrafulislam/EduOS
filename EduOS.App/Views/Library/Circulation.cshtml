@@ -46,8 +46,8 @@
                 <option value="issued">Issued</option><option value="overdue">Overdue</option>
                 <option value="returned">Returned</option><option value="all">All</option>
             </select></div>
-        <div class="col-lg-2"><label for="circulationCampus" class="form-label">Campus ID (optional)</label>
-            <input id="circulationCampus" class="form-control" type="number" min="1" step="1" placeholder="All campuses" /></div>
+        <div class="col-lg-2"><label for="circulationCampus" class="form-label">Campus</label>
+            <select id="circulationCampus" class="form-select" disabled aria-label="Filter by authorized campus"><option value="">All authorized campuses</option></select></div>
         <div class="col-lg-2"><label for="circulationReturnDate" class="form-label">Return date (optional)</label>
             <input id="circulationReturnDate" class="form-control" type="date" />
 </div>
@@ -95,4 +95,6 @@
         </div>
     </section>
 </section>
-@section Scripts { <script src="~/js/library/circulation.js" asp-append-version="true"></script> }
+@section Scripts {
+    <script src="~/js/library/report-campus-filter.js" asp-append-version="true"></script>
+ <script src="~/js/library/circulation.js" asp-append-version="true"></script> }

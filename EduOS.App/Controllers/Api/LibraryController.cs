@@ -19,6 +19,11 @@ public sealed class LibraryController : ControllerBase
     private readonly ILibraryService _service;
     public LibraryController(ILibraryService service)=>_service=service;
 
+    [HttpGet("report-campus-options")]
+    [Authorize(Roles = "TenantAdmin,Principal,Librarian")]
+    public async Task<IActionResult> ReportCampusOptions(CancellationToken ct) =>
+        ToAction(await _service.GetReportCampusOptionsAsync(ct));
+
     [HttpGet("categories")]
     public async Task<IActionResult> Categories(CancellationToken ct) =>
         ToAction(await _service.GetCategoriesAsync(ct));

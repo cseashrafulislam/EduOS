@@ -9,8 +9,8 @@
             <input id="libraryOverdueSearch" class="form-control" maxlength="100" autocomplete="off" />
         </div>
         <div class="col-lg-2 col-md-6">
-            <label for="libraryOverdueCampus" class="form-label">Campus ID (optional)</label>
-            <input id="libraryOverdueCampus" class="form-control" type="number" min="1" step="1" placeholder="All authorized campuses" />
+            <label for="libraryOverdueCampus" class="form-label">Campus</label>
+            <select id="libraryOverdueCampus" class="form-select" disabled aria-label="Filter by authorized campus"><option value="">All authorized campuses</option></select>
         </div>
         <div class="col-lg-2 col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit">Apply</button></div>
         <div class="col-lg-4 col-md-9 d-flex align-items-end flex-wrap gap-2"><button id="libraryOverdueCsv" class="btn btn-outline-secondary flex-grow-1" type="button">CSV (page)</button><a asp-controller="Library" asp-action="Circulation" class="btn btn-sm btn-outline-secondary">Circulation</a></div>
@@ -53,4 +53,6 @@
         </div>
     </div>
 </section>
-@section Scripts { <script src="~/js/library/overdue.js" asp-append-version="true"></script><script src="~/js/library/overdue-notices.js" asp-append-version="true"></script> }
+@section Scripts {
+    <script src="~/js/library/report-campus-filter.js" asp-append-version="true"></script>
+ <script src="~/js/library/overdue.js" asp-append-version="true"></script><script src="~/js/library/overdue-notices.js" asp-append-version="true"></script> }
