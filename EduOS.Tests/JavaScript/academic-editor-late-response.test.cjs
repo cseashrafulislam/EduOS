@@ -32,6 +32,11 @@ for (const [file, panel] of [['rooms.js', 'rooms'], ['batches.js', 'sections']])
     test(file + ': optional legacy tab control on server-routed pages', () => {
         const source = read(file);
         assert.ok(source.includes('document.querySelector(\'button[data-panel="' + panel + '"]\')?.addEventListener'));
-        assert.ok(source.includes('document.querySelector(\'button[data-panel="' + panel + '"]\')?.classList.contains'));
+        if (file === 'batches.js') {
+            assert.match(source, /dataset\.activeFeature === 'sections'/);
+            assert.match(source, /loaded \|\| sectionsActive\(\)/);
+        } else {
+            assert.ok(source.includes('document.querySelector(\'button[data-panel="' + panel + '"]\')?.classList.contains'));
+        }
     });
 }
