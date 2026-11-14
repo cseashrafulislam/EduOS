@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
 const project = path.resolve(__dirname, '../..');
 const razor = fs.readFileSync(path.join(project,
     'EduOS.App/Views/AssessmentAdministration/Setup.cshtml'), 'utf8');
-const start = razor.indexOf('<div class="container-fluid py-3" id="assessmentSetupWorkspace">');
+const start = razor.search(/<div\b[^>]*\bid="assessmentSetupWorkspace"[^>]*>/);
 const end = razor.indexOf('<script src=', start);
 assert(start >= 0 && end > start, 'Exam setup view markup missing');
 const html = '<!doctype html><html><body>' + razor.slice(start, end)
@@ -76,7 +76,8 @@ async function main() {
         await page.selectOption('#setupTerm', '5');
         await page.selectOption('#setupScheme', '9');
         await page.locator('#setupName').fill('Mathematics retake');
-        await page.locator('#setupCode').fill('RETAKE-2026');
+        assert.equal(await page.locator('#setupCode').isVisible(), false,
+            'server generates the assessment code; users cannot edit it');
         await page.locator('#setupStart').fill('2026-05-01');
         await page.locator('#setupEnd').fill('2026-05-15');
         await page.selectOption('#setupAttemptMode', '1');

@@ -5,7 +5,7 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const project = path.resolve(__dirname, '../..');
 const razor = fs.readFileSync(path.join(project, 'EduOS.App/Views/AssessmentAdministration/Attempts.cshtml'), 'utf8');
-const start = razor.indexOf('<div class="container-fluid py-3" id="assessmentAttemptWorkspace">');
+const start = razor.search(/<div\b[^>]*\bid="assessmentAttemptWorkspace"[^>]*>/);
 const end = razor.indexOf('<script src=', start);
 assert(start >= 0 && end > start, 'Attempt view markup missing');
 const html = '<!doctype html><html><body>' + razor.slice(start, end)
