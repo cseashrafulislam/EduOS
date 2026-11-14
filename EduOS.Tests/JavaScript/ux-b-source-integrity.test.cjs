@@ -7,7 +7,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const ledger = read('docs/ux/lanes/UX_B.md');
-const routes = [...ledger.matchAll(/^- \\[[ x]\\] \\x60(\\/[^\\x60]+)\\x60/gm)].map(match => match[1]);
+const routes = [...ledger.matchAll(/^- \[[ x]\] \x60(\/[^\x60]+)\x60/gm)].map(match => match[1]);
 const viewFor = route => {
     if (route === '/offline-study.html') return 'EduOS.App/wwwroot/offline-study.html';
     const clean = route.split('#')[0];
@@ -42,13 +42,13 @@ test('UX B pages retain shell titles and do not render duplicate h1 headings', (
         assert.doesNotMatch(content, /<h1\b/i, file + ': duplicates shell h1');
         assert.doesNotMatch(content, /<th\s+scope="col"ead>/i, file);
         assert.equal((content.match(/<thead(?:\s[^>]*)?>/g) || []).length,
-            (content.match(/<\\/thead>/g) || []).length, file + ': unbalanced table headers');
+            (content.match(/<\/thead>/g) || []).length, file + ': unbalanced table headers');
     }
 });
 test('local page JS assets referenced by UX B views exist', () => {
     for (const file of views()) {
         const content = read(file);
-        for (const match of content.matchAll(/<script[^>]*src=["']~\\/([^"']+\.js)["']/g)) {
+        for (const match of content.matchAll(/<script[^>]*src=["']~\/([^"']+\.js)["']/g)) {
             const script = path.join(root, 'EduOS.App/wwwroot', match[1]);
             assert.ok(fs.existsSync(script), file + ': missing script ' + match[1]);
         }
