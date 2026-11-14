@@ -1,18 +1,20 @@
 @{ ViewData["Title"] = "Document Administration"; }
-<section class="container-fluid py-3" aria-labelledby="docAdminTitle">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-        <div><h2 id="docAdminTitle">Document administration</h2><p class="text-muted mb-0">Tenant-scoped document metadata, document types and reusable templates. Entity-specific attachments must use their owning module until entity authorization is available.</p></div>
-        <div class="d-flex gap-2"><a class="btn btn-outline-primary" asp-controller="DocumentVerification" asp-action="Index">Protected document reviews</a><button id="docRefresh" class="btn btn-outline-secondary" type="button">Refresh</button></div>
-    </div>
+<section class="container-fluid py-2" aria-label="Document administration">
     <div id="docAlert" class="alert d-none" role="alert" tabindex="-1"></div>
-    <ul class="nav nav-tabs mb-3" id="docTabs" role="tablist">
+    <ul class="nav nav-tabs flex-nowrap overflow-auto mb-2" id="docTabs" role="tablist">
         <li class="nav-item"><button class="nav-link active" type="button" data-doc-tab="documents">Documents</button></li>
         <li class="nav-item"><button class="nav-link" type="button" data-doc-tab="types">Document types</button></li>
         <li class="nav-item"><button class="nav-link" type="button" data-doc-tab="templates">Templates</button></li>
     </ul>
     <div data-doc-panel="documents">
-        <div class="card mb-3"><div class="card-body">
-            <h3 class="h5">Attach verified file metadata</h3>
+        <div class="card mb-2"><div class="card-body">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <h2 class="h6 mb-0">Attach verified file metadata</h2>
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-outline-primary btn-sm" asp-controller="DocumentVerification" asp-action="Index">Protected document reviews</a>
+                    <button id="docRefresh" class="btn btn-outline-secondary btn-sm" type="button">Load documents</button>
+                </div>
+            </div>
             <p class="text-muted small">Upload a private file (maximum 5 MB). The server must verify a clean malware scan before allowing attachment or download. Scanning requires Windows Defender; unavailable scanning fails closed.</p>
             <form id="docUploadForm" class="row g-2 mb-3">
                 <div class="col-md-7"><label class="form-label" for="docUploadFile">Private document</label><input id="docUploadFile" class="form-control" type="file" required accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx" /></div>
@@ -21,7 +23,7 @@
             <div class="border rounded p-2 mb-3" aria-labelledby="docPendingTitle">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <strong id="docPendingTitle">Verified files awaiting attachment</strong>
-                    <button id="docPendingRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh uploads</button>
+                    <button id="docPendingRefresh" type="button" class="btn btn-outline-secondary btn-sm">Load verified uploads</button>
                 </div>
                 <p class="small text-muted">Select a previously uploaded file to complete its document record. Files cannot be downloaded until attached to an active permitted document.</p>
                 <div class="table-responsive"><table class="table table-sm"><thead><tr><th>File</th><th>Size</th><th>Uploaded</th><th>Action</th></tr></thead><tbody id="docPendingRows"></tbody></table></div>
@@ -52,7 +54,7 @@
         </div></div>
     </div>
     <div data-doc-panel="types" hidden>
-        <div class="card mb-3"><div class="card-body"><h3 class="h5">Document type</h3>
+        <div class="card mb-2"><div class="card-body"><h3 class="h6 mb-2">Document type</h3>
             <form id="typeForm" class="row g-2">
                 <input id="typeId" type="hidden" /><input id="typeVersion" type="hidden" />
                 <div class="col-md-3"><label class="form-label" for="typeCode">Code</label><input id="typeCode" class="form-control" maxlength="100" required /></div>
@@ -64,7 +66,7 @@
         <div class="card"><div class="card-body table-responsive"><table class="table table-striped table-sm"><thead><tr><th>Code</th><th>Name</th><th>Verification</th><th>Sensitive</th><th>Active</th><th></th></tr></thead><tbody id="typeRows"></tbody></table></div></div>
     </div>
     <div data-doc-panel="templates" hidden>
-        <div class="card mb-3"><div class="card-body"><h3 class="h5">Reusable document template</h3>
+        <div class="card mb-2"><div class="card-body"><h3 class="h6 mb-2">Reusable document template</h3>
             <form id="templateForm" class="row g-2">
                 <input id="templateId" type="hidden" /><input id="templateVersion" type="hidden" />
                 <div class="col-md-3"><label class="form-label" for="templateCode">Code</label><input id="templateCode" class="form-control" maxlength="100" required /></div>

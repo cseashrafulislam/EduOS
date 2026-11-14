@@ -1,11 +1,11 @@
 @{ ViewData["Title"] = "Notices & Notifications"; var canManage = User.IsInRole("TenantAdmin"); }
-<div id="communicationWorkspace" class="container-fluid py-3" data-can-manage="@(canManage ? "true" : "false")">
-    <header class="mb-3"><h2>Notices &amp; Notifications</h2><p class="text-muted">Tenant notices and your private notification inbox.</p></header>
+<div id="communicationWorkspace" class="container-fluid py-2" data-can-manage="@(canManage ? "true" : "false")">
+
     <div id="cwAlert" class="alert d-none" role="alert" aria-live="polite"></div>
     @if (canManage)
     {
-        <section class="card mb-3"><div class="card-body">
-            <h4>Create or edit notice</h4>
+        <section class="card mb-2"><div class="card-body">
+            <h2 class="h6 mb-2">Create or edit notice</h2>
             <form id="cwNoticeForm">
                 <input id="cwReference" type="hidden" /><input id="cwVersion" type="hidden" />
                 <div class="row g-2">
@@ -20,12 +20,12 @@
                     <div class="col-md-4 d-flex align-items-end"><button id="cwAddAudience" type="button" class="btn btn-outline-primary">Add audience</button></div>
                 </div>
                 <div id="cwAudiences" class="d-flex flex-wrap gap-2 mt-2" aria-label="Selected audiences"></div>
-                <div class="mt-3 d-flex gap-2"><button id="cwSave" class="btn btn-primary" type="submit">Save notice</button><button id="cwReset" class="btn btn-outline-secondary" type="button">New notice</button></div>
+                <div class="mt-2 d-flex flex-wrap gap-2"><button id="cwSave" class="btn btn-primary" type="submit">Save notice</button><button id="cwReset" class="btn btn-outline-secondary" type="button">New notice</button></div>
             </form>
         </div></section>
     }
-    <section class="card mb-3"><div class="card-body">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2"><h4 class="mb-0">Notices</h4>
+    <section class="card mb-2"><div class="card-body">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2"><h4 class="h6 mb-0">Notices</h4>
             @if (canManage) { <label class="form-label mb-0" for="cwNoticeFilter">Filter <select id="cwNoticeFilter" class="form-select form-select-sm"><option value="">All</option><option value="true">Published</option><option value="false">Draft</option></select></label> }
         </div>
         <div class="table-responsive mt-2"><table class="table table-striped table-sm"><thead><tr><th>Title</th><th>Category</th><th>Publish</th><th>Expires</th><th>Status</th><th>Action</th></tr></thead><tbody id="cwNoticeRows"></tbody></table></div>
@@ -33,7 +33,7 @@
     </div></section>
     @if (canManage)
     {
-        <section id="cwReaderPanel" class="card mb-3" hidden><div class="card-body">
+        <section id="cwReaderPanel" class="card mb-2" hidden><div class="card-body">
             <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                 <div><h4 id="cwReaderTitle" class="mb-1">Notice read receipts</h4>
                     <p class="small text-muted mb-0">Acknowledgements by currently active institution members; not a delivery count.</p></div>
@@ -52,15 +52,15 @@
     }
     <section class="card"><div class="card-body">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
-            <h4 class="mb-0">Your notifications</h4>
+            <h4 class="h6 mb-0">Your notifications</h4>
             <button id="cwMarkAllNotificationsRead" type="button" class="btn btn-outline-primary btn-sm">Mark all as read</button>
         </div>
         <div class="table-responsive"><table class="table table-striped table-sm"><thead><tr><th>Received</th><th>Title</th><th>Message</th><th>Status</th><th>Action</th></tr></thead><tbody id="cwNotificationRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center"><button id="cwNotificationPrev" class="btn btn-outline-secondary btn-sm" type="button">Previous</button><span id="cwNotificationPage"></span><button id="cwNotificationNext" class="btn btn-outline-secondary btn-sm" type="button">Next</button></div>
     </div></section>
-    <section class="card mt-3" id="cwMessaging"><div class="card-body">
+    <section class="card mt-2" id="cwMessaging"><div class="card-body">
         <h4>Messages</h4><p class="text-muted">Private conversations with active tenant members. Use Files under a message to view, download or attach up to three scanned private files.</p>
-        <div class="row g-3"><div class="col-lg-4">
+        <div class="row g-2"><div class="col-lg-4">
             <label for="cwRecipientQuery" class="form-label">Find recipient by name</label>
             <div class="input-group mb-2"><input id="cwRecipientQuery" class="form-control" maxlength="80" placeholder="2+ characters" />
                 <button id="cwFindRecipients" class="btn btn-outline-secondary" type="button">Find</button></div>
@@ -82,10 +82,10 @@
     </div></section>
 
 
-    <section class="card mt-3" id="cwPreferences"><div class="card-body">
+    <section class="card mt-2" id="cwPreferences"><div class="card-body">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div><h4>Notification preferences</h4><p class="text-muted mb-2">Configure delivery per channel and event code. Only events emitted by the system can be affected.</p></div>
-            <button id="cwPrefRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh</button>
+            <button id="cwPrefRefresh" type="button" class="btn btn-outline-secondary btn-sm">Load preferences</button>
         </div>
         <form id="cwPrefForm" class="row g-2 align-items-end">
             <div class="col-md-3"><label for="cwPrefChannel" class="form-label">Channel</label><select id="cwPrefChannel" class="form-select" required>
@@ -99,10 +99,10 @@
         <div class="table-responsive mt-2"><table class="table table-striped table-sm"><thead><tr><th>Channel</th><th>Event code</th><th>Delivery</th><th>Actions</th></tr></thead><tbody id="cwPrefRows"></tbody></table></div>
     </div></section>
 
-    <section class="card mt-3" id="cwDevices"><div class="card-body">
+    <section class="card mt-2" id="cwDevices"><div class="card-body">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div><h4>Registered push devices</h4><p class="text-muted mb-2">Review and disable your stored push registrations. Push delivery depends on gateway configuration; secret tokens are never displayed.</p></div>
-            <button id="cwDeviceRefresh" type="button" class="btn btn-outline-secondary btn-sm">Refresh</button>
+            <button id="cwDeviceRefresh" type="button" class="btn btn-outline-secondary btn-sm">Load devices</button>
         </div>
         <div class="table-responsive"><table class="table table-striped table-sm">
             <thead><tr><th>Platform</th><th>Device ID</th><th>Last registered / seen</th><th>Status</th><th>Action</th></tr></thead>

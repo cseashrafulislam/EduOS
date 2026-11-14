@@ -1,15 +1,10 @@
 @{
     ViewData["Title"] = "Audit Logs";
 }
-<section class="container-fluid py-3" aria-labelledby="auditTitle">
-    <header class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-3">
-        <div>
-            <h2 id="auditTitle">Audit Logs</h2>
-            <p class="text-muted mb-0">Tenant-scoped system activity. All date filters are UTC.</p>
-        </div>
-    </header>
+<section class="container-fluid py-2" aria-label="Audit Logs">
+    <p class="small text-muted mb-2">Tenant-scoped system activity. All date filters are UTC.</p>
     <div id="auditAlert" class="d-none" role="alert" tabindex="-1"></div>
-    <section class="card mb-3" aria-labelledby="auditFiltersTitle">
+    <section class="card mb-2" aria-labelledby="auditFiltersTitle">
         <div class="card-body">
             <h3 id="auditFiltersTitle" class="h6">Filters</h3>
             <form id="auditFilterForm" class="row g-2 align-items-end">
@@ -27,13 +22,13 @@
             </form>
         </div>
     </section>
-    <section id="auditInsights" class="card mb-3" aria-labelledby="auditStatsTitle">
+    <section id="auditInsights" class="card mb-2" aria-labelledby="auditStatsTitle">
         <div class="card-body">
             <h3 id="auditStatsTitle" class="h6 mb-1">Activity overview</h3>
-            <p class="text-muted small">Uses the same tenant-scoped filters as the activity table. Today, last 7 days and last month are UTC periods.</p>
+            <p class="small text-muted">Uses the same tenant-scoped filters as the activity table. Today, last 7 days and last month are UTC periods.</p>
             <p id="auditStatsStatus" class="small text-muted" role="status" aria-live="polite">Loading overview…</p>
             <div class="row g-2">
-                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Total</div><strong id="auditStatTotal" class="fs-5">—</strong></div></div>
+                <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-2 h-100"><div class="small text-muted">Total</div><strong id="auditStatTotal" class="fs-5">—</strong></div></div>
                 <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Today</div><strong id="auditStatToday" class="fs-5">—</strong></div></div>
                 <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Last 7 days</div><strong id="auditStatWeek" class="fs-5">—</strong></div></div>
                 <div class="col-6 col-md-4 col-xl-2"><div class="border rounded p-3 h-100"><div class="small text-muted">Last month</div><strong id="auditStatMonth" class="fs-5">—</strong></div></div>
