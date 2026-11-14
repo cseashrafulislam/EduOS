@@ -2,8 +2,8 @@
     var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     ViewData["Title"] = bn ? "নম্বর সিরিজ" : "Number Series";
 }
-<div class="container-fluid institution-settings-workspace" id="numberSeriesWorkspace">
-    <div id="nsNotice" class="alert d-none" role="alert"></div>
+<div class="container-fluid institution-settings-workspace" id="numberSeriesWorkspace" data-bangla="@(bn ? "true" : "false")">
+    <div id="nsNotice" class="alert d-none" role="status" aria-live="polite"></div>
     <div class="card mb-3"><div class="card-body">
         <form id="nsForm">
             @Html.AntiForgeryToken()
@@ -24,7 +24,7 @@
             <input id="nsSearch" class="form-control" style="max-width:280px" placeholder="@(bn ? "কী দিয়ে খুঁজুন" : "Search key")" aria-label="@(bn ? "সিরিজ খুঁজুন" : "Search series")" />
         </div>
         <div class="table-responsive"><table class="table table-striped table-sm">
-            <thead><tr><th>@(bn ? "কী" : "Key")</th><th>@(bn ? "ফরম্যাট" : "Format")</th><th>@(bn ? "পরবর্তী নম্বর" : "Next value")</th><th>@(bn ? "অবস্থা" : "Status")</th><th>@(bn ? "কাজ" : "Action")</th></tr></thead>
+            <th scope="col"ead><tr><th scope="col">@(bn ? "কী" : "Key")</th><th scope="col">@(bn ? "ফরম্যাট" : "Format")</th><th scope="col">@(bn ? "পরবর্তী নম্বর" : "Next value")</th><th scope="col">@(bn ? "অবস্থা" : "Status")</th><th scope="col">@(bn ? "কাজ" : "Action")</th></tr></thead>
             <tbody id="nsRows"></tbody></table></div>
         <div class="d-flex gap-2 align-items-center">
             <button id="nsPrev" type="button" class="btn btn-outline-secondary btn-sm">@(bn ? "আগে" : "Previous")</button>
