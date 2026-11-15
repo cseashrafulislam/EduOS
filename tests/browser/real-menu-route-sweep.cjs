@@ -26,7 +26,7 @@ async function signIn(page, account) {
     await page.locator('#password').fill(password);
     await page.locator('#loginBtn').click();
     await page.waitForURL(url => url.pathname.toLowerCase() !== '/account/login',
-        {timeout:25000});
+        {waitUntil:'domcontentloaded', timeout:25000});
 }
 async function main() {
     const browser = await chromium.launch({headless:true,args:['--no-sandbox']});
