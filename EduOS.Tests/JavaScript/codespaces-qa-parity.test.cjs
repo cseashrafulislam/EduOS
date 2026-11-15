@@ -14,7 +14,8 @@ test('Codespaces all-scope executes the Actions real-browser gates in dependency
     const files=[
         'real-data-entry.cjs','real-academic-foundation.cjs',
         'real-student-enrollment.cjs','real-menu-route-sweep.cjs',
-        'real-tenantadmin-page-render.cjs','real-roleexclusive-page-render.cjs'
+        'real-tenantadmin-page-render.cjs','real-roleexclusive-page-render.cjs',
+        'real-privileged-route-coverage.cjs'
     ];
     let prior=-1;
     for(const name of files){
@@ -26,6 +27,8 @@ test('Codespaces all-scope executes the Actions real-browser gates in dependency
     }
     const routeReport='node scripts/qa/compare-real-route-coverage.cjs';
     assert(qa.includes(routeReport),'Codespaces route gap report missing');
+    assert(qa.includes('QA_PLATFORM_PASSWORD'),'Codespaces private platform password missing');
+    assert(workflow.includes('QA_PLATFORM_PASSWORD'),'Actions private platform password missing');
     assert(workflow.includes(routeReport),'Actions route gap report missing');
     for(const key of [
         'QA_YEAR_NAME','QA_TERM_NAME','QA_PROGRAM_NAME','QA_LEVEL_NAME',

@@ -16,7 +16,7 @@ function normalizeRoute(input){
     if(url.origin!=='https://qa.eduos.test:7243')return null;
     return url.pathname.replace(/\/+$/,'').toLowerCase()||'/';
 }
-function reconcile(manifest,menu,admin,other,sha){
+function reconcile(manifest,menu,admin,other,sha,privileged=null){
     assert.equal(manifest.branch,'Ashraful');
     assert.equal(menu.sha,sha);
     assert.equal(admin.sha,sha);
@@ -53,6 +53,22 @@ function reconcile(manifest,menu,admin,other,sha){
         const key=normalizeRoute(item.path);
         if(key)rendered.add(key);
     }
+    const supplemental=new Set();
+    if(privileged!==null){
+        assert.equal(privileged.sha,sha,'Privileged evidence belongs to another commit');
+        assert.equal(privileged.checked,15,'All 15 privileged/optional routes must be checked');
+        assert.equal(privileged.failed,0,'Privileged routes have failures');
+        assert.equal(privileged.deniedChecks,15,'All negative role checks must execute');
+        assert.equal(privileged.deniedPassed,15,'Privileged role isolation failed');
+        for(const p of privileged.pages){
+            assert(p.passed,'Privileged route failed: '+p.path);
+            const key=normalizeRoute(p.path);
+            assert(canonical.has(key),'Privileged result not in declared manifest: '+p.path);
+            assert(!supplemental.has(key),'Duplicate privileged route evidence: '+p.path);
+            supplemental.add(key);
+        }
+        assert.equal(supplemental.size,15);
+    }
     const groups={};
     for(const route of declared){
         const group=groups[route.lane]??={declared:0,menuGet:0,rendered:0,unobserved:[]};
@@ -69,6 +85,9 @@ function reconcile(manifest,menu,admin,other,sha){
         canonicalRendered:declared.filter(x=>rendered.has(x.key)).length,
         unobservedCanonical:declared.filter(x=>!visited.has(x.key)).map(x=>x.path),
         observedOutsideManifest:[...visited].filter(x=>!canonical.has(x)).sort(),
+        privilegedSupplementalChecked:supplemental.size,
+        canonicalGetCoveredWithPrivilege:declared.filter(x=>visited.has(x.key)||supplemental.has(x.key)).length,
+        stillUnexercised:declared.filter(x=>!visited.has(x.key)&&!supplemental.has(x.key)).map(x=>x.path),
         lanes:groups,
         productionReleaseCertified:false
     };
@@ -79,13 +98,19 @@ function run(){
     const manifest=JSON.parse(fs.readFileSync(manifestFile,'utf8'));
     const [menu,admin,other]=names.map(name=>
         JSON.parse(fs.readFileSync(path.join(artifactDir,name+'.json'),'utf8')));
-    const report=reconcile(manifest,menu,admin,other,sha);
+    const privileged=JSON.parse(fs.readFileSync(
+        path.join(artifactDir,'real-privileged-route-coverage.json'),'utf8'));
+    const report=reconcile(manifest,menu,admin,other,sha,privileged);
+    assert.equal(report.canonicalGetCoveredWithPrivilege,204,
+        'Declared navigation coverage remains incomplete; see stillUnexercised');
     fs.mkdirSync(artifactDir,{recursive:true});
     fs.writeFileSync(path.join(artifactDir,'real-route-coverage-gap.json'),
         JSON.stringify(report,null,2));
     console.log('Real QA menu coverage:',report.canonicalGetCovered+'/'+report.canonicalDeclared,
         'declared routes exercised by demo-role GET; distinct Chromium routes',
         report.uniqueChromiumRendered,'; unobserved',report.unobservedCanonical.length);
+    console.log('Supplemental privileged/navigation coverage:',report.canonicalGetCoveredWithPrivilege,
+        '/204 declared routes; remaining',report.stillUnexercised.length);
     console.log('These are navigation/render checks, not full functional CRUD/UAT certification.');
 }
 if(require.main===module){

@@ -26,8 +26,9 @@ The Codespaces `test` scope executes in dependency order:
 4. 13 synthetic institution roles' authorized sidebar GET routes.
 5. TenantAdmin sidebar Chromium desktop/mobile rendering.
 6. Other 12 roles' unique sidebar Chromium desktop/mobile rendering.
-7. A canonical route inventory reconciliation compares the **204 declared routes** against the actual 13-role authorized menu GET and Chromium render paths; unobserved paths are listed, not silently treated as covered.
-8. Independent SQL assertions for persisted Year/Term, Academic Foundation and Student/Guardian/Enrollment/Offering.
+7. A private, separate-secret, non-public demo SuperAdmin identity verifies 11 platform routes, and explicitly demo-entitled TenantAdmin verifies 4 optional Research/Accreditation routes, plus 15 negative-role checks. These fixtures are unavailable outside the two known isolated demo SQL databases and never change paid tenant feature allocations.
+8. A canonical route inventory reconciliation compares **204 declared routes** against 189 ordinary 13-role menu navigations and 15 privileged/optional GET+Chromium pages; tracks both counts and explicitly leaves business CRUD unverified.
+9. Independent SQL assertions for persisted Year/Term, Academic Foundation and Student/Guardian/Enrollment/Offering.
 
 Codespaces SQL evidence explicitly allows **only** `EduOS_Demo_Codespaces` or runner-only `EduOS_Demo_AutoQa` over `127.0.0.1:14333`; it rejects arbitrary SQL hosts/databases before connecting. Browser evidence must match the checked-out 40-character commit SHA. The route report is stored in `qa-artifacts/real-route-coverage-gap.json` and explicitly marks `productionReleaseCertified: false`; a route absent from demo entitlements is not automatically a broken route. A missing or failed gate is not a PASS.
 

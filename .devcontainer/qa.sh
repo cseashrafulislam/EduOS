@@ -224,6 +224,7 @@ run_tests() {
     node tests/browser/real-menu-route-sweep.cjs
     node tests/browser/real-tenantadmin-page-render.cjs
     node tests/browser/real-roleexclusive-page-render.cjs
+    node tests/browser/real-privileged-route-coverage.cjs
     node scripts/qa/compare-real-route-coverage.cjs
   fi
   local filter="FullyQualifiedName~SqlServerRealAcademicFoundationEvidenceTests"
@@ -243,7 +244,7 @@ const sha=process.argv[2],scope=process.argv[3];
 const files=scope==='all'?
   ['real-data-entry','real-academic-foundation','real-student-enrollment',
     'real-menu-route-sweep','real-tenantadmin-page-render','real-roleexclusive-page-render',
-    'real-route-coverage-gap']:
+    'real-privileged-route-coverage','real-route-coverage-gap']:
   ['real-academic-foundation'];
 for(const name of files){
   const data=JSON.parse(fs.readFileSync('qa-artifacts/'+name+'.json','utf8'));

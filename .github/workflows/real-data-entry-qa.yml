@@ -9,6 +9,7 @@ on:
       - '.devcontainer/qa.sh'
       - 'EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs'
       - 'scripts/qa/compare-real-route-coverage.cjs'
+      - 'tests/browser/real-privileged-route-coverage.cjs'
       - 'EduOS.Tests/JavaScript/real-route-coverage-reconcile.test.cjs'
       - 'tests/browser/real-data-entry.cjs'
       - 'tests/browser/real-academic-foundation.cjs'
@@ -63,6 +64,7 @@ jobs:
         run: |
           bash -n .devcontainer/qa.sh
           node --test EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs
+          node --test EduOS.Tests/JavaScript/release-privileged-coverage.test.cjs
       - name: Restore and build actual EduOS app and SQL verifier
         run: |
           dotnet restore EduOS.slnx
@@ -208,9 +210,15 @@ jobs:
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
         run: node tests/browser/real-roleexclusive-page-render.cjs
+      - name: Verify platform and optional-module routes with isolated privileged credentials
+        id: privileged_routes
+        if: ${{ always() && steps.app_start.outcome == 'success' && steps.browser_deps.outcome == 'success' && steps.role_exclusive_render.outcome == 'success' }}
+        env:
+          EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
+        run: node tests/browser/real-privileged-route-coverage.cjs
       - name: Reconcile 204 declared routes with exercised role navigation (non-certifying)
         id: route_coverage
-        if: ${{ always() && steps.menu_routes.outcome == 'success' && steps.page_render.outcome == 'success' && steps.role_exclusive_render.outcome == 'success' }}
+        if: ${{ always() && steps.menu_routes.outcome == 'success' && steps.page_render.outcome == 'success' && steps.role_exclusive_render.outcome == 'success' && steps.privileged_routes.outcome == 'success' }}
         run: node scripts/qa/compare-real-route-coverage.cjs
       - name: Independently verify committed UI entries in real SQL
         id: sql_evidence
@@ -233,6 +241,7 @@ jobs:
           PAGE_RESULT: ${{ steps.page_render.outcome }}
           EXCLUSIVE_RESULT: ${{ steps.role_exclusive_render.outcome }}
           COVERAGE_RESULT: ${{ steps.route_coverage.outcome }}
+          PRIVILEGED_RESULT: ${{ steps.privileged_routes.outcome }}
           SQL_RESULT: ${{ steps.sql_evidence.outcome }}
         run: |
           {
@@ -248,6 +257,7 @@ jobs:
             echo "| 13-role real menu route GET | $MENU_RESULT |"
             echo "| TenantAdmin all-sidebar Chromium desktop/mobile | $PAGE_RESULT |"
             echo "| Other role-exclusive Chromium pages desktop/mobile | $EXCLUSIVE_RESULT |"
+            echo "| Privileged/optional routes (11+4) and negative role-access QA | $PRIVILEGED_RESULT |"
             echo "| Declared-route coverage gap inventory (navigation only) | $COVERAGE_RESULT |"
             echo "| Independent SQL persistence | $SQL_RESULT |"
             echo ""
@@ -265,6 +275,7 @@ jobs:
             qa-artifacts/real-menu-route-sweep.json
             qa-artifacts/real-tenantadmin-page-render.json
             qa-artifacts/real-roleexclusive-page-render.json
+            qa-artifacts/real-privileged-route-coverage.json
             qa-artifacts/real-route-coverage-gap.json
             TestResults/real-data-entry.trx
           if-no-files-found: ignore
