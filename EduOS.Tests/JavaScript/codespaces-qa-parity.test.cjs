@@ -24,6 +24,9 @@ test('Codespaces all-scope executes the Actions real-browser gates in dependency
         assert(workflow.includes(command),'Actions is missing corresponding gate: '+name);
         prior=offset;
     }
+    const routeReport='node scripts/qa/compare-real-route-coverage.cjs';
+    assert(qa.includes(routeReport),'Codespaces route gap report missing');
+    assert(workflow.includes(routeReport),'Actions route gap report missing');
     for(const key of [
         'QA_YEAR_NAME','QA_TERM_NAME','QA_PROGRAM_NAME','QA_LEVEL_NAME',
         'QA_SUBJECT_NAME','QA_SECTION_NAME','QA_CURRICULUM_NAME',
