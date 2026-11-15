@@ -9,6 +9,7 @@ on:
       - '.devcontainer/qa.sh'
       - 'EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs'
       - 'scripts/qa/compare-real-route-coverage.cjs'
+      - 'scripts/qa/release-readiness.cjs'
       - 'tests/browser/real-privileged-route-coverage.cjs'
       - 'EduOS.Tests/JavaScript/real-route-coverage-reconcile.test.cjs'
       - 'EduOS.Tests/JavaScript/release-privileged-coverage.test.cjs'
@@ -231,6 +232,10 @@ jobs:
           dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build \
             --filter "FullyQualifiedName~SqlServerRealDataEntryEvidenceTests|FullyQualifiedName~SqlServerRealAcademicFoundationEvidenceTests|FullyQualifiedName~SqlServerRealStudentEnrollmentEvidenceTests" \
             --logger "trx;LogFileName=real-data-entry.trx" --results-directory TestResults
+      - name: Validate staged acceptance evidence and mark release NO_GO pending institutional gates
+        id: readiness
+        if: ${{ always() && steps.sql_evidence.outcome == 'success' && steps.route_coverage.outcome == 'success' && steps.privileged_routes.outcome == 'success' }}
+        run: node scripts/qa/release-readiness.cjs
       - name: Record exact-SHA test gate outcomes
         if: always()
         shell: bash
@@ -243,6 +248,7 @@ jobs:
           EXCLUSIVE_RESULT: ${{ steps.role_exclusive_render.outcome }}
           COVERAGE_RESULT: ${{ steps.route_coverage.outcome }}
           PRIVILEGED_RESULT: ${{ steps.privileged_routes.outcome }}
+          READINESS_RESULT: ${{ steps.readiness.outcome }}
           SQL_RESULT: ${{ steps.sql_evidence.outcome }}
         run: |
           {
@@ -261,6 +267,7 @@ jobs:
             echo "| Privileged/optional routes (11+4) and negative role-access QA | $PRIVILEGED_RESULT |"
             echo "| Declared-route coverage gap inventory (navigation only) | $COVERAGE_RESULT |"
             echo "| Independent SQL persistence | $SQL_RESULT |"
+            echo "| Exact-SHA release-readiness evidence (always NO_GO without UAT) | $READINESS_RESULT |"
             echo ""
             echo "A skipped or failed gate blocks production approval. No live Codespaces app was accessed."
           } >> "$GITHUB_STEP_SUMMARY"
@@ -278,6 +285,7 @@ jobs:
             qa-artifacts/real-roleexclusive-page-render.json
             qa-artifacts/real-privileged-route-coverage.json
             qa-artifacts/real-route-coverage-gap.json
+            qa-artifacts/release-readiness.json
             TestResults/real-data-entry.trx
           if-no-files-found: ignore
           retention-days: 7

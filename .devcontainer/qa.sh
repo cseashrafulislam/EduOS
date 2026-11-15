@@ -234,6 +234,7 @@ run_tests() {
   dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build \
     --filter "$filter" --logger "trx;LogFileName=codespaces-$scope.trx" \
     --results-directory qa-artifacts/test-results
+  node scripts/qa/release-readiness.cjs
   # Fail closed if the checked-out source changed or a browser suite
   # accidentally reused stale evidence from a different commit.
   test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
