@@ -22,7 +22,9 @@ permissions:
 
 concurrency:
   group: eduos-real-data-entry-ashraful
-  cancel-in-progress: false
+  # Never spend runner hours validating superseded release candidates.
+  # Latest exact-SHA failure diagnosis and page coverage take priority.
+  cancel-in-progress: true
 
 jobs:
   real-data-entry:
