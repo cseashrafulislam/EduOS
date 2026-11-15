@@ -164,6 +164,77 @@ public sealed class SqlServerAcademicSetupIntegrationTests
         Assert.Equal(secondTerm.Data.Code, terms.Single(x => x.Id == secondTerm.Data!.Id).Code);
     }
 
+    [Fact]
+    public async Task Programme_create_is_idempotent_and_persists_server_generated_code_on_real_sql()
+    {
+        var connection = Environment.GetEnvironmentVariable("EDUOS_SQL_AUTH_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connection)) return;
+        var opts = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(connection).Options;
+        var suffix = Guid.NewGuid().ToString("N")[..10];
+        long tenantId;
+        await using (var setup = new EduOSDbContext(opts))
+        {
+            var tenant = new Tenant
+            {
+                Code = "CI-PRG-" + suffix, Name = "Programme QA",
+                Email = "prg-" + suffix + "@example.test", State = TenantState.Active
+            };
+            setup.Tenants.Add(tenant);
+            await setup.SaveChangesAsync();
+            tenantId = tenant.Id;
+        }
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
+        accessor.HttpContext.Items["TenantId"] = tenantId;
+        await using var db = new EduOSDbContext(opts, accessor);
+        var sut = new AcademicSetupService(
+            new GenericRepository<AcademicProgram>(db), new GenericRepository<AcademicLevel>(db),
+            new GenericRepository<Subject>(db), new GenericRepository<AcademicCurriculum>(db),
+            new GenericRepository<CurriculumSubject>(db), new GenericRepository<AcademicBatch>(db),
+            new GenericRepository<Room>(db), new GenericRepository<ProgramCampus>(db),
+            new GenericRepository<Campus>(db), new GenericRepository<AcademicDepartment>(db),
+            new GenericRepository<AcademicYear>(db), new GenericRepository<AcademicTerm>(db),
+            new GenericRepository<AcademicTrack>(db), new GenericRepository<Medium>(db),
+            new GenericRepository<Shift>(db), new GenericRepository<SubjectOffering>(db),
+            new GenericRepository<StudentSubjectRegistration>(db),
+            new GenericRepository<StudentEnrollment>(db), db,
+            new AcademicAdmin(tenantId), NullLogger<AcademicSetupService>.Instance);
+
+        var request = new SaveAcademicProgramRequestDto
+        {
+            ClientRequestId = Guid.NewGuid(), Name = "Primary " + suffix,
+            DurationInMonths = 12, CampusIds = Array.Empty<long>(),
+            IsActive = true, IsAdmissionOpen = true
+        };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        var created = await sut.CreateProgramAsync(request, timeout.Token);
+        Assert.True(created.Success, created.Message);
+        Assert.NotNull(created.Data);
+        Assert.StartsWith("PRG-", created.Data.Code);
+
+        var repeated = await sut.CreateProgramAsync(request, timeout.Token);
+        Assert.True(repeated.Success, repeated.Message);
+        Assert.Equal(created.Data.Id, repeated.Data!.Id);
+        Assert.Equal(created.Data.Code, repeated.Data.Code);
+
+        var conflict = await sut.CreateProgramAsync(new SaveAcademicProgramRequestDto
+        {
+            ClientRequestId = request.ClientRequestId,
+            Name = "Conflicting name " + suffix,
+            CampusIds = Array.Empty<long>(), IsActive = true, IsAdmissionOpen = true
+        }, timeout.Token);
+        Assert.Equal(409, conflict.StatusCode);
+
+        db.ChangeTracker.Clear();
+        var rows = await db.AcademicPrograms.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && !x.IsDeleted).ToListAsync(timeout.Token);
+        var program = Assert.Single(rows);
+        Assert.Equal(request.Name, program.Name);
+        Assert.Equal(created.Data.Id, program.Id);
+        Assert.Equal(created.Data.Code, program.Code);
+        Assert.Empty(await db.ProgramCampuses.AsNoTracking()
+            .Where(x => x.TenantId == tenantId && !x.IsDeleted).ToListAsync(timeout.Token));
+    }
+
     private sealed class AcademicAdmin(long tenant) : ICurrentUserService
     {
         public bool IsAuthenticated => true;
