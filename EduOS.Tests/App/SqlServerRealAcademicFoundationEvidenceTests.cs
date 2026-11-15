@@ -1,4 +1,5 @@
 using EduOS.Persistence.Context;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -26,11 +27,13 @@ public sealed class SqlServerRealAcademicFoundationEvidenceTests
         Assert.StartsWith("QA Class One ", levelName);
         Assert.StartsWith("QA Subject ", subjectName);
         Assert.StartsWith("QA Section A ", sectionName);
+        var target = new SqlConnectionStringBuilder(connection);
+        Assert.Equal("127.0.0.1,14333", target.DataSource);
+        Assert.Contains(target.InitialCatalog, new[] { "EduOS_Demo_AutoQa", "EduOS_Demo_Codespaces" });
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseSqlServer(connection).Options;
         await using var db = new EduOSDbContext(options);
-        Assert.Contains(db.Database.GetDbConnection().Database,
-            new[] { "EduOS_Demo_AutoQa", "EduOS_Demo_Codespaces" });
+        Assert.Equal(target.InitialCatalog, db.Database.GetDbConnection().Database);
         var tenant = await db.Tenants.IgnoreQueryFilters().AsNoTracking()
             .SingleAsync(x => x.Code == "EDUOS-DEMO" && !x.IsDeleted);
         var campus = await db.Campuses.IgnoreQueryFilters().AsNoTracking()
