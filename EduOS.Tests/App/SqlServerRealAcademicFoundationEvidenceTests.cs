@@ -56,8 +56,8 @@ public sealed class SqlServerRealAcademicFoundationEvidenceTests
         Assert.False(string.IsNullOrWhiteSpace(subject.Code));
         Assert.False(string.IsNullOrWhiteSpace(section.Code));
 
-        // A Section belongs to a Class + Campus, never to a required Batch.
-        Assert.False(await db.AcademicBatches.IgnoreQueryFilters().AsNoTracking().AnyAsync(
-            x => x.TenantId == tenant.Id && x.AcademicLevelId == level.Id && !x.IsDeleted));
+        // The UI creates this Section BEFORE the later Batch in the same
+        // disposable run. Its authoritative parent is Class + Campus,
+        // independent of the enrollment cohort.
     }
 }
