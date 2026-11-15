@@ -46,7 +46,7 @@ async function main(){
             await page.locator('#password').fill(password);
             await page.locator('#loginBtn').click();
             await page.waitForURL(u=>u.pathname.toLowerCase()!=='/account/login',
-                {timeout:25000});
+                {waitUntil:'domcontentloaded', timeout:25000});
             const list=page.locator('#sidebarMenu nav a[href]');
             await list.first().waitFor({timeout:15000});
             const hrefs=await list.evaluateAll(nodes=>nodes.filter(x=>
