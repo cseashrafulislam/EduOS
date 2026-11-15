@@ -44,7 +44,6 @@ export async function api(url, method = 'GET', data = null) {
 export function render() {
     const state = Number(ctx.decision?.state || 0), qualified = Number(ctx.applicant?.state) === 6;
     const expired = state === 2 && (!ctx.decision?.expiresAt || Date.parse(ctx.decision.expiresAt) <= Date.now());
-    el('offerBatch').disabled = !qualified || state === 2 || state === 3;
     el('offerIssueButton').disabled = busy || pendingRefresh || !qualified || state !== 0;
     el('offerAcceptButton').disabled = busy || pendingRefresh || !qualified || state !== 2 || expired ||
         !num(val('offerEvidence')) || !el('offerIdentityChecked').checked || !ctx.decision?.rowVersion;
@@ -78,7 +77,7 @@ export function render() {
     const guidance = el('offerStageGuidance');
     if (guidance) guidance.textContent = ({
         review: localized('Complete the admission review before issuing an offer.', 'অফার দেওয়ার আগে আবেদন পর্যালোচনা সম্পন্ন করুন।'),
-        issue: localized('Choose a batch and future expiry to issue the offer.', 'ব্যাচ ও ভবিষ্যতের মেয়াদ নির্বাচন করে অফার দিন।'),
+        issue: localized('Set a future expiry to issue the offer.', 'অফার দেওয়ার জন্য ভবিষ্যতের মেয়াদ নির্ধারণ করুন।'),
         accept: localized('Verify the signed acceptance document and signer identity.', 'স্বাক্ষরিত গ্রহণপত্র ও স্বাক্ষরকারীর পরিচয় যাচাই করুন।'),
         expired: localized('The expired offer cannot be accepted. Review the application and contact an authorized officer.', 'মেয়াদোত্তীর্ণ অফার গ্রহণ করা যাবে না। আবেদন পর্যালোচনা করে দায়িত্বপ্রাপ্ত কর্মকর্তার সঙ্গে যোগাযোগ করুন।'),
         complete: localized('The student record already exists; do not enroll again.', 'শিক্ষার্থী রেকর্ড ইতিমধ্যে তৈরি হয়েছে; পুনরায় ভর্তি জমা দেবেন না।'),
@@ -106,7 +105,6 @@ export async function refresh() {
         ctx.applicant = applicant;
         ctx.decision = decision;
         el('offerApplicantName').textContent = applicant.applicantName || applicant.applicationNumber || reference;
-        if (decision?.offeredAcademicBatchId) el('offerBatch').value = String(decision.offeredAcademicBatchId);
         fill('offerEvidence', verified.map(x => ({ id: x.id, name: localized('Verified document #', 'যাচাইকৃত নথি #') + x.id + ' (v' + x.versionNo + ')' })),
             localized('Select verified signed evidence', 'যাচাইকৃত স্বাক্ষরিত নথি নির্বাচন করুন'));
         if (verified.some(x => String(x.id) === selected)) el('offerEvidence').value = selected;
@@ -131,7 +129,8 @@ export async function load(event) {
     try {
         const data = await api(base() + '/enrollment-options');
         if (sequence !== loadSequence) return;
-        fill('offerBatch', data.academicBatches || [], 'Select batch');
+        fill('offerAcademicSection', data.academicSections || [], localized('Select academic section', 'শাখা নির্বাচন করুন'));
+        if (data.academicSections?.length === 1) el('offerAcademicSection').value = String(data.academicSections[0].id);
         fill('offerTrack', data.academicTracks || [], 'No additional track');
         const future = new Date(Date.now() + 7 * 86400000);
         el('offerExpiry').value = new Date(future - future.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
