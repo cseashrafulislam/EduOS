@@ -75,16 +75,20 @@ async function run() {
                 });
                 status=response?.status()||0;
                 redirect=new URL(page.url()).pathname;
-                desktopMain=await page.locator('#main-content').count() === 1;
+                // The deliberately standalone encrypted offline reader does
+                // not use the authenticated shared Razor shell.
+                const contentSelector = path === '/offline-study.html'
+                    ? 'main#offlineStudyReader' : 'main#main-content';
+                desktopMain=await page.locator(contentSelector).count() === 1;
                 if(desktopMain){
-                    const details=await page.locator('#main-content').evaluate(el=>({
+                    const details=await page.locator(contentSelector).evaluate(el=>({
                         hasText:(el.innerText||'').trim().length>4,
                         hasInteractive:!!el.querySelector('input,select,table,button,a[href],canvas,svg')
                     }));
                     emptyMain=!details.hasText&&!details.hasInteractive;
                 }
                 await page.setViewportSize({width:390,height:844});
-                mobileMain=await page.locator('#main-content').isVisible().catch(()=>false);
+                mobileMain=await page.locator(contentSelector).isVisible().catch(()=>false);
                 await page.waitForTimeout(120);
             } catch(error) {
                 issue=failedMessage(error);
