@@ -41,6 +41,45 @@ save_verified_password() {
   chmod 600 "$tmp"
   mv -f "$tmp" "$password_file"
 }
+# An authenticated SQL query is authoritative for readiness. A Docker log
+# grep can give a false negative under pipefail if grep exits early (SIGPIPE).
+sql_ready() {
+  local saved initial
+  saved="$(cat "$password_file")"
+  if authenticate "$saved"; then return 0; fi
+  # Preserve existing SQL volumes when the saved credential differs from
+  # the existing container's original credential. Never reset SQL data.
+  initial="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container" 2>/dev/null |
+    sed -n 's/^MSSQL_SA_PASSWORD=//p' | head -n 1)"
+  if [ -n "$initial" ] && [ "$initial" != "$saved" ] && authenticate "$initial"; then
+    save_verified_password "$initial"
+    echo "Re-synchronized existing SQL credential; database preserved."
+    return 0
+  fi
+  return 1
+}
+report_startup_failure() {
+  local log_dir log_file
+  log_dir="$HOME/.config/eduos"
+  mkdir -p "$log_dir"
+  chmod 700 "$log_dir"
+  log_file="$log_dir/sqlserver-startup.log"
+  # Keep detailed SQL logs private; report only non-sensitive diagnostics.
+  (umask 077; docker logs --tail 400 "$container" > "$log_file" 2>&1) || true
+  chmod 600 "$log_file" 2>/dev/null || true
+  echo "SQL container state (no data deleted):" >&2
+  docker inspect --format 'state={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$container" >&2 || true
+  if grep -Eiq 'out of memory|insufficient memory|not enough memory|memory allocation' "$log_file"; then
+    echo "Startup diagnosis: SQL Server reported a memory/resource issue." >&2
+  elif grep -Eiq 'permission denied|access denied|operation not permitted' "$log_file"; then
+    echo "Startup diagnosis: SQL Server reported a filesystem/permission issue." >&2
+  elif grep -Eiq 'password validation failed|password does not meet' "$log_file"; then
+    echo "Startup diagnosis: SQL Server reported a password configuration issue." >&2
+  else
+    echo "Startup diagnosis: SQL readiness/authentication unavailable; inspect private SQL logs." >&2
+  fi
+  echo "Private diagnostic log: $log_file (owner-readable; do not paste secrets)." >&2
+}
 verify_password() {
   local saved initial attempt
   saved="$(cat "$password_file")"
@@ -81,18 +120,19 @@ case "$action" in
         mcr.microsoft.com/mssql/server:2022-latest >/dev/null
     fi
     for i in $(seq 1 90); do
-      if docker logs "$container" 2>&1 | grep -q 'SQL Server is now ready for client connections'; then
-        verify_password
+      if sql_ready; then
         echo "SQL Server ready and authenticated at 127.0.0.1:14333 (dev only)."
         exit 0
       fi
       if ! is_running; then
         echo "SQL Server container stopped unexpectedly." >&2
+        report_startup_failure
         exit 1
       fi
       sleep 2
     done
-    echo "SQL Server did not become ready in time." >&2
+    echo "SQL Server did not accept an authenticated readiness query in time." >&2
+    report_startup_failure
     exit 1
     ;;
   stop)
