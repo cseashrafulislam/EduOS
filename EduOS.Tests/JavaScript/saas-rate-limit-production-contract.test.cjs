@@ -17,4 +17,20 @@ assert.match(program, /UseRateLimiter\(\)/);
 assert.match(limiter, /AddPolicy\("LoginPolicy"/);
 assert.match(limiter, /AddPolicy\("ForgotPasswordPolicy"/);
 assert.match(limiter, /AddPolicy\("PaymentCallbackPolicy"/);
+
+// The rate limiter must see authenticated user identity before partitioning.
+// Otherwise every school sharing one NAT IP shares a single rate-limit quota.
+const authenticated = program.indexOf('app.UseAuthentication();');
+const rateLimited = program.indexOf('app.UseRateLimiter();');
+const authorized = program.indexOf('app.UseAuthorization();');
+assert(authenticated > 0 && authenticated < rateLimited &&
+    rateLimited < authorized, 'Rate limiting must follow authentication and precede authorization');
+const apiPolicy = limiter.slice(limiter.indexOf('options.AddPolicy("ApiPolicy"'),
+    limiter.indexOf('options.AddPolicy("LearnerIdentityPolicy"'));
+assert.match(apiPolicy, /var authenticated = !string\.IsNullOrWhiteSpace\(userId\)/);
+assert.match(apiPolicy, /FindFirstValue\("TenantId"\)/);
+assert.match(apiPolicy, /var budget = authenticated && read \? 240 : 60/);
+assert.match(apiPolicy, /read \? "read" : "write"/);
+assert.doesNotMatch(apiPolicy, /CreateOptions\([^)]*,\s*10\)/);
+
 console.log('Production rate-limiter response and scoped policy contract: PASS');

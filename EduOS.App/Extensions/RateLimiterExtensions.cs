@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
@@ -39,11 +40,29 @@ namespace EduOS.App.Extensions
                         GetClientPartition(context),
                         _ => CreateOptions(5, TimeSpan.FromMinutes(15))));
 
-                // API - general rate limit (60 requests per minute per IP)
+                // ERP pages legitimately load many independent read models.
+                // Authenticated users have a tenant-aware READ allowance; writes
+                // remain tightly bounded per account. Anonymous API reads keep
+                // the old shared-IP limit to prevent enumeration.
+                //
+                // A request queue here caused hidden 30-60 second page stalls
+                // after bursts. Reply 429 immediately when a genuine limit is
+                // reached; the UI can then show a retryable error instead.
                 options.AddPolicy("ApiPolicy", context =>
-                    RateLimitPartition.GetFixedWindowLimiter(
-                        GetClientPartition(context),
-                        _ => CreateOptions(60, TimeSpan.FromMinutes(1), 10)));
+                {
+                    var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                    var authenticated = !string.IsNullOrWhiteSpace(userId);
+                    var read = HttpMethods.IsGet(context.Request.Method) ||
+                        HttpMethods.IsHead(context.Request.Method) ||
+                        HttpMethods.IsOptions(context.Request.Method);
+                    var partition = authenticated
+                        ? $"tenant:{context.User.FindFirstValue("TenantId") ?? "0"}:user:{userId}"
+                        : GetIpPartition(context);
+                    var budget = authenticated && read ? 240 : 60;
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        $"api:{partition}:{(read ? "read" : "write")}",
+                        _ => CreateOptions(budget, TimeSpan.FromMinutes(1)));
+                });
 
                 // Government identifier matching is deliberately much tighter than
                 // the general API quota to reduce enumeration attempts.

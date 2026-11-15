@@ -406,9 +406,12 @@ app.UseRouting();
 // entitlement or tenant middleware rejects a request before MVC filters execute.
 app.UseV2PrivateApiResponseHeaders();
 app.UseCors(CorsExtensions.DefaultPolicy);
-app.UseRateLimiter();
 
+// Endpoint policies using user/tenant identity MUST execute after cookie
+// authentication. Running before it pools authenticated ERP users by IP,
+// exhausting the shared 60/min allowance on a school NAT.
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthSessionGuard();
 app.UseTenantContext();
 app.UseOnboardingGuard();
