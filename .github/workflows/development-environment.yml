@@ -49,6 +49,8 @@ jobs:
           print('Valid .NET 10 / Node 22 / Docker + private Codespaces QA configuration')
           PY
           bash -n .devcontainer/setup.sh .devcontainer/sqlserver.sh .devcontainer/qa.sh
+          grep -q 'verify_password' .devcontainer/sqlserver.sh
+          grep -q 'adopt-password' .devcontainer/sqlserver.sh
 
       - name: Provision .NET 10 SDK
         uses: actions/setup-dotnet@v4

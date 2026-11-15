@@ -97,3 +97,22 @@ Codespaces is an interactive private workspace: repository commits cannot
 control or rebuild an already-open Codespace automatically. A connected
 operator must update/rebuild it once. Codespaces CPU/storage usage may incur
 GitHub charges. This local QA setup does not certify full production UAT.
+
+## Existing Codespaces SQL sa login error 18456
+
+A running SQL container can have a password different from a regenerated
+local password file because **persistent database volumes retain the original
+sa password**. The helper now authenticates against the actual engine on
+`start` and `status`; it adopts the original **only if verified** against
+SQL. No container/volume/database is automatically deleted or reset.
+
+```bash
+git pull --ff-only origin Ashraful
+bash .devcontainer/sqlserver.sh start
+bash .devcontainer/qa.sh start
+```
+
+If the original Docker password also fails, and you know the actual valid
+sa password, run `bash .devcontainer/sqlserver.sh adopt-password` and
+type it at the hidden prompt. Never post passwords or delete named volumes
+as an authentication workaround.

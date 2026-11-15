@@ -14,13 +14,59 @@ prepare_password() {
 is_running() {
   docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null | grep -qx true
 }
+# Existing SQL data volumes retain their original sa password.
+# Password input travels via stdin to sqlcmd; no secret is logged.
+authenticate() {
+  local password="$1"
+  [ -n "$password" ] || return 1
+  printf '%s\n' "$password" | docker exec -i "$container" /bin/bash -c '
+    IFS= read -r SQLCMDPASSWORD || exit 1
+    export SQLCMDPASSWORD
+    if [ -x /opt/mssql-tools18/bin/sqlcmd ]; then
+      client=/opt/mssql-tools18/bin/sqlcmd
+    elif [ -x /opt/mssql-tools/bin/sqlcmd ]; then
+      client=/opt/mssql-tools/bin/sqlcmd
+    else
+      exit 2
+    fi
+    "$client" -S localhost -U sa -C -b -l 5 -Q "SELECT 1" >/dev/null 2>&1
+  ' >/dev/null 2>&1
+}
+save_verified_password() {
+  local tmp
+  umask 077
+  mkdir -p "$(dirname "$password_file")"
+  tmp="$(mktemp "$password_file.new.XXXXXX")"
+  printf '%s\n' "$1" > "$tmp"
+  chmod 600 "$tmp"
+  mv -f "$tmp" "$password_file"
+}
+verify_password() {
+  local saved initial attempt
+  saved="$(cat "$password_file")"
+  for attempt in 1 2 3 4 5; do
+    if authenticate "$saved"; then return 0; fi
+    sleep 2
+  done
+  initial="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container" |
+    sed -n 's/^MSSQL_SA_PASSWORD=//p' | head -n 1)"
+  if [ -n "$initial" ] && [ "$initial" != "$saved" ] && authenticate "$initial"; then
+    save_verified_password "$initial"
+    echo "Re-synchronized existing SQL credential from container; databases unchanged."
+    return 0
+  fi
+  echo "SQL login sa failed (18456): saved password and SQL data volume disagree." >&2
+  echo "No data was deleted. If you know the valid old password, run: bash .devcontainer/sqlserver.sh adopt-password" >&2
+  return 1
+}
 case "$action" in
   start)
     command -v docker >/dev/null || { echo "Docker required" >&2; exit 1; }
     command -v openssl >/dev/null || { echo "openssl required" >&2; exit 1; }
     prepare_password
     if is_running; then
-      echo "EduOS isolated SQL Server is already running on 127.0.0.1:14333."
+      verify_password
+      echo "EduOS SQL Server running; sa authentication verified at 127.0.0.1:14333."
       exit 0
     fi
     if docker container inspect "$container" >/dev/null 2>&1; then
@@ -36,7 +82,8 @@ case "$action" in
     fi
     for i in $(seq 1 90); do
       if docker logs "$container" 2>&1 | grep -q 'SQL Server is now ready for client connections'; then
-        echo "SQL Server ready at 127.0.0.1:14333 (dev only; bound to loopback)."
+        verify_password
+        echo "SQL Server ready and authenticated at 127.0.0.1:14333 (dev only)."
         exit 0
       fi
       if ! is_running; then
@@ -57,8 +104,28 @@ case "$action" in
     fi
     ;;
   status)
-    if is_running; then echo "EduOS SQL Server running (localhost:14333)."
+    if is_running; then
+      echo "EduOS SQL Server running (localhost:14333)."
+      if [ -s "$password_file" ]; then verify_password
+      else echo "SQL password file missing; run start." >&2; exit 1; fi
     else echo "EduOS SQL Server is not running."; fi
+    ;;
+  adopt-password)
+    if ! is_running || [ ! -t 0 ]; then
+      echo "Run this command interactively against a running local container." >&2
+      exit 1
+    fi
+    IFS= read -r -s -p "Existing sa password (hidden): " entered
+    printf '\n'
+    if authenticate "$entered"; then
+      save_verified_password "$entered"
+      unset entered
+      echo "Local password file synchronized; SQL database unchanged."
+    else
+      unset entered
+      echo "Invalid password; no data or credentials changed." >&2
+      exit 1
+    fi
     ;;
   exec)
     shift
@@ -67,6 +134,7 @@ case "$action" in
       echo "Start isolated SQL Server first: bash .devcontainer/sqlserver.sh start" >&2
       exit 1
     fi
+    verify_password
     export ConnectionStrings__DefaultConnection="Server=127.0.0.1,14333;Database=EduOS_Development;User Id=sa;Password=$(cat "$password_file");Encrypt=True;TrustServerCertificate=True;Connect Timeout=30"
     export DatabaseInitialization__Enabled=false
     export DatabaseInitialization__ApplyMigrations=false
@@ -80,7 +148,7 @@ case "$action" in
       --context EduOSDbContext --configuration Release "$@"
     ;;
   *)
-    echo "Usage: bash .devcontainer/sqlserver.sh {start|stop|status|migrate|exec COMMAND...}" >&2
+    echo "Usage: bash .devcontainer/sqlserver.sh {start|stop|status|adopt-password|migrate|exec COMMAND...}" >&2
     echo "Dedicated local-only SQL Server. Password stored in ~/.config/eduos, never in Git." >&2
     exit 2
     ;;

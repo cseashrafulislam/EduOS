@@ -1,0 +1,20 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const read = p => fs.readFileSync(path.join(root,p),'utf8');
+test('SQL helper authenticates existing persistent volume and never resets its credentials', () => {
+  const sql = read('.devcontainer/sqlserver.sh');
+  const qa = read('.devcontainer/qa.sh');
+  assert(sql.includes('verify_password()'));
+  assert(sql.includes('SQLCMDPASSWORD'));
+  assert(sql.includes('docker exec -i "$container"'));
+  assert(sql.includes('authenticate "$initial"'));
+  assert(sql.includes('save_verified_password "$initial"'));
+  assert(sql.includes('adopt-password)'));
+  assert(qa.includes('bash "$repo/.devcontainer/sqlserver.sh" status'));
+  assert(!sql.includes('docker volume rm'));
+  assert(!sql.includes('ALTER LOGIN'));
+});

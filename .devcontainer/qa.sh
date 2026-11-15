@@ -67,6 +67,7 @@ connection() {
     echo "Run bash .devcontainer/sqlserver.sh start first." >&2
     exit 1
   fi
+  bash "$repo/.devcontainer/sqlserver.sh" status
   sql_password="$(cat "$password_file")"
   export ConnectionStrings__DefaultConnection="Server=127.0.0.1,14333;Database=EduOS_Demo_Codespaces;User Id=sa;Password=$sql_password;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30"
   export DatabaseInitialization__Enabled=false
