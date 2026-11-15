@@ -30,7 +30,8 @@ const apiPolicy = limiter.slice(limiter.indexOf('options.AddPolicy("ApiPolicy"')
 assert.match(apiPolicy, /var authenticated = !string\.IsNullOrWhiteSpace\(userId\)/);
 assert.match(apiPolicy, /FindFirstValue\("TenantId"\)/);
 assert.match(apiPolicy, /var budget = authenticated && read \? 240 : 60/);
-assert.match(apiPolicy, /read \? "read" : "write"/);
+assert.match(apiPolicy, /authenticated \? \(read \? "read" : "write"\) : "all"/);
+assert.match(apiPolicy, /var bucket = authenticated/);
 assert.doesNotMatch(apiPolicy, /CreateOptions\([^)]*,\s*10\)/);
 
 console.log('Production rate-limiter response and scoped policy contract: PASS');

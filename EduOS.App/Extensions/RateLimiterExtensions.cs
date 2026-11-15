@@ -59,8 +59,11 @@ namespace EduOS.App.Extensions
                         ? $"tenant:{context.User.FindFirstValue("TenantId") ?? "0"}:user:{userId}"
                         : GetIpPartition(context);
                     var budget = authenticated && read ? 240 : 60;
+                    // Anonymous GET and writes share the original 60/min IP
+                    // allowance; only authenticated users get distinct budgets.
+                    var bucket = authenticated ? (read ? "read" : "write") : "all";
                     return RateLimitPartition.GetFixedWindowLimiter(
-                        $"api:{partition}:{(read ? "read" : "write")}",
+                        $"api:{partition}:{bucket}",
                         _ => CreateOptions(budget, TimeSpan.FromMinutes(1)));
                 });
 
