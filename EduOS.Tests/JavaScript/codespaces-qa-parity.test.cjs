@@ -1,0 +1,49 @@
+'use strict';
+// Keep private Codespaces QA equivalent to the real disposable Actions gates.
+// Source contract only: it never connects to SQL Server or a Codespace.
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const test=require('node:test');
+const repo=path.resolve(__dirname,'../..');
+const qa=fs.readFileSync(path.join(repo,'.devcontainer/qa.sh'),'utf8');
+const workflow=fs.readFileSync(
+    path.join(repo,'.github/workflows/real-data-entry-qa.yml'),'utf8');
+
+test('Codespaces all-scope executes the Actions real-browser gates in dependency order',()=>{
+    const files=[
+        'real-data-entry.cjs','real-academic-foundation.cjs',
+        'real-student-enrollment.cjs','real-menu-route-sweep.cjs',
+        'real-tenantadmin-page-render.cjs','real-roleexclusive-page-render.cjs'
+    ];
+    let prior=-1;
+    for(const name of files){
+        const command='node tests/browser/'+name;
+        const offset=qa.indexOf(command);
+        assert(offset>prior,'Codespaces gate missing or out of order: '+name);
+        assert(workflow.includes(command),'Actions is missing corresponding gate: '+name);
+        prior=offset;
+    }
+    for(const key of [
+        'QA_YEAR_NAME','QA_TERM_NAME','QA_PROGRAM_NAME','QA_LEVEL_NAME',
+        'QA_SUBJECT_NAME','QA_SECTION_NAME','QA_CURRICULUM_NAME',
+        'QA_BATCH_NAME','QA_STUDENT_NAME','QA_GUARDIAN_NAME','QA_STUDENT_ROLL'
+    ]) assert(qa.includes('export '+key+'='),'Synthetic fixture missing: '+key);
+});
+test('Codespaces checks all three independently persisted SQL acceptance suites',()=>{
+    for(const type of [
+        'SqlServerRealDataEntryEvidenceTests',
+        'SqlServerRealAcademicFoundationEvidenceTests',
+        'SqlServerRealStudentEnrollmentEvidenceTests'
+    ]) assert(qa.includes('FullyQualifiedName~'+type),'Missing SQL gate '+type);
+    assert(qa.includes('qa-artifacts/test-results'),'TRX evidence not retained privately');
+});
+test('Codespaces refuses arbitrary branches, stale binaries and stale browser evidence',()=>{
+    assert(qa.includes('guard_branch'));
+    assert(qa.includes('git rev-parse HEAD'));
+    assert(qa.includes('EduOS_Demo_Codespaces'));
+    assert(qa.includes('EDUOS_QA_ORIGIN="$origin"'));
+    assert(qa.includes('QA_EVIDENCE'));
+    assert(qa.includes("assert.equal(data.sha,sha"));
+    assert(!qa.includes('EDUOS_E2E_BASE_URL'),'No hosted production target permitted');
+});
