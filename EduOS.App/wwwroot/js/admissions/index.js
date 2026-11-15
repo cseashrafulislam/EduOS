@@ -1599,7 +1599,8 @@
             const payload = await response.json().catch(() => null);
             if (selectedReview !== state.reviewRequest || state.currentApplication?.reference !== item.reference || !sameSession()) return;
             if (!response.ok || !payload?.success || !payload.data) throw new Error('Invalid enrollment options');
-            fillSelect('enrollmentBatchId', payload.data.academicBatches, true);
+            fillSelect('enrollmentSectionId', payload.data.academicSections, true);
+            state.enrollmentOfferBatchId = null;
             fillSelect('enrollmentGroupId', payload.data.academicTracks, false);
             setValue('enrollmentReference', item.reference);
             setValue('enrollmentRowVersion', item.rowVersion);
@@ -1694,7 +1695,7 @@
                 status.textContent = state === 3 ? 'Offer accepted. Enrollment may proceed.' :
                     state === 2 ? 'Offer issued. Waiting for verified applicant/guardian acceptance.' :
                     state ? 'An existing admission decision requires review.' : 'Issue an offer before enrollment.';
-                if (decision?.offeredAcademicBatchId) setValue('enrollmentBatchId', decision.offeredAcademicBatchId);
+                state.enrollmentOfferBatchId = decision?.offeredAcademicBatchId ?? null;
                 button.disabled = state !== 0;
                 if (state === 2 && !verifiedDocumentId) status.textContent += ' Upload and verify a signed OFFER_ACCEPTANCE document first.';
                 if (admit) admit.disabled = state !== 3;
@@ -1722,10 +1723,9 @@
         button.addEventListener('click', async () => {
             if (issuingOffer) return;
             const reference = valueOf('enrollmentReference');
-            const batch = positiveInteger(valueOf('enrollmentBatchId'));
             const date = new Date(expiry.value);
-            if (!reference || !batch || !Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) {
-                showAlert('danger', 'Choose an eligible batch and future expiry.'); return;
+            if (!reference || !Number.isFinite(date.getTime()) || date.getTime() <= Date.now()) {
+                showAlert('danger', 'Choose a valid future expiry.'); return;
             }
             issuingOffer = true;
             button.disabled = true;
@@ -1733,11 +1733,11 @@
                 const expiresAt = date.toISOString();
                 const key = 'offer:' + reference;
                 const requestId = await offerRetry.forPayload(key,
-                    window.EduOSAdmissionOffers.offerFingerprint(reference, batch, expiresAt));
+                    window.EduOSAdmissionOffers.offerFingerprint(reference, null, expiresAt));
                 const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/offer`,
                     apiOptions('POST', {
                         clientRequestId: requestId, admissionApplicantReference: reference,
-                        state: 2, offeredAcademicBatchId: batch, expiresAt,
+                        state: 2, offeredAcademicBatchId: null, expiresAt,
                         applicantRowVersion: valueOf('enrollmentRowVersion')
                     }));
                 const payload = await response.json().catch(() => null);
@@ -1768,7 +1768,8 @@
         setLoading(button, true);
         try {
             const response = await fetch(`/api/admission-applications/${encodeURIComponent(reference)}/admit`, apiOptions('POST', {
-                academicBatchId: positiveInteger(valueOf('enrollmentBatchId')),
+                academicBatchId: state.enrollmentOfferBatchId ?? null,
+                academicSectionId: positiveInteger(valueOf('enrollmentSectionId')),
                 academicTrackId: positiveInteger(valueOf('enrollmentGroupId')),
                 roll: valueOf('enrollmentRoll'),
                 rowVersion: valueOf('enrollmentRowVersion')
