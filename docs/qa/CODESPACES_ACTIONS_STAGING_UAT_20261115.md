@@ -60,7 +60,7 @@ is stored as \`qa-artifacts/page-action-coverage.json\` and the human-readable
   the action may be hidden, permission-dependent, not applicable, or missing.
 - \`SELECTED_E2E_PASS\` appears only where existing browser create and persisted
   SQL evidence proves the specific action at the same source SHA. Everything else
-  stays \`NOT_FUNCTIONALLY_TESTED\`, including Delete/Approve/Print/Excel/PDF/Report.
+  stays \`NOT_FUNCTIONALLY_TESTED\` unless a separate real export/report fixture proves it. The current fixture verifies bounded Student CSV, XLSX template, GL Trial Balance response, and Student-role denials; Delete/Approve/Print/PDF remain unverified.
 - Do not implement arbitrary Delete/Approve buttons on read-only dashboards or
   allow mutation of posted journals/stock. The business owner must classify
   each action as required, unsupported, or replaced by reversal/transition before

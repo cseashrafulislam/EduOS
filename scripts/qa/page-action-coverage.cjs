@@ -8,6 +8,11 @@ const {actions}=require('../../tests/browser/page-action-probe.cjs');
 const root=path.resolve(__dirname,'../..'),artifactDir=path.join(root,'qa-artifacts');
 const inputFiles=['real-tenantadmin-page-render','real-roleexclusive-page-render',
     'real-privileged-route-coverage'];
+const confirmedExports={
+    '/studentimports/index':{excel:'student-xlsx-template-200-zip-mime'},
+    '/students/index':{excel:'student-directory-csv-paged-200-mime'},
+    '/accountingreports/index':{report:'tenant-scoped-trial-balance-json-200'}
+};
 const confirmedCreation={
     '/academicmanagement/years':['real-data-entry','year-form-save'],
     '/academicmanagement/terms':['real-data-entry','term-form-save'],
@@ -62,6 +67,16 @@ function compile(manifest, sources, proofs, sha){
             actions:Object.fromEntries(actions.map(action=>{
                 const known=action==='create'?confirmedCreation[key]:null;
                 let proof=null;
+                const exportProof=confirmedExports[key]?.[action];
+                if(exportProof){
+                    const exported=proofs['real-export-report-qa'];
+                    assert(exported&&exported.sha===sha&&Array.isArray(exported.checks)&&
+                        exported.checks.some(x=>x.route.toLowerCase()===key&&
+                            x.action===action&&x.proof===exportProof)&&
+                        exported.denials.length===3&&exported.denials.every(x=>x.passed),
+                        'Stale or missing actual export/report proof '+r.path);
+                    proof={artifact:'real-export-report-qa',check:exportProof};
+                }
                 if(known){
                     const [artifact,check]=known,p=proofs[artifact];
                     assert(p&&p.sha===sha&&p.checks.includes(check),
@@ -93,7 +108,8 @@ function run(){
         'docs/ux/UX_ROUTE_OWNERSHIP_20261114.json'),'utf8'));
     const sources=Object.fromEntries(inputFiles.map(n=>[n,JSON.parse(
         fs.readFileSync(path.join(artifactDir,n+'.json'),'utf8'))]));
-    const proofNames=[...new Set(Object.values(confirmedCreation).map(p=>p[0]))];
+    const proofNames=[...new Set([...Object.values(confirmedCreation).map(p=>p[0]),
+        'real-export-report-qa'])];
     const proofs=Object.fromEntries(proofNames.map(n=>[n,JSON.parse(
         fs.readFileSync(path.join(artifactDir,n+'.json'),'utf8'))]));
     const output=compile(manifest,sources,proofs,sha);
@@ -118,4 +134,4 @@ function run(){
 if(require.main===module){
     try{run();}catch(e){console.error('Page action inventory failed:',e.message);process.exitCode=1;}
 }
-module.exports={compile,normalized,confirmedCreation};
+module.exports={compile,normalized,confirmedCreation,confirmedExports};

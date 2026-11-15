@@ -20,20 +20,25 @@ function seed(){
             'subject-ui-create-reload','section-ui-create-reload','batch-create',
             'curriculum-create','section-linked-offering','student-plus-guardian-create'
         ]}]));
+    proofs['real-export-report-qa']={sha,checks:[
+        {route:'/StudentImports/Index',action:'excel',proof:'student-xlsx-template-200-zip-mime'},
+        {route:'/Students/Index',action:'excel',proof:'student-directory-csv-paged-200-mime'},
+        {route:'/AccountingReports/Index',action:'report',proof:'tenant-scoped-trial-balance-json-200'}
+    ],denials:[{passed:true},{passed:true},{passed:true}]};
     return {proofs,sources:{'demo-render':{sha,pages:rows}}};
 }
 test('all 204 canonical pages have eight separate business-action cells',()=>{
     const {sources,proofs}=seed(),out=compile(manifest,sources,proofs,sha);
     assert.equal(out.pages,204);
     assert.equal(out.actionCells,1632);
-    assert.equal(out.verifiedCells,9,'Only existing real CREATE suites are verified');
-    assert.equal(out.unverifiedCells,1623);
+    assert.equal(out.verifiedCells,12,'Only evidenced create/export/report actions count');
+    assert.equal(out.unverifiedCells,1620);
     assert.equal(out.productionReleaseApproved,false);
     assert(out.rows.every(r=>actions.every(a=>r.actions[a].result)));
 });
-test('UI button presence never certifies delete, approve, print, Excel, PDF or report',()=>{
+test('UI button presence never certifies delete, approve, print, or PDF',()=>{
     const {sources,proofs}=seed(),out=compile(manifest,sources,proofs,sha);
-    for(const row of out.rows)for(const action of actions.filter(a=>a!=='create')){
+    for(const row of out.rows)for(const action of actions.filter(a=>!['create','excel','report'].includes(a))){
         assert.equal(row.actions[action].result,'NOT_FUNCTIONALLY_TESTED');
         assert.equal(row.actions[action].verified,false);
         assert.equal(row.actions[action].controlsPresent,1);
@@ -61,4 +66,8 @@ test('all three browser routes collect read-only candidate evidence without subm
     assert(qa.includes('node scripts/qa/page-action-coverage.cjs'));
     assert(wf.includes('node scripts/qa/page-action-coverage.cjs'));
     assert(wf.includes('qa-artifacts/page-action-coverage.csv'));
+    assert(wf.includes('node tests/browser/real-export-report-qa.cjs'));
+    assert(qa.includes('node tests/browser/real-export-report-qa.cjs'));
+    assert(read('tests/browser/real-export-report-qa.cjs').includes('application\\/vnd')===false);
+    assert(read('tests/browser/real-export-report-qa.cjs').includes('student-directory-csv-paged-200-mime'));
 });

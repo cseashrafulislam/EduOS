@@ -221,6 +221,7 @@ run_tests() {
   if [ "$scope" = "all" ]; then
     # Dependency order matches .github/workflows/real-data-entry-qa.yml.
     node tests/browser/real-student-enrollment.cjs
+    node tests/browser/real-export-report-qa.cjs
     node tests/browser/real-menu-route-sweep.cjs
     node tests/browser/real-tenantadmin-page-render.cjs
     node tests/browser/real-roleexclusive-page-render.cjs
