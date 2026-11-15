@@ -157,8 +157,9 @@
     }
     // Preferences are fetched only for the server-resolved active institution.
     // No localStorage/cross-tenant cache is used as a source of authorization or appearance.
+    // Ignore legacy 'system' preferences: device dark mode must not change EduOS appearance.
     const workspaceChoices = {
-        theme: new Set(['system', 'light', 'dark']),
+        theme: new Set(['light', 'dark']),
         palette: new Set(['blue', 'teal', 'violet']),
         navigation: new Set(['left', 'right', 'top']),
         density: new Set(['comfortable', 'compact']),
