@@ -73,6 +73,7 @@ async function main(){
                 active=path;
                 const e=jsFailures.length,m=blocked.length;
                 let status=0,content=false,mobile=false,empty=true,redirect='',error='',actionProbe=null,printProof=null;
+                const isPrint=/\/print(?:\/|$)/i.test(new URL(origin+path).pathname);
                 try{
                     await page.setViewportSize({width:1366,height:768});
                     const response=await page.goto(origin+path,{
@@ -80,7 +81,7 @@ async function main(){
                     });
                     status=response?.status()||0;redirect=new URL(page.url()).pathname;
                     const main=page.locator('main').first();
-                    const isPrint=/\/print(?:\/|$)/i.test(new URL(origin+path).pathname);
+
                     const contentNode=await main.count()?main:
                         (isPrint?page.locator('body'):null);
                     if(contentNode){
