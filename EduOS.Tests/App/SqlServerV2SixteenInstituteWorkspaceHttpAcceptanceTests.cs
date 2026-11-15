@@ -279,7 +279,7 @@ public sealed partial class SqlServerTransportSeatCapacityIntegrationTests
             {
                 RowVersion = updated.RowVersion
             }, default));
-            Assert.Equal("system", reset.Theme);
+            Assert.Equal("light", reset.Theme);
             Assert.Equal("left", reset.Navigation);
             Assert.True(await AuthSessionRegistry.RevokeAsync(db, userId, target.Session));
         }
