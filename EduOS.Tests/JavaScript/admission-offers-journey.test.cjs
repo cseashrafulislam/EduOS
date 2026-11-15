@@ -10,12 +10,12 @@ const source=fs.readFileSync(path.join(__dirname,'../../EduOS.App/wwwroot/js/adm
   assert.equal(m.nextStage(6,3,null),'enroll');
   assert.equal(m.label('enroll',true),'শিক্ষার্থী ভর্তি');
  });
- test('forms reject invalid batch, expiry and roll',()=>{
-  assert.equal(m.validateIssue(0,'2099-01-01',0),false);
-  assert.equal(m.validateIssue(1,'2099-01-01',0),true);
-  assert.equal(m.validateIssue(1,'invalid',0),false);
-  assert.equal(m.validateRoll(1,'  '),false);
-  assert.equal(m.validateRoll(1,'x'.repeat(51)),false);
-  assert.equal(m.validateRoll(1,'12'),true);
+ test('offers require valid expiry, while enrollment requires a valid roll but no batch',()=>{
+  assert.equal(m.validateIssue('',0),false);
+  assert.equal(m.validateIssue('2099-01-01',0),true);
+  assert.equal(m.validateIssue('invalid',0),false);
+  assert.equal(m.validateRoll('  '),false);
+  assert.equal(m.validateRoll('x'.repeat(51)),false);
+  assert.equal(m.validateRoll('12'),true);
  });
 })().catch(e=>{console.error(e);process.exitCode=1;});
