@@ -81,6 +81,14 @@ async function run() {
         const page = await context.newPage();
         page.setDefaultTimeout(20000);
         const failedWrites = [];
+        let programmePostDispatched = false, programmePostFailed = '';
+        page.on('request', request => {
+            if (request.method() === 'POST' &&
+                new URL(request.url()).pathname === '/api/academic-setup/programmes') {
+                programmePostDispatched = true;
+                console.log('[QA request] Programme POST dispatched');
+            }
+        });
         page.on('response', response => {
             const method = response.request().method(), path = new URL(response.url()).pathname;
             if ((method === 'POST' || method === 'GET') &&
@@ -97,6 +105,9 @@ async function run() {
         });
         page.on('requestfailed', request => {
             const path = new URL(request.url()).pathname;
+            if (request.method() === 'POST' &&
+                path === '/api/academic-setup/programmes')
+                programmePostFailed = String(request.failure()?.errorText || '').slice(0, 80);
             if (path.startsWith('/api/')) console.error('[QA request failed]',path,
                 String(request.failure()?.errorText || '').slice(0, 80));
         });
@@ -148,8 +159,9 @@ async function run() {
                     noticeText: document.getElementById('academicNotice')?.textContent?.slice(0, 180)
                 };
             });
-            throw new Error('Programme form click produced no API POST: ' +
-                JSON.stringify(diagnosis));
+            throw new Error('Programme POST did not return a response within 12s: ' +
+                JSON.stringify({ ...diagnosis, programmePostDispatched,
+                    programmePostFailed: programmePostFailed || null }));
         }
         assert(created.status() >= 200 && created.status() < 300,
             'Programme POST returned HTTP ' + created.status());
