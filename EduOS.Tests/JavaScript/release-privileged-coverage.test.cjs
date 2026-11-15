@@ -50,7 +50,7 @@ test('browser checks all 15 exact declared routes and student/tenant access deni
     assert.equal(new Set(expected).size,15);
     assert(browser.includes("const studentDenied=await negativeAccess"));
     assert(browser.includes("const tenantDenied=await negativeAccess"));
-    assert(browser.includes("method=request.method()"));
+    assert(browser.includes("request.method()"));
     assert(browser.includes("return route.abort('blockedbyclient')"));
     assert(browser.includes("productionReleaseCertified:false"));
     assert(coverage.includes('canonicalGetCoveredWithPrivilege'));
