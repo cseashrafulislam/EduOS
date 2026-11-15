@@ -200,20 +200,56 @@ run_tests() {
   export QA_LEVEL_NAME="QA Class One $suffix"
   export QA_SUBJECT_NAME="QA Subject $suffix"
   export QA_SECTION_NAME="QA Section A $suffix"
+  export QA_CURRICULUM_NAME="QA Curriculum $suffix"
+  export QA_BATCH_NAME="QA Batch $suffix"
+  export QA_STUDENT_NAME="QA Student $suffix"
+  export QA_GUARDIAN_NAME="QA Guardian $suffix"
+  export QA_STUDENT_ROLL="QA-Roll-$suffix"
   export EDUOS_SQL_REAL_QA_CONNECTION="$ConnectionStrings__DefaultConnection"
   mkdir -p qa-artifacts
   echo "Executing real Codespaces browser/SQL checks at commit $GITHUB_SHA..."
   if [ "$scope" = "all" ]; then
     node tests/browser/real-data-entry.cjs
-    node tests/browser/real-menu-route-sweep.cjs
   fi
   node tests/browser/real-academic-foundation.cjs
+  if [ "$scope" = "all" ]; then
+    # Dependency order matches .github/workflows/real-data-entry-qa.yml.
+    node tests/browser/real-student-enrollment.cjs
+    node tests/browser/real-menu-route-sweep.cjs
+    node tests/browser/real-tenantadmin-page-render.cjs
+    node tests/browser/real-roleexclusive-page-render.cjs
+  fi
   local filter="FullyQualifiedName~SqlServerRealAcademicFoundationEvidenceTests"
   if [ "$scope" = "all" ]; then
-    filter="FullyQualifiedName~SqlServerRealDataEntryEvidenceTests|$filter"
+    filter="FullyQualifiedName~SqlServerRealDataEntryEvidenceTests|$filter|FullyQualifiedName~SqlServerRealStudentEnrollmentEvidenceTests"
   fi
-  dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build --filter "$filter"
-  echo "Codespaces $scope QA PASS for tested scenarios; independent production sign-off still required."
+  dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build \
+    --filter "$filter" --logger "trx;LogFileName=codespaces-$scope.trx" \
+    --results-directory qa-artifacts/test-results
+  # Fail closed if the checked-out source changed or a browser suite
+  # accidentally reused stale evidence from a different commit.
+  test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+  node - "$GITHUB_SHA" "$scope" <<'QA_EVIDENCE'
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const sha=process.argv[2],scope=process.argv[3];
+const files=scope==='all'?
+  ['real-data-entry','real-academic-foundation','real-student-enrollment',
+    'real-menu-route-sweep','real-tenantadmin-page-render','real-roleexclusive-page-render']:
+  ['real-academic-foundation'];
+for(const name of files){
+  const data=JSON.parse(fs.readFileSync('qa-artifacts/'+name+'.json','utf8'));
+  assert.equal(data.sha,sha,'Evidence belongs to different commit: '+name);
+  if(name==='real-menu-route-sweep')
+    assert.equal(data.results.length,13,'Missing role menu checks');
+  if(name==='real-tenantadmin-page-render')
+    assert(data.checked>=100&&data.failed===0,'TenantAdmin page render incomplete');
+  if(name==='real-roleexclusive-page-render')
+    assert(data.totalDistinctPages>=100&&data.failed===0,'Role pages incomplete');
+}
+console.log('PASS exact-commit browser evidence:',files.length,'artifact groups');
+QA_EVIDENCE
+  echo "Codespaces $scope QA PASS for tested scenarios; staging/production UAT sign-off still required."
 }
 stop() {
   if pid="$(app_pid)"; then
