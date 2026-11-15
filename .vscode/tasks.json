@@ -24,8 +24,8 @@
       "type": "shell",
       "command": "bash",
       "args": [
-        ".devcontainer/qa.sh",
-        "test"
+        "-lc",
+        "git fetch origin Ashraful && git merge --ff-only origin/Ashraful && bash .devcontainer/qa.sh test"
       ],
       "options": {
         "cwd": "${workspaceFolder}"
