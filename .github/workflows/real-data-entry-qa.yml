@@ -111,6 +111,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/qa-keys" "$RUNNER_TEMP/qa-private"
           chmod 700 "$RUNNER_TEMP/qa-keys" "$RUNNER_TEMP/qa-private"
       - name: Launch real EduOS app using Staging-only demo identity
+        id: app_start
         shell: bash
         run: |
           set -euo pipefail
@@ -146,22 +147,30 @@ jobs:
           echo "EduOS application did not become ready" >&2
           exit 1
       - name: Install pinned Playwright Chromium
+        id: browser_deps
         run: |
           npm install --no-save --no-audit --no-fund playwright@1.56.0
           npx playwright install --with-deps chromium
       - name: Real browser login, form POST, reload and denied role
+        id: year_term
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
         run: node tests/browser/real-data-entry.cjs
-      - name: Sweep tenant role sidebar page links in actual app (read-only)
-        env:
-          EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
-        run: node tests/browser/real-menu-route-sweep.cjs
       - name: Create programme, class, subject and independent section through real browser
+        id: academic_foundation
+        if: ${{ always() && steps.app_start.outcome == 'success' && steps.browser_deps.outcome == 'success' }}
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
         run: node tests/browser/real-academic-foundation.cjs
+      - name: Sweep tenant role sidebar page links in actual app (read-only)
+        id: menu_routes
+        if: ${{ always() && steps.app_start.outcome == 'success' && steps.browser_deps.outcome == 'success' }}
+        env:
+          EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
+        run: node tests/browser/real-menu-route-sweep.cjs
       - name: Independently verify committed UI entries in real SQL
+        id: sql_evidence
+        if: ${{ always() && steps.app_start.outcome == 'success' && steps.year_term.outcome == 'success' && steps.academic_foundation.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -169,6 +178,29 @@ jobs:
           dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build \
             --filter "FullyQualifiedName~SqlServerRealDataEntryEvidenceTests|FullyQualifiedName~SqlServerRealAcademicFoundationEvidenceTests" \
             --logger "trx;LogFileName=real-data-entry.trx" --results-directory TestResults
+      - name: Record exact-SHA test gate outcomes
+        if: always()
+        shell: bash
+        env:
+          YEAR_TERM_RESULT: ${{ steps.year_term.outcome }}
+          ACADEMIC_RESULT: ${{ steps.academic_foundation.outcome }}
+          MENU_RESULT: ${{ steps.menu_routes.outcome }}
+          SQL_RESULT: ${{ steps.sql_evidence.outcome }}
+        run: |
+          {
+            echo "## EduOS real browser + SQL acceptance"
+            echo ""
+            echo "Commit: \`$GITHUB_SHA\` (Ashraful). Disposable SQL only."
+            echo ""
+            echo "| Gate | GitHub result |"
+            echo "| --- | --- |"
+            echo "| Year/Term real form | $YEAR_TERM_RESULT |"
+            echo "| Programme/Class/Subject/Section real form | $ACADEMIC_RESULT |"
+            echo "| 13-role real menu route GET | $MENU_RESULT |"
+            echo "| Independent SQL persistence | $SQL_RESULT |"
+            echo ""
+            echo "A skipped or failed gate blocks production approval. No live Codespaces app was accessed."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve synthetic QA evidence
         if: always()
         uses: actions/upload-artifact@v7

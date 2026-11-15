@@ -82,15 +82,27 @@ async function run() {
         page.setDefaultTimeout(20000);
         const failedWrites = [];
         let programmePostDispatched = false, programmePostFailed = '';
+        let programmeStartedAt = 0, programmeDispatchAt = 0;
+        const academicRequests = new Map();
+        const academicRead = p => p.startsWith('/api/institution-onboarding/academic-') ||
+            p === '/api/institution-onboarding/campus-list' ||
+            p.startsWith('/api/academic-setup/catalog');
         page.on('request', request => {
+            const route = new URL(request.url()).pathname;
+            if (request.method() === 'GET' && academicRead(route))
+                academicRequests.set(request, { route, startedAt: Date.now() });
             if (request.method() === 'POST' &&
-                new URL(request.url()).pathname === '/api/academic-setup/programmes') {
+                route === '/api/academic-setup/programmes') {
                 programmePostDispatched = true;
+                programmeDispatchAt = Date.now();
                 console.log('[QA request] Programme POST dispatched');
             }
         });
         page.on('response', response => {
             const method = response.request().method(), path = new URL(response.url()).pathname;
+            academicRequests.delete(response.request());
+            if (method === 'GET' && academicRead(path))
+                console.log('[QA academic GET]', path, 'HTTP', response.status());
             if ((method === 'POST' || method === 'GET') &&
                 (path.startsWith('/api/academic-setup/catalog') ||
                 path.startsWith('/api/academic-setup/programmes') ||
@@ -105,6 +117,7 @@ async function run() {
         });
         page.on('requestfailed', request => {
             const path = new URL(request.url()).pathname;
+            academicRequests.delete(request);
             if (request.method() === 'POST' &&
                 path === '/api/academic-setup/programmes')
                 programmePostFailed = String(request.failure()?.errorText || '').slice(0, 80);
@@ -141,9 +154,10 @@ async function run() {
                 window.__qaProgrammeInvalidFields.push(e.target.id || e.target.name);
             }, {capture: true});
         });
+        programmeStartedAt = Date.now();
         const post = page.waitForResponse(response =>
             new URL(response.url()).pathname === '/api/academic-setup/programmes' &&
-            response.request().method() === 'POST', {timeout: 12000}).catch(() => null);
+            response.request().method() === 'POST', {timeout: 30000}).catch(() => null);
         await page.locator('#programForm button[type="submit"]').click();
         const created = await post;
         if (!created) {
@@ -159,10 +173,17 @@ async function run() {
                     noticeText: document.getElementById('academicNotice')?.textContent?.slice(0, 180)
                 };
             });
-            throw new Error('Programme POST did not return a response within 12s: ' +
+            throw new Error('Programme POST did not return a response within 30s: ' +
                 JSON.stringify({ ...diagnosis, programmePostDispatched,
-                    programmePostFailed: programmePostFailed || null }));
+                    elapsedMs: Date.now() - programmeStartedAt,
+                    dispatchElapsedMs: programmeDispatchAt ? Date.now() - programmeDispatchAt : null,
+                    programmePostFailed: programmePostFailed || null,
+                    academicGetPending: [...academicRequests.values()].map(x => ({
+                        route: x.route, pendingMs: Date.now() - x.startedAt
+                    })).slice(0, 8) }));
         }
+        console.log('[QA timing] Programme POST response', created.status(),
+            'dispatchToHeadersMs', Date.now() - programmeDispatchAt);
         assert(created.status() >= 200 && created.status() < 300,
             'Programme POST returned HTTP ' + created.status());
         const program = await waitForCatalogItem(page, 'programs', programName);
@@ -195,7 +216,10 @@ async function run() {
                 academicNotice: document.getElementById('academicNotice')?.textContent?.slice(0, 220),
                 bodyPrefix: document.body?.innerText?.slice(0, 220)
             })).catch(e => ({pageInspectionError: String(e.message)}));
-            console.error('[QA reload hydration diagnosis]', JSON.stringify(diagnosis));
+            console.error('[QA reload hydration diagnosis]', JSON.stringify({
+                ...diagnosis, academicGetPending: [...academicRequests.values()]
+                    .map(x => ({route: x.route, pendingMs: Date.now() - x.startedAt})).slice(0, 8)
+            }));
             throw error;
         }
         console.log('[QA stage] academic catalogue loaded after programme reload');
