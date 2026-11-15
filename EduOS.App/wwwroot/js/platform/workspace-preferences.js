@@ -66,7 +66,7 @@
         updateTableButtons();
     }
     const defaultPanels = () => panelIds.map(id => ({ id, visible: true }));
-    const defaults = { theme: 'system', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal', customColors: {}, dashboardPanels: defaultPanels(), tablePreferences: defaultTables() };
+    const defaults = { theme: 'light', palette: 'blue', navigation: 'left', density: 'comfortable', fontScale: 'normal', customColors: {}, dashboardPanels: defaultPanels(), tablePreferences: defaultTables() };
     function validPanels(panels) {
         return Array.isArray(panels) && panels.length === panelIds.length
             && panels.every(p => p && panelIds.includes(p.id) && typeof p.visible === 'boolean')
