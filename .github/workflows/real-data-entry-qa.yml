@@ -8,6 +8,8 @@ on:
       - '.github/workflows/real-data-entry-qa.yml'
       - '.devcontainer/qa.sh'
       - 'EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs'
+      - 'scripts/qa/compare-real-route-coverage.cjs'
+      - 'EduOS.Tests/JavaScript/real-route-coverage-reconcile.test.cjs'
       - 'tests/browser/real-data-entry.cjs'
       - 'tests/browser/real-academic-foundation.cjs'
       - 'tests/browser/real-student-enrollment.cjs'
@@ -203,6 +205,10 @@ jobs:
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
         run: node tests/browser/real-roleexclusive-page-render.cjs
+      - name: Reconcile 204 declared routes with exercised role navigation (non-certifying)
+        id: route_coverage
+        if: ${{ always() && steps.menu_routes.outcome == 'success' && steps.page_render.outcome == 'success' && steps.role_exclusive_render.outcome == 'success' }}
+        run: node scripts/qa/compare-real-route-coverage.cjs
       - name: Independently verify committed UI entries in real SQL
         id: sql_evidence
         if: ${{ always() && steps.app_start.outcome == 'success' && steps.year_term.outcome == 'success' && steps.academic_foundation.outcome == 'success' && steps.student_entry.outcome == 'success' }}
@@ -223,6 +229,7 @@ jobs:
           MENU_RESULT: ${{ steps.menu_routes.outcome }}
           PAGE_RESULT: ${{ steps.page_render.outcome }}
           EXCLUSIVE_RESULT: ${{ steps.role_exclusive_render.outcome }}
+          COVERAGE_RESULT: ${{ steps.route_coverage.outcome }}
           SQL_RESULT: ${{ steps.sql_evidence.outcome }}
         run: |
           {
@@ -238,6 +245,7 @@ jobs:
             echo "| 13-role real menu route GET | $MENU_RESULT |"
             echo "| TenantAdmin all-sidebar Chromium desktop/mobile | $PAGE_RESULT |"
             echo "| Other role-exclusive Chromium pages desktop/mobile | $EXCLUSIVE_RESULT |"
+            echo "| Declared-route coverage gap inventory (navigation only) | $COVERAGE_RESULT |"
             echo "| Independent SQL persistence | $SQL_RESULT |"
             echo ""
             echo "A skipped or failed gate blocks production approval. No live Codespaces app was accessed."
@@ -254,6 +262,7 @@ jobs:
             qa-artifacts/real-menu-route-sweep.json
             qa-artifacts/real-tenantadmin-page-render.json
             qa-artifacts/real-roleexclusive-page-render.json
+            qa-artifacts/real-route-coverage-gap.json
             TestResults/real-data-entry.trx
           if-no-files-found: ignore
           retention-days: 7
