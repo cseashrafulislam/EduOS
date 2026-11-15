@@ -98,9 +98,15 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             (x.AcademicProgramId == null || x.AcademicProgramId == form.AcademicProgramId))
             .OrderBy(x => x.Name).Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
             .ToListAsync(cancellationToken);
+        var academicSections = await _db.AcademicSections.AsNoTracking().Where(x =>
+            x.TenantId == tenant && x.CampusId == form.CampusId &&
+            x.AcademicLevelId == form.AcademicLevelId && x.IsActive && !x.IsDeleted && x.Capacity > 0)
+            .OrderBy(x => x.Name).ThenBy(x => x.Id)
+            .Select(x => new AdmissionReferenceOptionDto { Id = x.Id, Name = x.Name })
+            .ToListAsync(cancellationToken);
         return ApiResponse<AdmissionEnrollmentOptionsDto>.SuccessResponse(new AdmissionEnrollmentOptionsDto
         {
-            AcademicBatches = sections, AcademicTracks = tracks
+            AcademicBatches = sections, AcademicSections = academicSections, AcademicTracks = tracks
         });
     }
 
@@ -132,7 +138,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         if (!CanManage()) return Denied<AdmissionDecisionDto>();
         if (applicationReference == Guid.Empty || request == null || request.ClientRequestId == Guid.Empty ||
             request.AdmissionApplicantReference != applicationReference ||
-            request.State != AdmissionDecisionState.Offered || request.OfferedAcademicBatchId is null or <= 0 ||
+            request.State != AdmissionDecisionState.Offered || request.OfferedAcademicBatchId is <= 0 ||
             !TryVersion(request.ApplicantRowVersion, out var expected))
             return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Valid offer, applicant, request ID and row version are required.");
         var now = _clock.GetUtcNow().UtcDateTime;
@@ -169,19 +175,23 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                 var form = await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                     x.TenantId == tenant && x.Id == applicant.AdmissionIntakeFormId && !x.IsDeleted, token);
                 if (form == null) return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Intake form not found.", 409);
-                var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.OfferedAcademicBatchId.Value && x.IsActive && !x.IsDeleted &&
-                    x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
-                    x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId &&
-                    (!form.AcademicTermId.HasValue || x.AcademicTermId == form.AcademicTermId) &&
-                    (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId), token);
-                if (batch == null || batch.Capacity <= 0)
-                    return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
+                AcademicBatch? batch = null;
+                if (request.OfferedAcademicBatchId.HasValue)
+                {
+                    batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == request.OfferedAcademicBatchId.Value && x.IsActive && !x.IsDeleted &&
+                        x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
+                        x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId &&
+                        (!form.AcademicTermId.HasValue || x.AcademicTermId == form.AcademicTermId) &&
+                        (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId), token);
+                    if (batch == null || batch.Capacity <= 0)
+                        return ApiResponse<AdmissionDecisionDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
+                }
                 var decision = new AdmissionDecision
                 {
                     TenantId = tenant, ClientRequestId = request.ClientRequestId,
                     AdmissionApplicantId = applicant.Id, State = AdmissionDecisionState.Offered,
-                    OfferedAcademicBatchId = batch.Id, OfferedAt = now, ExpiresAt = request.ExpiresAt.Value,
+                    OfferedAcademicBatchId = batch?.Id, OfferedAt = now, ExpiresAt = request.ExpiresAt.Value,
                     DecidedByUserId = _user.UserId, Note = request.Note?.Trim(),
                     CreatedAt = now, CreatedBy = _user.UserId
                 };
@@ -192,7 +202,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                 return ApiResponse<AdmissionDecisionDto>.SuccessResponse(new AdmissionDecisionDto
                 {
                     Id = decision.Id, AdmissionApplicantReference = applicationReference,
-                    State = decision.State, OfferedAcademicBatchId = batch.Id,
+                    State = decision.State, OfferedAcademicBatchId = batch?.Id,
                     OfferedAt = now, ExpiresAt = request.ExpiresAt.Value,
                     RowVersion = Convert.ToBase64String(decision.RowVersion)
                 }, "Offer issued. Verified applicant or guardian acceptance is required.");
