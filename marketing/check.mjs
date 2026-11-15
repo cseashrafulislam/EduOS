@@ -46,11 +46,11 @@ assert(home.includes('id="contact"'),"Contact CTA missing");
 assert(demo.includes("cseashrafulwork@gmail.com") && demo.includes("8801733293938"),"Demo contact links missing");
 assert(cfg.includes("cseashrafulwork@gmail.com") && cfg.includes("8801733293938"),"Homepage public contacts missing");
 assert(js.includes(".svg") && js.includes("/demo/"),"Fallback image or demo links missing");
-const liveUrl = "http://myeduos.runasp.net/";
+const liveUrl = "https://myeduos.runasp.net/";
 for (const [label, page] of [["homepage", home], ["Bengali homepage", htmlPages[1]], ["demo gallery", demo]]) {
   assert(page.includes('href="' + liveUrl + '"'), label + ": missing real live test link");
   assert(page.includes('target="_blank" rel="noopener noreferrer"'), label + ": external test link missing opener protection");
-  assert(page.includes("HTTP") && (page.includes("password") || page.includes("পাসওয়ার্ড")), label + ": missing unsecured-demo warning");
+  assert((page.includes("test") || page.includes("টেস্ট")) && (page.includes("student") || page.includes("শিক্ষার্থী")), label + ": missing test-only/sample-data warning");
 }
 assert(cfg.includes('demoUrl: "' + liveUrl + '"'), "Marketing demo URL missing or inconsistent");
 assert(!home.includes("Demo Login</span>"), "Old demo-login CTA should not claim public production login");

@@ -12,7 +12,7 @@ Static public marketing website, wholly separated from the private ASP.NET Educa
 - `/modules/`, `/bn/modules/` — detailed ERP module descriptions grouped by academic, finance, campus and platform capabilities.
 - `/ai/`, `/bn/ai/` — complete intelligent assistant architecture and sample questions. **Vision and capabilities are described but AI/voice readiness is not falsely claimed as production verified.**
 - `/demo/` — five clearly labelled synthetic SVG demo concept previews for Dashboard, Students, Fees, Academics and Reports, with direct **email cseashrafulwork@gmail.com** and **WhatsApp +8801733293938**. No fictitious customers or student data.
-- **HTTP live-test link:** `http://myeduos.runasp.net/` is displayed on the English home hero/header, Bengali home hero and `/demo/#live-test`. It is labelled a *test-only* endpoint; prominent warnings prohibit real passwords, student data and production transactions. This link is not evidence of an HTTPS-secured production deployment. Replace it with the HTTPS origin when SSL is active.
+- **HTTPS live-test link:** `https://myeduos.runasp.net/` is displayed on the English home hero/header, Bengali home hero and `/demo/#live-test`. It is labelled a *test-only* endpoint; prominent warnings prohibit real student records and payment information. HTTPS is enabled, but this does not establish production readiness or full security QA.
 
 Add real, privacy-approved screenshots later to `marketing/public/assets/screenshots/{dashboard,student-management,fees-billing,academics,reports}.webp`. The main landing gallery prefers each matching WebP and falls back to the static concept SVG if unavailable. Update the standalone demo gallery separately when the real captures are approved.
 
