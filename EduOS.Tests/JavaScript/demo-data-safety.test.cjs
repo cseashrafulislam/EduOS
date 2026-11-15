@@ -85,3 +85,27 @@ test('every SQL INSERT column matches the current EF Core model snapshot', () =>
         }
     }
 });
+
+
+test('persistent demo credentials can be reconciled only after tenant/role safety checks', () => {
+    const roleCheck = bootstrap.indexOf('existingRoles.Any');
+    const tenantCheck = bootstrap.indexOf('Demo {roleName} account also belongs to another institution.');
+    const passwordCheck = bootstrap.indexOf('userManager.CheckPasswordAsync(user, password)');
+    const rotation = bootstrap.indexOf('userManager.ResetPasswordAsync(user, resetToken, password)');
+    assert.ok(roleCheck > 0 && tenantCheck > roleCheck && passwordCheck > tenantCheck,
+        'Existing demo role/tenant guards must run before password synchronization');
+    assert.ok(rotation > passwordCheck, 'Credential rotation must only occur on mismatch');
+    assert.match(bootstrap, /userManager\.GeneratePasswordResetTokenAsync\(user\)/);
+    assert.match(bootstrap, /userManager\.IsLockedOutAsync\(user\)/);
+    assert.match(bootstrap, /userManager\.ResetAccessFailedCountAsync\(user\)/);
+    assert.doesNotMatch(bootstrap, /PasswordHash\s*=/);
+    assert.match(program, /!app\.Environment\.IsStaging\(\)/);
+});
+
+test('real browser QA reports login API rejection without logging credential payload', () => {
+    const browser = read('tests/browser/real-data-entry.cjs');
+    assert.match(browser, /page\.waitForResponse\(response =>/);
+    assert.match(browser, /'\/api\/auth\/login'/);
+    assert.match(browser, /Synthetic demo sign-in rejected: HTTP/);
+    assert.doesNotMatch(browser, /console\.(?:log|error)\([^\n]*password/i);
+});
