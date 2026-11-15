@@ -53,6 +53,7 @@ for (const [label, page] of [["homepage", home], ["Bengali homepage", htmlPages[
   assert((page.includes("test") || page.includes("টেস্ট")) && (page.includes("student") || page.includes("শিক্ষার্থী")), label + ": missing test-only/sample-data warning");
 }
 assert(cfg.includes('demoUrl: "' + liveUrl + '"'), "Marketing demo URL missing or inconsistent");
+assert(home.includes("Demo username: <strong>demo</strong>") && htmlPages[1].includes("ডেমো ইউজারনেম: <strong>demo</strong>") && demo.includes("Demo username: <strong>demo</strong>"), "Demo username should appear on English, Bengali and demo pages");
 assert(!home.includes("Demo Login</span>"), "Old demo-login CTA should not claim public production login");
 assert(!js.includes("infoDialog.showModal()"),"Old inactive demo modal still in use");
 for (const shot of ["dashboard","student-management","fees-billing","academics","reports"]) {
