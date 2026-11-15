@@ -40,7 +40,7 @@ async function academic(page,route,feature){
     const root=page.locator('#academicManagement[data-active-feature="'+feature+'"]');
     await root.waitFor();
     await page.waitForFunction(()=>!!window.eduosAcademicManagement?.state?.catalog,
-        null,{waitUntil:'domcontentloaded',timeout:25000});
+        null,{timeout:25000});
     const panel=page.locator('#academicManagement section[data-section="'+feature+'"]');
     if(!(await panel.isVisible())){
         const state=await panel.evaluate(el=>({
@@ -121,7 +121,7 @@ async function run(){
         await page.locator('#userNameOrEmail').fill('demo.tenantadmin@eduos.example.invalid');
         await page.locator('#password').fill(env.QA_DEMO_PASSWORD);
         await page.locator('#loginBtn').click();
-        await page.waitForURL(url=>url.pathname.toLowerCase()!=='/account/login',{timeout:25000});
+        await page.waitForURL(url=>url.pathname.toLowerCase()!=='/account/login',{waitUntil:'domcontentloaded',timeout:25000});
         await academic(page,'Curricula','curricula');
         const catalog=await page.evaluate(()=>({
             programs:window.eduosAcademicManagement.state.catalog.programs,
