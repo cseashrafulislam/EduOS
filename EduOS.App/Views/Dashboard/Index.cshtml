@@ -91,6 +91,7 @@
         "TRIALING" => T["StatusTrial"],
         "PENDINGPAYMENT" => T["StatusPendingPayment"],
         "PASTDUE" => T["StatusPastDue"],
+        "GRACE" => useBangla ? "গ্রেস পিরিয়ড" : "Grace period",
         "EXPIRED" => T["StatusExpired"],
         "CANCELATPERIODEND" => T["StatusCancelAtPeriodEnd"],
         "CANCELLED" => T["StatusCancelled"],
@@ -114,7 +115,7 @@
             </p>
             <div class="dashboard-badges" aria-label="@T["AccountStatus"]">
                 <span class="status-chip status-chip-neutral">@T["Plan"]: @planName</span>
-                <span class="status-chip @(subscriptionEndPassed ? "status-chip-warning" : "status-chip-neutral")">@T["Subscription"]: @SubscriptionStatusLabel(subscriptionEndPassed ? "EXPIRED" : Model.SubscriptionStatus)</span>
+                <span class="status-chip @(subscriptionEndPassed ? "status-chip-warning" : "status-chip-neutral")">@T["Subscription"]: @SubscriptionStatusLabel(Model.SubscriptionStatus)@(subscriptionEndPassed ? (useBangla ? " · মেয়াদ পেরিয়েছে" : " · End date passed") : "")</span>
                 <span class="status-chip @(Model.EmailVerified ? "status-chip-success" : "status-chip-warning")">
                     @(Model.EmailVerified ? T["EmailVerifiedStatus"] : T["EmailPendingStatus"])
                 </span>
