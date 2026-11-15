@@ -163,111 +163,110 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             return Error<AdmissionApplicationCreatedDto>("An application field exceeds the allowed length.");
         try
         {
-            using var tx = new TransactionScope(TransactionScopeOption.Required,
-                new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }, TransactionScopeAsyncFlowOption.Enabled);
-            // Check the replay under the same transaction as the intake state.
-            // A previously committed request may be acknowledged after intake closure;
-            // a new request must still pass the live published/open-window check.
-            var replay = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                x.TenantId == tenant.Id && x.ClientRequestId == request.ClientRequestId, ct);
-            var form = replay == null
-                ? await FindOpenFormAsync(tenant.Id, request.AdmissionFormReference.Value, ct)
-                : await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant.Id && x.PublicId == request.AdmissionFormReference.Value, ct);
-            if (form == null) return Error<AdmissionApplicationCreatedDto>("Admission form is unavailable.", 404);
-            if (form.CampusId != request.CampusId || form.AcademicYearId != request.AcademicYearId ||
-                form.AcademicTermId != request.AcademicTermId || form.AcademicLevelId != request.AcademicLevelId)
-                return Error<AdmissionApplicationCreatedDto>("Academic choices do not match the intake form.", 409);
-            var fields = await FieldsAsync(tenant.Id, new[] { form.Id }, ct);
-            if (replay != null)
+            return await _uow.ExecuteInTransactionAsync(async _ =>
             {
-                if (replay.AdmissionIntakeFormId != form.Id || replay.FullName != request.ApplicantName.Trim() ||
-                    replay.FullNameBangla != Trim(request.ApplicantNameBangla) ||
-                    replay.DateOfBirth != DateOnly.FromDateTime(request.DateOfBirth.Date) ||
-                    replay.Gender != request.Gender.ToString() || replay.Phone != phone ||
-                    replay.Email != Trim(request.Email) ||
-                    replay.Address != (Trim(request.PermanentAddress) ?? Trim(request.PresentAddress)))
-                    return Error<AdmissionApplicationCreatedDto>("Request ID was used for different application data.", 409);
-                var savedFields = await (from value in _values.GetQueryable().AsNoTracking()
-                    join field in _fields.GetQueryable().AsNoTracking()
-                        on value.AdmissionFormFieldId equals field.Id
-                    where value.TenantId == tenant.Id && field.TenantId == tenant.Id &&
-                        value.AdmissionApplicantId == replay.Id
-                    select new { field.FieldKey, value.Value }).ToListAsync(ct);
-                var normalizedFields = fields.Select(field => new
+                // Check the replay under the same transaction as the intake state.
+                // A previously committed request may be acknowledged after intake closure;
+                // a new request must still pass the live published/open-window check.
+                var replay = await _applicants.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                    x.TenantId == tenant.Id && x.ClientRequestId == request.ClientRequestId, ct);
+                var form = replay == null
+                    ? await FindOpenFormAsync(tenant.Id, request.AdmissionFormReference.Value, ct)
+                    : await _forms.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant.Id && x.PublicId == request.AdmissionFormReference.Value, ct);
+                if (form == null) return Error<AdmissionApplicationCreatedDto>("Admission form is unavailable.", 404);
+                if (form.CampusId != request.CampusId || form.AcademicYearId != request.AcademicYearId ||
+                    form.AcademicTermId != request.AcademicTermId || form.AcademicLevelId != request.AcademicLevelId)
+                    return Error<AdmissionApplicationCreatedDto>("Academic choices do not match the intake form.", 409);
+                var fields = await FieldsAsync(tenant.Id, new[] { form.Id }, ct);
+                if (replay != null)
                 {
-                    field.FieldKey,
-                    Value = request.CustomResponses != null &&
-                        request.CustomResponses.TryGetValue(field.FieldKey, out var value)
-                        ? Trim(value) : null
-                }).Where(x => x.Value != null).ToList();
-                if (savedFields.Count != normalizedFields.Count ||
-                    normalizedFields.Any(x => !savedFields.Any(saved =>
-                        saved.FieldKey == x.FieldKey && saved.Value == x.Value)))
-                    return Error<AdmissionApplicationCreatedDto>("Request ID was used for different custom field values.", 409);
-                var savedGuardian = await _guardians.GetQueryable().AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.TenantId == tenant.Id &&
-                        x.AdmissionApplicantId == replay.Id && x.IsPrimary, ct);
-                if (savedGuardian == null && !string.IsNullOrWhiteSpace(request.GuardianName) ||
-                    savedGuardian != null && (savedGuardian.FullName != Trim(request.GuardianName) ||
-                        savedGuardian.RelationCode != (Trim(request.GuardianRelation) ?? "Guardian") ||
-                        savedGuardian.Phone != guardianPhone))
-                    return Error<AdmissionApplicationCreatedDto>("Request ID was used for different guardian details.", 409);
-                tx.Complete();
-                return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(replay),
-                    "Application already received.");
-            }
-            var rules = fields.Select(MapField).ToList();
-            var error = AdmissionIntakeRules.ValidateResponses(rules, request.CustomResponses, out _);
-            if (error != null) return Error<AdmissionApplicationCreatedDto>(error);
-            Person person = new()
-            {
-                FullName = request.ApplicantName.Trim(), FullNameBangla = Trim(request.ApplicantNameBangla),
-                DateOfBirth = DateOnly.FromDateTime(request.DateOfBirth.Date),
-                Gender = request.Gender.ToString(), Phone = phone, Email = Trim(request.Email),
-                PreferredLanguage = request.PreferredLanguage is "en-BD" or "bn-BD" ?
-                    request.PreferredLanguage : "bn-BD", CreatedAt = now
-            };
-            await _persons.AddAsync(person);
-            await _uow.SaveChangesAsync(ct);
-            var refId = Guid.NewGuid();
-            var applicant = new AdmissionApplicant
-            {
-                TenantId = tenant.Id, PublicId = refId, ClientRequestId = request.ClientRequestId,
-                AdmissionIntakeFormId = form.Id, PersonId = person.Id,
-                ApplicationNumber = ("APP-" + now.ToString("yyyy") + "-" + refId.ToString("N"))[..17].ToUpperInvariant(),
-                FullName = request.ApplicantName.Trim(), FullNameBangla = Trim(request.ApplicantNameBangla),
-                DateOfBirth = person.DateOfBirth, Gender = person.Gender, Phone = phone, Email = person.Email,
-                Address = Trim(request.PermanentAddress) ?? Trim(request.PresentAddress),
-                State = AdmissionApplicantState.Submitted, SubmittedAt = now, CreatedAt = now
-            };
-            await _applicants.AddAsync(applicant);
-            await _uow.SaveChangesAsync(ct);
-            foreach (var field in fields)
-            {
-                var supplied = request.CustomResponses?.GetValueOrDefault(field.FieldKey);
-                if (string.IsNullOrWhiteSpace(supplied)) continue;
-                await _values.AddAsync(new AdmissionApplicantFieldValue
+                    if (replay.AdmissionIntakeFormId != form.Id || replay.FullName != request.ApplicantName.Trim() ||
+                        replay.FullNameBangla != Trim(request.ApplicantNameBangla) ||
+                        replay.DateOfBirth != DateOnly.FromDateTime(request.DateOfBirth.Date) ||
+                        replay.Gender != request.Gender.ToString() || replay.Phone != phone ||
+                        replay.Email != Trim(request.Email) ||
+                        replay.Address != (Trim(request.PermanentAddress) ?? Trim(request.PresentAddress)))
+                        return Error<AdmissionApplicationCreatedDto>("Request ID was used for different application data.", 409);
+                    var savedFields = await (from value in _values.GetQueryable().AsNoTracking()
+                        join field in _fields.GetQueryable().AsNoTracking()
+                            on value.AdmissionFormFieldId equals field.Id
+                        where value.TenantId == tenant.Id && field.TenantId == tenant.Id &&
+                            value.AdmissionApplicantId == replay.Id
+                        select new { field.FieldKey, value.Value }).ToListAsync(ct);
+                    var normalizedFields = fields.Select(field => new
+                    {
+                        field.FieldKey,
+                        Value = request.CustomResponses != null &&
+                            request.CustomResponses.TryGetValue(field.FieldKey, out var value)
+                            ? Trim(value) : null
+                    }).Where(x => x.Value != null).ToList();
+                    if (savedFields.Count != normalizedFields.Count ||
+                        normalizedFields.Any(x => !savedFields.Any(saved =>
+                            saved.FieldKey == x.FieldKey && saved.Value == x.Value)))
+                        return Error<AdmissionApplicationCreatedDto>("Request ID was used for different custom field values.", 409);
+                    var savedGuardian = await _guardians.GetQueryable().AsNoTracking()
+                        .FirstOrDefaultAsync(x => x.TenantId == tenant.Id &&
+                            x.AdmissionApplicantId == replay.Id && x.IsPrimary, ct);
+                    if (savedGuardian == null && !string.IsNullOrWhiteSpace(request.GuardianName) ||
+                        savedGuardian != null && (savedGuardian.FullName != Trim(request.GuardianName) ||
+                            savedGuardian.RelationCode != (Trim(request.GuardianRelation) ?? "Guardian") ||
+                            savedGuardian.Phone != guardianPhone))
+                        return Error<AdmissionApplicationCreatedDto>("Request ID was used for different guardian details.", 409);
+                    return ApiResponse<AdmissionApplicationCreatedDto>.SuccessResponse(MapCreated(replay),
+                        "Application already received.");
+                }
+                var rules = fields.Select(MapField).ToList();
+                var error = AdmissionIntakeRules.ValidateResponses(rules, request.CustomResponses, out _);
+                if (error != null) return Error<AdmissionApplicationCreatedDto>(error);
+                Person person = new()
                 {
-                    TenantId = tenant.Id, AdmissionApplicantId = applicant.Id,
-                    AdmissionFormFieldId = field.Id, Value = supplied, CreatedAt = now
-                });
-            }
-            if (!string.IsNullOrWhiteSpace(request.GuardianName))
-                await _guardians.AddAsync(new AdmissionApplicantGuardian
+                    FullName = request.ApplicantName.Trim(), FullNameBangla = Trim(request.ApplicantNameBangla),
+                    DateOfBirth = DateOnly.FromDateTime(request.DateOfBirth.Date),
+                    Gender = request.Gender.ToString(), Phone = phone, Email = Trim(request.Email),
+                    PreferredLanguage = request.PreferredLanguage is "en-BD" or "bn-BD" ?
+                        request.PreferredLanguage : "bn-BD", CreatedAt = now
+                };
+                await _persons.AddAsync(person);
+                await _uow.SaveChangesAsync(ct);
+                var refId = Guid.NewGuid();
+                var applicant = new AdmissionApplicant
                 {
-                    TenantId = tenant.Id, AdmissionApplicantId = applicant.Id,
-                    FullName = request.GuardianName.Trim(),
-                    RelationCode = Trim(request.GuardianRelation) ?? "Guardian",
-                    Phone = guardianPhone, IsPrimary = true, CreatedAt = now
-                });
-            await _uow.SaveChangesAsync(ct);
-            tx.Complete();
-            return new ApiResponse<AdmissionApplicationCreatedDto>
-            {
-                Success = true, StatusCode = 201, Message = "Application submitted.",
-                Data = MapCreated(applicant)
-            };
+                    TenantId = tenant.Id, PublicId = refId, ClientRequestId = request.ClientRequestId,
+                    AdmissionIntakeFormId = form.Id, PersonId = person.Id,
+                    ApplicationNumber = ("APP-" + now.ToString("yyyy") + "-" + refId.ToString("N"))[..17].ToUpperInvariant(),
+                    FullName = request.ApplicantName.Trim(), FullNameBangla = Trim(request.ApplicantNameBangla),
+                    DateOfBirth = person.DateOfBirth, Gender = person.Gender, Phone = phone, Email = person.Email,
+                    Address = Trim(request.PermanentAddress) ?? Trim(request.PresentAddress),
+                    State = AdmissionApplicantState.Submitted, SubmittedAt = now, CreatedAt = now
+                };
+                await _applicants.AddAsync(applicant);
+                await _uow.SaveChangesAsync(ct);
+                foreach (var field in fields)
+                {
+                    var supplied = request.CustomResponses?.GetValueOrDefault(field.FieldKey);
+                    if (string.IsNullOrWhiteSpace(supplied)) continue;
+                    await _values.AddAsync(new AdmissionApplicantFieldValue
+                    {
+                        TenantId = tenant.Id, AdmissionApplicantId = applicant.Id,
+                        AdmissionFormFieldId = field.Id, Value = supplied, CreatedAt = now
+                    });
+                }
+                if (!string.IsNullOrWhiteSpace(request.GuardianName))
+                    await _guardians.AddAsync(new AdmissionApplicantGuardian
+                    {
+                        TenantId = tenant.Id, AdmissionApplicantId = applicant.Id,
+                        FullName = request.GuardianName.Trim(),
+                        RelationCode = Trim(request.GuardianRelation) ?? "Guardian",
+                        Phone = guardianPhone, IsPrimary = true, CreatedAt = now
+                    });
+                await _uow.SaveChangesAsync(ct);
+                return new ApiResponse<AdmissionApplicationCreatedDto>
+                {
+                    Success = true, StatusCode = 201, Message = "Application submitted.",
+                    Data = MapCreated(applicant)
+                };
+            }, System.Data.IsolationLevel.Serializable, ct);
         }
         catch (DbUpdateException ex)
         {
