@@ -220,6 +220,10 @@ async function run(){
         await page.locator('#runningAdmissionDate').fill('2027-03-01');
         await page.locator('#runningEnrollDate').fill('2027-03-01');
         await select(page,'runningCurriculum',curriculum.id);
+        // Guardian fields live in a separate Bootstrap tab. Exercise the
+        // actual user action before operating on the hidden form controls.
+        await page.locator('#runningGuardianTab').click();
+        await page.locator('#runningGuardianFields').waitFor({state:'visible'});
         await page.locator('#runningAddGuardian').check();
         await page.locator('#runningGuardianName').fill(names.guardian);
         await page.locator('#runningGuardianRelation').selectOption('Father');
