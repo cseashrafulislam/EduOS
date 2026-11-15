@@ -40,7 +40,7 @@ async function academic(page,route,feature){
     const root=page.locator('#academicManagement[data-active-feature="'+feature+'"]');
     await root.waitFor();
     await page.waitForFunction(()=>!!window.eduosAcademicManagement?.state?.catalog,
-        null,{timeout:25000});
+        null,{waitUntil:'domcontentloaded',timeout:25000});
     const panel=page.locator('#academicManagement section[data-section="'+feature+'"]');
     if(!(await panel.isVisible())){
         const state=await panel.evaluate(el=>({
