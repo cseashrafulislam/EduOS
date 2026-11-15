@@ -4,7 +4,7 @@ namespace EduOS.Core.DTOs.SaaS;
 public sealed class WorkspacePreferencesDto
 {
     public int SchemaVersion { get; set; } = 1;
-    public string Theme { get; set; } = "system";
+    public string Theme { get; set; } = "light";
     public string Palette { get; set; } = "blue";
     public string Navigation { get; set; } = "left";
     public string Density { get; set; } = "comfortable";
@@ -32,7 +32,7 @@ public sealed class RestoreWorkspacePreferencesRequestDto
 public sealed class SaveWorkspacePreferencesRequestDto
 {
     public int SchemaVersion { get; set; } = 1;
-    public string Theme { get; set; } = "system";
+    public string Theme { get; set; } = "light";
     public string Palette { get; set; } = "blue";
     public string Navigation { get; set; } = "left";
     public string Density { get; set; } = "comfortable";
