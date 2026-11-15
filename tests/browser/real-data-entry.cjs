@@ -16,9 +16,28 @@ async function login(page, user) {
     assert(res && res.status() === 200, 'Actual login page unavailable');
     await page.locator('#userNameOrEmail').fill(user);
     await page.locator('#password').fill(password);
-    await page.locator('#loginBtn').click();
-    await page.waitForURL(url => url.pathname.toLowerCase() !== '/account/login',
+    // Wait for the actual auth POST, not only for navigation. On a persistent
+    // Codespaces demo DB, old Identity hashes or lockout may reject login;
+    // reporting HTTP status is actionable and never prints passwords/tokens.
+    const loginResponse = page.waitForResponse(response =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/api/auth/login',
         {timeout: 25000});
+    await page.locator('#loginBtn').click();
+    const auth = await loginResponse;
+    const result = await auth.json().catch(() => null);
+    assert(auth.status() === 200 && result?.success === true,
+        'Synthetic demo sign-in rejected: HTTP ' + auth.status() +
+        ' (verify isolated demo credentials, lockout, roles, or rate limiting)');
+    try {
+        await page.waitForURL(url => url.pathname.toLowerCase() !== '/account/login',
+            {timeout: 25000});
+    } catch {
+        const alertType = await page.locator('#alertContainer')
+            .getAttribute('class').catch(() => '');
+        throw new Error('Demo auth API succeeded, but browser remained on login; ' +
+            'alertClass=' + String(alertType).slice(0,60));
+    }
     assert(!/MfaChallenge/i.test(page.url()), 'Unexpected MFA for synthetic user');
 }
 async function academic(page, route, feature) {
