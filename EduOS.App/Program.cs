@@ -18,6 +18,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 using EduOS.Service.Helpers.Storage;
 using System.Globalization;
+using System.Security.Cryptography.X509Certificates;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +28,6 @@ var traceIsolatedAcademicQa = builder.Environment.IsStaging() &&
         .Contains("Database=EduOS_Demo_Codespaces;", StringComparison.OrdinalIgnoreCase);
 if (traceIsolatedAcademicQa)
     builder.Logging.AddFilter("EduOS.Service.Services.Academic.AcademicSetupService", LogLevel.Debug);
-
 
 // A public demonstration deployment is still internet-facing, even if its
 // ASPNETCORE_ENVIRONMENT is Staging. Require all Production security settings.
@@ -190,28 +190,58 @@ builder.Services.AddRazorPages();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR(options => options.MaximumReceiveMessageSize = 8 * 1024);
 
-var dataProtection =
-    builder.Services
-        .AddDataProtection()
-        .SetApplicationName("EduOS");
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("EduOS");
+var keyProtectionMode = builder.Configuration["DataProtection:KeyProtectionMode"]?.Trim();
+if (!string.IsNullOrWhiteSpace(keyProtectionMode) && string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+    throw new InvalidOperationException("DataProtection:KeysPath is required when key protection is configured.");
 
 if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 {
-    var keyDirectory =
-        new DirectoryInfo(dataProtectionKeysPath);
-
+    // Durable private key ring; preserve across website deployments and backups.
+    var keyDirectory = new DirectoryInfo(Path.GetFullPath(
+        dataProtectionKeysPath, builder.Environment.ContentRootPath));
     if (!keyDirectory.Exists)
         keyDirectory.Create();
+    dataProtection.PersistKeysToFileSystem(keyDirectory);
 
-    dataProtection.PersistKeysToFileSystem(
-        keyDirectory);
+    if (string.Equals(keyProtectionMode, "Certificate", StringComparison.OrdinalIgnoreCase))
+    {
+        // Explicit opt-in for shared IIS hosts where machine DPAPI isn't available.
+        var certificatePath = builder.Configuration["DataProtection:CertificatePath"];
+        var certificatePassword = builder.Configuration["DataProtection:CertificatePassword"];
+        if (string.IsNullOrWhiteSpace(certificatePath) || string.IsNullOrEmpty(certificatePassword))
+            throw new InvalidOperationException(
+                "Certificate key protection requires DataProtection:CertificatePath and DataProtection:CertificatePassword.");
 
-    // The first production target is a Windows Server VM. Protect persisted
-    // authentication/cookie keys at rest with Windows DPAPI, not plaintext
-    // XML. Machine scope survives app-pool identity rotations on that VM;
-    // deployments spanning machines must use an approved shared key protector.
-    if (builder.Environment.IsProduction() && OperatingSystem.IsWindows())
-        dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+        ProductionStoragePathPolicy.ValidatePrivateCertificatePath(
+            builder.Environment.ContentRootPath,
+            builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot"),
+            certificatePath);
+
+        var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            Path.GetFullPath(certificatePath, builder.Environment.ContentRootPath),
+            certificatePassword, X509KeyStorageFlags.EphemeralKeySet);
+        if (!certificate.HasPrivateKey)
+            throw new InvalidOperationException("The Data Protection certificate must contain a private key.");
+        dataProtection.ProtectKeysWithCertificate(certificate);
+    }
+    else if (string.IsNullOrWhiteSpace(keyProtectionMode) ||
+             string.Equals(keyProtectionMode, "Dpapi", StringComparison.OrdinalIgnoreCase))
+    {
+        // Preserve machine DPAPI behavior on existing dedicated Windows hosts.
+        // Never fall back to unencrypted production key XML.
+        if (OperatingSystem.IsWindows() &&
+            (builder.Environment.IsProduction() ||
+             string.Equals(keyProtectionMode, "Dpapi", StringComparison.OrdinalIgnoreCase)))
+            dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+        else if (builder.Environment.IsProduction() ||
+                 string.Equals(keyProtectionMode, "Dpapi", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "DPAPI requires Windows; configure DataProtection:KeyProtectionMode=Certificate on this host.");
+    }
+    else
+        throw new InvalidOperationException(
+            "Unsupported DataProtection:KeyProtectionMode; use Dpapi or Certificate.");
 }
 
 // =============================================================================

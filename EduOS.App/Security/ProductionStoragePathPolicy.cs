@@ -22,6 +22,17 @@ public static class ProductionStoragePathPolicy
             "DataProtection:KeysPath");
     }
 
+    public static void ValidatePrivateCertificatePath(string contentRoot, string webRoot,
+        string? certificatePath)
+    {
+        if (string.IsNullOrWhiteSpace(contentRoot) || string.IsNullOrWhiteSpace(webRoot))
+            throw new InvalidOperationException("Production content and web roots must be configured.");
+        var content = Path.GetFullPath(contentRoot);
+        var publicRoot = Path.GetFullPath(webRoot, content);
+        ValidatePrivateDirectory(content, publicRoot, certificatePath,
+            "DataProtection:CertificatePath");
+    }
+
     private static void ValidatePrivateDirectory(string contentRoot, string publicRoot,
         string? configuredPath, string settingName)
     {

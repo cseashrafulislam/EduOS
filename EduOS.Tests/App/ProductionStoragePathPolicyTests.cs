@@ -28,6 +28,36 @@ public sealed class ProductionStoragePathPolicyTests
             "App_Data/private-uploads", "App_Data/keys");
     }
 
+    [Theory]
+    [InlineData("wwwroot/certificates/protection.pfx")]
+    [InlineData("wwwroot/certificates/../protection.pfx")]
+    public void Public_certificate_path_is_rejected(string certificatePath)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "eduos-private-path-policy");
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            ProductionStoragePathPolicy.ValidatePrivateCertificatePath(
+                root, Path.Combine(root, "wwwroot"), certificatePath));
+        Assert.Contains("DataProtection:CertificatePath", error.Message);
+    }
+
+    [Fact]
+    public void Private_certificate_outside_webroot_is_allowed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "eduos-private-path-policy");
+        ProductionStoragePathPolicy.ValidatePrivateCertificatePath(
+            root, Path.Combine(root, "wwwroot"), "../private/certificates/protection.pfx");
+    }
+
+    [Fact]
+    public void Empty_certificate_path_is_rejected()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "eduos-private-path-policy");
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            ProductionStoragePathPolicy.ValidatePrivateCertificatePath(
+                root, Path.Combine(root, "wwwroot"), null));
+        Assert.Contains("DataProtection:CertificatePath", error.Message);
+    }
+
     [Fact]
     public void Empty_private_directory_is_rejected()
     {
