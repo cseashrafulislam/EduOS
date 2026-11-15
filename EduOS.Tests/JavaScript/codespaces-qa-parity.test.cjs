@@ -12,7 +12,7 @@ const workflow=fs.readFileSync(
 
 test('Codespaces all-scope executes the Actions real-browser gates in dependency order',()=>{
     const files=[
-        'real-data-entry.cjs','real-academic-foundation.cjs',
+        'real-data-entry.cjs','real-academic-year-lifecycle.cjs','real-academic-foundation.cjs',
         'real-student-enrollment.cjs','real-export-report-qa.cjs','real-menu-route-sweep.cjs',
         'real-tenantadmin-page-render.cjs','real-roleexclusive-page-render.cjs',
         'real-privileged-route-coverage.cjs'

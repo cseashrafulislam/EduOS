@@ -25,20 +25,22 @@ function seed(){
         {route:'/Students/Index',action:'excel',proof:'student-directory-csv-paged-200-mime'},
         {route:'/AccountingReports/Index',action:'report',proof:'tenant-scoped-trial-balance-json-200'}
     ],denials:[{passed:true},{passed:true},{passed:true}]};
+    proofs['real-academic-year-lifecycle']={sha,checks:[
+        'year-isolated-create','year-ui-edit-saved-and-reloaded','year-ui-archive-and-reloaded']};
     return {proofs,sources:{'demo-render':{sha,pages:rows}}};
 }
 test('all 204 canonical pages have eight separate business-action cells',()=>{
     const {sources,proofs}=seed(),out=compile(manifest,sources,proofs,sha);
     assert.equal(out.pages,204);
     assert.equal(out.actionCells,1632);
-    assert.equal(out.verifiedCells,12,'Only evidenced create/export/report actions count');
-    assert.equal(out.unverifiedCells,1620);
+    assert.equal(out.verifiedCells,14,'Only evidenced create/edit/archive/export/report count');
+    assert.equal(out.unverifiedCells,1618);
     assert.equal(out.productionReleaseApproved,false);
     assert(out.rows.every(r=>actions.every(a=>r.actions[a].result)));
 });
-test('UI button presence never certifies delete, approve, print, or PDF',()=>{
+test('UI button presence never certifies untested approve, print or PDF',()=>{
     const {sources,proofs}=seed(),out=compile(manifest,sources,proofs,sha);
-    for(const row of out.rows)for(const action of actions.filter(a=>!['create','excel','report'].includes(a))){
+    for(const row of out.rows)for(const action of actions.filter(a=>!['create','edit','delete','excel','report'].includes(a))){
         assert.equal(row.actions[action].result,'NOT_FUNCTIONALLY_TESTED');
         assert.equal(row.actions[action].verified,false);
         assert.equal(row.actions[action].controlsPresent,1);
@@ -67,6 +69,7 @@ test('all three browser routes collect read-only candidate evidence without subm
     assert(wf.includes('node scripts/qa/page-action-coverage.cjs'));
     assert(wf.includes('qa-artifacts/page-action-coverage.csv'));
     assert(wf.includes('node tests/browser/real-export-report-qa.cjs'));
+    assert(wf.includes('node tests/browser/real-academic-year-lifecycle.cjs'));
     assert(qa.includes('node tests/browser/real-export-report-qa.cjs'));
     assert(read('tests/browser/real-export-report-qa.cjs').includes('student-directory-csv-paged-200-mime'));
 });

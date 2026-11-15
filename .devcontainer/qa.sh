@@ -216,6 +216,7 @@ run_tests() {
   echo "Executing real Codespaces browser/SQL checks at commit $GITHUB_SHA..."
   if [ "$scope" = "all" ]; then
     node tests/browser/real-data-entry.cjs
+    node tests/browser/real-academic-year-lifecycle.cjs
   fi
   node tests/browser/real-academic-foundation.cjs
   if [ "$scope" = "all" ]; then

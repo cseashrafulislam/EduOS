@@ -13,6 +13,7 @@ on:
       - 'scripts/qa/page-action-coverage.cjs'
       - 'tests/browser/page-action-probe.cjs'
       - 'tests/browser/real-export-report-qa.cjs'
+      - 'tests/browser/real-academic-year-lifecycle.cjs'
       - 'scripts/qa/release-readiness.cjs'
       - 'tests/browser/real-privileged-route-coverage.cjs'
       - 'EduOS.Tests/JavaScript/real-route-coverage-reconcile.test.cjs'
@@ -186,6 +187,12 @@ jobs:
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
         run: node tests/browser/real-data-entry.cjs
+      - name: Exercise real Academic Year Create Edit Archive with safe soft deletion
+        id: year_lifecycle
+        if: ${{ always() && steps.app_start.outcome == 'success' && steps.browser_deps.outcome == 'success' && steps.year_term.outcome == 'success' }}
+        env:
+          EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
+        run: node tests/browser/real-academic-year-lifecycle.cjs
       - name: Create programme, class, subject and independent section through real browser
         id: academic_foundation
         if: ${{ always() && steps.app_start.outcome == 'success' && steps.browser_deps.outcome == 'success' }}
@@ -234,7 +241,7 @@ jobs:
         run: node scripts/qa/compare-real-route-coverage.cjs
       - name: Inventory 204 pages x 8 business actions without claiming untested CRUD
         id: action_coverage
-        if: ${{ always() && steps.route_coverage.outcome == 'success' && steps.student_entry.outcome == 'success' && steps.year_term.outcome == 'success' && steps.academic_foundation.outcome == 'success' && steps.export_report.outcome == 'success' }}
+        if: ${{ always() && steps.route_coverage.outcome == 'success' && steps.student_entry.outcome == 'success' && steps.year_term.outcome == 'success' && steps.academic_foundation.outcome == 'success' && steps.export_report.outcome == 'success' && steps.year_lifecycle.outcome == 'success' }}
         run: node scripts/qa/page-action-coverage.cjs
       - name: Independently verify committed UI entries in real SQL
         id: sql_evidence
@@ -263,6 +270,7 @@ jobs:
           COVERAGE_RESULT: ${{ steps.route_coverage.outcome }}
           ACTION_COVERAGE_RESULT: ${{ steps.action_coverage.outcome }}
           EXPORT_REPORT_RESULT: ${{ steps.export_report.outcome }}
+          YEAR_LIFECYCLE_RESULT: ${{ steps.year_lifecycle.outcome }}
           PRIVILEGED_RESULT: ${{ steps.privileged_routes.outcome }}
           READINESS_RESULT: ${{ steps.readiness.outcome }}
           SQL_RESULT: ${{ steps.sql_evidence.outcome }}
@@ -284,6 +292,7 @@ jobs:
             echo "| Declared-route coverage gap inventory (navigation only) | $COVERAGE_RESULT |"
             echo "| Page-by-page CRUD/Approve/Print/Excel/PDF/Report evidence census | $ACTION_COVERAGE_RESULT |"
             echo "| Real bounded Student CSV, XLSX and GL Report/API role denials | $EXPORT_REPORT_RESULT |"
+            echo "| Academic Year Create Edit safe Archive and Reload | $YEAR_LIFECYCLE_RESULT |"
             echo "| Independent SQL persistence | $SQL_RESULT |"
             echo "| Exact-SHA release-readiness evidence (always NO_GO without UAT) | $READINESS_RESULT |"
             echo ""
@@ -306,6 +315,7 @@ jobs:
             qa-artifacts/page-action-coverage.json
             qa-artifacts/page-action-coverage.csv
             qa-artifacts/real-export-report-qa.json
+            qa-artifacts/real-academic-year-lifecycle.json
             qa-artifacts/release-readiness.json
             TestResults/real-data-entry.trx
           if-no-files-found: ignore

@@ -8,6 +8,12 @@ const {actions}=require('../../tests/browser/page-action-probe.cjs');
 const root=path.resolve(__dirname,'../..'),artifactDir=path.join(root,'qa-artifacts');
 const inputFiles=['real-tenantadmin-page-render','real-roleexclusive-page-render',
     'real-privileged-route-coverage'];
+const confirmedChanges={
+    '/academicmanagement/years':{
+        edit:'year-ui-edit-saved-and-reloaded',
+        delete:'year-ui-archive-and-reloaded'
+    }
+};
 const confirmedExports={
     '/studentimports/index':{excel:'student-xlsx-template-200-zip-mime'},
     '/students/index':{excel:'student-directory-csv-paged-200-mime'},
@@ -68,6 +74,14 @@ function compile(manifest, sources, proofs, sha){
                 const known=action==='create'?confirmedCreation[key]:null;
                 let proof=null;
                 const exportProof=confirmedExports[key]?.[action];
+                const changed=confirmedChanges[key]?.[action];
+                if(changed){
+                    const lifecycle=proofs['real-academic-year-lifecycle'];
+                    assert(lifecycle&&lifecycle.sha===sha&&lifecycle.checks.includes(changed),
+                        'Stale or missing UI edit/soft-archive proof '+r.path);
+                    proof={artifact:'real-academic-year-lifecycle',check:changed,
+                        ...(action==='delete'?{mode:'SAFE_ARCHIVE_NOT_HARD_DELETE'}:{})};
+                }
                 if(exportProof){
                     const exported=proofs['real-export-report-qa'];
                     assert(exported&&exported.sha===sha&&Array.isArray(exported.checks)&&
@@ -109,7 +123,7 @@ function run(){
     const sources=Object.fromEntries(inputFiles.map(n=>[n,JSON.parse(
         fs.readFileSync(path.join(artifactDir,n+'.json'),'utf8'))]));
     const proofNames=[...new Set([...Object.values(confirmedCreation).map(p=>p[0]),
-        'real-export-report-qa'])];
+        'real-export-report-qa','real-academic-year-lifecycle'])];
     const proofs=Object.fromEntries(proofNames.map(n=>[n,JSON.parse(
         fs.readFileSync(path.join(artifactDir,n+'.json'),'utf8'))]));
     const output=compile(manifest,sources,proofs,sha);
@@ -134,4 +148,4 @@ function run(){
 if(require.main===module){
     try{run();}catch(e){console.error('Page action inventory failed:',e.message);process.exitCode=1;}
 }
-module.exports={compile,normalized,confirmedCreation,confirmedExports};
+module.exports={compile,normalized,confirmedCreation,confirmedExports,confirmedChanges};
