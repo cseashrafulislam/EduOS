@@ -106,6 +106,10 @@ test('real browser QA reports login API rejection without logging credential pay
     const browser = read('tests/browser/real-data-entry.cjs');
     assert.match(browser, /page\.waitForResponse\(response =>/);
     assert.match(browser, /'\/api\/auth\/login'/);
-    assert.match(browser, /Synthetic demo sign-in rejected: HTTP/);
+    assert.match(browser, /Synthetic demo login did not succeed: HTTP/);
+    assert.match(browser, /parseFailure/);
+    assert.match(browser, /contentType/);
+    assert.match(browser, /waitUntil:'domcontentloaded'/);
+    assert.match(browser, /Demo authentication API responded, but the browser did not navigate/);
     assert.doesNotMatch(browser, /console\.(?:log|error)\([^\n]*password/i);
 });
