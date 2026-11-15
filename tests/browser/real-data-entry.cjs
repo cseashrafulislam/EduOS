@@ -25,19 +25,46 @@ async function login(page, user) {
         {timeout: 25000});
     await page.locator('#loginBtn').click();
     const auth = await loginResponse;
-    const result = await auth.json().catch(() => null);
-    assert(auth.status() === 200 && result?.success === true,
-        'Synthetic demo sign-in rejected: HTTP ' + auth.status() +
-        ' (verify isolated demo credentials, lockout, roles, or rate limiting)');
-    try {
+    let parseFailure = '';
+    const result = await auth.json().catch(error => {
+        parseFailure = String(error?.name || 'body-unavailable').slice(0, 50);
+        return null;
+    });
+    const contentType = String(auth.headers()['content-type'] || '')
+        .split(';')[0].toLowerCase().slice(0, 75);
+    const responseKeys = result && typeof result === 'object' &&
+        !Array.isArray(result) ? Object.keys(result).slice(0, 8).join(',') : '';
+    const success = auth.status() === 200 && result?.success === true;
+
+    // Reading a Fetch response's body through the Chromium DevTools protocol
+    // can race the page navigation immediately after a successful login POST.
+    // If the body is unavailable, accept the login ONLY when real navigation
+    // succeeded; the next authenticated academic route must also pass.
+    if (!success && auth.status() === 200 && parseFailure) {
         await page.waitForURL(url => url.pathname.toLowerCase() !== '/account/login',
-            {timeout: 25000});
-    } catch {
-        const alertType = await page.locator('#alertContainer')
-            .getAttribute('class').catch(() => '');
-        throw new Error('Demo auth API succeeded, but browser remained on login; ' +
-            'alertClass=' + String(alertType).slice(0,60));
+            {waitUntil:'domcontentloaded', timeout: 8000}).catch(() => null);
     }
+    const path = new URL(page.url()).pathname;
+    const navigated = path.toLowerCase() !== '/account/login';
+    if (!success && !(auth.status() === 200 && parseFailure && navigated)) {
+        const alertClass = await page.locator('#alertContainer')
+            .getAttribute('class').catch(() => '');
+        throw new Error('Synthetic demo login did not succeed: HTTP ' + auth.status() +
+            ', type=' + (contentType || 'none') +
+            ', json=' + (result === null ? 'unavailable' : typeof result) +
+            ', success=' + String(result?.success ?? 'missing') +
+            ', keys=' + (responseKeys || 'none') +
+            ', parse=' + (parseFailure || 'none') +
+            ', path=' + path.slice(0, 90) +
+            ', alertClass=' + String(alertClass || 'none').slice(0, 60));
+    }
+    if (!navigated) {
+        await page.waitForURL(url => url.pathname.toLowerCase() !== '/account/login',
+            {waitUntil:'domcontentloaded', timeout: 25000}).catch(() => null);
+    }
+    assert(new URL(page.url()).pathname.toLowerCase() !== '/account/login',
+        'Demo authentication API responded, but the browser did not navigate');
+
     assert(!/MfaChallenge/i.test(page.url()), 'Unexpected MFA for synthetic user');
 }
 async function academic(page, route, feature) {
