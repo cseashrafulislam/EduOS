@@ -40,7 +40,7 @@ async function run() {
         await page.locator('#password').fill(password);
         await page.locator('#loginBtn').click();
         await page.waitForURL(url=>url.pathname.toLowerCase() !== '/account/login',
-            {timeout:25000});
+            {waitUntil:'domcontentloaded', timeout:25000});
         await page.locator('#sidebarMenu nav a[href]').first().waitFor({timeout:15000});
         const raw = await page.locator('#sidebarMenu nav a[href]').evaluateAll(elements=>
             elements.filter(x=>x.getAttribute('href')?.startsWith('/') &&
