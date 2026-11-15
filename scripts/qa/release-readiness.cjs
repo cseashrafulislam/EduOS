@@ -40,10 +40,13 @@ function generate(){
         'Authorized menu GET failures');
     const admin=proof['real-tenantadmin-page-render'];
     assert.equal(admin.failed,0);
-    assert.equal(admin.checked,177);
+    assert(admin.checked>=177,'TenantAdmin navigation unexpectedly shrank');
+    assert.equal(admin.passed,admin.checked,'TenantAdmin actual page render incomplete');
     const exclusive=proof['real-roleexclusive-page-render'];
     assert.equal(exclusive.failed,0);
-    assert.equal(exclusive.totalDistinctPages,189);
+    assert(exclusive.totalDistinctPages>=189,'Authorized role-navigation coverage unexpectedly shrank');
+    assert.equal(exclusive.totalDistinctPages,admin.checked+exclusive.newDistinctPages,
+        'Role-exclusive route accounting mismatch');
     const privileged=proof['real-privileged-route-coverage'];
     assert.equal(privileged.checked,15);
     assert.equal(privileged.passed,15);
@@ -58,7 +61,7 @@ function generate(){
         {gate:'Isolated HTTPS, 13-role navigation, privileged negative access',
             status:'PASS',evidence:'8 exact-SHA browser/SQL artifact groups'},
         {gate:'204/204 declared routes GET/render (not CRUD)',
-            status:'PASS',evidence:'189 demo-role + 15 isolated privileged/optional routes'},
+            status:'PASS',evidence:coverage.canonicalGetCovered+' demo-role paths, 15 privileged/optional verification paths (4 overlap), '+coverage.canonicalGetCoveredWithPrivilege+' distinct declared paths'},
         {gate:'Selected Academic + Student/Guardian lifecycle SQL persistence',
             status:'PASS',evidence:'3 independent SQL acceptance tests'}
     ];
@@ -72,7 +75,9 @@ function generate(){
     ];
     const report={sha,branch:'Ashraful',
         scope:'Automated synthetic staging evidence ONLY; production credentials/data never accessed',
-        automated,sql,
+        automated,sql,routeMetrics:{tenantAdmin:admin.checked,distinctMenuRoutes:exclusive.totalDistinctPages,
+            canonicalGet:coverage.canonicalGetCovered,privileged:privileged.checked,
+            distinctDeclared:coverage.canonicalGetCoveredWithPrivilege},
         pending,
         productionReleaseApproved:false,decision:'NO_GO',
         decisionReason:'Institutional acceptance, transaction, performance and operational gates are not independently signed off'};

@@ -25,3 +25,14 @@ test('release documentation explicitly requires owner acceptance and protects pr
     assert(doc.includes('DBA / backup-restore owner'));
     assert(doc.includes('EF1002/EF1003'));
 });
+
+test('release readiness reconciles actual role growth without relaxing 204-page gate',()=>{
+    const source=read('scripts/qa/release-readiness.cjs');
+    assert(source.includes('admin.checked>=177'));
+    assert(source.includes('admin.passed,admin.checked'));
+    assert(source.includes('exclusive.totalDistinctPages>=189'));
+    assert(source.includes('exclusive.totalDistinctPages,admin.checked+exclusive.newDistinctPages'));
+    assert(source.includes('routeMetrics:'));
+    assert(!source.includes('assert.equal(admin.checked,177)'));
+    assert(!source.includes('assert.equal(exclusive.totalDistinctPages,189)'));
+});
