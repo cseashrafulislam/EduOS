@@ -182,6 +182,10 @@ run_tests() {
     exit 2
   fi
   guard_branch
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "Refusing exact-SHA QA with uncommitted tracked changes; commit or stash them first." >&2
+    exit 1
+  fi
   prepare
   connection
   # QA must never label new source as tested against an old app binary.
