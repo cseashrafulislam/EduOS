@@ -7,6 +7,7 @@ qa_home="$HOME/.config/eduos/codespaces-qa"
 secret_file="$qa_home/secrets"
 password_file="$HOME/.config/eduos/dev-sql-password"
 pid_file="$qa_home/app.pid"
+sha_file="$qa_home/app.commit"
 app_log="$qa_home/app.log"
 origin="https://qa.eduos.test:7243"
 cd "$repo"
@@ -89,9 +90,18 @@ start() {
   prepare
   bash .devcontainer/sqlserver.sh start
   connection
+  local head
+  head="$(git rev-parse HEAD)"
   if app_pid >/dev/null && ready; then
-    echo "Already running: $origin"
-    return
+    if [ -s "$sha_file" ] && [ "$(cat "$sha_file")" = "$head" ]; then
+      echo "Already running tested app commit $head: $origin"
+      return
+    fi
+    echo "Staging app was built from a different or unknown commit; restarting safely."
+    stop
+  elif app_pid >/dev/null; then
+    echo "Staging app is not healthy; stopping before a clean restart."
+    stop
   fi
   echo "Building EduOS and migrating private demo database EduOS_Demo_Codespaces..."
   dotnet restore EduOS.slnx
@@ -99,6 +109,7 @@ start() {
   dotnet ef database update --project EduOS.Persistence --startup-project EduOS.App \
     --context EduOSDbContext --configuration Release --no-build
   export ASPNETCORE_ENVIRONMENT=Staging
+  export EduOSQA__EnableProgrammeTrace=true
   export ASPNETCORE_URLS="https://0.0.0.0:7243"
   export ASPNETCORE_Kestrel__Certificates__Default__Path="$qa_home/qa.pfx"
   export ASPNETCORE_Kestrel__Certificates__Default__Password="$QA_CERT_PASSWORD"
@@ -125,7 +136,9 @@ start() {
   )
   for i in $(seq 1 90); do
     if ready; then
-      echo "EduOS private Staging QA READY: $origin"
+      printf '%s\n' "$head" > "$sha_file"
+      chmod 600 "$sha_file"
+      echo "EduOS private Staging QA READY: $origin (commit $head)"
       echo "Demo login: demo.tenantadmin@eduos.example.invalid"
       echo "Demo credential generated privately at $secret_file (not printed)."
       if [ -n "$codespace" ]; then
@@ -171,9 +184,11 @@ run_tests() {
   guard_branch
   prepare
   connection
-  if ! app_pid >/dev/null || ! ready; then
-    echo "Start the app first: bash .devcontainer/qa.sh start" >&2
-    exit 1
+  # QA must never label new source as tested against an old app binary.
+  if ! app_pid >/dev/null || ! ready ||
+     [ ! -s "$sha_file" ] ||
+     [ "$(cat "$sha_file")" != "$(git rev-parse HEAD)" ]; then
+    start
   fi
   browser
   suffix="$(date -u +%Y%m%dT%H%M%S)-$(openssl rand -hex 3)"
@@ -207,7 +222,7 @@ stop() {
   else
     echo "Private demo app is already stopped."
   fi
-  rm -f "$pid_file"
+  rm -f "$pid_file" "$sha_file"
 }
 case "${1:-}" in
   start) start ;;

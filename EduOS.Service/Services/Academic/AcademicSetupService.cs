@@ -201,6 +201,7 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
     public Task<ApiResponse<AcademicProgramDto>> CreateProgramAsync(SaveAcademicProgramRequestDto request,
         CancellationToken ct = default)
     {
+        _logger.LogDebug("QA programme create: service entered");
         if (!CanManage()) return Task.FromResult(Denied<AcademicProgramDto>());
         if (request == null || !ValidNameCode(request.Name, EffectiveInternalCode(request.Code, request.ClientRequestId, "PRG-"), 200) ||
             request.DurationInMonths < 0 || request.DurationInMonths > 1200 ||
@@ -210,19 +211,24 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
             request.ShortName?.Length > 100 || request.AwardTitle?.Length > 150 ||
             request.Description?.Length > 1000 || request.DisplayOrder < 0)
             return Task.FromResult(Error<AcademicProgramDto>("Invalid academic program or campus assignments."));
+        _logger.LogDebug("QA programme create: input validation passed, entering transaction");
         return ExecuteWriteAsync("create academic program", async () =>
         {
+            _logger.LogDebug("QA programme create: transaction delegate entered");
             var tenant = _currentUser.TenantId;
             if (request.AcademicDepartmentId.HasValue && !await _departments.GetQueryable().AsNoTracking()
                 .AnyAsync(x => x.TenantId == tenant && x.Id == request.AcademicDepartmentId.Value && x.IsActive, ct))
                 return Error<AcademicProgramDto>("Academic department not found.", 404);
+            _logger.LogDebug("QA programme create: department check finished");
             var ids = request.CampusIds.ToArray();
             var valid = await _campuses.GetQueryable().AsNoTracking().CountAsync(x =>
                 x.TenantId == tenant && ids.Contains(x.Id) && x.IsActive && !x.IsDeleted, ct);
             if (valid != ids.Length) return Error<AcademicProgramDto>("One or more campuses are unavailable.", 404);
+            _logger.LogDebug("QA programme create: campus check finished");
             var code = NormalizeCode(EffectiveInternalCode(request.Code, request.ClientRequestId, "PRG-"));
             var existing = await _programs.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
                 x.TenantId == tenant && x.Code == code, ct);
+            _logger.LogDebug("QA programme create: idempotency lookup finished");
             if (existing != null)
             {
                 var linked = await _programCampuses.GetQueryable().AsNoTracking()
@@ -250,7 +256,9 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
                 IsActive = request.IsActive, DisplayOrder = request.DisplayOrder
             };
             await _programs.AddAsync(row);
+            _logger.LogDebug("QA programme create: first SaveChanges starting");
             await _unitOfWork.SaveChangesAsync(ct);
+            _logger.LogDebug("QA programme create: first SaveChanges finished");
             var first = true;
             foreach (var campusId in ids)
             {
@@ -261,7 +269,9 @@ public sealed partial class AcademicSetupService : IAcademicSetupService
                 });
                 first = false;
             }
+            _logger.LogDebug("QA programme create: campus link SaveChanges starting");
             await _unitOfWork.SaveChangesAsync(ct);
+            _logger.LogDebug("QA programme create: campus link SaveChanges finished");
             var result = MapProgram(row); result.CampusIds = ids;
             return Created(result, "Academic program created.");
         });

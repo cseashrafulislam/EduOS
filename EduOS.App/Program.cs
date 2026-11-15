@@ -21,6 +21,14 @@ using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var traceIsolatedAcademicQa = builder.Environment.IsStaging() &&
+    builder.Configuration.GetValue<bool>("EduOSQA:EnableProgrammeTrace") &&
+    (builder.Configuration.GetConnectionString("DefaultConnection") ?? "")
+        .Contains("Database=EduOS_Demo_Codespaces;", StringComparison.OrdinalIgnoreCase);
+if (traceIsolatedAcademicQa)
+    builder.Logging.AddFilter("EduOS.Service.Services.Academic.AcademicSetupService", LogLevel.Debug);
+
+
 // A public demonstration deployment is still internet-facing, even if its
 // ASPNETCORE_ENVIRONMENT is Staging. Require all Production security settings.
 var requireDeploymentSafety = builder.Environment.IsProduction() ||
@@ -406,16 +414,20 @@ app.UseRouting();
 // entitlement or tenant middleware rejects a request before MVC filters execute.
 app.UseV2PrivateApiResponseHeaders();
 app.UseCors(CorsExtensions.DefaultPolicy);
+if (traceIsolatedAcademicQa) app.UseQaAcademicWriteTrace("pipeline-before-auth");
 
 // Endpoint policies using user/tenant identity MUST execute after cookie
 // authentication. Running before it pools authenticated ERP users by IP,
 // exhausting the shared 60/min allowance on a school NAT.
 app.UseAuthentication();
 app.UseRateLimiter();
+if (traceIsolatedAcademicQa) app.UseQaAcademicWriteTrace("pipeline-after-rate-limit");
 app.UseAuthSessionGuard();
 app.UseTenantContext();
 app.UseOnboardingGuard();
+if (traceIsolatedAcademicQa) app.UseQaAcademicWriteTrace("pipeline-before-authorization");
 app.UseAuthorization();
+if (traceIsolatedAcademicQa) app.UseQaAcademicWriteTrace("pipeline-after-authorization");
 
 // =============================================================================
 // 13. HANGFIRE DASHBOARD
