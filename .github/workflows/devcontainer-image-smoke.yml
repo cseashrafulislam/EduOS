@@ -35,4 +35,5 @@ jobs:
             docker --version
             dotnet ef --version
             bash -n .devcontainer/qa.sh
+            bash -n .devcontainer/sqlserver.sh
             node --test EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs
