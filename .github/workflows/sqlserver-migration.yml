@@ -14,6 +14,8 @@ on:
       - 'EduOS.Service/**'
       - 'EduOS.App/**'
       - 'tests/browser/**'
+      - '.devcontainer/qa.sh'
+      - 'scripts/qa/release-readiness.cjs'
   workflow_dispatch:
     inputs:
       run_40k:

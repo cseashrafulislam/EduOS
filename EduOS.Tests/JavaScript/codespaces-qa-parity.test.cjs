@@ -80,3 +80,8 @@ test('Codespaces SQL startup uses authenticated readiness instead of Docker log 
     assert(!/docker (?:rm|volume rm|volume prune)/.test(sql),
         'QA startup must not delete SQL containers or volumes');
 });
+
+test('Generated private platform QA secret ends with a newline, not literal backslash-n',()=>{
+    assert(qa.includes("printf 'QA_PLATFORM_PASSWORD=%q\\n'"));
+    assert(!qa.includes("printf 'QA_PLATFORM_PASSWORD=%q\\\\n'"));
+});

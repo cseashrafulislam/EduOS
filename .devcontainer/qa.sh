@@ -36,7 +36,7 @@ prepare() {
   # shellcheck disable=SC1090
   source "$secret_file"
   if [ -z "${QA_PLATFORM_PASSWORD:-}" ]; then
-    printf 'QA_PLATFORM_PASSWORD=%q\\n' "Qa_Plat_$(openssl rand -hex 30)_aA9!" >> "$secret_file"
+    printf 'QA_PLATFORM_PASSWORD=%q\n' "Qa_Plat_$(openssl rand -hex 30)_aA9!" >> "$secret_file"
     chmod 600 "$secret_file"
     source "$secret_file"
   fi
