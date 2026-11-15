@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers;
 
-[Authorize, RequireModule("RESEARCH")]
+[Authorize(Roles = "TenantAdmin,Teacher,Principal,Researcher,ResearchCoordinator,ResearchReviewer,ResearchSupervisor,EthicsReviewer"), RequireModule("RESEARCH")]
 public sealed class ResearchGrantsController : Controller
 {
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]

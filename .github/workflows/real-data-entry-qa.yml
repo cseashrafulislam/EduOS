@@ -100,11 +100,13 @@ jobs:
           set -euo pipefail
           echo "127.0.0.1 qa.eduos.test" | sudo tee -a /etc/hosts > /dev/null
           demo="Qa_$(openssl rand -hex 20)_aA9!"
+          platform="Qa_Plat_$(openssl rand -hex 30)_aA9!"
           jwt="$(openssl rand -hex 40)"
           cert="$(openssl rand -hex 22)"
-          for secret in "$demo" "$jwt" "$cert"; do echo "::add-mask::$secret"; done
+          for secret in "$demo" "$platform" "$jwt" "$cert"; do echo "::add-mask::$secret"; done
           {
             echo "QA_DEMO_PASSWORD=$demo"
+            echo "QA_PLATFORM_PASSWORD=$platform"
             echo "QA_JWT_SECRET=$jwt"
             echo "QA_CERT_PASSWORD=$cert"
             echo "QA_YEAR_NAME=QA Academic Year $GITHUB_RUN_ID"
@@ -148,6 +150,7 @@ jobs:
           export DatabaseInitialization__ApplyMigrations=false
           export DemoData__Enabled=true
           export DemoData__SharedPassword="$QA_DEMO_PASSWORD"
+          export DemoData__PlatformQaPassword="$QA_PLATFORM_PASSWORD"
           export JwtSettings__Secret="$QA_JWT_SECRET"
           dotnet run --project EduOS.App -c Release --no-build --no-launch-profile \
             > "$RUNNER_TEMP/eduos-realqa-app.log" 2>&1 &

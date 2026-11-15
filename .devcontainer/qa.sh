@@ -35,7 +35,12 @@ prepare() {
   # Generated only by this script, owner-readable outside the Git checkout.
   # shellcheck disable=SC1090
   source "$secret_file"
-  export QA_DEMO_PASSWORD QA_JWT_SECRET QA_CERT_PASSWORD
+  if [ -z "${QA_PLATFORM_PASSWORD:-}" ]; then
+    printf 'QA_PLATFORM_PASSWORD=%q\\n' "Qa_Plat_$(openssl rand -hex 30)_aA9!" >> "$secret_file"
+    chmod 600 "$secret_file"
+    source "$secret_file"
+  fi
+  export QA_DEMO_PASSWORD QA_JWT_SECRET QA_CERT_PASSWORD QA_PLATFORM_PASSWORD
   if [ ! -s "$qa_home/qa.pfx" ]; then
     openssl req -x509 -nodes -newkey rsa:2048 -days 30 \
       -keyout "$qa_home/qa.key" -out "$qa_home/qa.crt" -subj "/CN=qa.eduos.test" \
@@ -120,6 +125,7 @@ start() {
   export FileStorage__PrivateBasePath="$qa_home/private"
   export DemoData__Enabled=true
   export DemoData__SharedPassword="$QA_DEMO_PASSWORD"
+  export DemoData__PlatformQaPassword="$QA_PLATFORM_PASSWORD"
   export JwtSettings__Secret="$QA_JWT_SECRET"
   export Payments__AamarPay__IsSandbox=true
   export SSLCommerz__IsSandbox=true

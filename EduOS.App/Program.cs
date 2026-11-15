@@ -341,7 +341,8 @@ if (app.Configuration.GetValue<bool>("DemoData:Enabled"))
     if (!app.Environment.IsStaging())
         throw new InvalidOperationException("DemoData can only be enabled in the Staging environment.");
     await DemoInstitutionSeeder.SeedAsync(app.Services,
-        app.Configuration["DemoData:SharedPassword"]);
+        app.Configuration["DemoData:SharedPassword"],
+        app.Configuration["DemoData:PlatformQaPassword"]);
 }
 
 // =============================================================================

@@ -27,7 +27,7 @@ public static class DemoInstitutionSeeder
     public static string EmailFor(string role) =>
         $"demo.{role.ToLowerInvariant()}@eduos.example.invalid";
 
-    public static async Task SeedAsync(IServiceProvider provider, string? password)
+    public static async Task SeedAsync(IServiceProvider provider, string? password, string? platformQaPassword = null)
     {
         if (string.IsNullOrWhiteSpace(password) || password.Length < 16)
             throw new InvalidOperationException(
@@ -207,6 +207,79 @@ public static class DemoInstitutionSeeder
                 });
             }
             await db.SaveChangesAsync();
+        }
+
+        // A privileged QA identity is opt-in ONLY on two known isolated local
+        // SQL databases. Its separate secret is never supplied to the public
+        // demo role picker; no production/shared tenant can receive this user.
+        if (!string.IsNullOrWhiteSpace(platformQaPassword))
+        {
+            if (databaseName is not ("EduOS_Demo_AutoQa" or "EduOS_Demo_Codespaces") ||
+                platformQaPassword.Length < 24 ||
+                string.Equals(platformQaPassword, password, StringComparison.Ordinal))
+                throw new InvalidOperationException("Privileged QA requires an isolated known demo DB and a distinct strong secret.");
+
+            // The two optional module routes currently have no commercial
+            // feature mapping. Enable them for the synthetic DEMO plan only;
+            // never change ENTERPRISE or a real tenant's paid entitlements.
+            var optional = new[] { ("RESEARCH", "QA Research entitlement"),
+                ("ACCREDITATION", "QA Accreditation entitlement") };
+            foreach (var (moduleCode, featureName) in optional)
+            {
+                var module = await db.ProductModules.SingleAsync(x => x.Code == moduleCode && x.IsActive);
+                var code = "DEMO_QA_" + moduleCode;
+                var feature = await db.Features.SingleOrDefaultAsync(x => x.Code == code);
+                if (feature == null)
+                {
+                    feature = new Feature { Code = code, Name = featureName,
+                        Description = "Isolated demonstration-only QA module entitlement", IsActive = true };
+                    db.Features.Add(feature);
+                    await db.SaveChangesAsync();
+                }
+                if (!await db.ProductModuleFeatures.AnyAsync(x =>
+                    x.ProductModuleId == module.Id && x.FeatureId == feature.Id))
+                    db.ProductModuleFeatures.Add(new ProductModuleFeature {
+                        ProductModuleId = module.Id, FeatureId = feature.Id });
+                if (!await db.PlanFeatures.AnyAsync(x =>
+                    x.SubscriptionPlanId == demoPlan.Id && x.FeatureId == feature.Id))
+                    db.PlanFeatures.Add(new PlanFeature {
+                        SubscriptionPlanId = demoPlan.Id, FeatureId = feature.Id, IsEnabled = true });
+                await db.SaveChangesAsync();
+            }
+
+            const string adminEmail = "demo.platform-qa@eduos.example.invalid";
+            var platformUser = await userManager.FindByEmailAsync(adminEmail);
+            if (platformUser == null)
+            {
+                platformUser = new ApplicationUser
+                {
+                    UserName = adminEmail, Email = adminEmail, FullName = "Isolated QA Platform",
+                    EmailConfirmed = true, IsActive = true, PreferredLanguage = "en-BD"
+                };
+                Ensure(await userManager.CreateAsync(platformUser, platformQaPassword),
+                    "Create private platform QA identity");
+            }
+            if (platformUser.IsDeleted || !platformUser.IsActive || !platformUser.EmailConfirmed ||
+                await db.TenantMemberships.IgnoreQueryFilters().AnyAsync(x => x.UserId == platformUser.Id && !x.IsDeleted))
+                throw new InvalidOperationException("Private platform QA user has unsafe membership or account state.");
+            var platformRoles = await userManager.GetRolesAsync(platformUser);
+            if (platformRoles.Any(x => !x.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("Private platform QA user has unexpected role.");
+            if (!platformRoles.Contains("SuperAdmin", StringComparer.OrdinalIgnoreCase))
+                Ensure(await userManager.AddToRoleAsync(platformUser, "SuperAdmin"),
+                    "Assign isolated platform QA role");
+            if (!await userManager.CheckPasswordAsync(platformUser, platformQaPassword))
+            {
+                var token = await userManager.GeneratePasswordResetTokenAsync(platformUser);
+                Ensure(await userManager.ResetPasswordAsync(platformUser, token, platformQaPassword),
+                    "Synchronize isolated platform QA password");
+            }
+            if (await userManager.IsLockedOutAsync(platformUser))
+                Ensure(await userManager.SetLockoutEndDateAsync(platformUser, null),
+                    "Unlock isolated platform QA identity");
+            if (await userManager.GetAccessFailedCountAsync(platformUser) > 0)
+                Ensure(await userManager.ResetAccessFailedCountAsync(platformUser),
+                    "Clear isolated platform QA failed-login count");
         }
     }
 

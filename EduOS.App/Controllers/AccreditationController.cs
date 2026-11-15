@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace EduOS.App.Controllers;
 
-[Authorize, RequireModule("ACCREDITATION")]
+[Authorize(Roles = "TenantAdmin,Teacher,Principal,AccreditationOfficer,AccreditationCoordinator,AccreditationReviewer"), RequireModule("ACCREDITATION")]
 public sealed class AccreditationController : Controller
 {
     [HttpGet, ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
