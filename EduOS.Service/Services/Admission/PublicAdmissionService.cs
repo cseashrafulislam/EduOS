@@ -163,7 +163,7 @@ public sealed class PublicAdmissionService : IPublicAdmissionService
             return Error<AdmissionApplicationCreatedDto>("An application field exceeds the allowed length.");
         try
         {
-            return await _uow.ExecuteInTransactionAsync(async _ =>
+            return await _uow.ExecuteInTransactionAsync(async transactionToken =>
             {
                 // Check the replay under the same transaction as the intake state.
                 // A previously committed request may be acknowledged after intake closure;
