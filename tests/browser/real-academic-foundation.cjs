@@ -3,6 +3,7 @@
 // this file to production or to a remote Codespace.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright');
 
 const origin = 'https://qa.eduos.test:7243';
@@ -161,6 +162,17 @@ async function run() {
         await page.locator('#programForm button[type="submit"]').click();
         const created = await post;
         if (!created) {
+            // Capture live SQL waits BEFORE browser.close() cancels the pending POST.
+            // This script reports session metadata only and saves private app logs locally.
+            try {
+                const sqlSnapshot = execFileSync('bash', ['.devcontainer/qa-diagnostics.sh'], {
+                    cwd: process.cwd(), encoding: 'utf8', timeout: 20000,
+                    env: { ...process.env, EDUOS_QA_DIAGNOSTICS: '1' }
+                });
+                console.error('[QA stalled POST diagnostics]\n' + sqlSnapshot.trim().slice(0, 8000));
+            } catch (error) {
+                console.error('[QA diagnostics unavailable]', String(error.message).slice(0, 300));
+            }
             const diagnosis = await page.evaluate(() => {
                 const form = document.getElementById('programForm');
                 return {
