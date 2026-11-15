@@ -61,7 +61,13 @@ public sealed class StudentStatusTransitionService(
         {
             return await db.ExecuteInTransactionAsync(async token =>
             {
-                var student = await db.Students.FirstOrDefaultAsync(x =>
+                // Serialize competing transitions for the same student before reading
+                // status/version. Serializable reads alone can deadlock on lock conversion.
+                IQueryable<Student> candidates = db.Students;
+                if (db.Database.IsSqlServer())
+                    candidates = db.Students.FromSqlInterpolated(
+                        $"SELECT * FROM dbo.Students WITH (UPDLOCK, HOLDLOCK) WHERE TenantId = {user.TenantId} AND PublicId = {studentReference} AND IsDeleted = 0");
+                var student = await candidates.FirstOrDefaultAsync(x =>
                     x.TenantId == user.TenantId && x.PublicId == studentReference && !x.IsDeleted, token);
                 if (student == null) return Fail<StudentStatusTransitionDto>("Student not found.", 404);
                 if (student.StatusCode != "Active" && student.StatusCode != "Suspended")
