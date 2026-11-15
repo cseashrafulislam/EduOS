@@ -161,7 +161,7 @@ public class AdmissionApplicationOptionsDto
 public class AdmitAdmissionApplicationDto
 {
     [Range(1, long.MaxValue)]
-    public long AcademicBatchId { get; set; }
+    public long? AcademicBatchId { get; set; }
 
     [Range(1, long.MaxValue)] public long? AcademicSectionId { get; set; }
 
@@ -178,6 +178,7 @@ public class AdmitAdmissionApplicationDto
 public class AdmissionEnrollmentOptionsDto
 {
     public List<AdmissionReferenceOptionDto> AcademicBatches { get; set; } = new();
+    public List<AdmissionReferenceOptionDto> AcademicSections { get; set; } = new();
     public List<AdmissionReferenceOptionDto> AcademicTracks { get; set; } = new();
 }
 
