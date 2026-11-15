@@ -11,6 +11,7 @@ on:
       - 'scripts/qa/compare-real-route-coverage.cjs'
       - 'tests/browser/real-privileged-route-coverage.cjs'
       - 'EduOS.Tests/JavaScript/real-route-coverage-reconcile.test.cjs'
+      - 'EduOS.Tests/JavaScript/release-privileged-coverage.test.cjs'
       - 'tests/browser/real-data-entry.cjs'
       - 'tests/browser/real-academic-foundation.cjs'
       - 'tests/browser/real-student-enrollment.cjs'
