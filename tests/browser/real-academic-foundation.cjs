@@ -251,7 +251,10 @@ async function run() {
             {waitUntil: 'domcontentloaded'});
         assert(sectionPage && sectionPage.status() === 200, 'Independent Sections register unavailable');
         await page.locator('#academicSectionsPage').waitFor();
-        await page.locator('#sectionLevel option[value="' + level.id + '"]').waitFor();
+        // Native <option> elements exist in the DOM but are often never
+        // CSS-visible. Wait for population, then select by stable class ID.
+        await page.locator('#sectionLevel option[value="' + level.id + '"]')
+            .waitFor({state: 'attached'});
         await page.waitForFunction(() => [...document.querySelectorAll('#sectionCampus option')]
             .some(o => Number(o.value) > 0), null, {timeout: 25000});
         await reveal(page, 'sectionCreateForm');
