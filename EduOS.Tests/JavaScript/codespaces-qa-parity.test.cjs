@@ -62,3 +62,18 @@ test('First-run Codespaces QA starts private SQL before requiring its password f
     assert(full.includes('\n  start\n  connection\n  browser\n'),
         'Full QA must run the idempotent bootstrap before SQL validation and browser tests');
 });
+
+test('Codespaces SQL startup uses authenticated readiness instead of Docker log grep',()=>{
+    const sql=fs.readFileSync(path.join(repo,'.devcontainer/sqlserver.sh'),'utf8');
+    assert(sql.includes('sql_ready() {'),'Missing authenticated SQL readiness probe');
+    assert(sql.includes('if authenticate "$saved"; then return 0; fi'));
+    assert(sql.includes('if sql_ready; then'),'Startup does not consult SQL readiness');
+    assert(!/docker logs[^\\n]*\\|\\s*grep -q/.test(sql),
+        'Docker log grep -q is unreliable with pipefail and long logs');
+    assert(sql.includes('report_startup_failure'),
+        'SQL start failure must capture private, safe diagnostic evidence');
+    assert(sql.includes('eduos-local-sql-data'),
+        'Existing persistent SQL data volume must be preserved');
+    assert(!/docker (?:rm|volume rm|volume prune)/.test(sql),
+        'QA startup must not delete SQL containers or volumes');
+});
