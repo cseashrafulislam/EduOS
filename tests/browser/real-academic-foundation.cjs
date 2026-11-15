@@ -106,7 +106,53 @@ async function run() {
         console.log('[QA step] create programme');
         await reveal(page, 'programForm');
         await page.locator('#programName').fill(programName);
+        const readiness = await page.locator('#programForm').evaluate(form => ({
+            valid: form.checkValidity(),
+            invalidFields: [...form.elements].filter(x =>
+                x.willValidate && !x.checkValidity()).map(x => x.id || x.name),
+            namePresent: !!form.querySelector('#programName')?.value,
+            inert: form.inert,
+            submitOwnsForm: form.querySelector('button[type="submit"]')?.form === form,
+            sameSession: window.eduosAcademicManagement?.sameSession() === true,
+            formScriptPresent: !![...document.scripts].find(x =>
+                x.src.includes('/js/academic/management-forms.js'))
+        }));
+        assert(readiness.valid && readiness.namePresent && !readiness.inert && readiness.submitOwnsForm &&
+            readiness.sameSession && readiness.formScriptPresent,
+            'Programme create form not ready: ' + JSON.stringify(readiness));
+        await page.evaluate(() => {
+            window.__qaProgrammeSubmitSeen = false;
+            window.__qaProgrammeInvalidFields = [];
+            const form = document.getElementById('programForm');
+            form.addEventListener('submit', () => { window.__qaProgrammeSubmitSeen = true; },
+                {capture: true, once: true});
+            form.addEventListener('invalid', e => {
+                window.__qaProgrammeInvalidFields.push(e.target.id || e.target.name);
+            }, {capture: true});
+        });
+        const post = page.waitForResponse(response =>
+            new URL(response.url()).pathname === '/api/academic-setup/programmes' &&
+            response.request().method() === 'POST', {timeout: 12000}).catch(() => null);
         await page.locator('#programForm button[type="submit"]').click();
+        const created = await post;
+        if (!created) {
+            const diagnosis = await page.evaluate(() => {
+                const form = document.getElementById('programForm');
+                return {
+                    formSubmitObserved: window.__qaProgrammeSubmitSeen === true,
+                    invalidFields: window.__qaProgrammeInvalidFields,
+                    sameSession: window.eduosAcademicManagement?.sameSession() === true,
+                    inert: form?.inert === true,
+                    buttonDisabled: form?.querySelector('button[type="submit"]')?.disabled,
+                    nameStillPresent: !!form?.querySelector('#programName')?.value,
+                    noticeText: document.getElementById('academicNotice')?.textContent?.slice(0, 180)
+                };
+            });
+            throw new Error('Programme form click produced no API POST: ' +
+                JSON.stringify(diagnosis));
+        }
+        assert(created.status() >= 200 && created.status() < 300,
+            'Programme POST returned HTTP ' + created.status());
         const program = await waitForCatalogItem(page, 'programs', programName);
         // The catalog can update before the async submit handler has released
         // the form/unsaved-changes guard. Never race a reload against the POST.
