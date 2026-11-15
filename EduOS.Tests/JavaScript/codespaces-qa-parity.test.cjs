@@ -68,7 +68,7 @@ test('Codespaces SQL startup uses authenticated readiness instead of Docker log 
     assert(sql.includes('sql_ready() {'),'Missing authenticated SQL readiness probe');
     assert(sql.includes('if authenticate "$saved"; then return 0; fi'));
     assert(sql.includes('if sql_ready; then'),'Startup does not consult SQL readiness');
-    assert(!/docker logs[^\\n]*\\|\\s*grep -q/.test(sql),
+    assert(!sql.includes("docker logs \\"$container\\" 2>&1 | grep -q"),
         'Docker log grep -q is unreliable with pipefail and long logs');
     assert(sql.includes('report_startup_failure'),
         'SQL start failure must capture private, safe diagnostic evidence');
