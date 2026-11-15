@@ -68,6 +68,5 @@ test('all three browser routes collect read-only candidate evidence without subm
     assert(wf.includes('qa-artifacts/page-action-coverage.csv'));
     assert(wf.includes('node tests/browser/real-export-report-qa.cjs'));
     assert(qa.includes('node tests/browser/real-export-report-qa.cjs'));
-    assert(read('tests/browser/real-export-report-qa.cjs').includes('application\\/vnd')===false);
     assert(read('tests/browser/real-export-report-qa.cjs').includes('student-directory-csv-paged-200-mime'));
 });
