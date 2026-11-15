@@ -8,6 +8,7 @@ on:
       - '.github/workflows/real-data-entry-qa.yml'
       - '.devcontainer/qa.sh'
       - 'EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs'
+      - 'EduOS.Tests/JavaScript/page-action-coverage.test.cjs'
       - 'scripts/qa/compare-real-route-coverage.cjs'
       - 'scripts/qa/page-action-coverage.cjs'
       - 'tests/browser/page-action-probe.cjs'
