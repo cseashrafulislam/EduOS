@@ -37,9 +37,24 @@ async function academic(page,route,feature){
     const response=await page.goto(origin+'/AcademicManagement/'+route,
         {waitUntil:'domcontentloaded',timeout:25000});
     assert(response&&response.status()===200,'Academic '+route+' unavailable');
-    await page.locator('#academicManagement[data-active-feature="'+feature+'"]').waitFor();
+    const root=page.locator('#academicManagement[data-active-feature="'+feature+'"]');
+    await root.waitFor();
     await page.waitForFunction(()=>!!window.eduosAcademicManagement?.state?.catalog,
         null,{timeout:25000});
+    const panel=page.locator('#academicManagement section[data-section="'+feature+'"]');
+    if(!(await panel.isVisible())){
+        const state=await panel.evaluate(el=>({
+            classes:el.className,
+            display:getComputedStyle(el).display,
+            parentClasses:el.parentElement?.className,
+            rootActive:document.getElementById('academicManagement')?.dataset.activeFeature,
+            hiddenAncestors:[...function*(node){
+                while(node){if(getComputedStyle(node).display==='none')yield node.id||
+                    node.className||node.tagName;node=node.parentElement;}
+            }(el)].slice(0,5)
+        }));
+        throw new Error('Active academic panel is hidden on '+route+': '+JSON.stringify(state));
+    }
 }
 async function catalogRow(page,group,name){
     await page.waitForFunction(([key,label])=>

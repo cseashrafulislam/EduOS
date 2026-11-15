@@ -40,7 +40,7 @@ concurrency:
 jobs:
   migrate-disposable-sqlserver:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]'))) && 120 || (((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_ap_load) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[supplier-ap-load]'))) && 45 || 25) }}
+    timeout-minutes: ${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_40k) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[student-import-40k]'))) && 120 || (((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/Ashraful' && inputs.run_ap_load) || (github.event_name == 'push' && github.ref == 'refs/heads/Ashraful' && contains(github.event.head_commit.message, '[supplier-ap-load]'))) && 75 || 65) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -223,6 +223,60 @@ jobs:
             --filter "FullyQualifiedName~Finance_approved_transport_transfer_is_single_use_tenant_scoped_and_preserves_lineage|FullyQualifiedName~Concurrent_transport_clearance_consumption_creates_exactly_one_successor|FullyQualifiedName~Charged_transport_closure_rejects_unposted_settlement_and_requires_independent_zero_attestation|FullyQualifiedName~Posted_original_invoice_paid_and_unpaid_credit_is_atomic_and_queryable_in_sql_server" \
             --logger "trx;LogFileName=sql-v2-transport-finance-acceptance.trx" --results-directory TestResults
 
+      - name: Verify V1 fee invoice, refund-credit, student lifecycle and release preference SQL
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerFeeInvoiceCoverageIntegrationTests|FullyQualifiedName~SqlServerReservationAutomaticCreditNoteAcceptanceTests|FullyQualifiedName~SqlServerStudentContactProfileIntegrationTests|FullyQualifiedName~SqlServerStudentStatusTransitionIntegrationTests|FullyQualifiedName~SqlServerWorkspacePreferenceSessionIntegrationTests|FullyQualifiedName~SqlServerV2V1BoundaryIntegrationTests" \
+            --logger "trx;LogFileName=sql-v1-finance-student-extra.trx" --results-directory TestResults
+
+      - name: Verify V2 real SQL library and LMS certificate, privacy, concurrency, fine and resource acceptance
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerLmsCertificateGuardianIntegrationTests|FullyQualifiedName~SqlServerLmsCertificateLifecycleIntegrationTests|FullyQualifiedName~SqlServerLmsProgressConcurrencyIntegrationTests|FullyQualifiedName~SqlServerLmsProgressGuardianIntegrationTests|FullyQualifiedName~SqlServerLmsPublicCertificateVerificationIntegrationTests|FullyQualifiedName~SqlServerV2LibraryCopyConditionConcurrencyTests|FullyQualifiedName~SqlServerV2LibraryDigitalAccessConcurrencyTests|FullyQualifiedName~SqlServerV2LibraryDigitalPublicationConcurrencyTests|FullyQualifiedName~SqlServerV2LibraryDigitalReplacementConcurrencyTests|FullyQualifiedName~SqlServerV2LibraryHttpPrivacyIntegrationTests|FullyQualifiedName~SqlServerV2LibraryLiabilityPostingTests|FullyQualifiedName~SqlServerV2LibraryOverdueFinePolicyTests|FullyQualifiedName~SqlServerV2LibraryOverdueNoticeConcurrencyTests|FullyQualifiedName~SqlServerV2LibraryPrivacyIntegrationTests|FullyQualifiedName~SqlServerV2LmsCertificatePrintHttpAcceptanceTests|FullyQualifiedName~SqlServerV2LmsContentReadConsistencyTests|FullyQualifiedName~SqlServerV2LmsFileBoundaryIntegrationTests|FullyQualifiedName~SqlServerV2LmsLessonRevisionIntegrationTests|FullyQualifiedName~SqlServerV2LmsPublicCertificateHttpAcceptanceTests|FullyQualifiedName~SqlServerV2LmsResourceDeliveryIntegrationTests|FullyQualifiedName~SqlServerV2LmsSubmissionHttpPrivacyIntegrationTests" \
+            --logger "trx;LogFileName=sql-v2-library-lms-complete.trx" --results-directory TestResults
+
+      - name: Verify V2 guardian, hostel, consent, person, files and role portal SQL HTTP isolation
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerV2GuardianHostelHttpAcceptanceTests|FullyQualifiedName~SqlServerV2GuardianPrintHttpAcceptanceTests|FullyQualifiedName~SqlServerV2SixteenInstituteGuardianConsentHttpAcceptanceTests|FullyQualifiedName~SqlServerV2SixteenInstitutePersonConsentAcceptanceTests|FullyQualifiedName~SqlServerV2SixteenInstitutePrivateFileHttpAcceptanceTests|FullyQualifiedName~SqlServerV2SixteenInstituteRolePortalNavigationAcceptanceTests|FullyQualifiedName~SqlServerV2SixteenInstituteRolePortalRazorHttpAcceptanceTests|FullyQualifiedName~SqlServerV2SixteenInstituteVerifiedIdentifierConsentFlowTests|FullyQualifiedName~SqlServerV2SixteenInstituteWorkspaceHttpAcceptanceTests" \
+            --logger "trx;LogFileName=sql-v2-guardian-portal-privacy.trx" --results-directory TestResults
+
+      - name: Verify V2 driver transport trip calendar, dispatch, concurrency, audit and lineage SQL
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerTransportDriverTripsAcceptanceTests|FullyQualifiedName~SqlServerTransportFinanceClearanceAcceptanceTests|FullyQualifiedName~SqlServerTransportTripAcademicCalendarAcceptanceTests|FullyQualifiedName~SqlServerTransportTripAuditAcceptanceTests|FullyQualifiedName~SqlServerTransportTripConcurrentMutationAcceptanceTests|FullyQualifiedName~SqlServerTransportTripDispatchTests|FullyQualifiedName~SqlServerTransportTripDriverSlotAcceptanceTests|FullyQualifiedName~SqlServerTransportTripFamilyReadbackAcceptanceTests|FullyQualifiedName~SqlServerTransportTripLifecycleAcceptanceTests|FullyQualifiedName~SqlServerTransportTripNoShowBatchAcceptanceTests|FullyQualifiedName~SqlServerTransportTripSchedulingAcceptanceTests" \
+            --logger "trx;LogFileName=sql-v2-transport-trip-full.trx" --results-directory TestResults
+
+      - name: Verify V3 physical inventory, multi-store, asset posting and supplier invoice matching SQL
+        if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
+        shell: bash
+        env:
+          EDUOS_SQL_AUTH_TEST_CONNECTION: ${{ format('Server=127.0.0.1,14333;Database=EduOS_MigrationSmoke;User Id=sa;Password={0};Encrypt=True;TrustServerCertificate=True;Connect Timeout=30', env.CI_SQL_PASSWORD) }}
+        run: |
+          set -euo pipefail
+          dotnet test EduOS.Tests/EduOS.Tests.csproj --configuration Release --no-restore \
+            --filter "FullyQualifiedName~SqlServerV3AssetAccountingWorkflowTests|FullyQualifiedName~SqlServerV3AssetCapitalizationPostingTests|FullyQualifiedName~SqlServerV3InventoryMultiStoreAcceptanceTests|FullyQualifiedName~SqlServerV3InventoryPhysicalCountTests|FullyQualifiedName~SqlServerV3ProcurementAssetHttpAcceptanceTests|FullyQualifiedName~SqlServerV3ProcurementFacilityChainTests|FullyQualifiedName~SqlServerV3ProcurementInvoiceMatchingTests|FullyQualifiedName~SqlServerV3ProcurementSupplierInvoiceTests" \
+            --logger "trx;LogFileName=sql-v3-inventory-assets-procurement-full.trx" --results-directory TestResults
       - name: Preserve SQL acceptance diagnostics
         if: ${{ always() && steps.migration_repeat.outcome == 'success' }}
         uses: actions/upload-artifact@v4
@@ -238,6 +292,11 @@ jobs:
             TestResults/sql-v2-v3-smoke.trx
             TestResults/sql-v3-procurement-assets-acceptance.trx
             TestResults/sql-v2-transport-finance-acceptance.trx
+            TestResults/sql-v1-finance-student-extra.trx
+            TestResults/sql-v2-library-lms-complete.trx
+            TestResults/sql-v2-guardian-portal-privacy.trx
+            TestResults/sql-v2-transport-trip-full.trx
+            TestResults/sql-v3-inventory-assets-procurement-full.trx
           if-no-files-found: warn
           retention-days: 7
 
