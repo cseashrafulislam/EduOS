@@ -75,7 +75,25 @@ async function settled(page,form){
 }
 async function select(page,id,value){
     await page.locator('#'+id+' option[value="'+value+'"]').waitFor({state:'attached'});
-    await page.locator('#'+id).selectOption(String(value));
+    const control=page.locator('#'+id);
+    if(!(await control.isVisible())){
+        const diagnosis=await control.evaluate(el=>{
+            const chain=[];
+            for(let n=el;n&&chain.length<14;n=n.parentElement){
+                const style=getComputedStyle(n),rect=n.getBoundingClientRect();
+                chain.push({node:n.tagName,id:n.id||undefined,
+                    className:typeof n.className==='string'?n.className.slice(0,120):undefined,
+                    display:style.display,visibility:style.visibility,
+                    width:Math.round(rect.width),height:Math.round(rect.height),
+                    ariaHidden:n.getAttribute('aria-hidden'),inert:n.inert,hidden:n.hidden});
+            }
+            return {chain,selectCount:document.querySelectorAll('#'+el.id).length,
+                activeFeature:document.getElementById('academicManagement')?.dataset.activeFeature,
+                optionCount:el.options?.length};
+        });
+        throw new Error('Real '+id+' selector hidden: '+JSON.stringify(diagnosis));
+    }
+    await control.selectOption(String(value));
 }
 async function run(){
     const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
