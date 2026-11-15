@@ -96,11 +96,16 @@ async function negativeAccess(browser,email,pwd,paths){
             maxRedirects:0,failOnStatusCode:false,timeout:15000});
         const status=response.status();
         const location=String(response.headers()['location']||'');
-        const redirectPath=location.startsWith('/') && !location.startsWith('//')
-            ? new URL(location,origin).pathname : '';
-        // A redirect is proof of authorization denial only when it points to
-        // the configured 403 page, not Login or a successful dashboard route.
-        const passed=status===403 || (status===302 && /^\/Error\/403$/i.test(redirectPath));
+        // Identity's CookieAuthenticationHandler emits an absolute RedirectUri
+        // even when AccessDeniedPath is configured as a local URL.
+        // Resolve both absolute and relative Location headers, then require
+        // the exact same origin and the configured access-denied destination.
+        let redirectTarget=null;
+        try { if(location) redirectTarget=new URL(location,origin); } catch {}
+        const redirectPath=redirectTarget?.origin===origin ? redirectTarget.pathname : '';
+        // A 302 to Login, another host, or an ordinary page is not a denial.
+        const passed=status===403 || (status===302 &&
+            redirectTarget?.origin===origin && /^\/Error\/403$/i.test(redirectPath));
         checked.push({role:email.split('@')[0],path,status,redirectPath,passed});
         if(!passed)console.error('[QA denied route FAIL]',path,'HTTP',status);
     }

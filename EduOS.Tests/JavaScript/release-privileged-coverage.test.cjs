@@ -54,6 +54,9 @@ test('browser checks all 15 exact declared routes and student/tenant access deni
     assert(browser.includes("return route.abort('blockedbyclient')"));
     assert(browser.includes("productionReleaseCertified:false"));
     assert(browser.includes("/^\\/Error\\/403$/i.test(redirectPath)"));
+    assert(browser.includes("redirectTarget=new URL(location,origin)"));
+    assert(browser.includes("redirectTarget?.origin===origin"));
+    assert(!browser.includes("location.startsWith('/')"));
     assert(browser.includes("!empty&&!reason"));
     assert(!browser.includes("status===403 || status===302"));
     assert(coverage.includes('canonicalGetCoveredWithPrivilege'));
