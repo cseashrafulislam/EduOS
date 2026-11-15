@@ -1,0 +1,77 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "EduOS: Start Private Codespaces Staging QA",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        ".devcontainer/qa.sh",
+        "start"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "EduOS: Full Codespaces Functional + SQL QA",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        ".devcontainer/qa.sh",
+        "test"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "EduOS: Codespaces Staging QA Status",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        ".devcontainer/qa.sh",
+        "status"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "label": "EduOS: Stop Codespaces QA App (preserve SQL)",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        ".devcontainer/qa.sh",
+        "stop"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      }
+    }
+  ]
+}
