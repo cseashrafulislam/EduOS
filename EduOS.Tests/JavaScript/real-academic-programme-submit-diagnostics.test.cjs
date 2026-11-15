@@ -12,10 +12,11 @@ test('Real academic Programme QA checks native validity and observes actual POST
     assert(script.includes('sameSession'));
     assert(script.includes('formSubmitObserved'));
     assert(script.includes('programmePostDispatched'));
+    assert.match(script, /timeout:\s*30000/);
     assert(script.includes('programmePostFailed'));
     assert(script.includes('[QA request] Programme POST dispatched'));
     assert(script.includes("'/api/academic-setup/programmes'"));
     assert(script.includes('await page.locator'));
-    assert(script.includes('Programme POST did not return a response within 12s'));
+    assert(script.includes('Programme POST did not return a response within 30s'));
     assert(script.includes("const program = await waitForCatalogItem(page, 'programs', programName);"));
 });
