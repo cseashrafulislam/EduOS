@@ -26,13 +26,15 @@ The Codespaces `test` scope executes in dependency order:
 4. 13 synthetic institution roles' authorized sidebar GET routes.
 5. TenantAdmin sidebar Chromium desktop/mobile rendering.
 6. Other 12 roles' unique sidebar Chromium desktop/mobile rendering.
-7. Independent SQL assertions for persisted Year/Term, Academic Foundation and Student/Guardian/Enrollment/Offering.
+7. A canonical route inventory reconciliation compares the **204 declared routes** against the actual 13-role authorized menu GET and Chromium render paths; unobserved paths are listed, not silently treated as covered.
+8. Independent SQL assertions for persisted Year/Term, Academic Foundation and Student/Guardian/Enrollment/Offering.
 
-Codespaces SQL evidence explicitly allows **only** `EduOS_Demo_Codespaces` or runner-only `EduOS_Demo_AutoQa` over `127.0.0.1:14333`; it rejects arbitrary SQL hosts/databases before connecting. Browser evidence must match the checked-out 40-character commit SHA. A missing or failed gate is not a PASS.
+Codespaces SQL evidence explicitly allows **only** `EduOS_Demo_Codespaces` or runner-only `EduOS_Demo_AutoQa` over `127.0.0.1:14333`; it rejects arbitrary SQL hosts/databases before connecting. Browser evidence must match the checked-out 40-character commit SHA. The route report is stored in `qa-artifacts/real-route-coverage-gap.json` and explicitly marks `productionReleaseCertified: false`; a route absent from demo entitlements is not automatically a broken route. A missing or failed gate is not a PASS.
 
 - [Actions disposable real browser + SQL workflow](../../.github/workflows/real-data-entry-qa.yml)
 - [Codespaces launcher](../../.devcontainer/qa.sh)
 - [Source parity regression](../../EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs)
+- [Canonical route gap reconciliation](../../scripts/qa/compare-real-route-coverage.cjs)
 
 ## What these checks **do not** certify
 
