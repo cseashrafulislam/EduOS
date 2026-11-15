@@ -28,7 +28,7 @@ async function login(page) {
     await page.locator('#password').fill(password);
     await page.locator('#loginBtn').click();
     await page.waitForURL(url => url.pathname.toLowerCase() !== '/account/login',
-        {timeout: 25000});
+        {waitUntil:'domcontentloaded', timeout: 25000});
 }
 async function feature(page, endpoint, section) {
     const response = await page.goto(origin + '/AcademicManagement/' + endpoint,
