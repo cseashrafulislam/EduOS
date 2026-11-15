@@ -6,9 +6,9 @@ export function nextStage(applicantState,offerState,expiresAt,now=Date.now()){
  if(Number(offerState)===2)return !expiresAt||Date.parse(expiresAt)<=now?'expired':'accept';
  return Number(offerState)===0?'issue':'review';
 }
-export function validateIssue(batch,expiry,now=Date.now()){
- return Number.isSafeInteger(Number(batch))&&Number(batch)>0&&expiry&&Number.isFinite(Date.parse(expiry))&&Date.parse(expiry)>now;
+export function validateIssue(expiry,now=Date.now()){
+ return !!expiry&&Number.isFinite(Date.parse(expiry))&&Date.parse(expiry)>now;
 }
-export function validateRoll(batch,roll){
- return Number.isSafeInteger(Number(batch))&&Number(batch)>0&&typeof roll==='string'&&roll.trim().length>0&&roll.trim().length<=50;
+export function validateRoll(roll){
+ return typeof roll==='string'&&roll.trim().length>0&&roll.trim().length<=50;
 }
