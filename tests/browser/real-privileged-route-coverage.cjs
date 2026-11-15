@@ -60,21 +60,27 @@ async function checkRoutes(browser,role,password,routes){
     for(const path of routes){
         active=path;
         const prevErrors=errors.length,prevWrites=mutations.length;
-        let status=0,desktop=false,mobile=false,main=false,redirect='',reason='';
+        let status=0,desktop=false,mobile=false,main=false,empty=true,redirect='',reason='';
         try{
             await page.setViewportSize({width:1366,height:768});
             const response=await page.goto(origin+path,{waitUntil:'domcontentloaded',timeout:20000});
             status=response?.status()||0;
             redirect=new URL(page.url()).pathname;
             main=await page.locator('main#main-content').count()===1;
-            if(main)desktop=await page.locator('main#main-content').isVisible();
+            if(main){
+                const root=page.locator('main#main-content');
+                desktop=await root.isVisible();
+                const contents=await root.evaluate(el=>({hasText:(el.innerText||'').trim().length>4,
+                    hasControls:!!el.querySelector('table,button,input,select,a[href],canvas,svg')}));
+                empty=!contents.hasText&&!contents.hasControls;
+            }
             await page.setViewportSize({width:390,height:844});
             if(main)mobile=await page.locator('main#main-content').isVisible();
         }catch(e){reason=String(e.message).slice(0,160);}
         const valid=status===200&&normalize(redirect)===normalize(path)&&main&&
-            desktop&&mobile&&!reason&&errors.length===prevErrors&&
+            desktop&&mobile&&!empty&&!reason&&errors.length===prevErrors&&
             mutations.length===prevWrites;
-        result.push({path,role,status,desktop,mobile,passed:valid,reason:reason||undefined,
+        result.push({path,role,status,desktop,mobile,empty,passed:valid,reason:reason||undefined,
             errors:errors.slice(prevErrors),blockedMutations:mutations.slice(prevWrites)});
         if(!valid)console.error('[QA privileged route FAIL]',role,path,'HTTP',status,
             'route',redirect,'JS',errors.length-prevErrors,'writes',mutations.length-prevWrites);
@@ -89,8 +95,13 @@ async function negativeAccess(browser,email,pwd,paths){
         const response=await context.request.get(origin+path,{
             maxRedirects:0,failOnStatusCode:false,timeout:15000});
         const status=response.status();
-        const passed=status===403 || status===302;
-        checked.push({role:email.split('@')[0],path,status,passed});
+        const location=String(response.headers()['location']||'');
+        const redirectPath=location.startsWith('/') && !location.startsWith('//')
+            ? new URL(location,origin).pathname : '';
+        // A redirect is proof of authorization denial only when it points to
+        // the configured 403 page, not Login or a successful dashboard route.
+        const passed=status===403 || (status===302 && /^\/Error\/403$/i.test(redirectPath));
+        checked.push({role:email.split('@')[0],path,status,redirectPath,passed});
         if(!passed)console.error('[QA denied route FAIL]',path,'HTTP',status);
     }
     await context.close();
