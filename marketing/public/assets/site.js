@@ -2,10 +2,10 @@
   "use strict";
 
   const bn = {
-    navFeatures:"ফিচার",navInstitutions:"প্রতিষ্ঠান",navScreenshots:"স্ক্রিনশট",navHow:"যেভাবে কাজ করে",navContact:"যোগাযোগ",demoLogin:"ডেমো লগইন",
+    navFeatures:"ফিচার",navInstitutions:"প্রতিষ্ঠান",navScreenshots:"স্ক্রিনশট",navHow:"যেভাবে কাজ করে",navContact:"যোগাযোগ",demoLogin:"লাইভ টেস্ট",
     eyebrow:"স্মার্ট ও AI-সহায়ক শিক্ষা ব্যবস্থাপনা",heroTitle:'EduOS — শিক্ষাপ্রতিষ্ঠানের<span class="accent-text"> ইন্টেলিজেন্ট অপারেটিং সিস্টেম</span>',
     heroDesc:"স্কুল, কলেজ, বিশ্ববিদ্যালয় ও প্রশিক্ষণ প্রতিষ্ঠানের জন্য একটি সমন্বিত প্ল্যাটফর্ম। ভর্তি, একাডেমিক, হাজিরা, পরীক্ষা, ফাইন্যান্স, HR ও লার্নিং পরিচালনা করুন স্মার্ট অটোমেশন ও AI-সহায়ক টুলের মাধ্যমে।",
-    explorePlatform:"প্ল্যাটফর্ম দেখুন",tryDemo:"ডেমো দেখুন",heroCheck1:"বিভিন্ন প্রতিষ্ঠানের জন্য কনফিগারযোগ্য",heroCheck2:"English ও বাংলা ইন্টারফেস",
+    explorePlatform:"প্ল্যাটফর্ম দেখুন",tryDemo:"লাইভ টেস্ট খুলুন",liveDemoWarning:"এটি HTTP টেস্ট সাইট—সংযোগ এনক্রিপ্টেড নয়। শুধু পরীক্ষামূলক অ্যাকাউন্ট ও নমুনা তথ্য ব্যবহার করুন; আসল পাসওয়ার্ড বা শিক্ষার্থীর তথ্য দেবেন না।",heroCheck1:"বিভিন্ন প্রতিষ্ঠানের জন্য কনফিগারযোগ্য",heroCheck2:"English ও বাংলা ইন্টারফেস",
     floatReady:"বাস্তব কাজের ধারা মাথায় রেখে ডিজাইন",floatUnified:"একটি সংযুক্ত ওয়ার্কস্পেস",illustrationDisclaimer:"EduOS ওয়ার্কস্পেস",
     benefit1:"সমন্বিত প্ল্যাটফর্ম",benefit2:"নমনীয় কার্যপ্রবাহ",benefit3:"রোল অনুযায়ী অ্যাক্সেস",benefit4:"সহজ রিপোর্ট ও রেকর্ড",
     featuresEyebrow:"পুরো প্রতিষ্ঠানের জন্য",featuresTitle:"আপনার সব কার্যক্রম এক জায়গায়।",featuresDesc:"প্রথম ভর্তি আবেদন থেকে নিয়মিত শিক্ষা ও প্রশাসন—EduOS গুরুত্বপূর্ণ কাজগুলোকে একে অপরের সঙ্গে যুক্ত করে।",
@@ -30,7 +30,7 @@
     faqEyebrow:"সাধারণ প্রশ্নের সহজ উত্তর",faqTitle:"শুরু করার আগে।",faqIntro:"প্রতিটি প্রতিষ্ঠানের চাহিদা আলাদা। ডেমো দেখার আগে কয়েকটি প্রয়োজনীয় বিষয় জেনে নিন।",
     faq1q:"EduOS কি শুধু স্কুলের জন্য?",faq1a:"না। স্কুল, কলেজ, বিশ্ববিদ্যালয়, মাদ্রাসা, কোচিং ও প্রশিক্ষণ প্রতিষ্ঠানের কথা মাথায় রেখে ডিজাইন করা হয়েছে। প্রতিষ্ঠানের ধরন অনুযায়ী কনফিগারেশন ভিন্ন হতে পারে।",
     faq2q:"বাংলায় সফটওয়্যার ব্যবহার করা যাবে?",faq2a:"EduOS-এ বাংলা ও ইংরেজি অভিজ্ঞতা এবং প্রতিষ্ঠানভিত্তিক মডিউল রয়েছে।",
-    faq3q:"সফটওয়্যার নেওয়ার আগে দেখা যাবে?",faq3a:"হ্যাঁ। Demo Gallery দেখুন অথবা ইমেইল ও WhatsApp-এ যোগাযোগ করে সরাসরি ডেমো রিকোয়েস্ট করুন।",
+    faq3q:"সফটওয়্যার নেওয়ার আগে দেখা যাবে?",faq3a:"হ্যাঁ। লাইভ টেস্ট সাইটে শুধু নমুনা তথ্য দিয়ে পরীক্ষা করুন, অথবা Demo Gallery দেখুন। পূর্ণ ডেমোর জন্য যোগাযোগ করুন।",
     faq4q:"সব প্রতিষ্ঠানের সেটিং কি একই থাকবে?",faq4a:"না। EduOS-এ একাডেমিক পরিভাষা, কাঠামো, মডিউল ও কাজের ধারা কনফিগার করার পরিকল্পনা রয়েছে; কোনো নির্দিষ্ট প্রতিষ্ঠানের আকার ধরে ডিজাইন করা হয়নি।",
     contactEyebrow:"পরবর্তী ধাপ শুরু হোক এখানেই",contactTitle:"আপনার প্রতিষ্ঠান পরিচালনা হোক আরও সহজ।",contactDesc:"EduOS-এর ফিচার দেখুন, তারপর আপনার প্রতিষ্ঠানের প্রয়োজন ও কাজের ধারা নিয়ে টিমের সঙ্গে আলোচনা করুন।",
     contactDemo:"লাইভ ডেমো খুলুন",contactExplore:"ফিচার দেখুন",contactPending:"ডেমো ও প্রতিষ্ঠানের প্রয়োজন নিয়ে যোগাযোগ করুন।",
@@ -39,10 +39,10 @@
   };
 
   const en = {
-    navFeatures:"Features",navInstitutions:"Institutions",navScreenshots:"Screenshots",navHow:"How it works",navContact:"Contact",demoLogin:"Demo Login",
+    navFeatures:"Features",navInstitutions:"Institutions",navScreenshots:"Screenshots",navHow:"How it works",navContact:"Contact",demoLogin:"Live Test",
     eyebrow:"AI-ASSISTED EDUCATION MANAGEMENT",heroTitle:'EduOS — The Intelligent<span class="accent-text"> Education Operating System</span>',
     heroDesc:"One unified platform for Schools, Colleges, Universities & Training Institutes. Manage Admissions, Academics, Attendance, Exams, Finance, HR, and Learning with smart automation and AI-assisted tools.",
-    explorePlatform:"Explore all modules",tryDemo:"View demo previews",heroCheck1:"Flexible for different institutions",heroCheck2:"English & বাংলা interface",
+    explorePlatform:"Explore all modules",tryDemo:"Open live test",liveDemoWarning:"Testing environment uses HTTP (no encryption). Use disposable demo accounts and sample data only; never enter real passwords or student records.",heroCheck1:"Flexible for different institutions",heroCheck2:"English & বাংলা interface",
     floatReady:"Designed around real workflows",floatUnified:"One connected workspace",illustrationDisclaimer:"EduOS Workspace Overview",
     benefit1:"One connected platform",benefit2:"Flexible workflows",benefit3:"Role-based access",benefit4:"Clear reports & records",
     featuresEyebrow:"MADE FOR THE WHOLE INSTITUTION",featuresTitle:"Your operations, in one place.",featuresDesc:"From a student's first inquiry to everyday learning and administration, EduOS brings essential workflows closer together.",
@@ -67,7 +67,7 @@
     faqEyebrow:"GOOD QUESTIONS, CLEAR ANSWERS",faqTitle:"Before you get started.",faqIntro:"Your institution is unique. Here are a few useful things to know before requesting a walkthrough.",
     faq1q:"Is EduOS only for schools?",faq1a:"No. EduOS is designed for multiple education environments, including colleges, universities, madrasas, coaching and training centres. Configuration varies by institution.",
     faq2q:"Can the interface be used in Bangla?",faq2a:"EduOS provides English and Bangla experiences with institution-focused modules.",
-    faq3q:"Can I see the software before choosing it?",faq3a:"Yes, a live demonstration link can be provided when the demo environment is published. The button on this site will link directly to that environment once configured.",
+    faq3q:"Can I see the software before choosing it?",faq3a:"Yes. You can open the HTTP live test website for sample-data testing, or browse the Demo Gallery. Contact us for a guided walkthrough.",
     faq4q:"Will every institution use the same settings?",faq4a:"No. EduOS is designed for configurable academic terminology, structure, modules and workflows rather than a fixed institution size or setup.",
     contactEyebrow:"YOUR NEXT CHAPTER STARTS HERE",contactTitle:"Let's make your institution easier to run.",contactDesc:"Explore EduOS at your own pace, then connect with the team to discuss your institution's workflows and goals.",
     contactDemo:"Explore Demo & Contact",contactExplore:"Explore Features",contactPending:"Contact us for an EduOS walkthrough.",
