@@ -59,6 +59,64 @@ public class AdmissionEnrollmentServiceTests
     }
 
     [Fact]
+    public async Task Batchless_accepted_offer_creates_section_only_enrollment_without_batch()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        var decision = await context.Set<AdmissionDecision>().SingleAsync();
+        decision.OfferedAcademicBatchId = null;
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(101));
+        var options = await service.GetOptionsAsync(seed.Application.PublicId);
+        options.Success.Should().BeTrue();
+        options.Data!.AcademicSections.Should().ContainSingle();
+
+        var request = Request(seed);
+        request.AcademicBatchId = null;
+        request.AcademicSectionId = options.Data.AcademicSections[0].Id;
+        var result = await service.AdmitAsync(seed.Application.PublicId, request);
+        result.Success.Should().BeTrue();
+        result.StatusCode.Should().Be(201);
+        var enrollment = await context.Set<StudentEnrollment>().SingleAsync();
+        enrollment.AcademicBatchId.Should().BeNull();
+        enrollment.AcademicSectionId.Should().Be(request.AcademicSectionId);
+        enrollment.AcademicYearId.Should().BeGreaterThan(0);
+        (await service.AdmitAsync(seed.Application.PublicId, request)).Success.Should().BeTrue();
+        (await context.Set<StudentEnrollment>().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Batchless_offer_can_be_issued_and_replayed_with_same_request_id()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        context.RemoveRange(context.Set<AdmissionDecision>());
+        await context.SaveChangesAsync();
+        var service = CreateService(context, new TestCurrentUser(101));
+        var request = OfferRequest(seed);
+        request.OfferedAcademicBatchId = null;
+        var issued = await service.IssueOfferAsync(seed.Application.PublicId, request);
+        issued.Success.Should().BeTrue();
+        issued.Data!.OfferedAcademicBatchId.Should().BeNull();
+        (await service.IssueOfferAsync(seed.Application.PublicId, request)).Success.Should().BeTrue();
+        (await context.Set<AdmissionDecision>().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Legacy_batch_offer_cannot_be_silently_converted_to_batchless_enrollment()
+    {
+        await using var context = CreateContext(101);
+        var seed = await SeedAsync(context, 101, AdmissionApplicantState.Qualified);
+        var service = CreateService(context, new TestCurrentUser(101));
+        var request = Request(seed);
+        request.AcademicBatchId = null;
+        request.AcademicSectionId = await context.Set<AcademicSection>().Select(x => x.Id).SingleAsync();
+        var result = await service.AdmitAsync(seed.Application.PublicId, request);
+        result.StatusCode.Should().Be(409);
+        (await context.Set<StudentEnrollment>().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
     public async Task Under_review_applicant_and_foreign_batch_are_rejected()
     {
         await using var context = CreateContext(101);
