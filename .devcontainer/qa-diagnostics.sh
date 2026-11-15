@@ -17,6 +17,10 @@ chmod 700 "$output"
 if [ -f "$qa_home/app.log" ]; then
   tail -n 250 "$qa_home/app.log" > "$output/app.log"
   chmod 600 "$output/app.log"
+  echo "[QA diagnostics] Programme execution trace (stage metadata only):"
+  if ! grep -E 'QA programme (POST|create):' "$output/app.log" | tail -n 60; then
+    echo "No staging programme trace available; verify current app commit is running."
+  fi
 fi
 echo "[QA diagnostics] Private app log: $output/app.log"
 if [ ! -s "$password_file" ] ||
