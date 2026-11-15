@@ -89,7 +89,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
             var stored = new StoredPreferences
             {
                 SchemaVersion = 1,
-                Theme = request.Theme == "system" ? null : request.Theme,
+                Theme = request.Theme is "system" or "light" ? null : request.Theme,
                 Palette = request.Palette == "blue" ? null : request.Palette,
                 Navigation = request.Navigation == "left" ? null : request.Navigation,
                 Density = request.Density == "comfortable" ? null : request.Density,
@@ -211,7 +211,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
     private static SaveWorkspacePreferencesRequestDto RestoreRequest(StoredPreferences snapshot, string? rowVersion) => new()
     {
         RowVersion = rowVersion,
-        Theme = snapshot.Theme ?? "system", Palette = snapshot.Palette ?? "blue",
+        Theme = snapshot.Theme ?? "light", Palette = snapshot.Palette ?? "blue",
         Navigation = snapshot.Navigation ?? "left", Density = snapshot.Density ?? "comfortable",
         FontScale = snapshot.FontScale ?? "normal", CustomColors = snapshot.CustomColors ?? [],
         DashboardPanels = snapshot.DashboardPanels ?? DashboardPanelPreferenceDto.Defaults(),
@@ -346,7 +346,7 @@ public sealed class WorkspacePreferencesService : IWorkspacePreferencesService
         }).ToList();
         try
         {
-            result.Theme = IsOneOf(stored.Theme, "light", "dark") ? stored.Theme! : "system";
+            result.Theme = IsOneOf(stored.Theme, "light", "dark") ? stored.Theme! : "light";
             result.Palette = IsOneOf(stored.Palette, "teal", "violet") ? stored.Palette! : "blue";
             result.Navigation = IsOneOf(stored.Navigation, "right", "top") ? stored.Navigation! : "left";
             result.Density = stored.Density == "compact" ? "compact" : "comfortable";
