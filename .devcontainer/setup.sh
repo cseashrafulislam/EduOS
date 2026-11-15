@@ -18,13 +18,13 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 # Keep the EF CLI version pinned without a repository-local tool manifest.
-# Existing CI and SQL workflows install the same global 10.0.12 version.
+# EF 10.0.14 matches current application, CI, and SQL smoke.
 export PATH="$HOME/.dotnet/tools:$PATH"
-if ! dotnet ef --version 2>/dev/null | grep -q '10.0.12'; then
+if ! dotnet ef --version 2>/dev/null | grep -q '10.0.14'; then
   if dotnet tool list --global | grep -q '^dotnet-ef '; then
-    dotnet tool update --global dotnet-ef --version 10.0.12
+    dotnet tool update --global dotnet-ef --version 10.0.14
   else
-    dotnet tool install --global dotnet-ef --version 10.0.12
+    dotnet tool install --global dotnet-ef --version 10.0.14
   fi
 fi
 dotnet ef --version
@@ -32,3 +32,4 @@ dotnet restore EduOS.slnx
 echo "EduOS ready: dotnet build EduOS.slnx -c Release --no-restore"
 echo "For disposable local SQL Server: bash .devcontainer/sqlserver.sh start"
 echo "For a connection-scoped migration: bash .devcontainer/sqlserver.sh migrate"
+echo "For isolated Codespaces demo QA: bash .devcontainer/qa.sh start"

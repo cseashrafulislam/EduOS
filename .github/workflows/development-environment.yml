@@ -34,10 +34,21 @@ jobs:
           assert 'dotnet:2.0-10.0-noble' in cfg['image']
           assert cfg['features']['ghcr.io/devcontainers/features/node:1']['version']=='22'
           assert 'ghcr.io/devcontainers/features/docker-in-docker:2' in cfg['features']
-          assert 'dotnet tool install --global dotnet-ef --version 10.0.12' in pathlib.Path('.devcontainer/setup.sh').read_text()
-          print('Valid .NET 10 / Node 22 / Docker development configuration')
+          assert 'dotnet tool install --global dotnet-ef --version 10.0.14' in pathlib.Path('.devcontainer/setup.sh').read_text()
+          assert cfg['portsAttributes']['5146']['visibility'] == 'private'
+          assert cfg['portsAttributes']['7243']['visibility'] == 'private'
+          assert cfg['portsAttributes']['7243']['protocol'] == 'https'
+          qa=pathlib.Path('.devcontainer/qa.sh').read_text()
+          assert 'EduOS_Demo_Codespaces' in qa
+          assert '127.0.0.1,14333' in qa
+          assert 'ASPNETCORE_ENVIRONMENT=Staging' in qa
+          assert 'DemoData__Enabled=true' in qa
+          assert 'DataProtection__KeysPath' in qa
+          assert 'FileStorage__PrivateBasePath' in qa
+          assert 'AllowedHosts="$allowed_hosts"' in qa
+          print('Valid .NET 10 / Node 22 / Docker + private Codespaces QA configuration')
           PY
-          bash -n .devcontainer/setup.sh .devcontainer/sqlserver.sh
+          bash -n .devcontainer/setup.sh .devcontainer/sqlserver.sh .devcontainer/qa.sh
 
       - name: Provision .NET 10 SDK
         uses: actions/setup-dotnet@v4
@@ -56,7 +67,7 @@ jobs:
           docker version
 
       - name: Install pinned global EF CLI (preserves existing CI compatibility)
-        run: dotnet tool install --global dotnet-ef --version 10.0.12
+        run: dotnet tool install --global dotnet-ef --version 10.0.14
 
       - name: Restore whole EduOS solution
         run: dotnet restore EduOS.slnx

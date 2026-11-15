@@ -198,7 +198,7 @@ stop() {
   fi
   rm -f "$pid_file"
 }
-case "$1" in
+case "${1:-}" in
   start) start ;;
   status) status ;;
   test) run_tests ;;

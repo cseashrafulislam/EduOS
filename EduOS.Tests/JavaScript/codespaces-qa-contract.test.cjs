@@ -1,0 +1,32 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname, '../..');
+const file = name => fs.readFileSync(path.join(root, name), 'utf8');
+
+test('Codespaces private QA has isolated SQL database and Staging-only demo credentials', () => {
+    const conf = JSON.parse(file('.devcontainer/devcontainer.json'));
+    const qa = file('.devcontainer/qa.sh');
+    const setup = file('.devcontainer/setup.sh');
+    assert.equal(conf.portsAttributes['7243'].visibility, 'private');
+    assert.equal(conf.portsAttributes['7243'].protocol, 'https');
+    assert(conf.forwardPorts.includes(7243));
+    assert(setup.includes('dotnet-ef --version 10.0.14'));
+    assert(qa.includes('Database=EduOS_Demo_Codespaces'));
+    assert(qa.includes('Server=127.0.0.1,14333'));
+    assert(qa.includes('ASPNETCORE_ENVIRONMENT=Staging'));
+    assert(qa.includes('DemoData__Enabled=true'));
+    assert(qa.includes('DatabaseInitialization__ApplyMigrations=false'));
+    assert(qa.includes('FileStorage__PrivateBasePath'));
+    assert(qa.includes('DataProtection__KeysPath'));
+    assert(qa.includes('AllowedHosts="$allowed_hosts"'));
+    assert(qa.includes('qa.eduos.test'));
+    assert(qa.includes('bash .devcontainer/sqlserver.sh start'));
+    assert(qa.includes('SqlServerRealDataEntryEvidenceTests'));
+    assert(qa.includes('SqlServerRealAcademicFoundationEvidenceTests'));
+    assert(!qa.includes('Database=EduOS_Development'));
+    assert(!qa.includes('AllowedHosts="*"'));
+    assert(!qa.includes('docker volume rm'));
+});

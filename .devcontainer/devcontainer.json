@@ -11,13 +11,20 @@
   "workspaceFolder": "/workspaces/EduOS",
   "postCreateCommand": "bash .devcontainer/setup.sh",
   "forwardPorts": [
-    5146
+    5146,
+    7243
   ],
   "portsAttributes": {
     "5146": {
       "label": "EduOS — local development",
       "onAutoForward": "notify",
       "visibility": "private"
+    },
+    "7243": {
+      "label": "EduOS — private Demo QA (HTTPS)",
+      "onAutoForward": "notify",
+      "visibility": "private",
+      "protocol": "https"
     }
   },
   "containerEnv": {

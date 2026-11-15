@@ -29,7 +29,8 @@ public sealed class SqlServerRealAcademicFoundationEvidenceTests
         var options = new DbContextOptionsBuilder<EduOSDbContext>()
             .UseSqlServer(connection).Options;
         await using var db = new EduOSDbContext(options);
-        Assert.Equal("EduOS_Demo_AutoQa", db.Database.GetDbConnection().Database);
+        Assert.Contains(db.Database.GetDbConnection().Database,
+            new[] { "EduOS_Demo_AutoQa", "EduOS_Demo_Codespaces" });
         var tenant = await db.Tenants.IgnoreQueryFilters().AsNoTracking()
             .SingleAsync(x => x.Code == "EDUOS-DEMO" && !x.IsDeleted);
         var campus = await db.Campuses.IgnoreQueryFilters().AsNoTracking()

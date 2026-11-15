@@ -15,7 +15,7 @@ node --test EduOS.Tests/JavaScript/*.test.cjs
 dotnet test EduOS.slnx -c Release --no-build
 ```
 
-The container's post-create script installs the pinned global `dotnet-ef` 10.0.12 tool and project dependencies. The first restore requires internet access to NuGet. Do not paste production credentials or import a real institution database.
+The container's post-create script installs the pinned global `dotnet-ef` 10.0.14 tool and project dependencies. The first restore requires internet access to NuGet. Do not paste production credentials or import a real institution database.
 
 ## Local disposable SQL Server
 
@@ -44,9 +44,56 @@ For interactive application testing, start SQL then execute `bash .devcontainer/
 - **No dotnet SDK:** Rebuild/reopen using the supplied devcontainer; outside Codespaces use .NET 10 SDK.
 - **DNS / git fails inside task sandbox:** not repairable by a repository file; use connected GitHub operations or open Codespaces.
 - **SQL Server not available:** check Docker daemon; `bash .devcontainer/sqlserver.sh start` starts the local-only instance. Do not assume a running Codespace is free of cloud compute charges.
-- **EF tool mismatch:** use `dotnet tool update --global dotnet-ef --version 10.0.12` in the development container; do not add a local tool manifest because the existing GitHub CI installs global EF tools.
+- **EF tool mismatch:** use `dotnet tool update --global dotnet-ef --version 10.0.14` in the development container; do not add a local tool manifest because the existing GitHub CI installs global EF tools.
 - **SQL tests:** existing suites may require additional named `EDUOS_SQL_*_TEST_CONNECTION` variables; use their existing test/CI contracts rather than assuming all tests read `ConnectionStrings__DefaultConnection`.
 
 ## Actual dev container image validation
 
 The [Dev Container Image Smoke](../.github/workflows/devcontainer-image-smoke.yml) workflow builds the **actual devcontainer image** (including the Node and Docker-in-Docker features) using the pinned official `devcontainers/ci` action, executes the `postCreateCommand`, and verifies .NET, Node, npm, Docker and EF CLI versions inside the container. No container image is published and no SQL Server is started by this job. This check complements (but does not replace) the existing exact-commit full-solution build and disposable SQL Server acceptance. No persistent Codespace is created by CI; its owner must create a Codespace explicitly to get a live interactive terminal.
+
+## Private GitHub Codespaces — real EduOS QA
+
+The **Ashraful** Codespace uses .NET 10, Node 22, Docker-in-Docker,
+SQL Server 2022 and global EF Core CLI 10.0.14. Existing Codespaces must
+pull the branch and **Rebuild Container** for updated port/tool settings.
+
+Open the Codespaces terminal from the repository root and run:
+
+```bash
+git switch Ashraful
+git pull --ff-only origin Ashraful
+bash .devcontainer/qa.sh start
+bash .devcontainer/qa.sh status
+bash .devcontainer/qa.sh test
+```
+
+- `start` creates a separate, persistent **EduOS_Demo_Codespaces** database
+  using the locally-bound SQL Server (127.0.0.1:14333). It applies reviewed
+  migrations explicitly, then starts the actual EduOS app in secure **Staging**
+  with demo-only Tenant, Campus and 13 role logins. App port **7243/HTTPS**
+  is forwarded **Private**; never select Public in the Ports panel.
+- The private local origin `https://qa.eduos.test:7243` is resolved to
+  127.0.0.1 inside the Codespace. Open port **7243** via the Codespaces
+  **Ports** panel for an interactive browser (availability depends on
+  Codespaces HTTPS forwarding and its TLS certificate validation).
+- SQL, DemoData and JWT passwords, TLS certificate, private file storage,
+  and Data Protection keys are stored under
+  `~/.config/eduos/codespaces-qa` with owner-only access, **never in Git**.
+  The login page contains the demo account chooser. Example:
+  `demo.tenantadmin@eduos.example.invalid`.
+- `test` installs pinned Playwright into a private QA directory and runs
+  real Year/Term creation, 13-role menu navigation, Programme/Class/Subject/
+  Section entry and independent SQL verification. Synthetic evidence is
+  saved to the Git-ignored `qa-artifacts/` directory. A failing test
+  **returns nonzero**, never claims success.
+- `stop` terminates only the app. `stop-all` also stops SQL. **Neither
+  deletes the persistent database volume**. For startup diagnostics:
+  `tail -n 60 ~/.config/eduos/codespaces-qa/app.log`.
+- Never import genuine institution data or connect live payment/SMS/email
+  providers. Staging DemoData intentionally fails closed on an unexpected
+  tenant. No production migration or customer record reset is performed.
+
+Codespaces is an interactive private workspace: repository commits cannot
+control or rebuild an already-open Codespace automatically. A connected
+operator must update/rebuild it once. Codespaces CPU/storage usage may incur
+GitHub charges. This local QA setup does not certify full production UAT.
