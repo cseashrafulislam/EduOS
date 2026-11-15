@@ -23,6 +23,22 @@ test('receipt is privacy-minimal and uses textContent, never HTML interpolation'
   assert.match(receipt, /window\.print\(\)/);
 });
 
+test('print receipt isolates a confirmation-only document from the admission page', () => {
+  const start = js.indexOf('function printApplicationReceipt()');
+  const end = js.indexOf('async function loadApplications()', start);
+  const printable = js.slice(start, end);
+  assert.ok(start > 0 && end > start);
+  assert.match(js, /print\.addEventListener\('click', printApplicationReceipt\)/);
+  assert.match(printable, /receipt\?\.querySelector\('dl'\)/);
+  assert.match(printable, /details\.cloneNode\(true\)/);
+  assert.match(printable, /root\.id = 'admissionReceiptPrintRoot'/);
+  assert.match(printable, /document\.body\.classList\.add\('admission-receipt-printing'\)/);
+  assert.match(printable, /window\.addEventListener\('afterprint', finish/);
+  assert.match(printable, /window\.print\(\)/);
+  assert.match(view, /@@media print\s*\{[\s\S]*?body\.admission-receipt-printing > :not\(#admissionReceiptPrintRoot\)\s*\{\s*display:\s*none !important/);
+  assert.match(view, /#admissionReceiptPrintRoot \{ display: none; \}/);
+});
+
 test('failed application requests preserve form and request key for retry', () => {
   assert.match(js, /if \(!response\.ok \|\| !payload\?\.success\) \{[\s\S]*?showSubmissionFeedback\(applicationSubmissionError\(response, payload\)\);[\s\S]*?return;/);
   assert.match(js, /state\.pendingFingerprint !== null && state\.pendingFingerprint !== fingerprint/);
