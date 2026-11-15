@@ -168,6 +168,25 @@ public static class DemoInstitutionSeeder
             if (await db.TenantMemberships.IgnoreQueryFilters().AnyAsync(x =>
                     x.UserId == user.Id && x.TenantId != tenant.Id && !x.IsDeleted))
                 throw new InvalidOperationException($"Demo {roleName} account also belongs to another institution.");
+
+            // Codespaces reuses a persistent, *isolated* demo SQL volume while
+            // ~/.config/eduos/codespaces-qa/secrets can be regenerated. The
+            // existing Identity hash must match the current synthetic credential
+            // shown by the staging-only demo login and used by Playwright.
+            // Do this only after checking the demo identity, exclusive role,
+            // and cross-tenant membership. Never change real user credentials.
+            if (!await userManager.CheckPasswordAsync(user, password))
+            {
+                var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+                Ensure(await userManager.ResetPasswordAsync(user, resetToken, password),
+                    $"Synchronize isolated demo {roleName} password");
+            }
+            if (await userManager.IsLockedOutAsync(user))
+                Ensure(await userManager.SetLockoutEndDateAsync(user, null),
+                    $"Unlock isolated demo {roleName}");
+            if (await userManager.GetAccessFailedCountAsync(user) > 0)
+                Ensure(await userManager.ResetAccessFailedCountAsync(user),
+                    $"Reset isolated demo {roleName} failed-login count");
             if (!await db.TenantMemberships.IgnoreQueryFilters().AnyAsync(x =>
                     x.UserId == user.Id && x.TenantId == tenant.Id && !x.IsDeleted))
             {
