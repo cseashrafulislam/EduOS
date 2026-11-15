@@ -174,7 +174,7 @@ public sealed class AdmissionApplicationService : IAdmissionApplicationService
         var tenant = _user.TenantId;
         try
         {
-            return await _uow.ExecuteInTransactionAsync(async _ =>
+            return await _uow.ExecuteInTransactionAsync(async transactionToken =>
             {
                 // Check committed retries under the same serializable transaction as intake status.
                 var existing = await _applications.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
