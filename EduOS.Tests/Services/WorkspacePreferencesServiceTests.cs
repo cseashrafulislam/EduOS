@@ -72,7 +72,7 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.True(saved.Success, saved.Message);
         Assert.Equal("light", (await service.GetAsync()).Data!.Theme);
         var row = await test.Db.TenantSettings.SingleAsync();
-        Assert.DoesNotContain("\\"Theme\\":\\"system\\"", row.Value);
+        Assert.DoesNotContain("system", row.Value);
     }
 
     [Theory]
