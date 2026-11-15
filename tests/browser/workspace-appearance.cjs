@@ -53,7 +53,7 @@ function markup(lang, tenant) {
         '<body data-auth-tenant-id="' + tenant + '" data-auth-session-reference="' + session +
         '" data-workspace-preferences="enabled">' +
         '<form id="workspacePreferencesForm"><input type="hidden" name="__RequestVerificationToken" value="fixture-csrf">' +
-        select('theme',['system','light','dark']) + select('palette',['blue','teal','violet']) +
+        select('theme',['light','dark']) + select('palette',['blue','teal','violet']) +
         select('navigation',['left','right','top']) + select('density',['comfortable','compact']) +
         select('fontScale',['normal','large']) + colorRows +
         '<div id="workspaceDashboardPanels">' + panelRows + '</div>' +
@@ -107,7 +107,7 @@ async function setup(browser, lang='en-BD', mobile=false, wrongTenant=false) {
                 current = {...current, theme:'light', customColors:{sidebar:'#123456'},
                     rowVersion:'v3', history:[...current.history,{revision:3,savedAtUtc:'2026-11-01T10:00:00Z'}]};
             } else if (url.pathname.endsWith('/reset')) {
-                current = {...current, theme:'system', customColors:{}, rowVersion:'v4'};
+                current = {...current, theme:'light', customColors:{}, rowVersion:'v4'};
             } else {
                 current = {...current, ...data, rowVersion:'v2',
                     history:[...current.history,{revision:2,savedAtUtc:'2026-11-01T09:00:00Z'}]};
