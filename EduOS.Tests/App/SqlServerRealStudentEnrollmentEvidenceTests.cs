@@ -1,4 +1,5 @@
 using EduOS.Persistence.Context;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -24,9 +25,13 @@ public sealed class SqlServerRealStudentEnrollmentEvidenceTests
         Assert.StartsWith("QA Batch ",batchName);
         Assert.StartsWith("QA Curriculum ",curriculumName);
         Assert.StartsWith("QA-Roll-",roll);
+        // Only local disposable SQL targets; reject remote database before connecting.
+        var target=new SqlConnectionStringBuilder(conn);
+        Assert.Equal("127.0.0.1,14333",target.DataSource);
+        Assert.Contains(target.InitialCatalog,new[]{"EduOS_Demo_AutoQa","EduOS_Demo_Codespaces"});
         var options=new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(conn).Options;
         await using var db=new EduOSDbContext(options);
-        Assert.Equal("EduOS_Demo_AutoQa",db.Database.GetDbConnection().Database);
+        Assert.Equal(target.InitialCatalog,db.Database.GetDbConnection().Database);
         var tenant=await db.Tenants.IgnoreQueryFilters().AsNoTracking()
             .SingleAsync(x=>x.Code=="EDUOS-DEMO"&&!x.IsDeleted);
         var student=await db.Students.IgnoreQueryFilters().AsNoTracking()
