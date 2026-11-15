@@ -244,7 +244,7 @@ async function run(){
                     headers:{'Content-Type':'application/json','RequestVerificationToken':token,
                         'Accept':'application/json'},body:JSON.stringify(data)
                 });
-                return {status:response.status(),body:await response.json().catch(()=>null)};
+                return {status:response.status,body:await response.json().catch(()=>null)};
             }
             const initial=JSON.parse(body),replay=await send(initial);
             return {replay,conflict:await send({...initial,rollNo:initial.rollNo+'-changed'})};
