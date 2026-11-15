@@ -450,6 +450,45 @@
     </div>
 </div>
 
+
+<style>
+/* Receipt printing must not include the admission form or application shell. */
+#admissionReceiptPrintRoot { display: none; }
+@@media print {
+    body.admission-receipt-printing > :not(#admissionReceiptPrintRoot) { display: none !important; }
+    body.admission-receipt-printing { margin: 0 !important; padding: 0 !important; background: #fff !important; color: #111 !important; }
+    body.admission-receipt-printing #admissionReceiptPrintRoot,
+    body.admission-receipt-printing #admissionReceiptPrintRoot * { visibility: visible !important; }
+    body.admission-receipt-printing #admissionReceiptPrintRoot {
+        display: block !important; position: static !important; width: 100% !important;
+        max-width: none !important; margin: 0 !important; padding: 0 !important;
+        background: white !important; color: #111 !important;
+    }
+    body.admission-receipt-printing .admission-receipt-paper {
+        box-sizing: border-box; width: 100%; max-width: 180mm; margin: 0 auto;
+        padding: 12mm; border: 1px solid #bbb; border-radius: 0;
+        box-shadow: none; background: white; break-inside: avoid;
+    }
+    body.admission-receipt-printing .admission-receipt-paper h1 {
+        font-size: 18pt; font-weight: 700; margin: 0 0 9mm;
+    }
+    body.admission-receipt-printing .admission-receipt-paper dl {
+        display: grid !important; grid-template-columns: 43mm minmax(0, 1fr);
+        gap: 4mm 5mm; margin: 0; padding: 0;
+    }
+    body.admission-receipt-printing .admission-receipt-paper dt,
+    body.admission-receipt-printing .admission-receipt-paper dd {
+        box-sizing: border-box; width: auto !important; max-width: none !important;
+        padding: 0 !important; margin: 0 !important; overflow-wrap: anywhere;
+    }
+    body.admission-receipt-printing .admission-receipt-paper dt { font-weight: 600; }
+    body.admission-receipt-printing .admission-receipt-print-note {
+        margin: 12mm 0 0; padding-top: 4mm; border-top: 1px solid #bbb;
+        color: #444; font-size: 9pt;
+    }
+}
+</style>
+
 <script id="admissionStrings" type="application/json">@Html.Raw(pageJson)</script>
 
 @section Scripts {
