@@ -315,11 +315,11 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
         AdmitAdmissionApplicationDto request, CancellationToken cancellationToken = default)
     {
         if (!CanManage()) return Denied<AdmittedStudentDto>();
-        if (applicationReference == Guid.Empty || request == null || request.AcademicBatchId <= 0 ||
+        if (applicationReference == Guid.Empty || request == null || request.AcademicBatchId is <= 0 ||
             request.AcademicTrackId is <= 0 || request.AcademicSectionId is <= 0 ||
             string.IsNullOrWhiteSpace(request.Roll) || request.Roll.Trim().Length > 50 ||
             !TryVersion(request.RowVersion, out var expected))
-            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Valid applicant, batch, roll and row version are required.");
+            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Valid applicant, roll and row version are required.");
         var tenant = _user.TenantId;
         var roll = request.Roll.Trim();
         try
@@ -362,60 +362,87 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                         .OrderByDescending(x => x.Id).FirstOrDefaultAsync(cancellationToken);
                     if (decision == null || decision.State != AdmissionDecisionState.Accepted ||
                         decision.OfferedAcademicBatchId != request.AcademicBatchId)
-                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("An accepted offer for the selected batch is required.", 409);
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("A matching accepted offer is required before enrollment.", 409);
 
-                    var batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
-                        x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive &&
-                        x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
-                        x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId &&
-                        (!form.AcademicTermId.HasValue || x.AcademicTermId == form.AcademicTermId) &&
-                        (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId),
-                        cancellationToken);
-                    if (batch == null) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
+                    AcademicBatch? batch = null;
+                    if (request.AcademicBatchId.HasValue)
+                    {
+                        batch = await _batches.GetQueryable().AsNoTracking().FirstOrDefaultAsync(x =>
+                            x.TenantId == tenant && x.Id == request.AcademicBatchId.Value && x.IsActive && !x.IsDeleted &&
+                            x.CampusId == form.CampusId && x.AcademicYearId == form.AcademicYearId &&
+                            x.AcademicProgramId == form.AcademicProgramId && x.AcademicLevelId == form.AcademicLevelId &&
+                            (!form.AcademicTermId.HasValue || x.AcademicTermId == form.AcademicTermId) &&
+                            (!form.AcademicTrackId.HasValue || x.AcademicTrackId == form.AcademicTrackId),
+                            cancellationToken);
+                        if (batch == null)
+                            return ApiResponse<AdmittedStudentDto>.ErrorResponse("Batch is not eligible for this intake.", 409);
+                    }
                     var sectionPlacement = await AcademicSectionPlacementPolicy.ResolveAsync(
-                        _db.AcademicSections, tenant, batch.CampusId, batch.AcademicLevelId,
+                        _db.AcademicSections, tenant, form.CampusId, form.AcademicLevelId,
                         request.AcademicSectionId, cancellationToken);
                     if (sectionPlacement.Error != null)
                         return ApiResponse<AdmittedStudentDto>.ErrorResponse(sectionPlacement.Error, 409);
-                    if (request.AcademicTrackId.HasValue && request.AcademicTrackId != batch.AcademicTrackId)
-                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Selected academic track does not match the batch.", 409);
+                    if (request.AcademicTrackId.HasValue &&
+                        (batch != null && request.AcademicTrackId != batch.AcademicTrackId ||
+                         batch == null && form.AcademicTrackId.HasValue &&
+                         request.AcademicTrackId != form.AcademicTrackId ||
+                         !await _tracks.GetQueryable().AsNoTracking().AnyAsync(x =>
+                             x.TenantId == tenant && x.Id == request.AcademicTrackId.Value &&
+                             x.IsActive && !x.IsDeleted &&
+                             (x.AcademicProgramId == null || x.AcademicProgramId == form.AcademicProgramId),
+                             cancellationToken)))
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Selected academic track is not eligible for this intake.", 409);
+                    var academicTrackId = batch?.AcademicTrackId ?? request.AcademicTrackId ?? form.AcademicTrackId;
+                    var mediumId = batch?.MediumId ?? form.MediumId;
                     var today = DateOnly.FromDateTime(_clock.GetLocalNow().DateTime);
                     var yearActive = await _years.GetQueryable().AsNoTracking().AnyAsync(x =>
-                        x.TenantId == tenant && x.Id == batch.AcademicYearId && x.IsActive &&
+                        x.TenantId == tenant && x.Id == form.AcademicYearId && x.IsActive &&
+                        (!x.CampusId.HasValue || x.CampusId == form.CampusId) &&
                         today >= x.StartDate && today <= x.EndDate, cancellationToken);
                     if (!yearActive) return ApiResponse<AdmittedStudentDto>.ErrorResponse("Academic year is not active for today's admission date.", 409);
                     var curricula = await _curricula.GetQueryable().AsNoTracking().Where(x =>
-                        x.TenantId == tenant && x.AcademicProgramId == batch.AcademicProgramId &&
-                        x.IsCurrent && x.IsActive && x.AcademicTrackId == batch.AcademicTrackId &&
-                        x.MediumId == batch.MediumId && x.EffectiveFrom <= today &&
+                        x.TenantId == tenant && x.AcademicProgramId == form.AcademicProgramId &&
+                        x.IsCurrent && x.IsActive && x.AcademicTrackId == academicTrackId &&
+                        x.MediumId == mediumId && x.EffectiveFrom <= today &&
                         (!x.EffectiveTo.HasValue || x.EffectiveTo >= today))
                         .Take(2).Select(x => x.Id).ToArrayAsync(cancellationToken);
                     if (curricula.Length != 1)
-                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Exactly one active curriculum must match the batch.", 409);
-                    // Serialize allocations for this batch BEFORE capacity and roll checks.
-                    // All business validation above is read-only, so invalid requests leave
-                    // no batch version/audit mutation behind.
-                    var lockedBatch = await _batches.GetQueryable().FirstAsync(x =>
-                        x.TenantId == tenant && x.Id == batch.Id && !x.IsDeleted, cancellationToken);
-                    lockedBatch.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
-                    lockedBatch.UpdatedBy = _user.UserId;
-                    _batches.Update(lockedBatch);
-                    await _uow.SaveChangesAsync(cancellationToken);
-                    // Match AcademicEnrollmentService: zero/nonpositive capacity is closed,
-                    // never implicitly unlimited. Existing zero-capacity batches require
-                    // review before enabling admissions during deployment.
-                    if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
-                        x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
-                        x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, cancellationToken) >= batch.Capacity)
-                        throw new BatchAllocationException("The batch is at capacity.");
+                        return ApiResponse<AdmittedStudentDto>.ErrorResponse("Exactly one active curriculum must match the intake's program and track.", 409);
+                    // Serialize allocation writes and check capacities atomically.
+                    if (batch != null)
+                    {
+                        var lockedBatch = await _batches.GetQueryable().FirstAsync(x =>
+                            x.TenantId == tenant && x.Id == batch.Id && !x.IsDeleted, cancellationToken);
+                        lockedBatch.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                        lockedBatch.UpdatedBy = _user.UserId;
+                        _batches.Update(lockedBatch);
+                        await _uow.SaveChangesAsync(cancellationToken);
+                        if (batch.Capacity <= 0 || await _enrollments.GetQueryable().AsNoTracking().CountAsync(x =>
+                            x.TenantId == tenant && x.AcademicBatchId == batch.Id &&
+                            x.IsCurrent && x.State == EnrollmentState.Active && !x.IsDeleted, cancellationToken) >= batch.Capacity)
+                            throw new BatchAllocationException("The batch is at capacity.");
+                    }
+                    else
+                    {
+                        var lockedSection = await _db.AcademicSections.FirstAsync(x =>
+                            x.TenantId == tenant && x.Id == sectionPlacement.SectionId && x.IsActive && !x.IsDeleted,
+                            cancellationToken);
+                        lockedSection.UpdatedAt = _clock.GetUtcNow().UtcDateTime;
+                        lockedSection.UpdatedBy = _user.UserId;
+                        await _uow.SaveChangesAsync(cancellationToken);
+                    }
                     if (sectionPlacement.SectionId.HasValue &&
                         !await AcademicSectionPlacementPolicy.CapacityAvailableAsync(
                             _enrollments.GetQueryable(), tenant, sectionPlacement.SectionId.Value,
                             sectionPlacement.Capacity, cancellationToken))
                         throw new BatchAllocationException("The selected section is at capacity.");
-                    if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                    if (batch != null && await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
                         x.AcademicBatchId == batch.Id && x.RollNo == roll && x.IsCurrent && !x.IsDeleted, cancellationToken))
                         throw new BatchAllocationException("Roll is already assigned in this batch.");
+                    if (await _enrollments.GetQueryable().AsNoTracking().AnyAsync(x => x.TenantId == tenant &&
+                        x.AcademicYearId == form.AcademicYearId && x.AcademicSectionId == sectionPlacement.SectionId &&
+                        x.RollNo == roll && x.IsCurrent && !x.IsDeleted, cancellationToken))
+                        throw new BatchAllocationException("Roll is already assigned in this section for the academic year.");
                     if (!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(_db, tenant, 1, token))
                         throw new BatchAllocationException("Subscription active student capacity reached.");
 
@@ -487,12 +514,13 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                     var enrollment = new StudentEnrollment
                     {
                         TenantId = tenant, PublicId = Guid.NewGuid(), ClientRequestId = Guid.NewGuid(),
-                        StudentId = student.Id, CampusId = batch.CampusId,
-                        AcademicYearId = batch.AcademicYearId, AcademicTermId = batch.AcademicTermId,
-                        AcademicProgramId = batch.AcademicProgramId, AcademicLevelId = batch.AcademicLevelId,
-                        AcademicBatchId = batch.Id, AcademicSectionId = sectionPlacement.SectionId,
+                        StudentId = student.Id, CampusId = form.CampusId,
+                        AcademicYearId = form.AcademicYearId, AcademicTermId = batch?.AcademicTermId ?? form.AcademicTermId,
+                        AcademicProgramId = form.AcademicProgramId, AcademicLevelId = form.AcademicLevelId,
+                        AcademicBatchId = batch?.Id, AcademicSectionId = sectionPlacement.SectionId,
                         AcademicCurriculumId = curricula[0],
-                        AcademicTrackId = batch.AcademicTrackId, MediumId = batch.MediumId, ShiftId = batch.ShiftId,
+                        AcademicTrackId = academicTrackId, MediumId = mediumId,
+                        ShiftId = batch?.ShiftId ?? form.ShiftId,
                         RollNo = roll, EnrollmentDate = today, State = EnrollmentState.Active,
                         IsCurrent = true, CreatedAt = now, CreatedBy = _user.UserId
                     };
@@ -510,7 +538,7 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
                     {
                         Success = true, StatusCode = 201, Message = "Applicant admitted.", Data = result
                     };
-            }, cancellationToken);
+            }, System.Data.IsolationLevel.Serializable, cancellationToken);
         }
         catch (BatchAllocationException ex)
         {
