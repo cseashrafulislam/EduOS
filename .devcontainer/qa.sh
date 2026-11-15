@@ -186,14 +186,10 @@ run_tests() {
     echo "Refusing exact-SHA QA with uncommitted tracked changes; commit or stash them first." >&2
     exit 1
   fi
-  prepare
+  # start is idempotent and must initialize local SQL/credentials BEFORE
+  # any connection validation; first-run Codespaces has no SQL password file.
+  start
   connection
-  # QA must never label new source as tested against an old app binary.
-  if ! app_pid >/dev/null || ! ready ||
-     [ ! -s "$sha_file" ] ||
-     [ "$(cat "$sha_file")" != "$(git rev-parse HEAD)" ]; then
-    start
-  fi
   browser
   suffix="$(date -u +%Y%m%dT%H%M%S)-$(openssl rand -hex 3)"
   export GITHUB_SHA="$(git rev-parse HEAD)"
