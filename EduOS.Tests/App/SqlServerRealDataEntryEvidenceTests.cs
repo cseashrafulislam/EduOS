@@ -1,4 +1,5 @@
 using EduOS.Persistence.Context;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -20,9 +21,12 @@ public sealed class SqlServerRealDataEntryEvidenceTests
         Assert.False(string.IsNullOrWhiteSpace(conn));
         Assert.StartsWith("QA Academic Year ", yearName);
         Assert.StartsWith("QA First Term ", termName);
+        var target = new SqlConnectionStringBuilder(conn);
+        Assert.Equal("127.0.0.1,14333", target.DataSource);
+        Assert.Contains(target.InitialCatalog, new[] { "EduOS_Demo_AutoQa", "EduOS_Demo_Codespaces" });
         var options = new DbContextOptionsBuilder<EduOSDbContext>().UseSqlServer(conn).Options;
         await using var db = new EduOSDbContext(options);
-        Assert.StartsWith("EduOS_Demo_", db.Database.GetDbConnection().Database);
+        Assert.Equal(target.InitialCatalog, db.Database.GetDbConnection().Database);
         var tenant = await db.Tenants.IgnoreQueryFilters().AsNoTracking()
             .SingleAsync(x => x.Code == "EDUOS-DEMO" && !x.IsDeleted);
         var year = await db.AcademicYears.IgnoreQueryFilters().AsNoTracking()
