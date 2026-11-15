@@ -55,6 +55,17 @@ function boot(headers, options = {}) {
     };
 }
 
+test('legacy system preference and missing theme use light while explicit dark remains available', () => {
+    const b = boot({}, { editor: true });
+    const root = b.document.documentElement;
+    b.window.EduOSApplyWorkspacePreferences({ theme: 'system' });
+    assert.equal(root.dataset.workspaceTheme, 'light');
+    b.window.EduOSApplyWorkspacePreferences({});
+    assert.equal(root.dataset.workspaceTheme, 'light');
+    b.window.EduOSApplyWorkspacePreferences({ theme: 'dark' });
+    assert.equal(root.dataset.workspaceTheme, 'dark');
+});
+
 test('same-session and same-institution response applies only whitelisted appearance', async () => {
     const b = boot({ 'X-EduOS-Session-Reference': reference, 'X-EduOS-Tenant-Id': '12' });
     await flush(); await flush();
