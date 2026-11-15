@@ -6,6 +6,8 @@ on:
     branches: [Ashraful]
     paths:
       - '.github/workflows/real-data-entry-qa.yml'
+      - '.devcontainer/qa.sh'
+      - 'EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs'
       - 'tests/browser/real-data-entry.cjs'
       - 'tests/browser/real-academic-foundation.cjs'
       - 'tests/browser/real-student-enrollment.cjs'
@@ -55,6 +57,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify Codespaces and Actions share real browser and SQL QA gates
+        run: |
+          bash -n .devcontainer/qa.sh
+          node --test EduOS.Tests/JavaScript/codespaces-qa-parity.test.cjs
       - name: Restore and build actual EduOS app and SQL verifier
         run: |
           dotnet restore EduOS.slnx
