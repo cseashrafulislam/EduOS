@@ -318,3 +318,19 @@ test('collapsed navigation retains the active breadcrumb and authorized Smart Se
     }
     assert.match(js, /The active server-rendered destination remains the current page/);
 });
+
+test('mobile shell keeps titles readable when global actions exceed narrow screen width', () => {
+    const mobileFix = css.split('/* Shared mobile shell: keep page headings readable')[1];
+    assert.ok(mobileFix, 'Shared mobile topbar override must exist');
+    assert.match(mobileFix, /@media \(max-width: 767\.98px\)/);
+    assert.match(mobileFix, /\.topbar\s*\{[^}]*display: grid;[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+    assert.match(mobileFix, /\.topbar-left\s*\{[^}]*width: 100%;[^}]*min-width: 0/);
+    assert.match(mobileFix, /\.topbar \.page-heading\s*\{[^}]*flex: 1 1 auto;[^}]*max-width: none/);
+    assert.match(mobileFix, /\.topbar \.page-heading h1\s*\{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap/);
+    assert.match(mobileFix, /\.topbar \.shell-context-actions\s*\{\s*display: none !important;\s*\}/);
+    assert.match(mobileFix, /\.topbar-right\s*\{[^}]*flex-wrap: wrap;[^}]*width: 100%/);
+    assert.match(layout, /id="btnSidebarToggle"/);
+    assert.match(layout, /id="shellContextActions"/);
+    assert.match(layout, /id="featureSearchOpen"/);
+    assert.match(layout, /id="pageAssistantOpen"/);
+});

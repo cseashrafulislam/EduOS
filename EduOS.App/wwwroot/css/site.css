@@ -4272,3 +4272,40 @@ body[data-smart-setup-embedded="true"] .page-body {
     .dashboard-page--institution .dashboard-actions { grid-template-columns: minmax(0, 1fr); }
     .dashboard-page--institution .dashboard-panel { padding: .8rem; }
 }
+
+/* Shared mobile shell: keep page headings readable rather than squeezing them
+   into a single-character column beside the global toolbar. No route or auth changes. */
+@media (max-width: 767.98px) {
+    .app-shell, .main-area, .page-body { min-width: 0; max-width: 100%; }
+    .topbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-content: center;
+        justify-content: stretch;
+        gap: .3rem;
+        width: 100%;
+        padding: .45rem .75rem;
+    }
+    .topbar-left { width: 100%; min-width: 0; gap: .45rem; }
+    .topbar-left > .mobile-toggle { flex: 0 0 2.75rem; }
+    .topbar .page-heading { flex: 1 1 auto; min-width: 0; max-width: none; }
+    .topbar .page-heading h1 {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    /* Contextual shortcuts duplicate authorized sidebar destinations on mobile.
+       Keep the actual sidebar links; avoid growing the shared header. */
+    .topbar .shell-context-actions { display: none !important; }
+    .topbar-right {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        width: 100%;
+        min-width: 0;
+        gap: .3rem;
+    }
+    .topbar-right > * { flex-shrink: 0; }
+    .page-body { width: 100%; }
+}
