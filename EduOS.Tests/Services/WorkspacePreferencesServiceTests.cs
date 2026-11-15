@@ -42,8 +42,8 @@ public sealed class WorkspacePreferencesServiceTests
         Assert.All((await Service(test.Db, 202, 71).GetAsync()).Data!.TablePreferences,
             table => Assert.All(table.Columns, column => Assert.True(column.Visible)));
         Assert.True((await Service(test.Db, 101, 72).GetAsync()).Data!.DashboardPanels.All(x => x.Visible));
-        Assert.Equal("system", (await Service(test.Db, 101, 72).GetAsync()).Data!.Theme);
-        Assert.Equal("system", (await Service(test.Db, 202, 71).GetAsync()).Data!.Theme);
+        Assert.Equal("light", (await Service(test.Db, 101, 72).GetAsync()).Data!.Theme);
+        Assert.Equal("light", (await Service(test.Db, 202, 71).GetAsync()).Data!.Theme);
 
         // InMemory does not generate SQL Server rowversion values.
         row.RowVersion = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -61,6 +61,18 @@ public sealed class WorkspacePreferencesServiceTests
         });
         Assert.True(changed.Success, changed.Message);
         Assert.Equal("light", (await owner.GetAsync()).Data!.Theme);
+    }
+
+    [Fact]
+    public async Task Legacy_system_theme_is_read_as_light_without_database_migration()
+    {
+        await using var test = Create();
+        var service = Service(test.Db, 101, 71);
+        var saved = await service.SaveAsync(new SaveWorkspacePreferencesRequestDto { Theme = "system" });
+        Assert.True(saved.Success, saved.Message);
+        Assert.Equal("light", (await service.GetAsync()).Data!.Theme);
+        var row = await test.Db.TenantSettings.SingleAsync();
+        Assert.DoesNotContain("\\"Theme\\":\\"system\\"", row.Value);
     }
 
     [Theory]
@@ -113,7 +125,7 @@ public sealed class WorkspacePreferencesServiceTests
             RowVersion = Convert.ToBase64String(row.RowVersion)
         });
         Assert.True(reset.Success, reset.Message);
-        Assert.Equal("system", reset.Data!.Theme);
+        Assert.Equal("light", reset.Data!.Theme);
         Assert.Equal("blue", reset.Data.Palette);
         Assert.Equal(new[] { "capacity", "quick-actions", "setup-checklist" }, reset.Data.DashboardPanels.Select(x => x.Id));
         Assert.All(reset.Data.DashboardPanels, x => Assert.True(x.Visible));
