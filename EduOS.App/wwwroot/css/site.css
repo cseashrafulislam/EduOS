@@ -4198,3 +4198,77 @@ body[data-smart-setup-embedded="true"] .page-body {
     #intakeFormModal .intake-field-row,
     #intakeFormModal .intake-document-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* Institution dashboard: compact operational workspace. Scope away from platform admin. */
+.dashboard-page--institution { gap: 1rem; }
+.dashboard-page--institution .dashboard-hero--ready {
+    padding: 1rem 1.3rem;
+    border-radius: 1rem;
+    box-shadow: 0 .5rem 1.4rem rgba(15, 23, 42, .09);
+}
+.dashboard-page--institution .dashboard-hero-copy h2 { margin: .1rem 0 .25rem; font-size: clamp(1.45rem, 2.3vw, 1.85rem); }
+.dashboard-page--institution .dashboard-hero--ready .dashboard-hero-copy > p:not(.dashboard-eyebrow) { margin-bottom: .25rem; }
+.dashboard-page--institution .dashboard-badges { gap: .4rem; margin-top: .55rem; }
+.dashboard-page--institution .status-chip { min-height: 1.65rem; padding: .22rem .6rem; font-size: .72rem; }
+.dashboard-page--institution .dashboard-section-heading { margin-bottom: .7rem; }
+.dashboard-page--institution .dashboard-section-heading h2 { font-size: 1.1rem; }
+.dashboard-page--institution .dashboard-stats-grid { gap: .75rem; }
+.dashboard-page--institution .dashboard-stat-card { padding: .9rem; border-radius: .85rem; box-shadow: none; }
+.dashboard-page--institution .dashboard-stat-card strong { font-size: 1.5rem; }
+.dashboard-page--institution .dashboard-stat-icon {
+    flex-basis: 2.25rem; width: 2.25rem; height: 2.25rem; border-radius: .65rem;
+}
+.dashboard-page--institution .dashboard-operations .dashboard-stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13.5rem), 1fr));
+}
+.dashboard-page--institution .dashboard-operations .dashboard-stat-card {
+    border-left: 3px solid var(--edu-primary);
+}
+.dashboard-page--institution .dashboard-operations .dashboard-stat-card a {
+    display: inline-block; margin-top: .3rem; font-size: .77rem; font-weight: 700;
+}
+.dashboard-page--institution .dashboard-custom-panels {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: .8rem; margin-top: 0;
+}
+.dashboard-page--institution .dashboard-panel { padding: 1rem 1.1rem; border-radius: .9rem; box-shadow: none; }
+.dashboard-page--institution .dashboard-custom-panels > .setup-checklist-panel {
+    grid-column: 1 / -1; padding: .7rem 1.1rem;
+}
+.dashboard-page--institution .dashboard-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem;
+}
+.dashboard-page--institution .dashboard-actions a {
+    min-width: 0; min-height: 2.6rem; padding: .5rem .65rem; border-radius: .6rem;
+    font-size: .8rem; line-height: 1.25; overflow-wrap: anywhere;
+}
+.dashboard-page--institution .dashboard-actions a::after {
+    content: "→"; margin-left: auto; padding-left: .35rem; font-weight: 700; opacity: .65;
+}
+.dashboard-page--institution .dashboard-plan-disclosure > summary {
+    cursor: pointer; color: var(--edu-primary-dark); font-size: .8rem;
+    font-weight: 700; padding: .4rem 0; list-style-position: inside;
+}
+.dashboard-page--institution .dashboard-plan-disclosure[open] > summary { margin-bottom: .6rem; }
+.dashboard-page--institution .dashboard-plan-disclosure .capacity-list { padding: .75rem; gap: .75rem; }
+.dashboard-page--institution .dashboard-plan-disclosure .dashboard-details { gap: .45rem; margin-top: .65rem; }
+.dashboard-page--institution .dashboard-plan-disclosure .dashboard-details div { padding: .55rem; }
+.dashboard-page--institution .dashboard-account-status { margin-top: 0; padding: .6rem 1.1rem; }
+.dashboard-page--institution .dashboard-account-disclosure > summary { min-height: 1.75rem; font-size: .86rem; }
+.dashboard-page--institution .setup-checklist-panel .dashboard-checklist-disclosure > summary {
+    cursor: pointer; font-size: .82rem; padding: .2rem 0;
+}
+@media (max-width: 1099.98px) {
+    .dashboard-page--institution .dashboard-custom-panels { grid-template-columns: minmax(0, 1fr); }
+    .dashboard-page--institution .dashboard-custom-panels > .setup-checklist-panel { grid-column: auto; }
+}
+@media (max-width: 575.98px) {
+    .dashboard-page--institution .dashboard-hero--ready { padding: .85rem 1rem; }
+    .dashboard-page--institution .dashboard-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+    .dashboard-page--institution .dashboard-stat-card { padding: .65rem; gap: .45rem; }
+    .dashboard-page--institution .dashboard-stat-card strong { font-size: 1.3rem; }
+    .dashboard-page--institution .dashboard-stat-icon { display: none; }
+    .dashboard-page--institution .dashboard-actions { grid-template-columns: minmax(0, 1fr); }
+    .dashboard-page--institution .dashboard-panel { padding: .8rem; }
+}
