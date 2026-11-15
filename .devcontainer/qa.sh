@@ -11,7 +11,7 @@ app_log="$qa_home/app.log"
 origin="https://qa.eduos.test:7243"
 cd "$repo"
 usage() {
-  echo "Usage: bash .devcontainer/qa.sh {start|status|test|stop|stop-all}"
+  echo "Usage: bash .devcontainer/qa.sh {start|status|test|test-academic|stop|stop-all}"
 }
 guard_branch() {
   if [ "$(git branch --show-current)" != "Ashraful" ]; then
@@ -163,6 +163,11 @@ browser() {
   export NODE_PATH="$qa_home/node/node_modules"
 }
 run_tests() {
+  local scope="${1:-all}"
+  if [ "$scope" != "all" ] && [ "$scope" != "academic" ]; then
+    echo "Unsupported QA scope." >&2
+    exit 2
+  fi
   guard_branch
   prepare
   connection
@@ -183,12 +188,17 @@ run_tests() {
   export EDUOS_SQL_REAL_QA_CONNECTION="$ConnectionStrings__DefaultConnection"
   mkdir -p qa-artifacts
   echo "Executing real Codespaces browser/SQL checks at commit $GITHUB_SHA..."
-  node tests/browser/real-data-entry.cjs
-  node tests/browser/real-menu-route-sweep.cjs
+  if [ "$scope" = "all" ]; then
+    node tests/browser/real-data-entry.cjs
+    node tests/browser/real-menu-route-sweep.cjs
+  fi
   node tests/browser/real-academic-foundation.cjs
-  dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build \
-    --filter "FullyQualifiedName~SqlServerRealDataEntryEvidenceTests|FullyQualifiedName~SqlServerRealAcademicFoundationEvidenceTests"
-  echo "Codespaces QA PASS for tested scenarios; independent production sign-off still required."
+  local filter="FullyQualifiedName~SqlServerRealAcademicFoundationEvidenceTests"
+  if [ "$scope" = "all" ]; then
+    filter="FullyQualifiedName~SqlServerRealDataEntryEvidenceTests|$filter"
+  fi
+  dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build --filter "$filter"
+  echo "Codespaces $scope QA PASS for tested scenarios; independent production sign-off still required."
 }
 stop() {
   if pid="$(app_pid)"; then
@@ -202,7 +212,8 @@ stop() {
 case "${1:-}" in
   start) start ;;
   status) status ;;
-  test) run_tests ;;
+  test) run_tests all ;;
+  test-academic) run_tests academic ;;
   stop) stop ;;
   stop-all) stop; bash .devcontainer/sqlserver.sh stop ;;
   *) usage; exit 2 ;;

@@ -116,3 +116,19 @@ If the original Docker password also fails, and you know the actual valid
 sa password, run `bash .devcontainer/sqlserver.sh adopt-password` and
 type it at the hidden prompt. Never post passwords or delete named volumes
 as an authentication workaround.
+
+## Focused Academic Form Retest
+
+When a Programme/Class/Subject/Section form fails, use the same isolated
+Codespaces Staging App and SQL database **without rerunning the 13-role menu
+sweep**:
+
+```bash
+git pull --ff-only origin Ashraful
+bash .devcontainer/qa.sh test-academic
+```
+
+`test-academic` uses a **new synthetic fixture name on every run**, real
+Playwright form writes, reload checks and independent SQL evidence. The full
+`test` command still runs **Year/Term, all 13 role navigation paths and the
+Academic Foundation**. A focused pass never substitutes for full release QA.
