@@ -1099,10 +1099,45 @@
         print.type = 'button';
         print.className = 'btn btn-sm btn-outline-primary';
         print.textContent = bangla ? 'রসিদ প্রিন্ট করুন' : 'Print receipt';
-        print.addEventListener('click', () => window.print());
+        print.addEventListener('click', printApplicationReceipt);
         host.append(title, details, print);
         host.hidden = false;
         host.focus();
+    }
+
+    function printApplicationReceipt() {
+        if (!sameSession() || document.body.classList.contains('admission-receipt-printing')) return;
+        const receipt = document.getElementById('admissionSubmissionReceipt');
+        const details = receipt?.querySelector('dl');
+        if (!receipt || receipt.hidden || !details) return;
+
+        const root = document.createElement('section');
+        root.id = 'admissionReceiptPrintRoot';
+        const paper = document.createElement('article');
+        paper.className = 'admission-receipt-paper';
+        const heading = document.createElement('h1');
+        heading.textContent = bangla ? 'ভর্তি আবেদন প্রাপ্তি রসিদ' : 'Admission application receipt';
+        const note = document.createElement('p');
+        note.className = 'admission-receipt-print-note';
+        note.textContent = bangla
+            ? 'এটি আবেদন জমা দেওয়ার স্বীকৃতি; ভর্তি বা ফি পরিশোধের নিশ্চয়তা নয়।'
+            : 'This acknowledges application submission, not admission or fee payment.';
+        paper.append(heading, details.cloneNode(true), note);
+        root.append(paper);
+        document.body.append(root);
+
+        const finish = () => {
+            document.body.classList.remove('admission-receipt-printing');
+            root.remove();
+        };
+        window.addEventListener('afterprint', finish, { once: true });
+        document.body.classList.add('admission-receipt-printing');
+        try { window.print(); }
+        catch (error) {
+            window.removeEventListener('afterprint', finish);
+            finish();
+            throw error;
+        }
     }
 
     async function loadApplications() {
