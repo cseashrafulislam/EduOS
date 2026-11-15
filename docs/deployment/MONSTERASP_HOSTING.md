@@ -1,6 +1,6 @@
 # EduOS on MonsterASP.NET — safe startup/deployment
 
-The confirmed HTTP 500.30 exception was: `DataProtection:KeysPath is required in Production`.
+The confirmed HTTP 500.30 exception was: `DataProtection:KeysPath is required in Production`. The checked-in `appsettings.json` now sets `DataProtection:KeysPath=../private/keys` as a non-secret default for a website whose content root is `wwwroot`, matching MonsterASP's documented `/private` sibling directory. Runtime `DataProtection__KeysPath` still overrides it. Verify that the hosting account grants persistent write access; no restart can fix a missing or unwritable private directory.
 Restore of 360 tables does not prove migration/data correctness. Use an isolated demo,
 do not put real institution data on an unverified free hosting tier.
 
@@ -13,7 +13,7 @@ do not put real institution data on an unverified free hosting tier.
 | `Cors__AllowedOrigins__0` | `https://myeduos.runasp.net` |
 | `ConnectionStrings__DefaultConnection` | MonsterASP **local** SQL credentials for `db80119` |
 | `JwtSettings__Secret` | Unique random secret, 32+ characters |
-| `DataProtection__KeysPath` | Private, persistent, writable keyring directory |
+| `DataProtection__KeysPath` | Optional override; default `../private/keys` means the non-public `private/keys` beside `wwwroot` |
 | `FileStorage__PrivateBasePath` | Private, persistent, writable upload directory |
 | `DatabaseInitialization__Enabled` | `false` |
 | `DatabaseInitialization__ApplyMigrations` | `false` |
