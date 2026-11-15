@@ -91,7 +91,8 @@ test('page reload reuses the same opaque request ID without persisting applicant
 });
 
 test('closed intake replay is resolved inside the serializable transaction', () => {
-    const transaction = service.indexOf('using var tx = new TransactionScope', service.indexOf('CreateAsync('));
+    const transaction = service.indexOf('return await _uow.ExecuteInTransactionAsync(', service.indexOf('CreateAsync('));
+    assert.match(service.slice(transaction), /System\.Data\.IsolationLevel\.Serializable/);
     const replay = service.indexOf('var replay = await _applicants.GetQueryable()', transaction);
     const openForm = service.indexOf('var form = replay == null', replay);
     assert.ok(transaction > 0 && replay > transaction && openForm > replay);
