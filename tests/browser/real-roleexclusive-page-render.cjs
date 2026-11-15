@@ -72,7 +72,7 @@ async function main(){
                 seen.add(path);
                 active=path;
                 const e=jsFailures.length,m=blocked.length;
-                let status=0,content=false,mobile=false,empty=true,redirect='',error='',actionProbe=null;
+                let status=0,content=false,mobile=false,empty=true,redirect='',error='',actionProbe=null,printProof=null;
                 try{
                     await page.setViewportSize({width:1366,height:768});
                     const response=await page.goto(origin+path,{
@@ -95,12 +95,32 @@ async function main(){
                     mobile=content&&await contentNode.isVisible().catch(()=>false);
                     await page.waitForTimeout(120);
                     actionProbe=await probePageActions(page,isPrint?'body':'main');
+                    if(isPrint){
+                        const button=page.locator('#printRoster');
+                        assert(await button.isVisible(),'Print action button missing');
+                        await page.evaluate(()=>{
+                            window.__qaPrintCalls=0;
+                            window.print=()=>{ window.__qaPrintCalls++; };
+                        });
+                        await button.click();
+                        const calls=await page.evaluate(()=>window.__qaPrintCalls);
+                        const pdf=await page.pdf({format:'A4',printBackground:true});
+                        const pdfValid=pdf.length>1000 && pdf.length<5*1024*1024 &&
+                            pdf.subarray(0,5).toString('ascii')==='%PDF-';
+                        await page.emulateMedia({media:'print'});
+                        const controlsHidden=await page.locator('.actions').first()
+                            .evaluate(el=>getComputedStyle(el).display==='none');
+                        await page.emulateMedia({media:'screen'});
+                        printProof={buttonInvoked:calls===1,pdfValid,controlsHidden,
+                            pdfBytes:pdf.length};
+                    }
                 }catch(ex){error=redact(ex);}
                 const errors=jsFailures.slice(e),mutations=blocked.slice(m);
                 const authRedirect=/^\/account\/(?:login|accessdenied|unauthorized)/i.test(redirect);
                 const passed=status===200&&content&&mobile&&!empty&&!authRedirect&&
-                    !error&&!errors.length&&!mutations.length;
-                results.push({role,path,status,passed,content,mobile,empty,actionProbe,
+                    (!printProof||(printProof.buttonInvoked&&printProof.pdfValid&&printProof.controlsHidden))&&
+                    (!isPrint||!!printProof)&&!error&&!errors.length&&!mutations.length;
+                results.push({role,path,status,passed,content,mobile,empty,actionProbe,printProof,
                     redirect:redirect!==new URL(origin+path).pathname?redirect:undefined,
                     errors,blockedMutations:mutations,error:error||undefined});
                 if(!passed)console.error('[QA role page FAIL]',role,path,'HTTP',status,

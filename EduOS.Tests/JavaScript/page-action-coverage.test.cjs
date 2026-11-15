@@ -27,20 +27,25 @@ function seed(){
     ],denials:[{passed:true},{passed:true},{passed:true}]};
     proofs['real-academic-year-lifecycle']={sha,checks:[
         'year-isolated-create','year-ui-edit-saved-and-reloaded','year-ui-archive-and-reloaded']};
-    return {proofs,sources:{'demo-render':{sha,pages:rows}}};
+    const printPages=manifest.lanes.flatMap(l=>l.routes.map(r=>r.path))
+        .filter(p=>p==='/hostel/guardian-stays/print'||p==='/hostel/my-history/print')
+        .map(path=>({path,passed:true,actionProbe:{sampled:true,hints},
+            printProof:{buttonInvoked:true,pdfValid:true,controlsHidden:true}}));
+    return {proofs,sources:{'demo-render':{sha,pages:rows},
+        'real-roleexclusive-page-render':{sha,pages:printPages}}};
 }
 test('all 204 canonical pages have eight separate business-action cells',()=>{
     const {sources,proofs}=seed(),out=compile(manifest,sources,proofs,sha);
     assert.equal(out.pages,204);
     assert.equal(out.actionCells,1632);
-    assert.equal(out.verifiedCells,14,'Only evidenced create/edit/archive/export/report count');
-    assert.equal(out.unverifiedCells,1618);
+    assert.equal(out.verifiedCells,16,'Only evidenced create/edit/archive/export/report/print count');
+    assert.equal(out.unverifiedCells,1616);
     assert.equal(out.productionReleaseApproved,false);
     assert(out.rows.every(r=>actions.every(a=>r.actions[a].result)));
 });
-test('UI button presence never certifies untested approve, print or PDF',()=>{
+test('UI button presence never certifies untested approve or native PDF export',()=>{
     const {sources,proofs}=seed(),out=compile(manifest,sources,proofs,sha);
-    for(const row of out.rows)for(const action of actions.filter(a=>!['create','edit','delete','excel','report'].includes(a))){
+    for(const row of out.rows)for(const action of actions.filter(a=>!['create','edit','delete','print','excel','report'].includes(a))){
         assert.equal(row.actions[action].result,'NOT_FUNCTIONALLY_TESTED');
         assert.equal(row.actions[action].verified,false);
         assert.equal(row.actions[action].controlsPresent,1);
@@ -68,6 +73,8 @@ test('all three browser routes collect read-only candidate evidence without subm
     assert(qa.includes('node scripts/qa/page-action-coverage.cjs'));
     assert(wf.includes('node scripts/qa/page-action-coverage.cjs'));
     assert(wf.includes('qa-artifacts/page-action-coverage.csv'));
+    assert(read('tests/browser/real-roleexclusive-page-render.cjs').includes('page.pdf({format:'));
+    assert(read('tests/browser/real-roleexclusive-page-render.cjs').includes('printRoster'));
     assert(wf.includes('node tests/browser/real-export-report-qa.cjs'));
     assert(wf.includes('node tests/browser/real-academic-year-lifecycle.cjs'));
     assert(qa.includes('node tests/browser/real-export-report-qa.cjs'));

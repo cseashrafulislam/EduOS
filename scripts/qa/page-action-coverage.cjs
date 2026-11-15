@@ -8,6 +8,7 @@ const {actions}=require('../../tests/browser/page-action-probe.cjs');
 const root=path.resolve(__dirname,'../..'),artifactDir=path.join(root,'qa-artifacts');
 const inputFiles=['real-tenantadmin-page-render','real-roleexclusive-page-render',
     'real-privileged-route-coverage'];
+const knownPrintRoutes=new Set(['/hostel/guardian-stays/print','/hostel/my-history/print']);
 const confirmedChanges={
     '/academicmanagement/years':{
         edit:'year-ui-edit-saved-and-reloaded',
@@ -30,6 +31,10 @@ const confirmedCreation={
     '/academicmanagement/offerings':['real-student-enrollment','section-linked-offering'],
     '/students/create':['real-student-enrollment','student-plus-guardian-create']
 };
+function exportsPrintProof(sources,key){
+    const source=sources['real-roleexclusive-page-render'];
+    return source?.pages?.find(p=>normalized(p.path)===key&&p.passed)?.printProof||null;
+}
 function normalized(raw){
     assert(typeof raw==='string'&&raw.startsWith('/')&&!raw.startsWith('//'),'Bad declared route');
     const url=new URL(raw,'https://qa.eduos.test:7243');
@@ -74,6 +79,14 @@ function compile(manifest, sources, proofs, sha){
                 const known=action==='create'?confirmedCreation[key]:null;
                 let proof=null;
                 const exportProof=confirmedExports[key]?.[action];
+                if(action==='print'&&knownPrintRoutes.has(key)){
+                    const print=exportsPrintProof(sources,key);
+                    assert(print&&print.buttonInvoked&&print.pdfValid&&print.controlsHidden,
+                        'Missing actual print-button + Chromium-PDF proof '+r.path);
+                    proof={artifact:'real-roleexclusive-page-render',
+                        check:'print-button-invoked-and-a4-pdf-rendered',
+                        mode:'BROWSER_PRINT_PIPELINE_NOT_NATIVE_PDF_EXPORT'};
+                }
                 const changed=confirmedChanges[key]?.[action];
                 if(changed){
                     const lifecycle=proofs['real-academic-year-lifecycle'];
