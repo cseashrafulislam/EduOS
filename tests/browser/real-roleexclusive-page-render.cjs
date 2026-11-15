@@ -4,6 +4,7 @@
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
+const {probePageActions}=require('./page-action-probe.cjs');
 const origin='https://qa.eduos.test:7243';
 const password=process.env.QA_DEMO_PASSWORD||'';
 const sha=process.env.GITHUB_SHA||'';
@@ -71,7 +72,7 @@ async function main(){
                 seen.add(path);
                 active=path;
                 const e=jsFailures.length,m=blocked.length;
-                let status=0,content=false,mobile=false,empty=true,redirect='',error='';
+                let status=0,content=false,mobile=false,empty=true,redirect='',error='',actionProbe=null;
                 try{
                     await page.setViewportSize({width:1366,height:768});
                     const response=await page.goto(origin+path,{
@@ -93,12 +94,13 @@ async function main(){
                     await page.setViewportSize({width:390,height:844});
                     mobile=content&&await contentNode.isVisible().catch(()=>false);
                     await page.waitForTimeout(120);
+                    actionProbe=await probePageActions(page,isPrint?'body':'main');
                 }catch(ex){error=redact(ex);}
                 const errors=jsFailures.slice(e),mutations=blocked.slice(m);
                 const authRedirect=/^\/account\/(?:login|accessdenied|unauthorized)/i.test(redirect);
                 const passed=status===200&&content&&mobile&&!empty&&!authRedirect&&
                     !error&&!errors.length&&!mutations.length;
-                results.push({role,path,status,passed,content,mobile,empty,
+                results.push({role,path,status,passed,content,mobile,empty,actionProbe,
                     redirect:redirect!==new URL(origin+path).pathname?redirect:undefined,
                     errors,blockedMutations:mutations,error:error||undefined});
                 if(!passed)console.error('[QA role page FAIL]',role,path,'HTTP',status,

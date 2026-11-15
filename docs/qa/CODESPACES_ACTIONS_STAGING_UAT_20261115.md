@@ -44,3 +44,27 @@ These are **selected real functional acceptance flows and read-only menu render 
 To finish release acceptance, record route-by-route Create/Edit/Approve/Export and denied paths, negative cross-tenant/campus tests, financial/stock invariants, mobile/accessibility/language evidence, p95/p99 performance, backup/restore/rollback, and named user/owner sign-off in [final QA issue #139](https://github.com/cseashrafulislam/EduOS/issues/139). **Release remains blocked until all nine release gates pass.**
 
 Do not enable public Codespaces port visibility, real payment callbacks, real SMS/email or production database access for these synthetic tests. Do not auto-run heavy, data-writing UAT on Codespaces start.
+
+
+### Page-by-page business action coverage (additional census, not functional sign-off)
+
+The Codespaces **Full Functional + SQL QA** task and the disposable GitHub Actions
+runner now collect *actual rendered* action signals across the declared 204 pages:
+Create, Edit, Delete, Approve, Print, Excel/CSV, PDF, and Report. The result
+is stored as \`qa-artifacts/page-action-coverage.json\` and the human-readable
+\`qa-artifacts/page-action-coverage.csv\` (204 × 8 = 1,632 cells).
+
+- \`UI_CANDIDATE\` means a rendered control matches the action label; it does **not**
+  confirm that clicking it works, calls a valid backend or produces correct data.
+- \`NEEDS_REQUIREMENTS_REVIEW\` means no matching rendered control was observed;
+  the action may be hidden, permission-dependent, not applicable, or missing.
+- \`SELECTED_E2E_PASS\` appears only where existing browser create and persisted
+  SQL evidence proves the specific action at the same source SHA. Everything else
+  stays \`NOT_FUNCTIONALLY_TESTED\`, including Delete/Approve/Print/Excel/PDF/Report.
+- Do not implement arbitrary Delete/Approve buttons on read-only dashboards or
+  allow mutation of posted journals/stock. The business owner must classify
+  each action as required, unsupported, or replaced by reversal/transition before
+  further targeted test construction.
+- Never mark production ready based on this census. Actual downloads must have
+  authorized, bounded tenant-scoped queries, correct MIME/CSV escaping/PDF content,
+  and report totals matching transaction sources.

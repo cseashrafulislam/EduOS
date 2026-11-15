@@ -26,6 +26,9 @@ test('Codespaces all-scope executes the Actions real-browser gates in dependency
         prior=offset;
     }
     const routeReport='node scripts/qa/compare-real-route-coverage.cjs';
+    const actionReport='node scripts/qa/page-action-coverage.cjs';
+    assert(qa.includes(actionReport),'Codespaces lacks 204-page business action inventory');
+    assert(workflow.includes(actionReport),'Actions lacks 204-page business action inventory');
     assert(qa.includes(routeReport),'Codespaces route gap report missing');
     assert(qa.includes('QA_PLATFORM_PASSWORD'),'Codespaces private platform password missing');
     assert(workflow.includes('QA_PLATFORM_PASSWORD'),'Actions private platform password missing');

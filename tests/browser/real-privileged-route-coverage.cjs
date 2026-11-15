@@ -4,6 +4,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {chromium}=require('playwright');
+const {probePageActions}=require('./page-action-probe.cjs');
 const origin='https://qa.eduos.test:7243';
 const sha=process.env.GITHUB_SHA||'';
 const tenantPassword=process.env.QA_DEMO_PASSWORD||'';
@@ -60,7 +61,7 @@ async function checkRoutes(browser,role,password,routes){
     for(const path of routes){
         active=path;
         const prevErrors=errors.length,prevWrites=mutations.length;
-        let status=0,desktop=false,mobile=false,main=false,empty=true,redirect='',reason='';
+        let status=0,desktop=false,mobile=false,main=false,empty=true,redirect='',reason='',actionProbe=null;
         try{
             await page.setViewportSize({width:1366,height:768});
             const response=await page.goto(origin+path,{waitUntil:'domcontentloaded',timeout:20000});
@@ -76,11 +77,12 @@ async function checkRoutes(browser,role,password,routes){
             }
             await page.setViewportSize({width:390,height:844});
             if(main)mobile=await page.locator('main#main-content').isVisible();
+            actionProbe=await probePageActions(page);
         }catch(e){reason=String(e.message).slice(0,160);}
         const valid=status===200&&normalize(redirect)===normalize(path)&&main&&
             desktop&&mobile&&!empty&&!reason&&errors.length===prevErrors&&
             mutations.length===prevWrites;
-        result.push({path,role,status,desktop,mobile,empty,passed:valid,reason:reason||undefined,
+        result.push({path,role,status,desktop,mobile,empty,actionProbe,passed:valid,reason:reason||undefined,
             errors:errors.slice(prevErrors),blockedMutations:mutations.slice(prevWrites)});
         if(!valid)console.error('[QA privileged route FAIL]',role,path,'HTTP',status,
             'route',redirect,'JS',errors.length-prevErrors,'writes',mutations.length-prevWrites);

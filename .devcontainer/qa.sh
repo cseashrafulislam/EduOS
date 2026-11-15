@@ -226,6 +226,7 @@ run_tests() {
     node tests/browser/real-roleexclusive-page-render.cjs
     node tests/browser/real-privileged-route-coverage.cjs
     node scripts/qa/compare-real-route-coverage.cjs
+    node scripts/qa/page-action-coverage.cjs
   fi
   local filter="FullyQualifiedName~SqlServerRealAcademicFoundationEvidenceTests"
   if [ "$scope" = "all" ]; then
