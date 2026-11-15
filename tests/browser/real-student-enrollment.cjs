@@ -56,6 +56,17 @@ async function academic(page,route,feature){
         throw new Error('Active academic panel is hidden on '+route+': '+JSON.stringify(state));
     }
 }
+async function reveal(page,id){
+    const form=page.locator('#'+id);
+    const toggle=page.locator('button[aria-controls="'+id+'"]');
+    if(!(await form.isVisible())){
+        assert(await toggle.count()===1,'Missing real Create editor toggle for '+id);
+        await toggle.click();
+    }
+    await form.waitFor({state:'visible',timeout:15000});
+    assert.equal(await toggle.getAttribute('aria-expanded'),'true',
+        'Editor must be expanded through actual UX: '+id);
+}
 async function catalogRow(page,group,name){
     await page.waitForFunction(([key,label])=>
         window.eduosAcademicManagement?.state?.catalog?.[key]?.some(x=>x.name===label),
@@ -128,6 +139,7 @@ async function run(){
             assert(v?.id>0,'Missing actual prerequisite '+k);
         assert.equal(level.academicProgramId,programme.id);
         console.log('[QA student journey] Create real Curriculum');
+        await reveal(page,'curriculumForm');
         await select(page,'curriculumProgram',programme.id);
         await page.locator('#curriculumName').fill(names.curriculum);
         await page.locator('#curriculumVersion').fill('1');
@@ -138,6 +150,7 @@ async function run(){
         await settled(page,'curriculumForm');
         const curriculum=await catalogRow(page,'curricula',names.curriculum);
         assert.equal(curriculum.academicProgramId,programme.id);
+        await reveal(page,'curriculumSubjectForm');
         await select(page,'curriculumSelection',curriculum.id);
         await page.waitForFunction(()=>!document.getElementById('curriculumMappingSubmit').disabled,
             null,{timeout:20000});
@@ -160,6 +173,7 @@ async function run(){
         assert(mapping.id>0&&mapping.isActive);
         console.log('[QA student journey] Create real Batch with existing independent Section');
         await academic(page,'Batches','sections');
+        await reveal(page,'batchCreateForm');
         await select(page,'batchCreateCampus',campus.id);
         await select(page,'batchCreateYear',year.id);
         await select(page,'batchCreateProgram',programme.id);
@@ -178,10 +192,13 @@ async function run(){
         assert.equal(batch.campusId,campus.id);
         console.log('[QA student journey] Create one required Subject Offering');
         await academic(page,'Offerings','offerings');
+        await reveal(page,'offeringForm');
         await select(page,'offeringBatch',batch.id);
+        await page.waitForFunction(()=>[...document.querySelectorAll('#offeringSection option')]
+            .some(x=>x.value&&x.textContent.includes('QA Section A')),null,{timeout:25000});
         await select(page,'offeringSection',
-            (await page.evaluate(()=>[...document.querySelectorAll('#offeringSection option')]
-                .find(x=>x.textContent.includes('QA Section A'))?.value))||'');
+            await page.locator('#offeringSection option').evaluateAll(nodes=>
+                nodes.find(x=>x.value&&x.textContent.includes('QA Section A'))?.value));
         await select(page,'offeringCurriculumSubject',mapping.id);
         await page.locator('#offeringCapacity').fill('20');
         const offerResponse=await postResult(page,'/api/academic-setup/offerings',
@@ -194,9 +211,11 @@ async function run(){
         await page.locator('#runningStudentForm').waitFor();
         await page.locator('#runningStudentName').fill(names.student);
         await select(page,'runningBatch',batch.id);
+        await page.waitForFunction(()=>[...document.querySelectorAll('#runningSection option')]
+            .some(x=>x.value&&x.textContent.includes('QA Section A')),null,{timeout:25000});
         await select(page,'runningSection',
-            (await page.evaluate(()=>[...document.querySelectorAll('#runningSection option')]
-                .find(x=>x.textContent.includes('QA Section A'))?.value))||'');
+            await page.locator('#runningSection option').evaluateAll(nodes=>
+                nodes.find(x=>x.value&&x.textContent.includes('QA Section A'))?.value));
         await page.locator('#runningRoll').fill(names.roll);
         await page.locator('#runningAdmissionDate').fill('2027-03-01');
         await page.locator('#runningEnrollDate').fill('2027-03-01');

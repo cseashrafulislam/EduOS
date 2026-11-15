@@ -1,5 +1,6 @@
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Auth;
+using EduOS.Core.Entities.Learners;
 using EduOS.Core.Entities.SaaS;
 using EduOS.Core.Entities.Students;
 using EduOS.Core.Enums.Domain;
@@ -40,7 +41,8 @@ public sealed class SqlServerStudentContactProfileIntegrationTests
                 FullName = "Contact Admin", EmailConfirmed = true, IsActive = true,
                 SecurityStamp = Guid.NewGuid().ToString(), ConcurrencyStamp = Guid.NewGuid().ToString()
             };
-            setup.AddRange(tenant, manager);
+            var person = new Person { FullName = "Contact Student" };
+            setup.AddRange(tenant, manager, person);
             await setup.SaveChangesAsync();
             tenantId = tenant.Id; userId = manager.Id;
             setup.ChangeTracker.Clear();
@@ -48,7 +50,7 @@ public sealed class SqlServerStudentContactProfileIntegrationTests
             {
                 var student = new Student
                 {
-                    TenantId = tenantId, FullName = "Contact Student",
+                    TenantId = tenantId, PersonId = person.Id, FullName = "Contact Student",
                     StudentCode = "CONTACT-" + suffix, StatusCode = "Active",
                     AdmissionDate = new DateOnly(2026, 1, 1)
                 };

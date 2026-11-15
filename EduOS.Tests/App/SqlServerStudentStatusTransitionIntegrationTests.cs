@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Logging;
 using EduOS.Core.DTOs.Students;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Auth;
@@ -86,8 +88,9 @@ public sealed class SqlServerStudentStatusTransitionIntegrationTests
 
         await using var firstDb = TenantDb(options, tenantId);
         await using var secondDb = TenantDb(options, tenantId);
-        var first = Service(firstDb, tenantId, userId);
-        var second = Service(secondDb, tenantId, userId);
+        var failures = new StatusErrorLogger();
+        var first = Service(firstDb, tenantId, userId, failures);
+        var second = Service(secondDb, tenantId, userId, failures);
         var before = await first.GetAsync(studentReference);
         Assert.True(before.Success, before.Message);
         Assert.Equal(8, Convert.FromBase64String(before.Data!.RowVersion).Length);
@@ -97,8 +100,10 @@ public sealed class SqlServerStudentStatusTransitionIntegrationTests
         var responses = await Task.WhenAll(
             first.ChangeAsync(studentReference, a),
             second.ChangeAsync(studentReference, b));
-        Assert.Single(responses, x => x.Success);
-        Assert.Single(responses, x => x.StatusCode == 409);
+        var summary = string.Join("; ", responses.Select(x => $"HTTP {x.StatusCode}: {x.Message}")) +
+            " | exceptions " + string.Join("; ", failures.Errors);
+        Assert.True(responses.Count(x => x.Success) == 1, summary);
+        Assert.True(responses.Count(x => x.StatusCode == 409) == 1, summary);
         var winner = responses[0].Success ? a : b;
 
         await using var replayDb = TenantDb(options, tenantId);
@@ -140,8 +145,32 @@ public sealed class SqlServerStudentStatusTransitionIntegrationTests
         return new EduOSDbContext(options, accessor);
     }
 
-    private static StudentStatusTransitionService Service(EduOSDbContext db, long tenantId, long userId) =>
-        new(db, new TenantAdmin(tenantId, userId), NullLogger<StudentStatusTransitionService>.Instance);
+    private static StudentStatusTransitionService Service(EduOSDbContext db, long tenantId, long userId,
+        ILogger<StudentStatusTransitionService>? logger = null) =>
+        new(db, new TenantAdmin(tenantId, userId),
+            logger ?? NullLogger<StudentStatusTransitionService>.Instance);
+
+    // Error types and SQL error numbers only; never log student or connection values.
+    private sealed class StatusErrorLogger : ILogger<StudentStatusTransitionService>
+    {
+        public ConcurrentQueue<string> Errors { get; } = new();
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => EmptyScope.Instance;
+        public bool IsEnabled(LogLevel level) => level >= LogLevel.Warning;
+        public void Log<TState>(LogLevel level, EventId id, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (exception == null) return;
+            var sql = exception as Microsoft.Data.SqlClient.SqlException ??
+                exception.InnerException as Microsoft.Data.SqlClient.SqlException;
+            Errors.Enqueue(exception.GetType().Name + (sql == null ? "" : "/SQL:" + sql.Number));
+        }
+
+        private sealed class EmptyScope : IDisposable
+        {
+            public static readonly EmptyScope Instance = new();
+            public void Dispose() { }
+        }
+    }
 
     private sealed class TenantAdmin(long tenantId, long userId) : ICurrentUserService
     {
