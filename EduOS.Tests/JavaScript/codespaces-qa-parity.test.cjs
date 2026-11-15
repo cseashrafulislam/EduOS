@@ -50,3 +50,15 @@ test('Codespaces refuses arbitrary branches, stale binaries and stale browser ev
     assert(qa.includes("assert.equal(data.sha,sha"));
     assert(!qa.includes('EDUOS_E2E_BASE_URL'),'No hosted production target permitted');
 });
+
+test('First-run Codespaces QA starts private SQL before requiring its password file',()=>{
+    const start=qa.slice(qa.indexOf('\nstart() {'),qa.indexOf('\nstatus() {'));
+    const full=qa.slice(qa.indexOf('\nrun_tests() {'),qa.indexOf('\nstop() {'));
+    assert(start.includes('bash .devcontainer/sqlserver.sh start'),
+        'The app start command must bootstrap private SQL');
+    assert(start.indexOf('bash .devcontainer/sqlserver.sh start')<
+        start.indexOf('\n  connection\n'),
+        'Private SQL must start before connecting during application bootstrap');
+    assert(full.includes('\n  start\n  connection\n  browser\n'),
+        'Full QA must run the idempotent bootstrap before SQL validation and browser tests');
+});
