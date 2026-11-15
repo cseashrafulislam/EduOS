@@ -9,6 +9,7 @@ on:
       - 'tests/browser/real-data-entry.cjs'
       - 'tests/browser/real-academic-foundation.cjs'
       - 'tests/browser/real-menu-route-sweep.cjs'
+      - 'tests/browser/real-tenantadmin-page-render.cjs'
       - 'EduOS.Tests/App/SqlServerRealAcademicFoundationEvidenceTests.cs'
       - 'EduOS.Tests/App/SqlServerRealDataEntryEvidenceTests.cs'
       - 'EduOS.App/**'
@@ -168,6 +169,12 @@ jobs:
         env:
           EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
         run: node tests/browser/real-menu-route-sweep.cjs
+      - name: Render all TenantAdmin sidebar pages in Chromium desktop/mobile (read-only)
+        id: page_render
+        if: ${{ always() && steps.app_start.outcome == 'success' && steps.browser_deps.outcome == 'success' }}
+        env:
+          EDUOS_QA_ORIGIN: https://qa.eduos.test:7243
+        run: node tests/browser/real-tenantadmin-page-render.cjs
       - name: Independently verify committed UI entries in real SQL
         id: sql_evidence
         if: ${{ always() && steps.app_start.outcome == 'success' && steps.year_term.outcome == 'success' && steps.academic_foundation.outcome == 'success' }}
@@ -185,6 +192,7 @@ jobs:
           YEAR_TERM_RESULT: ${{ steps.year_term.outcome }}
           ACADEMIC_RESULT: ${{ steps.academic_foundation.outcome }}
           MENU_RESULT: ${{ steps.menu_routes.outcome }}
+          PAGE_RESULT: ${{ steps.page_render.outcome }}
           SQL_RESULT: ${{ steps.sql_evidence.outcome }}
         run: |
           {
@@ -197,6 +205,7 @@ jobs:
             echo "| Year/Term real form | $YEAR_TERM_RESULT |"
             echo "| Programme/Class/Subject/Section real form | $ACADEMIC_RESULT |"
             echo "| 13-role real menu route GET | $MENU_RESULT |"
+            echo "| TenantAdmin all-sidebar Chromium desktop/mobile | $PAGE_RESULT |"
             echo "| Independent SQL persistence | $SQL_RESULT |"
             echo ""
             echo "A skipped or failed gate blocks production approval. No live Codespaces app was accessed."
@@ -210,6 +219,7 @@ jobs:
             qa-artifacts/real-data-entry.json
             qa-artifacts/real-academic-foundation.json
             qa-artifacts/real-menu-route-sweep.json
+            qa-artifacts/real-tenantadmin-page-render.json
             TestResults/real-data-entry.trx
           if-no-files-found: ignore
           retention-days: 7
