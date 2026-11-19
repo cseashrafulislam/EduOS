@@ -48,7 +48,7 @@
             el('aiManagementInterpret').disabled = locked || !state.configured || !state.snapshot;
     }
     async function runGenerate(buttonId, endpoint, payload) {
-        if (state.busy || !sameSession()) return;
+        if (state.busy || !sameSession() || !state.configured) return;
         const sequence = ++state.sequence;
         lock(buttonId, true);
         notice(translate('Generating a draft. Review it before use.', 'খসড়া তৈরি হচ্ছে। ব্যবহারের আগে যাচাই করুন।'));
