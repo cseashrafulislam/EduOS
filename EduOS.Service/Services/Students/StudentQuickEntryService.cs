@@ -35,7 +35,8 @@ public sealed class StudentQuickEntryService(
         if (!user.IsAuthenticated || !user.IsTenantAdmin || user.TenantId <= 0 ||
             db.CurrentTenantId != user.TenantId)
             return ApiResponse<RunningStudentCreatedDto>.ErrorResponse("Student creation is not authorized.", 403);
-        if (request == null || request.ClientRequestId == Guid.Empty || request.AcademicBatchId <= 0 ||
+        if (request == null || request.ClientRequestId == Guid.Empty || request.AcademicBatchId is <= 0 ||
+            (request.AcademicBatchId == null && request.AcademicYearId is null or <= 0) ||
             request.AcademicSectionId is null or <= 0 ||
             request.AcademicCurriculumId <= 0 || request.AdmissionDate == default ||
             request.EnrollmentDate == default || request.AdmissionDate > request.EnrollmentDate ||
@@ -68,6 +69,7 @@ public sealed class StudentQuickEntryService(
                     if (existing == null || existing.AdmissionApplicantId.HasValue ||
                         existing.FullName != name || existing.AdmissionDate != request.AdmissionDate ||
                         replay.AcademicBatchId != request.AcademicBatchId ||
+                        (request.AcademicYearId.HasValue && replay.AcademicYearId != request.AcademicYearId.Value) ||
                         replay.AcademicSectionId != request.AcademicSectionId ||
                         replay.AcademicCurriculumId != request.AcademicCurriculumId ||
                         replay.RollNo != roll || replay.EnrollmentDate != request.EnrollmentDate ||
@@ -101,16 +103,21 @@ public sealed class StudentQuickEntryService(
                         x.FullName == name && x.DateOfBirth == request.DateOfBirth && x.Phone == phone, token))
                     throw new RejectEntry("Possible existing student. Search Student List before saving.");
 
-                var batch = await db.AcademicBatches.FirstOrDefaultAsync(x =>
-                    x.TenantId == tenant && x.Id == request.AcademicBatchId && x.IsActive && !x.IsDeleted, token);
-                if (batch == null) throw new RejectEntry("Academic batch is no longer available.");
                 var now = clock.GetUtcNow().UtcDateTime;
-
-                // Same batch write mutex/order as the canonical enrollment, admission and import paths.
-                // Hold it while checking subscription seats and creating the entire graph.
-                batch.UpdatedAt = now;
-                batch.UpdatedBy = user.UserId;
-                await db.SaveChangesAsync(token);
+                // Legacy batch allocations continue to use the batch lock. Batchless
+                // allocations acquire the section lock in AcademicEnrollmentService.
+                if (request.AcademicBatchId.HasValue)
+                {
+                    var batch = await db.AcademicBatches.FirstOrDefaultAsync(x =>
+                        x.TenantId == tenant && x.Id == request.AcademicBatchId.Value &&
+                        x.IsActive && !x.IsDeleted, token);
+                    if (batch == null) throw new RejectEntry("Academic batch is no longer available.");
+                    if (request.AcademicYearId.HasValue && request.AcademicYearId.Value != batch.AcademicYearId)
+                        throw new RejectEntry("Academic year does not match the selected batch.");
+                    batch.UpdatedAt = now;
+                    batch.UpdatedBy = user.UserId;
+                    await db.SaveChangesAsync(token);
+                }
                 if (!await SubscriptionActiveCapacityPolicy.CanAddStudentsAsync(db, tenant, 1, token))
                     throw new RejectEntry("Subscription active student capacity reached.");
 
@@ -150,7 +157,8 @@ public sealed class StudentQuickEntryService(
                 var enrolled = await academicEnrollments.EnrollAsync(new CreateStudentEnrollmentRequestDto
                 {
                     ClientRequestId = request.ClientRequestId, StudentReference = reference,
-                    AcademicBatchId = request.AcademicBatchId, AcademicSectionId = request.AcademicSectionId,
+                    AcademicBatchId = request.AcademicBatchId, AcademicYearId = request.AcademicYearId,
+                    AcademicSectionId = request.AcademicSectionId,
                     AcademicCurriculumId = request.AcademicCurriculumId,
                     EnrollmentDate = request.EnrollmentDate, RollNo = roll
                 }, token);
