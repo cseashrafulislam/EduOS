@@ -32,7 +32,11 @@ test('optional Guardian tab and single Save Student action keep admin authorizat
     assert.match(js, /sameSession\(\)/);
     assert.match(js, /RequestVerificationToken/);
     assert.match(js, /if \(state\.saving/);
-    assert.match(js, /state\.curricula\.length === 1/);
+    assert.match(js, /selectSingle\('runningCurriculum'\)/);
+    assert.match(js, /academicBatchId: null/);
+    assert.match(js, /academicYearId: currentYear\(\)/);
+    assert.match(page, /id="runningSection"[^>]*required/);
+    assert.doesNotMatch(page, /id="runningBatch"/);
     assert.match(api, /Authorize\(Roles = "TenantAdmin"\)/);
     assert.match(nav, /\/Students\/Create/);
 });
