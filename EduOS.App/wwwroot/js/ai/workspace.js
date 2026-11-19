@@ -193,9 +193,12 @@
     api('/api/ai/workspace/status').then(data => {
         if (!sameSession()) return;
         state.configured = Boolean(data?.modelConfigured);
-        if (!state.configured)
+        if (!state.configured) {
+            if (el('aiTeacherGenerate')) el('aiTeacherGenerate').disabled = true;
+            if (el('aiTutorGenerate')) el('aiTutorGenerate').disabled = true;
             notice(translate('The AI model is not configured. AI generation is disabled; verified management metrics remain available.',
                 'AI মডেল কনফিগার করা নেই। AI খসড়া বন্ধ থাকবে; যাচাইকৃত Management পরিসংখ্যান দেখা যাবে।'), true);
+        }
     }).catch(err => { if (sameSession()) notice(err.message, true); });
     if (mode === 'Teacher') initTeacher();
     else if (mode === 'Tutor') initTutor();
