@@ -172,6 +172,13 @@
                         <span>@(currentCulture == "bn-BD" ? "আমার কাজ ও অনুমোদন" : "My Work & Approvals")</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
+                {
+                    <a class="nav-link @ActiveFor("/AiWorkspace/Management")" href="/AiWorkspace/Management">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "AI প্রতিষ্ঠান বিশ্লেষণ" : "Management AI Analytics")</span>
+                    </a>
+                }
             </nav>
 
             <hr class="sidebar-divider" />
@@ -369,12 +376,20 @@
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                             <span>@(currentCulture == "bn-BD" ? "ব্যক্তিগত অধ্যয়ন পরিকল্পনা" : "Adaptive Study Plan")</span>
                         </a>
+                        <a class="nav-link @ActiveFor("/AiWorkspace/Tutor")" href="/AiWorkspace/Tutor">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "AI শিক্ষার্থী সহকারী" : "Student AI Tutor")</span>
+                        </a>
                     }
                     @if (User?.IsInRole("Teacher") == true || User?.IsInRole("TenantAdmin") == true || User?.IsInRole("Principal") == true)
                     {
                         <a class="nav-link @ActiveFor("/TeacherStudio")" href="/TeacherStudio/Index">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
                             <span>@(currentCulture == "bn-BD" ? "শিক্ষক রিসোর্স স্টুডিও" : "Teacher Resource Studio")</span>
+                        </a>
+                        <a class="nav-link @ActiveFor("/AiWorkspace/Teacher")" href="/AiWorkspace/Teacher">
+                            <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
+                            <span>@(currentCulture == "bn-BD" ? "AI শিক্ষক সহকারী" : "Teacher AI Copilot")</span>
                         </a>
                         <a class="nav-link @ActiveFor("/TeacherStudio/Public")" href="/TeacherStudio/Public">
                             <svg class="edu-icon"><use href="/images/eduos-icons.svg#book" /></svg>
