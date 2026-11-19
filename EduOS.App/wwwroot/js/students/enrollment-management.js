@@ -3,9 +3,9 @@
     const root = document.getElementById('enrollmentManagement');
     if (!root) return;
     const el = id => document.getElementById(id);
-    const state = { student: null, hasCurrent: false, batches: [], sections: [], curricula: [],
-        requestId: null, requestFingerprint: null, saving: false,
-        searchVersion: 0, studentVersion: 0, batchVersion: 0 };
+    const state = { student: null, hasCurrent: false, campuses: [], years: [], levels: [], programs: [],
+        sections: [], curricula: [], requestId: null, requestFingerprint: null,
+        saving: false, setupLoading: false, searchVersion: 0, studentVersion: 0, setupVersion: 0 };
     const form = el('enrollmentForm');
     const guard = window.EduOSFormGuard?.create(form);
     const identity = [document.body?.dataset?.authTenantId || '',
@@ -15,7 +15,9 @@
         window.EduOSSessionTransitionPending?.() !== true;
     const token = root.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const text = id => el(id).value.trim();
-    const selectedBatch = () => state.batches.find(x => x.id === Number(text('enrollmentBatch')));
+    const selectedCampus = () => state.campuses.find(x => x.id === Number(text('enrollmentCampus')));
+    const selectedYear = () => state.years.find(x => x.id === Number(text('enrollmentYear')));
+    const selectedLevel = () => state.levels.find(x => x.id === Number(text('enrollmentLevel')));
     const selectedSection = () => state.sections.find(x => x.id === Number(text('enrollmentSection')));
     const selectedCurriculum = () => state.curricula.find(x => x.id === Number(text('enrollmentCurriculum')));
 
@@ -51,15 +53,13 @@
             hex.slice(16, 20), hex.slice(20)].join('-');
     }
     function canSubmit() {
-        return Boolean(sameSession() && !state.saving && state.student && !state.hasCurrent && selectedBatch() &&
-            selectedCurriculum() && (!state.sections.length || selectedSection()) &&
-            text('enrollmentRoll') &&
-            text('enrollmentDate'));
+        return Boolean(sameSession() && !state.saving && !state.setupLoading && state.student && !state.hasCurrent &&
+            selectedCampus() && selectedYear() && selectedLevel() && selectedSection() &&
+            selectedCurriculum() && text('enrollmentRoll') && text('enrollmentDate'));
     }
     function refreshSubmit() {
         el('enrollmentSubmit').disabled = !canSubmit();
-        el('enrollmentBatchSearchButton').disabled = state.saving || !sameSession();
-    }
+     }
     function menu(id, entries, placeholder) {
         const target = el(id), previous = target.value;
         target.replaceChildren(new Option(placeholder, ''));
@@ -116,7 +116,7 @@
             state.hasCurrent = Boolean(current);
             el('enrollmentCurrent').textContent = current ?
                 'Current enrollment exists. Close/complete it through the authorized academic progression workflow before creating a new one.' :
-                'No current enrollment. This student can be enrolled if all batch conditions are valid.';
+                'No current enrollment. Select an eligible class Section and academic year.';
             refreshSubmit();
         } catch (e) {
             if (request === state.studentVersion && state.student?.reference === student.reference && sameSession()) {
@@ -126,62 +126,104 @@
             }
         }
     }
-    async function searchBatches() {
+    const autoOne = id => {
+        const select = el(id);
+        if (select.options.length === 2) select.selectedIndex = 1;
+    };
+    function refreshScopes() {
+        const campus = selectedCampus();
+        const years = campus ? state.years.filter(x =>
+            x.isActive !== false && (x.campusId == null || x.campusId === campus.id)) : [];
+        menu('enrollmentYear', years, 'Select academic year');
+        if (!years.some(x => String(x.id) === text('enrollmentYear'))) el('enrollmentYear').value = '';
+        autoOne('enrollmentYear');
+        const allowed = new Set(state.programs.filter(p =>
+            !Array.isArray(p.campusIds) || !p.campusIds.length ||
+            p.campusIds.includes(campus?.id)).map(p => p.id));
+        const levels = campus ? state.levels.filter(x => x.isActive !== false &&
+            allowed.has(x.academicProgramId)) : [];
+        menu('enrollmentLevel', levels, 'Select class / grade');
+        if (!levels.some(x => String(x.id) === text('enrollmentLevel'))) el('enrollmentLevel').value = '';
+        autoOne('enrollmentLevel');
+    }
+    async function loadSetup() {
         if (state.saving || !sameSession()) return;
-        if (selectedBatch() && guard?.isDirty() && !guard.confirmDiscard()) return;
-        const query = text('enrollmentBatchSearch');
-        if (query.length === 1) return message('Search needs at least two characters.', true);
-        const request = ++state.batchVersion;
+        const version = ++state.setupVersion;
+        state.setupLoading = true;
+        refreshSubmit();
         try {
-            const search = query ? '&search=' + encodeURIComponent(query) : '';
-            const catalog = await api('/api/academic-setup/catalog?take=100' + search);
-            if (request !== state.batchVersion || !sameSession()) return;
-            state.batches = (catalog.batches || []).filter(x => x.isActive);
-            menu('enrollmentBatch', state.batches, 'Select academic batch');
+            const [campuses, years, catalog] = await Promise.all([
+                api('/api/institution-onboarding/campus-list'),
+                api('/api/institution-onboarding/academic-years'),
+                api('/api/academic-setup/catalog?take=100')
+            ]);
+            if (version !== state.setupVersion || !sameSession()) return;
+            state.campuses = (campuses || []).filter(x => x.isActive !== false);
+            state.years = (years || []).filter(x => x.isActive !== false);
+            state.levels = catalog?.levels || [];
+            state.programs = catalog?.programs || [];
+            menu('enrollmentCampus', state.campuses, 'Select campus');
+            autoOne('enrollmentCampus');
+            refreshScopes();
             await refreshSections();
-            await refreshCurricula();
-        } catch (e) { if (request === state.batchVersion && sameSession()) message(e.message, true); }
+            if (!state.campuses.length || !state.years.length || !state.levels.length)
+                message('Complete campus, academic year and class setup before enrolling.', true);
+        } catch (e) {
+            if (version === state.setupVersion && sameSession()) message(e.message, true);
+        } finally {
+            if (version === state.setupVersion) { state.setupLoading = false; refreshSubmit(); }
+        }
     }
     let sectionLookupVersion = 0;
     async function refreshSections() {
-        const request = ++sectionLookupVersion;
-        const batch = selectedBatch();
-        state.sections = [];
+        const version = ++sectionLookupVersion;
+        ++curriculumLookupVersion;
+        const campus = selectedCampus(), level = selectedLevel();
+        state.sections = []; state.curricula = [];
         menu('enrollmentSection', [], 'Select academic section');
-        if (!batch) { refreshSubmit(); return; }
+        menu('enrollmentCurriculum', [], 'Select applicable current curriculum');
+        refreshSubmit();
+        if (!campus || !level || !sameSession()) return;
         try {
-            const result = await api('/api/academic-sections?academicBatchId=' +
-                encodeURIComponent(String(batch.id)) + '&pageSize=100&page=1');
-            if (request !== sectionLookupVersion || !sameSession() || selectedBatch()?.id !== batch.id) return;
-            state.sections = (result.items || []).filter(x => x.isActive);
+            const query = new URLSearchParams({
+                campusId: String(campus.id), academicLevelId: String(level.id), page: '1', pageSize: '100'
+            });
+            const result = await api('/api/academic-sections?' + query);
+            if (version !== sectionLookupVersion || !sameSession() ||
+                selectedCampus()?.id !== campus.id || selectedLevel()?.id !== level.id) return;
+            state.sections = (result.items || []).filter(x => x.isActive && x.capacity > 0);
             menu('enrollmentSection', state.sections, 'Select academic section');
-            if (state.sections.length === 1)
-                el('enrollmentSection').value = String(state.sections[0].id);
+            autoOne('enrollmentSection');
+            if (state.sections.length === 1) await refreshCurricula();
+            if (!state.sections.length)
+                message('No active Section for this class. Configure Academic Sections first.', true);
         } catch (e) {
-            if (request === sectionLookupVersion && sameSession()) message(e.message, true);
+            if (version === sectionLookupVersion && sameSession()) message(e.message, true);
         }
         refreshSubmit();
     }
     let curriculumLookupVersion = 0;
     async function refreshCurricula() {
         const version = ++curriculumLookupVersion;
-        const batch = selectedBatch(), date = text('enrollmentDate');
+        const section = selectedSection(), year = selectedYear(), date = text('enrollmentDate');
         state.curricula = [];
         menu('enrollmentCurriculum', [], 'Select applicable current curriculum');
         refreshSubmit();
-        if (!batch || !date) {
-            el('enrollmentCurriculumHelp').textContent = 'Select a section and enrollment date.';
+        if (!section || !year || !date) {
+            el('enrollmentCurriculumHelp').textContent = 'Select a section, academic year and enrollment date.';
             return;
         }
         try {
-            const curricula = await api('/api/academic-enrollments/batches/' + batch.id +
-                '/curricula?enrollmentDate=' + encodeURIComponent(date));
-            if (version !== curriculumLookupVersion || !sameSession()) return;
+            const query = new URLSearchParams({ academicYearId: String(year.id), enrollmentDate: date });
+            const curricula = await api('/api/academic-enrollments/sections/' + section.id + '/curricula?' + query);
+            if (version !== curriculumLookupVersion || !sameSession() ||
+                selectedYear()?.id !== year.id || selectedSection()?.id !== section.id) return;
             state.curricula = (curricula || []).filter(x => x.isActive && x.isCurrent);
             menu('enrollmentCurriculum', state.curricula, 'Select applicable current curriculum');
+            autoOne('enrollmentCurriculum');
             el('enrollmentCurriculumHelp').textContent = state.curricula.length ?
-                'Choose the curriculum effective for this section and date.' :
-                'No current curriculum matches this section and date. Complete academic setup first.';
+                'Choose the curriculum effective for this section and year.' :
+                'No current curriculum matches the section and year. Complete academic setup first.';
         } catch (e) {
             if (version === curriculumLookupVersion && sameSession()) {
                 el('enrollmentCurriculumHelp').textContent = 'Cannot resolve curriculum: ' + e.message;
@@ -194,14 +236,13 @@
         event.preventDefault();
         if (state.saving || !sameSession()) return;
         if (!canSubmit()) return message('Select an eligible student, section, curriculum, roll and date.', true);
-        const batch = selectedBatch(), curriculum = selectedCurriculum();
+        const campus = selectedCampus(), year = selectedYear(), level = selectedLevel();
+        const section = selectedSection(), curriculum = selectedCurriculum();
         const date = text('enrollmentDate');
-        if (!batch || !curriculum || !state.student) return;
-        if (batch.capacity <= 0) return message('This section has no available capacity configured.', true);
-        if (batch.startDate && date < batch.startDate || batch.endDate && date > batch.endDate)
-            return message('Enrollment date is outside the section dates.', true);
+        if (!campus || !year || !level || !section || !curriculum || !state.student ||
+            section.campusId !== campus.id || section.academicLevelId !== level.id) return;
         const payload = { studentReference: state.student.reference,
-            academicBatchId: batch.id, academicSectionId: selectedSection()?.id || null,
+            academicBatchId: null, academicYearId: year.id, academicSectionId: section.id,
             academicCurriculumId: curriculum.id,
             enrollmentDate: date, rollNo: text('enrollmentRoll'),
             remarks: text('enrollmentRemarks') || null };
@@ -218,7 +259,7 @@
             state.hasCurrent = true; state.requestId = null; state.requestFingerprint = null;
             guard?.markClean();
             el('enrollmentCurrent').textContent = 'Enrolled: ' + (created?.rollNo || payload.rollNo) +
-                ' — ' + batch.name + (selectedSection() ? ' / ' + selectedSection().name : '');
+                ' — ' + section.name + ' / ' + year.name;
             message('Student enrollment saved successfully.');
         } catch (e) {
             if (sameSession()) message(e.message + ' If uncertain, retry unchanged details using the same request ID.', true);
@@ -227,11 +268,19 @@
 
     el('enrollmentStudentSearchForm').addEventListener('submit', searchStudents);
     el('enrollmentStudentSearch').addEventListener('input', () => { ++state.searchVersion; });
-    el('enrollmentBatchSearchButton').addEventListener('click', searchBatches);
-    el('enrollmentBatch').addEventListener('change', () => {
-        refreshSections().then(refreshCurricula).catch(e => message(e.message, true));
+    el('enrollmentCampus').addEventListener('change', () => {
+        refreshScopes();
+        refreshSections().catch(e => message(e.message, true));
     });
-    el('enrollmentSection').addEventListener('change', refreshSubmit);
+    el('enrollmentLevel').addEventListener('change', () => {
+        refreshSections().catch(e => message(e.message, true));
+    });
+    el('enrollmentYear').addEventListener('change', () => {
+        refreshCurricula().catch(e => message(e.message, true));
+    });
+    el('enrollmentSection').addEventListener('change', () => {
+        refreshCurricula().catch(e => message(e.message, true));
+    });
     el('enrollmentCurriculum').addEventListener('change', refreshSubmit);
     for (const id of ['enrollmentDate', 'enrollmentRoll', 'enrollmentRemarks']) {
         el(id).addEventListener('input', () => {
@@ -240,5 +289,5 @@
         });
     }
     el('enrollmentForm').addEventListener('submit', enroll);
-    searchBatches();
+    loadSetup();
 })();
