@@ -1,0 +1,169 @@
+@model string
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    var mode = Model ?? "Teacher";
+    ViewData["Title"] = mode == "Tutor" ? (bn ? "AI শিক্ষার্থী সহকারী" : "Student AI Tutor") :
+        mode == "Management" ? (bn ? "AI প্রতিষ্ঠান বিশ্লেষণ" : "Management AI Analytics") :
+        (bn ? "AI শিক্ষক সহকারী" : "Teacher AI Copilot");
+}
+<section id="aiWorkspace" class="container-fluid py-2" data-mode="@mode" data-language="@(bn ? "bn-BD" : "en-BD")">
+    @Html.AntiForgeryToken()
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="h4 mb-1">@ViewData["Title"]</h1>
+            <p class="text-muted small mb-0">
+                @(bn ? "কোনো AI উত্তর স্বয়ংক্রিয়ভাবে ERP-তে সংরক্ষিত বা অনুমোদিত হয় না।" :
+                    "AI output never creates, edits or approves any ERP record.")
+            </p>
+        </div>
+    </div>
+    <div id="aiWorkspaceNotice" class="alert d-none" role="alert" aria-live="polite"></div>
+    @if (mode == "Teacher")
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form id="aiTeacherForm" class="row g-3">
+                    <div class="col-md-7">
+                        <label class="form-label" for="aiTeacherTopic">@(bn ? "বিষয় / টপিক" : "Subject / topic") *</label>
+                        <input id="aiTeacherTopic" class="form-control" minlength="3" maxlength="200" required
+                               placeholder="@(bn ? "যেমন: সালোকসংশ্লেষণ" : "e.g. Photosynthesis")" />
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="aiTeacherLevel">@(bn ? "শ্রেণি" : "Class / grade") *</label>
+                        <input id="aiTeacherLevel" class="form-control" maxlength="60" required
+                               placeholder="@(bn ? "যেমন: ষষ্ঠ শ্রেণি" : "e.g. Grade Six")" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="aiTeacherOutput">@(bn ? "কী তৈরি হবে" : "Output")</label>
+                        <select id="aiTeacherOutput" class="form-select">
+                            <option value="LessonPlan">Lesson Plan</option>
+                            <option value="Worksheet">Worksheet</option>
+                            <option value="Questions">Practice MCQ &amp; Answers</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="aiTeacherDuration">@(bn ? "সময় (মিনিট)" : "Duration (minutes)")</label>
+                        <input id="aiTeacherDuration" type="number" class="form-control" min="10" max="180" value="40" required />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="aiLanguage">@(bn ? "ভাষা" : "Language")</label>
+                        <select id="aiLanguage" class="form-select">
+                            <option value="bn-BD" selected="@(bn ? "selected" : null)">বাংলা</option>
+                            <option value="en-BD" selected="@(!bn ? "selected" : null)">English</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <button id="aiTeacherGenerate" class="btn btn-primary" type="submit">
+                            @(bn ? "খসড়া তৈরি করুন" : "Generate draft")
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+    else if (mode == "Tutor")
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form id="aiTutorForm" class="row g-3">
+                    <div class="col-md-8">
+                        <label for="aiTutorTopic" class="form-label">@(bn ? "পাঠের বিষয়" : "Study topic") *</label>
+                        <input id="aiTutorTopic" class="form-control" minlength="3" maxlength="150" required />
+                    </div>
+                    <div class="col-md-4">
+                        <label for="aiLanguage" class="form-label">@(bn ? "ভাষা" : "Language")</label>
+                        <select id="aiLanguage" class="form-select">
+                            <option value="bn-BD" selected="@(bn ? "selected" : null)">বাংলা</option>
+                            <option value="en-BD" selected="@(!bn ? "selected" : null)">English</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label for="aiTutorQuestion" class="form-label">@(bn ? "তোমার প্রশ্ন" : "Your question") *</label>
+                        <textarea id="aiTutorQuestion" class="form-control" rows="3" minlength="5" maxlength="450"
+                                  required placeholder="@(bn ? "যে ধারণা বুঝতে সমস্যা হচ্ছে তা লিখো" : "What concept do you want explained?")"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <button id="aiTutorGenerate" class="btn btn-primary" type="submit">
+                            @(bn ? "ব্যাখ্যা দেখুন" : "Explain concept")
+                        </button>
+                        <a class="btn btn-outline-secondary ms-2" href="/Library/StudyAssistant">
+                            @(bn ? "অনুমোদিত বইয়ের উদ্ধৃতি" : "Cited book evidence")
+                        </a>
+                        <a class="btn btn-outline-secondary ms-2" href="/Learning/StudyPlan">
+                            @(bn ? "আমার অধ্যয়ন পরিকল্পনা" : "My study plan")
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    }
+    else if (mode == "Management")
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form id="aiManagementForm" class="row g-2 align-items-end">
+                    <div class="col-md-6">
+                        <label for="aiCampus" class="form-label">@(bn ? "ক্যাম্পাস" : "Authorized campus") *</label>
+                        <select id="aiCampus" class="form-select" required></select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="aiFrom" class="form-label">@(bn ? "শুরু" : "From") *</label>
+                        <input id="aiFrom" type="date" class="form-control" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label for="aiTo" class="form-label">@(bn ? "শেষ" : "To") *</label>
+                        <input id="aiTo" type="date" class="form-control" required />
+                    </div>
+                    <div class="col-12 mt-3">
+                        <button id="aiManagementLoad" class="btn btn-primary" type="submit">
+                            @(bn ? "বাস্তব পরিসংখ্যান দেখুন" : "Load verified metrics")
+                        </button>
+                        <button id="aiManagementInterpret" class="btn btn-outline-primary ms-2" type="button" disabled>
+                            @(bn ? "AI বিশ্লেষণ তৈরি করুন" : "Generate AI interpretation")
+                        </button>
+                    </div>
+                </form>
+                <div id="aiManagementMetrics" class="mt-3 d-none" aria-live="polite">
+                    <div class="row g-2">
+                        <div class="col-md-4"><div class="border rounded p-3">
+                            <p class="small text-muted mb-1">@(bn ? "বর্তমান সক্রিয় ভর্তি" : "Current active enrollments")</p>
+                            <strong id="aiMetricActive" class="fs-4"></strong>
+                        </div></div>
+                        <div class="col-md-4"><div class="border rounded p-3">
+                            <p class="small text-muted mb-1">@(bn ? "চূড়ান্ত উপস্থিতি এন্ট্রি" : "Finalized attendance entries")</p>
+                            <strong id="aiMetricMarks" class="fs-4"></strong>
+                        </div></div>
+                        <div class="col-md-4"><div class="border rounded p-3">
+                            <p class="small text-muted mb-1">@(bn ? "উপস্থিতির হার" : "Attendance rate")</p>
+                            <strong id="aiMetricRate" class="fs-4"></strong>
+                        </div></div>
+                    </div>
+                    <ul id="aiManagementFindings" class="mt-3 mb-0"></ul>
+                    <p class="small text-muted mt-2 mb-0">
+                        @(bn ? "শুধু Finalized Attendance; অনুপস্থিতি, উপস্থিতি ও বিলম্বে হার গণনা করা হয়। এটি দৈনিক ছাত্রসংখ্যা নয়।" :
+                            "Only finalized attendance entries; rate uses present, late and absent marks. This is not a unique daily student count.")
+                    </p>
+                </div>
+            </div>
+        </div>
+    }
+    <div id="aiOutputPanel" class="card border-0 shadow-sm mt-3 d-none">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                <h2 class="h6 mb-0">@(bn ? "সহকারীর উত্তর (যাচাই প্রয়োজন)" : "Assistant output (review required)")</h2>
+                <button id="aiCopy" class="btn btn-sm btn-outline-secondary" type="button">
+                    @(bn ? "কপি করুন" : "Copy text")
+                </button>
+            </div>
+            <div id="aiOutputText" class="text-break" style="white-space:pre-wrap;" aria-live="polite"></div>
+            <p id="aiOutputDisclaimer" class="small text-muted mt-3 mb-0"></p>
+        </div>
+    </div>
+    <p class="text-muted small mt-3">
+        @(bn ? "AI সার্ভিসে পাঠানো লেখা ব্যক্তিগত তথ্য ছাড়া দিন। উৎপন্ন লেখা কোনো অফিসিয়াল প্রশ্নপত্র, ফল বা শিক্ষার্থীর রেকর্ড নয়।" :
+            "Do not enter personal data in an AI prompt. Generated content is not an official assessment, result or student record.")
+    </p>
+</section>
+@section Scripts {
+    <script src="~/js/ai/workspace.js" asp-append-version="true"></script>
+}
