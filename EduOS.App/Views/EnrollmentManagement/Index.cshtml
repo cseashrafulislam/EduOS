@@ -37,21 +37,22 @@
                 <div class="card-body">
                     <h2 class="h5">2. Select section &amp; curriculum</h2>
                     <form id="enrollmentForm" class="row g-3">
-                        <div class="col-md-7">
-                            <label for="enrollmentBatchSearch" class="form-label">Find academic batch (prefix search)</label>
-                            <input id="enrollmentBatchSearch" maxlength="100" class="form-control" placeholder="Grade Nine, G9-A" />
+                        <div class="col-md-4">
+                            <label for="enrollmentCampus" class="form-label">Campus *</label>
+                            <select id="enrollmentCampus" class="form-select" required></select>
                         </div>
-                        <div class="col-md-5 d-flex align-items-end">
-                            <button id="enrollmentBatchSearchButton" type="button" class="btn btn-outline-secondary w-100">Search batches</button>
+                        <div class="col-md-4">
+                            <label for="enrollmentYear" class="form-label">Academic Year *</label>
+                            <select id="enrollmentYear" class="form-select" required></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="enrollmentLevel" class="form-label">Class / Grade *</label>
+                            <select id="enrollmentLevel" class="form-select" required></select>
                         </div>
                         <div class="col-12">
-                            <label for="enrollmentBatch" class="form-label">Academic batch *</label>
-                            <select id="enrollmentBatch" class="form-select" required></select>
-                            <small class="text-muted">Search by academic batch name or code for larger institutions.</small>
-                        </div>
-                        <div class="col-12">
-                            <label for="enrollmentSection" class="form-label">Academic section *</label>
-                            <select id="enrollmentSection" class="form-select"></select>
+                            <label for="enrollmentSection" class="form-label">Academic Section *</label>
+                            <select id="enrollmentSection" class="form-select" required></select>
+                            <small class="text-muted">Academic Batch is optional. Select a class-owned Section.</small>
                         </div>
                         <div class="col-md-6">
                             <label for="enrollmentDate" class="form-label">Enrollment date *</label>
