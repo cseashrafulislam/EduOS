@@ -67,6 +67,14 @@ namespace EduOS.App.Extensions
                         _ => CreateOptions(budget, TimeSpan.FromMinutes(1)));
                 });
 
+                // AI calls have explicit per-user limits because model requests are billable.
+                // No queue: callers must retry deliberately instead of creating hidden load.
+                options.AddPolicy("AiGenerationPolicy", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        $"ai:tenant:{context.User.FindFirstValue("TenantId") ?? "0"}:" +
+                        $"user:{context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous"}",
+                        _ => CreateOptions(6, TimeSpan.FromMinutes(10))));
+
                 // Government identifier matching is deliberately much tighter than
                 // the general API quota to reduce enumeration attempts.
                 options.AddPolicy("LearnerIdentityPolicy", context =>
