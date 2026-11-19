@@ -16,13 +16,13 @@
             ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/SmartSetup', '/NumberSeries', '/TenantModules', '/IntegrationAdministration']],
             ['subscription', 'Subscription & Usage', 'সাবস্ক্রিপশন ও ব্যবহার', ['/SubscriptionBilling', '/UsageHistory']],
             ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions']],
-            ['work-center', 'Work Center', 'কাজ ও অনুমোদন', ['/CentralWorkCenter']],
+            ['work-center', 'Work Center', 'কাজ ও অনুমোদন', ['/CentralWorkCenter', '/AiWorkspace/Management']],
             ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
         ],
         academics: [
             ['learners', 'Students & Admissions', 'ভর্তি ও শিক্ষার্থী', ['/Admissions', '/Students', '/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/LearnerIdentities', '/StudentSupport']],
             ['operations', 'Attendance & Classes', 'উপস্থিতি ও ক্লাস', ['/AcademicRoutines', '/AcademicInstruction', '/AcademicCalendar', '/StudentLeaves', '/Attendance']],
-            ['learning', 'Academics & Learning', 'একাডেমিক ও শিক্ষা', ['/Learning', '/TeacherStudio']],
+            ['learning', 'Academics & Learning', 'একাডেমিক ও শিক্ষা', ['/Learning', '/TeacherStudio', '/AiWorkspace/Teacher', '/AiWorkspace/Tutor']],
             ['assessments', 'Exams & Results', 'পরীক্ষা ও ফলাফল', ['/AssessmentAdministration']],
             ['portal', 'My Learning Portal', 'আমার লার্নিং পোর্টাল', ['/StudentPortal', '/StudentSubjects', '/Alumni']],
             ['career', 'Career & Placement', 'ক্যারিয়ার ও কর্মসংস্থান', ['/CareerEmployers', '/CareerOpportunities', '/CareerPlacements']],
@@ -92,7 +92,7 @@
         ],
         'academics:learning': [
             ['settings', 'Settings', 'সেটিংস', ['/Learning/CourseContent']],
-            ['operations', 'Operations', 'কার্যক্রম', ['/Learning/Index', '/Learning/Quizzes', '/Learning/LiveClasses', '/Learning/AssignmentFiles', '/Learning/MySubmissions', '/Learning/StudyPlan', '/TeacherStudio']],
+            ['operations', 'Operations', 'কার্যক্রম', ['/Learning/Index', '/Learning/Quizzes', '/Learning/LiveClasses', '/Learning/AssignmentFiles', '/Learning/MySubmissions', '/Learning/StudyPlan', '/TeacherStudio', '/AiWorkspace/Teacher', '/AiWorkspace/Tutor']],
             ['reports', 'Reports', 'রিপোর্ট', ['/Learning/CourseCompletions', '/Learning/Certificates']]
         ],
         'management:finance': [
