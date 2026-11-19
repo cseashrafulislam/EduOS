@@ -151,7 +151,8 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
             (request.TargetAcademicBatchId==null &&
                 (request.TargetAcademicYearId is null or <= 0 ||
                  request.TargetAcademicLevelId is null or <= 0)) ||
-            request.TargetAcademicSectionId is null or <= 0 ||
+            request.TargetAcademicSectionId is <= 0 ||
+            (request.TargetAcademicBatchId==null && request.TargetAcademicSectionId==null) ||
             string.IsNullOrWhiteSpace(request.TargetRoll) || request.TargetRoll.Trim().Length>50 ||
             string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length>450 ||
             !Decode(request.StudentRowVersion,out var studentVersion) ||
