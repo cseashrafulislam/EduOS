@@ -30,7 +30,7 @@ public sealed class ProcessStudentReadmissionDto
     [Range(1,long.MaxValue)] public long? TargetAcademicBatchId { get; set; }
     [Range(1,long.MaxValue)] public long? TargetAcademicYearId { get; set; }
     [Range(1,long.MaxValue)] public long? TargetAcademicLevelId { get; set; }
-    [Required,Range(1,long.MaxValue)] public long? TargetAcademicSectionId { get; set; }
+    [Range(1,long.MaxValue)] public long? TargetAcademicSectionId { get; set; }
     [Required,StringLength(50)] public string TargetRoll { get; set; } = "";
     [Required,StringLength(450)] public string Reason { get; set; } = "";
     [Required] public string StudentRowVersion { get; set; } = "";
