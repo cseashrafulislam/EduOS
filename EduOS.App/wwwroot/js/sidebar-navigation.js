@@ -71,6 +71,9 @@
             ['operations', 'Operations', 'কার্যক্রম', ['/SubscriptionBilling']],
             ['reports', 'Reports', 'রিপোর্ট', ['/UsageHistory']]
         ],
+        'setup:work-center': [
+            ['operations', 'Operations', 'কার্যক্রম', ['/CentralWorkCenter', '/AiWorkspace/Management']]
+        ],
         'setup:enrollment': [
             ['settings', 'Settings', 'সেটিংস', ['/StudentGuardians', '/StudentDocuments']],
             ['operations', 'Operations', 'কার্যক্রম', ['/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions', '/StudentLifecycle', '/StudentTransferRequests']]
