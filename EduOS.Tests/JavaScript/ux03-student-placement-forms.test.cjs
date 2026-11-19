@@ -35,6 +35,7 @@ test('readmission keeps retry key for uncertain identical POST and rotates only 
         textContent: '', children: [], handlers: {}, classList: { add() {}, remove() {} },
         addEventListener(name, callback) { this.handlers[name] = callback; },
         append(...items) { this.children.push(...items); },
+        add(item) { this.children.push(item); },
         replaceChildren(...items) { this.children = items; },
         reset() { for (const id of ['readmissionRoll', 'readmissionReason']) get(id).value = ''; },
         focus() {}, querySelector() { return { value: 'token' }; }
@@ -57,7 +58,12 @@ test('readmission keeps retry key for uncertain identical POST and rotates only 
         else if (address.endsWith('/readmission/options')) data = {
             studentReference, studentCode: 'S001', previousStatus: 'Exited', previousEnrollmentId: 1,
             studentRowVersion: 'v1', previousEnrollmentRowVersion: 'v2',
-            targets: [{ academicBatchId: 3, name: 'Batch 2027' }]
+            campusId: 1, years: [{ id: 2027, name: '2027' }],
+            levels: [{ id: 3, name: 'Class Five' }],
+            targets: []
+        };
+        else if (address.startsWith('/api/academic-sections?')) data = {
+            items: [{ id: 4, name: 'Section A', isActive: true, capacity: 40 }]
         };
         else if (address.endsWith('/readmission') && options.method === 'POST') {
             submitted.push(JSON.parse(options.body));
@@ -72,7 +78,9 @@ test('readmission keeps retry key for uncertain identical POST and rotates only 
         isDirty: () => false, confirmDiscard: () => true, markClean() {}
     }) } };
     vm.runInNewContext(read('EduOS.App/wwwroot/js/students/readmissions.js'), {
-        document, window, fetch, URLSearchParams, location: { search: '' },
+        document, window, fetch, URLSearchParams,
+        Option: function(label, value) { return { text: label, value: String(value) }; },
+        location: { search: '' },
         confirm: () => true, crypto: { randomUUID: () => 'id-' + ++counter }
     });
     const tick = () => new Promise(resolve => setImmediate(resolve));
@@ -82,7 +90,9 @@ test('readmission keeps retry key for uncertain identical POST and rotates only 
     assert.equal(get('readmissionMatches').children.length, 1);
     get('readmissionMatches').children[0].handlers.click();
     await tick(); await tick();
-    get('readmissionBatch').value = '3';
+    get('readmissionYear').value = '2027';
+    get('readmissionLevel').value = '3';
+    get('readmissionSection').value = '4';
     get('readmissionRoll').value = 'R01';
     get('readmissionReason').value = 'Returned';
     get('readmissionForm').handlers.submit({ preventDefault() {} });
@@ -91,6 +101,9 @@ test('readmission keeps retry key for uncertain identical POST and rotates only 
     assert.equal(get('readmissionRoll').value, 'R01', 'failed write retains entered roll');
     get('readmissionForm').handlers.submit({ preventDefault() {} });
     await tick(); await tick();
+    assert.equal(submitted[0].targetAcademicBatchId, null);
+    assert.equal(submitted[0].targetAcademicYearId, 2027);
+    assert.equal(submitted[0].targetAcademicSectionId, 4);
     assert.equal(submitted[0].clientRequestId, submitted[1].clientRequestId,
         'identical retry must use the same server idempotency key');
     get('readmissionReason').value = 'Returned with new evidence';
