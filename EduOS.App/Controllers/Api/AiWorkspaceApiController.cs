@@ -22,6 +22,7 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
     });
 
     [HttpPost("teacher")]
+    [EnableRateLimiting("AiGenerationPolicy")]
     [Authorize(Roles = "Teacher,Principal,TenantAdmin")]
     [RequireModule("LMS")]
     public async Task<IActionResult> Teacher([FromBody] TeacherCopilotRequest request, CancellationToken ct)
@@ -32,6 +33,7 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
     }
 
     [HttpPost("tutor")]
+    [EnableRateLimiting("AiGenerationPolicy")]
     [Authorize(Roles = "Student")]
     [RequireModule("LMS")]
     public async Task<IActionResult> Tutor([FromBody] StudentTutorRequest request, CancellationToken ct)
@@ -61,6 +63,7 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
     }
 
     [HttpPost("management/interpret")]
+    [EnableRateLimiting("AiGenerationPolicy")]
     [Authorize(Roles = "Principal,TenantAdmin")]
     [RequireModule("ATTENDANCE")]
     public async Task<IActionResult> Interpret([FromBody] AiManagementInterpretRequest request, CancellationToken ct)
