@@ -36,14 +36,16 @@
         el('readmissionStudent').textContent='';
     }
     async function loadSections() {
-        const batchId=Number(val('readmissionBatch')),ticket=++state.sectionRequest;
+        const levelId=Number(val('readmissionLevel')),campusId=state.options?.campusId,
+            ticket=++state.sectionRequest;
         const select=el('readmissionSection');
         state.sections=[];
         select.replaceChildren(new Option('Select academic section',''));
-        if(!batchId)return;
-        const data=await api('/api/academic-sections?academicBatchId='+encodeURIComponent(String(batchId))+
-            '&page=1&pageSize=100');
-        if(ticket!==state.sectionRequest||!sameSession()||Number(val('readmissionBatch'))!==batchId)return;
+        if(!levelId||!campusId)return;
+        const query=new URLSearchParams({campusId:String(campusId),academicLevelId:String(levelId),
+            page:'1',pageSize:'100'});
+        const data=await api('/api/academic-sections?'+query);
+        if(ticket!==state.sectionRequest||!sameSession()||Number(val('readmissionLevel'))!==levelId)return;
         state.sections=(data.items||[]).filter(x=>x.isActive&&x.capacity>0);
         state.sections.forEach(x=>select.add(new Option(x.name,String(x.id))));
         if(state.sections.length===1)select.value=String(state.sections[0].id);
@@ -78,16 +80,21 @@
         try {
             const options=await api('/api/students/'+encodeURIComponent(reference)+'/readmission/options');
             if(request!==state.optionsRequest||!sameSession())return;
-            if(!options||!Array.isArray(options.targets))throw Error('Readmission options unavailable.');
+            if(!options||!Array.isArray(options.years)||!Array.isArray(options.levels))
+                throw Error('Readmission academic scopes unavailable.');
             if(options.studentReference!==reference)throw Error('Student reference mismatch. Reload and retry.');
             state.options=options;
             el('readmissionStudent').textContent=options.studentCode+' — '+options.previousStatus;
-            const select=el('readmissionBatch');select.replaceChildren();
-            for(const target of options.targets) {
-                const option=document.createElement('option');
-                option.value=String(target.academicBatchId);option.textContent=target.name;select.append(option);
-            }
-            if(!options.targets.length)return notice('No eligible open batches for this student.');
+            const fill=(id,items,placeholder)=>{
+                const select=el(id);
+                select.replaceChildren(new Option(placeholder,''));
+                for(const item of items)select.add(new Option(item.name,String(item.id)));
+                if(items.length===1)select.value=String(items[0].id);
+            };
+            fill('readmissionYear',options.years,'Select academic year');
+            fill('readmissionLevel',options.levels,'Select class / grade');
+            if(!options.years.length||!options.levels.length)
+                return notice('No eligible current academic year or class for readmission.');
             el('readmissionRoll').value='';el('readmissionReason').value='';
             await loadSections();
             guard?.markClean();
@@ -97,15 +104,19 @@
     async function submit(event) {
         event.preventDefault();
         if(!sameSession()||state.saving||!state.options)return;
-        const batch=Number(val('readmissionBatch')),sectionId=Number(val('readmissionSection'))||null,
+        const yearId=Number(val('readmissionYear')),levelId=Number(val('readmissionLevel')),
+            sectionId=Number(val('readmissionSection'))||null,
             roll=val('readmissionRoll'),reason=val('readmissionReason');
-        if(state.sections.length&&!state.sections.some(x=>x.id===sectionId))
-            return notice('Select an active section for readmission.');
-        if(!state.options.targets.some(x=>x.academicBatchId===batch)||!roll||roll.length>50||
-            !reason||reason.length>450)return notice('Select an eligible batch and enter roll and reason.');
+        if(!state.options.years.some(x=>x.id===yearId)||
+            !state.options.levels.some(x=>x.id===levelId)||
+            !state.sections.some(x=>x.id===sectionId))
+            return notice('Select an eligible academic year, class and active section.');
+        if(!roll||roll.length>50||!reason||reason.length>450)
+            return notice('Enter a valid roll and readmission reason.');
         if(!confirm('Readmit '+state.options.studentCode+'? A new enrollment and status history will be created.'))return;
         const request={previousEnrollmentId:state.options.previousEnrollmentId,
-            targetAcademicBatchId:batch,targetAcademicSectionId:sectionId,targetRoll:roll,reason,
+            targetAcademicBatchId:null,targetAcademicYearId:yearId,
+            targetAcademicLevelId:levelId,targetAcademicSectionId:sectionId,targetRoll:roll,reason,
             studentRowVersion:state.options.studentRowVersion,
             previousEnrollmentRowVersion:state.options.previousEnrollmentRowVersion};
         const fingerprint=JSON.stringify(request);
@@ -125,7 +136,7 @@
     }
     el('readmissionSearch').addEventListener('submit',search);
     el('readmissionForm').addEventListener('submit',submit);
-    el('readmissionBatch').addEventListener('change',()=>{
+    el('readmissionLevel').addEventListener('change',()=>{
         loadSections().catch(e=>notice(e.message));
     });
     el('readmissionQuery').addEventListener('input',()=>{++state.searchRequest;});
