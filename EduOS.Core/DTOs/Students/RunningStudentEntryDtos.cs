@@ -13,7 +13,8 @@ public sealed class CreateRunningStudentRequestDto
     [StringLength(30)] public string? Phone { get; set; }
     [StringLength(1000)] public string? Address { get; set; }
     public DateOnly AdmissionDate { get; set; }
-    [Range(1, long.MaxValue)] public long AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long? AcademicBatchId { get; set; }
+    [Range(1, long.MaxValue)] public long? AcademicYearId { get; set; }
     [Required, Range(1, long.MaxValue)] public long? AcademicSectionId { get; set; }
     [Range(1, long.MaxValue)] public long AcademicCurriculumId { get; set; }
     [Required, StringLength(50)] public string RollNo { get; set; } = string.Empty;
