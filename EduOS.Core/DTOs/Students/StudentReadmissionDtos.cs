@@ -6,6 +6,9 @@ public sealed class StudentReadmissionOptionsDto
     public string StudentCode { get; set; } = "";
     public string PreviousStatus { get; set; } = "";
     public long PreviousEnrollmentId { get; set; }
+    public long CampusId { get; set; }
+    public IReadOnlyList<StudentReadmissionScopeDto> Years { get; set; } = Array.Empty<StudentReadmissionScopeDto>();
+    public IReadOnlyList<StudentReadmissionScopeDto> Levels { get; set; } = Array.Empty<StudentReadmissionScopeDto>();
     public string StudentRowVersion { get; set; } = "";
     public string PreviousEnrollmentRowVersion { get; set; } = "";
     public IReadOnlyList<StudentReadmissionTargetDto> Targets { get; set; } = Array.Empty<StudentReadmissionTargetDto>();
@@ -15,12 +18,19 @@ public sealed class StudentReadmissionTargetDto
     public long AcademicBatchId { get; set; }
     public string Name { get; set; } = "";
 }
+public sealed class StudentReadmissionScopeDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
 public sealed class ProcessStudentReadmissionDto
 {
     public Guid ClientRequestId { get; set; }
     [Range(1,long.MaxValue)] public long PreviousEnrollmentId { get; set; }
-    [Range(1,long.MaxValue)] public long TargetAcademicBatchId { get; set; }
-    [Range(1,long.MaxValue)] public long? TargetAcademicSectionId { get; set; }
+    [Range(1,long.MaxValue)] public long? TargetAcademicBatchId { get; set; }
+    [Range(1,long.MaxValue)] public long? TargetAcademicYearId { get; set; }
+    [Range(1,long.MaxValue)] public long? TargetAcademicLevelId { get; set; }
+    [Required,Range(1,long.MaxValue)] public long? TargetAcademicSectionId { get; set; }
     [Required,StringLength(50)] public string TargetRoll { get; set; } = "";
     [Required,StringLength(450)] public string Reason { get; set; } = "";
     [Required] public string StudentRowVersion { get; set; } = "";
