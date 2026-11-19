@@ -7,6 +7,7 @@ using EduOS.Core.Interfaces.Jobs;
 using EduOS.Core.Settings;
 using EduOS.Service.Helpers;
 using EduOS.Service.Services;
+using EduOS.Service.Services.AI;
 using EduOS.Service.Services.Accounting;
 using EduOS.Service.Services.Inventory;
 using EduOS.Service.Services.Alumni;
@@ -151,6 +152,7 @@ namespace EduOS.App.Extensions
                 new CapabilityDescriptor("education.study.chapter", 1, "education.study.chapter.v1", "Study.Read")
             }));
             s.AddScoped<GroundedStudyAssistantService>();
+            s.AddHttpClient<EduOsAiWorkspaceService>(client => client.Timeout = TimeSpan.FromSeconds(30));
             s.AddScoped<ITeacherResourceService, TeacherResourceService>();
             s.AddScoped<TeacherCpdService>();
             s.AddScoped<AdaptiveStudyService>();
