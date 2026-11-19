@@ -246,6 +246,9 @@ public sealed class EduOsAiWorkspaceService(
             }
             await using var stream = await response.Content.ReadAsStreamAsync(ct);
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            if (document.RootElement.TryGetProperty("status", out var status) &&
+                (status.ValueKind != JsonValueKind.String || status.GetString() != "completed"))
+                return Fail<AiGeneratedDraft>("AI response was incomplete; try again.", 503);
             if (!document.RootElement.TryGetProperty("output", out var output) ||
                 output.ValueKind != JsonValueKind.Array)
                 return Fail<AiGeneratedDraft>("AI provider returned no usable text.", 503);
