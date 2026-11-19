@@ -27,8 +27,9 @@ function harness() {
             if (this.tagName === 'DIV' || values.some(x => x instanceof Option)) this.value = values[0]?.value || '';
         }
         reset() {
-            for (const id of ['enrollmentBatchSearch', 'enrollmentRoll', 'enrollmentDate', 'enrollmentRemarks',
-                'enrollmentBatch', 'enrollmentCurriculum']) get(id).value = '';
+            for (const id of ['enrollmentCampus', 'enrollmentYear', 'enrollmentLevel',
+                'enrollmentSection', 'enrollmentRoll', 'enrollmentDate', 'enrollmentRemarks',
+                'enrollmentCurriculum']) get(id).value = '';
         }
         querySelector() { return { value: 'csrf' }; }
         scrollIntoView() {}
@@ -47,10 +48,19 @@ function harness() {
         if (options.method === 'POST') return new Promise(resolve => writes.push({
             url, body: JSON.parse(options.body), resolve
         }));
-        if (url.startsWith('/api/academic-setup/catalog')) return ok({ batches: [{
-            id: 10, name: 'G9-A', code: 'G9A', isActive: true, capacity: 50
-        }] });
-        if (url.startsWith('/api/academic-enrollments/batches/')) return ok([{ id: 20,
+        if (url.startsWith('/api/institution-onboarding/campus-list')) return ok([
+            { id: 1, name: 'Main Campus', isActive: true }]);
+        if (url.startsWith('/api/institution-onboarding/academic-years')) return ok([
+            { id: 10, name: '2026', isActive: true, campusId: null }]);
+        if (url.startsWith('/api/academic-setup/catalog')) return ok({
+            levels: [{ id: 3, name: 'Class Nine', isActive: true, academicProgramId: 5 }],
+            programs: [{ id: 5, name: 'School', campusIds: [1] }]
+        });
+        if (url.startsWith('/api/academic-sections?')) return ok({
+            items: [{ id: 15, name: 'Section A', isActive: true, capacity: 50,
+                campusId: 1, academicLevelId: 3 }]
+        });
+        if (url.startsWith('/api/academic-enrollments/sections/')) return ok([{ id: 20,
             name: 'General', isActive: true, isCurrent: true }]);
         if (url.startsWith('/api/academic-enrollments/students/')) {
             if (holdCurrent) return new Promise(resolve => pending.push(resolve));
@@ -77,7 +87,12 @@ function harness() {
         await flush();
     }
     async function fill() {
-        get('enrollmentBatch').value = '10'; get('enrollmentBatch').handlers.change();
+        get('enrollmentCampus').value = '1'; get('enrollmentCampus').handlers.change();
+        await flush();
+        get('enrollmentYear').value = '10'; get('enrollmentYear').handlers.change();
+        get('enrollmentLevel').value = '3'; get('enrollmentLevel').handlers.change();
+        await flush();
+        get('enrollmentSection').value = '15'; get('enrollmentSection').handlers.change();
         get('enrollmentDate').value = '2026-11-10'; get('enrollmentDate').handlers.input();
         await flush();
         get('enrollmentCurriculum').value = '20'; get('enrollmentCurriculum').handlers.change();
@@ -94,6 +109,9 @@ test('enrollment creates one immutable command and preserves retry key for uncer
     assert.equal(h.get('enrollmentSubmit').disabled, false);
     h.submit(); h.submit(); await h.flush();
     assert.equal(h.writes.length, 1); assert.equal(h.get('enrollmentForm').inert, true);
+    assert.equal(h.writes[0].body.academicBatchId, null);
+    assert.equal(h.writes[0].body.academicYearId, 10);
+    assert.equal(h.writes[0].body.academicSectionId, 15);
     h.writes[0].resolve(h.fail('Network uncertainty')); await h.flush();
     h.submit(); await h.flush();
     assert.equal(h.writes[0].body.clientRequestId, h.writes[1].body.clientRequestId);
@@ -125,15 +143,14 @@ test('enrollment selection rejects a stale tenant response and never enables the
     assert.equal(h.writes.length, 0);
 });
 
-test('searching or reselecting never erases an unconfirmed enrollment draft', async () => {
+test('reselecting a student never erases an unconfirmed enrollment draft', async () => {
     const h = harness(); await h.flush(); await h.choose(); await h.fill();
     h.dirty = true; h.allowDiscard = false;
     await h.choose();
     assert.equal(h.get('enrollmentRoll').value, 'R001');
-    h.get('enrollmentBatchSearch').value = 'Another Section';
-    h.get('enrollmentBatchSearchButton').handlers.click(); await h.flush();
     assert.equal(h.get('enrollmentRoll').value, 'R001');
-    assert.equal(h.get('enrollmentBatch').value, '10');
+    assert.equal(h.get('enrollmentCampus').value, '1');
+    assert.equal(h.get('enrollmentYear').value, '10');
 });
 
 test('enrollment preserves server authority, bounded catalog and shared unsaved guard', () => {
