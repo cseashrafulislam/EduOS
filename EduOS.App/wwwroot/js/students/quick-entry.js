@@ -11,11 +11,14 @@
     const sameSession = () => identity[0] === (document.body?.dataset.authTenantId || '') &&
         identity[1] === (document.body?.dataset.authSessionReference || '') &&
         window.EduOSSessionTransitionPending?.() !== true;
-    const state = { batches: [], sections: [], curricula: [], saving: false,
-        batchSeq: 0, sectionSeq: 0, curriculumSeq: 0,
+    const state = { campuses: [], years: [], levels: [], programs: [], sections: [],
+        curricula: [], saving: false, setupLoading: false,
+        setupSeq: 0, sectionSeq: 0, curriculumSeq: 0,
         requestId: null, fingerprint: null };
     const value = id => (el(id)?.value || '').trim();
-    const currentBatch = () => state.batches.find(x => x.id === Number(value('runningBatch')));
+    const currentCampus = () => state.campuses.find(x => x.id === Number(value('runningCampus')));
+    const currentYear = () => state.years.find(x => x.id === Number(value('runningYear')));
+    const currentLevel = () => state.levels.find(x => x.id === Number(value('runningLevel')));
     const currentSection = () => state.sections.find(x => x.id === Number(value('runningSection')));
     const currentCurriculum = () => state.curricula.find(x => x.id === Number(value('runningCurriculum')));
     const say = (en, bd) => bn ? bd : en;
@@ -71,60 +74,90 @@
         el('runningGuardianName').required = enabled;
         el('runningGuardianRelation').required = enabled;
     }
-    async function batches() {
+    const selectSingle = id => {
+        const dropdown = el(id);
+        if (dropdown.options.length === 2) dropdown.selectedIndex = 1;
+    };
+    function filterYearAndLevel() {
+        const campus = currentCampus();
+        const years = campus ? state.years.filter(x =>
+            x.isActive !== false && (x.campusId == null || x.campusId === campus.id)) : [];
+        selectMenu('runningYear', years, say('Select academic year', 'শিক্ষাবর্ষ নির্বাচন করুন'));
+        if (!years.some(x => String(x.id) === value('runningYear'))) el('runningYear').value = '';
+        selectSingle('runningYear');
+        const permitted = new Set(state.programs.filter(p =>
+            !Array.isArray(p.campusIds) || !p.campusIds.length ||
+            p.campusIds.includes(campus?.id)).map(p => p.id));
+        const levels = campus ? state.levels.filter(x => x.isActive !== false &&
+            permitted.has(x.academicProgramId)) : [];
+        selectMenu('runningLevel', levels, say('Select class / grade', 'শ্রেণি নির্বাচন করুন'));
+        if (!levels.some(x => String(x.id) === value('runningLevel'))) el('runningLevel').value = '';
+        selectSingle('runningLevel');
+    }
+    async function setup() {
         if (state.saving || !sameSession()) return;
-        const seq = ++state.batchSeq, search = value('runningBatchSearch');
-        const button = el('runningBatchSearchButton');
-        button.disabled = true;
-        selectMenu('runningBatch', [], say('Loading batches...', 'ব্যাচ লোড হচ্ছে...'));
+        const seq = ++state.setupSeq;
+        state.setupLoading = true;
         ++state.sectionSeq;
-        state.sections = [];
-        selectMenu('runningSection', [], say('Select batch first', 'আগে ব্যাচ নির্বাচন করুন'));
-        el('runningSection').disabled = true;
-        // A late response from the previous batch must not repopulate the
-        // curriculum after the batch search has reset its dependent selector.
         ++state.curriculumSeq;
+        state.sections = [];
         state.curricula = [];
+        el('runningSection').disabled = true;
+        el('runningCurriculum').disabled = true;
+        selectMenu('runningSection', [], say('Select campus and class first', 'ক্যাম্পাস ও শ্রেণি নির্বাচন করুন'));
         selectMenu('runningCurriculum', [], say('Choose a section first', 'আগে শাখা নির্বাচন করুন'));
         try {
-            const params = new URLSearchParams({ take: '100' });
-            if (search) params.set('search', search);
-            const catalog = await api('/api/academic-setup/catalog?' + params);
-            if (seq !== state.batchSeq || !sameSession()) return;
-            state.batches = (catalog?.batches || []).filter(x => x.isActive);
-            selectMenu('runningBatch', state.batches,
-                say('Select academic batch', 'একাডেমিক ব্যাচ নির্বাচন করুন'));
-            if (!state.batches.length) alertMessage(
-                say('No active academic batch found. Search another term or check Academic Batches.',
-                    'সক্রিয় একাডেমিক ব্যাচ পাওয়া যায়নি। অন্যভাবে খুঁজুন অথবা Academic Batches দেখুন।'), true);
+            const [campuses, years, catalog] = await Promise.all([
+                api('/api/institution-onboarding/campus-list'),
+                api('/api/institution-onboarding/academic-years'),
+                api('/api/academic-setup/catalog?take=100')
+            ]);
+            if (seq !== state.setupSeq || !sameSession()) return;
+            state.campuses = (campuses || []).filter(x => x.isActive !== false);
+            state.years = (years || []).filter(x => x.isActive !== false);
+            state.programs = catalog?.programs || [];
+            state.levels = catalog?.levels || [];
+            selectMenu('runningCampus', state.campuses, say('Select campus', 'ক্যাম্পাস নির্বাচন করুন'));
+            selectSingle('runningCampus');
+            filterYearAndLevel();
+            await sections();
+            if (!state.campuses.length || !state.years.length || !state.levels.length)
+                alertMessage(say('Complete campus, academic year and class setup before saving.',
+                    'সংরক্ষণের আগে ক্যাম্পাস, শিক্ষাবর্ষ ও শ্রেণি সেটআপ করুন।'), true);
         } catch (err) {
-            if (seq === state.batchSeq && sameSession()) alertMessage(err.message, true);
+            if (seq === state.setupSeq && sameSession()) alertMessage(err.message, true);
         } finally {
-            if (seq === state.batchSeq) button.disabled = state.saving;
+            if (seq === state.setupSeq) state.setupLoading = false;
         }
     }
     async function sections() {
         const seq = ++state.sectionSeq;
+        ++state.curriculumSeq;
         state.sections = [];
+        state.curricula = [];
         const select = el('runningSection');
         select.disabled = true;
-        selectMenu('runningSection', [], say('Select academic section', 'একাডেমিক শাখা নির্বাচন করুন'));
-        const batch = currentBatch();
-        if (!batch || !sameSession()) return;
+        el('runningCurriculum').disabled = true;
+        selectMenu('runningSection', [], say('Select academic section', 'শাখা নির্বাচন করুন'));
+        selectMenu('runningCurriculum', [], say('Choose a section first', 'আগে শাখা নির্বাচন করুন'));
+        const campus = currentCampus(), level = currentLevel();
+        if (!campus || !level || !sameSession()) return;
         try {
             const query = new URLSearchParams({
-                academicBatchId: String(batch.id), page: '1', pageSize: '100'
+                campusId: String(campus.id), academicLevelId: String(level.id),
+                page: '1', pageSize: '100'
             });
             const result = await api('/api/academic-sections?' + query);
-            if (seq !== state.sectionSeq || !sameSession() || batch !== currentBatch()) return;
+            if (seq !== state.sectionSeq || !sameSession() ||
+                currentCampus()?.id !== campus.id || currentLevel()?.id !== level.id) return;
             state.sections = (result?.items || []).filter(x => x.isActive && x.capacity > 0);
             selectMenu('runningSection', state.sections,
-                say('Select academic section', 'একাডেমিক শাখা নির্বাচন করুন'));
+                say('Select academic section', 'শাখা নির্বাচন করুন'));
             select.disabled = !state.sections.length;
-            if (state.sections.length === 1)
-                select.value = String(state.sections[0].id);
+            selectSingle('runningSection');
+            if (state.sections.length === 1) await curricula();
             if (!state.sections.length)
-                alertMessage(say('This class has no active Section. Create one in Academic Sections.',
+                alertMessage(say('No active section for this class. Create one in Academic Sections.',
                     'এই শ্রেণিতে সক্রিয় শাখা নেই। Academic Sections-এ তৈরি করুন।'), true);
         } catch (error) {
             if (seq === state.sectionSeq && sameSession()) alertMessage(error.message, true);
@@ -134,25 +167,25 @@
         const seq = ++state.curriculumSeq;
         state.curricula = [];
         selectMenu('runningCurriculum', [], say('Select applicable curriculum', 'প্রযোজ্য পাঠ্যক্রম'));
-        const batch = currentBatch(), date = value('runningEnrollDate');
+        const section = currentSection(), year = currentYear(), date = value('runningEnrollDate');
         el('runningCurriculum').disabled = true;
-        if (!batch || !date || !sameSession()) return;
+        if (!section || !year || !date || !sameSession()) return;
         el('runningCurriculumHelp').textContent = say('Checking curriculum...', 'পাঠ্যক্রম যাচাই চলছে...');
         try {
-            const rows = await api('/api/academic-enrollments/batches/' + batch.id +
-                '/curricula?enrollmentDate=' + encodeURIComponent(date));
-            if (seq !== state.curriculumSeq || !sameSession()) return;
-            state.curricula = Array.isArray(rows) ? rows : [];
+            const query = new URLSearchParams({ academicYearId: String(year.id), enrollmentDate: date });
+            const rows = await api('/api/academic-enrollments/sections/' + section.id + '/curricula?' + query);
+            if (seq !== state.curriculumSeq || !sameSession() ||
+                currentSection()?.id !== section.id || currentYear()?.id !== year.id) return;
+            state.curricula = Array.isArray(rows) ? rows.filter(x => x.isActive && x.isCurrent) : [];
             el('runningCurriculum').disabled = !state.curricula.length;
             selectMenu('runningCurriculum', state.curricula,
                 say('Select applicable curriculum', 'প্রযোজ্য পাঠ্যক্রম'));
-            // Most schools have one applicable curriculum. Auto-select only when unambiguous.
-            if (state.curricula.length === 1) el('runningCurriculum').value = String(state.curricula[0].id);
+            selectSingle('runningCurriculum');
             el('runningCurriculumHelp').textContent = state.curricula.length
-                ? say('Automatically selected when only one eligible curriculum exists.',
-                    'একটিমাত্র উপযুক্ত পাঠ্যক্রম থাকলে স্বয়ংক্রিয়ভাবে নির্বাচিত হবে।')
-                : say('No eligible curriculum. Check academic setup before saving.',
-                    'উপযুক্ত পাঠ্যক্রম নেই। আগে Academic Setup যাচাই করুন।');
+                ? say('Select the effective curriculum for this section and year.',
+                    'এই শাখা ও শিক্ষাবর্ষের প্রযোজ্য পাঠ্যক্রম নির্বাচন করুন।')
+                : say('No eligible curriculum. Complete academic setup before saving.',
+                    'উপযুক্ত পাঠ্যক্রম নেই। আগে Academic Setup সম্পন্ন করুন।');
         } catch (err) {
             if (seq === state.curriculumSeq && sameSession())
                 el('runningCurriculumHelp').textContent = err.message;
@@ -171,7 +204,8 @@
         return {
             fullName: value('runningStudentName'),
             fullNameBangla: value('runningStudentNameBn') || null,
-            academicBatchId: currentBatch()?.id || 0,
+            academicBatchId: null,
+            academicYearId: currentYear()?.id || null,
             academicSectionId: currentSection()?.id || 0,
             academicCurriculumId: currentCurriculum()?.id || 0,
             rollNo: value('runningRoll'),
@@ -198,12 +232,13 @@
         if (!token) return alertMessage(say('Security token is missing. Reload before saving.',
             'নিরাপত্তা টোকেন পাওয়া যায়নি। সংরক্ষণের আগে পেজ রিলোড করুন।'), true);
         if (chooseInvalidTab()) return;
-        // Do not submit while the selected batch's curriculum is still loading
-        // or when an old selection survived a dependent-field refresh.
-        if (el('runningBatchSearchButton').disabled || el('runningCurriculum').disabled)
+        // Never submit while academic scopes are loading or a dependent selection is stale.
+        if (state.setupLoading || el('runningSection').disabled || el('runningCurriculum').disabled)
             return alertMessage(say('Wait for academic options to load.', 'শিক্ষাক্রম লোড হওয়া পর্যন্ত অপেক্ষা করুন।'), true);
-        const batch = currentBatch(), section = currentSection(), curriculum = currentCurriculum();
-        if (!batch || !section || !curriculum || batch.capacity <= 0)
+        const campus = currentCampus(), year = currentYear(), level = currentLevel();
+        const section = currentSection(), curriculum = currentCurriculum();
+        if (!campus || !year || !level || !section || !curriculum ||
+            section.campusId !== campus.id || section.academicLevelId !== level.id)
             return alertMessage(say('Select an available section with an eligible curriculum.',
                 'খালি আসনসহ উপযুক্ত শাখা ও পাঠ্যক্রম নির্বাচন করুন।'), true);
         if (value('runningAdmissionDate') > value('runningEnrollDate'))
@@ -219,8 +254,7 @@
         data.clientRequestId = state.requestId;
         state.saving = true;
         el('runningSave').disabled = true;
-        el('runningBatchSearchButton').disabled = true;
-        el('runningAddGuardian').disabled = true;
+         el('runningAddGuardian').disabled = true;
         toggleGuardian();
         try {
             const created = await api('/api/students/running', { method: 'POST', body: JSON.stringify(data) });
@@ -238,25 +272,22 @@
         } finally {
             state.saving = false;
             el('runningSave').disabled = false;
-            el('runningBatchSearchButton').disabled = false;
-            el('runningAddGuardian').disabled = false;
+             el('runningAddGuardian').disabled = false;
             toggleGuardian();
         }
     }
     function reset() {
         if (state.saving || !sameSession()) return;
-        ++state.batchSeq;
+        ++state.setupSeq;
         ++state.sectionSeq;
         ++state.curriculumSeq;
-        state.batches = [];
-        state.sections = [];
-        el('runningSection').disabled = true;
-        selectMenu('runningSection', [], say('Select batch first', 'আগে ব্যাচ নির্বাচন করুন'));
-        state.curricula = [];
-        selectMenu('runningBatch', [], say('Select class / section', 'শ্রেণি / শাখা নির্বাচন করুন'));
-        selectMenu('runningCurriculum', [], say('Choose a section first', 'আগে শাখা নির্বাচন করুন'));
-        el('runningCurriculum').disabled = true;
+        state.campuses = []; state.years = []; state.levels = [];
+        state.programs = []; state.sections = []; state.curricula = [];
         form.reset();
+        el('runningSection').disabled = true;
+        el('runningCurriculum').disabled = true;
+        selectMenu('runningSection', [], say('Select campus and class first', 'ক্যাম্পাস ও শ্রেণি নির্বাচন করুন'));
+        selectMenu('runningCurriculum', [], say('Choose a section first', 'আগে শাখা নির্বাচন করুন'));
         form.classList.remove('d-none');
         el('runningStudentSuccess').classList.add('d-none');
         clearMessage();
@@ -265,20 +296,23 @@
         toggleGuardian();
         bootstrap.Tab.getOrCreateInstance(el('runningStudentTab')).show();
         el('runningStudentName').focus();
-        batches();
+        setup();
     }
-    el('runningBatchSearchButton').addEventListener('click', batches);
-    el('runningBatchSearch').addEventListener('keydown', event => {
-        if (event.key === 'Enter') { event.preventDefault(); batches(); }
-    });
-    el('runningBatch').addEventListener('change', () => {
+    el('runningCampus').addEventListener('change', () => {
+        filterYearAndLevel();
         sections().catch(error => alertMessage(error.message, true));
+    });
+    el('runningLevel').addEventListener('change', () => {
+        sections().catch(error => alertMessage(error.message, true));
+    });
+    el('runningYear').addEventListener('change', () => {
         curricula().catch(error => alertMessage(error.message, true));
     });
+    el('runningSection').addEventListener('change', curricula);
     el('runningEnrollDate').addEventListener('change', curricula);
     el('runningAddGuardian').addEventListener('change', toggleGuardian);
     form.addEventListener('submit', save);
     el('runningNextStudent').addEventListener('click', reset);
     toggleGuardian();
-    batches();
+    setup();
 })();
