@@ -30,8 +30,8 @@ public static class ManagementQuestionPlanner
         if (Regex.IsMatch(value, @"(?:--|/\*|\*/|;|[<>]|\b(?:sql|select|delete|update|drop|ignore|salary|fee|grade|finance|bank|other\s+campus|other\s+tenant|class|section|batch)\b)",
                 RegexOptions.CultureInvariant) ||
             Regex.IsMatch(value, @"\b\d{4}-\d{2}-\d{2}\b") ||
-            Word(value, "today|yesterday|tomorrow|last|next") ||
-            new[] { "আজ", "গতকাল", "আগামীকাল", "এই মাস", "শ্রেণি", "সেকশন", "ব্যাচ", "ক্যাম্পাস", "বেতন", "ফি" }
+            Word(value, "today|yesterday|tomorrow|last|next|for|by|of|in|at|where|named|specific|mine|my|his|her|their|week|month|year") ||
+            new[] { "আজ", "গতকাল", "আগামীকাল", "এই মাস", "শ্রেণি", "সেকশন", "ব্যাচ", "ক্যাম্পাস", "বেতন", "ফি", "শিক্ষার্থীর", "ছাত্রের", "ছাত্রীর", "শিক্ষকের" }
                 .Any(value.Contains))
             return ManagementQuestionPlan.Reject("Use the authorized campus/date filters; unsupported filters cannot be interpreted.");
 

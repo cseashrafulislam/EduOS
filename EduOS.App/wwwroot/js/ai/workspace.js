@@ -124,12 +124,13 @@
         el('aiManagementMetrics').classList.remove('d-none');
     }
     function clearSnapshot() {
+        // Invalidate pending question/report/model replies when date/campus changes.
+        state.sequence++;
         state.snapshot = null;
         state.snapshotKey = null;
         el('aiManagementMetrics').classList.add('d-none');
-        el('aiManagementInterpret').disabled = true;
-        el('aiManagementAsk').disabled = true;
         el('aiOutputPanel').classList.add('d-none');
+        lock('aiManagementLoad', false);
     }
     async function loadMetrics(event) {
         event.preventDefault();
@@ -196,6 +197,8 @@
         el('aiManagementForm').addEventListener('submit', loadMetrics);
         el('aiManagementInterpret').addEventListener('click', interpretMetrics);
         el('aiManagementAsk').addEventListener('click', askVerifiedMetrics);
+        el('aiManagementQuestion').addEventListener('input', () =>
+            el('aiOutputPanel').classList.add('d-none'));
         ['aiCampus', 'aiFrom', 'aiTo'].forEach(id =>
             el(id).addEventListener('change', clearSnapshot));
         const today = new Date();
