@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -20,6 +21,7 @@ public sealed class TeacherCopilotRequest
     [Required, RegularExpression("^(LessonPlan|Worksheet|Questions)$")] public string OutputType { get; set; } = "LessonPlan";
     [Required, StringLength(60, MinimumLength = 1)] public string ClassLevel { get; set; } = "";
     [Range(10, 180)] public int DurationMinutes { get; set; } = 40;
+    public bool ConsentToExternalAi { get; set; }
     [RegularExpression("^(bn-BD|en-BD)$")] public string Language { get; set; } = "bn-BD";
 }
 
@@ -27,6 +29,7 @@ public sealed class StudentTutorRequest
 {
     [Required, StringLength(150, MinimumLength = 3)] public string Topic { get; set; } = "";
     [Required, StringLength(450, MinimumLength = 5)] public string Question { get; set; } = "";
+    public bool ConsentToExternalAi { get; set; }
     [RegularExpression("^(bn-BD|en-BD)$")] public string Language { get; set; } = "bn-BD";
 }
 
@@ -45,9 +48,19 @@ public sealed class EduOsAiWorkspaceService(
     private bool Trusted => current.IsAuthenticated && current.UserId > 0 &&
         current.TenantId > 0 && db.CurrentTenantId == current.TenantId;
     private bool Manager => Trusted && (current.IsTenantAdmin || current.IsInRole("Principal"));
-    public bool ProviderReady => configuration.GetValue<bool>("EduOsAi:Enabled") &&
+    // Deny external AI egress by default: deployment approval is scoped to explicit tenant IDs.
+    // No wildcard and no authorization decision based on browser-supplied tenant metadata.
+    private bool TenantProviderApproved => Trusted &&
+        (configuration["EduOsAi:ApprovedTenantIds"] ?? "")
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Any(raw => long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var id) &&
+                        id == current.TenantId);
+    public bool ProviderReady => TenantProviderApproved &&
+        configuration.GetValue<bool>("EduOsAi:Enabled") &&
         !string.IsNullOrWhiteSpace(configuration["EduOsAi:ApiKey"]) &&
         !string.IsNullOrWhiteSpace(configuration["EduOsAi:Model"]);
+    public bool TutorReady => ProviderReady && configuration.GetValue<bool>("EduOsAi:StudentTutorEnabled");
+    public bool CurrentRoleReady => current.IsInRole("Student") ? TutorReady : ProviderReady;
     private static ApiResponse<T> Fail<T>(string message, int code = 400) =>
         ApiResponse<T>.ErrorResponse(message, code);
     private static bool HasPersonalData(string text) =>
@@ -78,6 +91,8 @@ public sealed class EduOsAiWorkspaceService(
         TeacherCopilotRequest? request, CancellationToken ct)
     {
         if (!await MayTeachAsync(ct)) return Fail<AiGeneratedDraft>("Active teacher permission required.", 403);
+        if (request?.ConsentToExternalAi != true)
+            return Fail<AiGeneratedDraft>("Explicit consent is required before sending text to an external AI provider.");
         if (request == null || string.IsNullOrWhiteSpace(request.Topic) ||
             string.IsNullOrWhiteSpace(request.ClassLevel) ||
             !new[] { "LessonPlan", "Worksheet", "Questions" }.Contains(request.OutputType) ||
@@ -106,6 +121,9 @@ public sealed class EduOsAiWorkspaceService(
         StudentTutorRequest? request, CancellationToken ct)
     {
         if (!await MayStudyAsync(ct)) return Fail<AiGeneratedDraft>("Active student enrollment required.", 403);
+        if (!TutorReady) return Fail<AiGeneratedDraft>("Student external AI tutoring is not enabled for this institution.", 503);
+        if (request?.ConsentToExternalAi != true)
+            return Fail<AiGeneratedDraft>("Explicit consent is required before sending text to an external AI provider.");
         if (request == null || string.IsNullOrWhiteSpace(request.Topic) ||
             string.IsNullOrWhiteSpace(request.Question) ||
             request.Topic.Length is < 3 or > 150 || request.Question.Length is < 5 or > 450 ||
@@ -201,8 +219,10 @@ public sealed class EduOsAiWorkspaceService(
     }
 
     public async Task<ApiResponse<AiGeneratedDraft>> InterpretAsync(
-        long campusId, DateOnly fromDate, DateOnly toDate, CancellationToken ct)
+        long campusId, DateOnly fromDate, DateOnly toDate, bool consentToExternalAi, CancellationToken ct)
     {
+        if (!consentToExternalAi)
+            return Fail<AiGeneratedDraft>("Explicit consent is required before sending aggregates to an external AI provider.");
         var result = await SnapshotAsync(campusId, fromDate, toDate, ct);
         if (!result.Success || result.Data == null)
             return Fail<AiGeneratedDraft>(result.Message ?? "Analytics unavailable.", result.StatusCode);

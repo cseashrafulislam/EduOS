@@ -26,6 +26,15 @@ test('provider does not leak secrets or mutate canonical ERP tables', () => {
     const svc = file('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
     const js = file('EduOS.App/wwwroot/js/ai/workspace.js');
     assert.match(svc, /EduOsAi:Enabled/);
+    assert.match(svc, /EduOsAi:ApprovedTenantIds/);
+    assert.match(svc, /TenantProviderApproved => Trusted/);
+    assert.match(svc, /EduOsAi:StudentTutorEnabled/);
+    assert.match(svc, /request\?\.ConsentToExternalAi != true/g);
+    assert.match(svc, /if \(!consentToExternalAi\)/);
+    assert.match(js, /el\('aiProviderConsent'\)\?\.checked === true/);
+    assert.match(js, /consentToExternalAi: consent/);
+    assert.match(file('EduOS.App/Views/AiWorkspace/Index.cshtml'), /id="aiProviderConsent"/);
+    assert.match(file('EduOS.App/Controllers/Api/AiWorkspaceApiController.cs'), /service.CurrentRoleReady/);
     assert.match(svc, /EduOsAi:ApiKey/);
     assert.match(svc, /EduOsAi:Model/);
     assert.match(svc, /https:\/\/api\.openai\.com\/v1\/responses/);

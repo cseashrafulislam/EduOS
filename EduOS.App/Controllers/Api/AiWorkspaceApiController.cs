@@ -18,7 +18,7 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
     public IActionResult Status() => Ok(new
     {
         success = true,
-        data = new { modelConfigured = service.ProviderReady, readOnly = true }
+        data = new { modelConfigured = service.CurrentRoleReady, readOnly = true }
     });
 
     [HttpPost("teacher")]
@@ -69,13 +69,14 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
     public async Task<IActionResult> Interpret([FromBody] AiManagementInterpretRequest request, CancellationToken ct)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        var result = await service.InterpretAsync(request.CampusId, request.FromDate, request.ToDate, ct);
+        var result = await service.InterpretAsync(request.CampusId, request.FromDate, request.ToDate, request.ConsentToExternalAi, ct);
         return StatusCode(result.StatusCode, result);
     }
 }
 
 public sealed class AiManagementInterpretRequest
 {
+    public bool ConsentToExternalAi { get; set; }
     [System.ComponentModel.DataAnnotations.Range(1, long.MaxValue)]
     public long CampusId { get; set; }
     public DateOnly FromDate { get; set; }

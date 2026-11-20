@@ -49,11 +49,15 @@
     }
     async function runGenerate(buttonId, endpoint, payload) {
         if (state.busy || !sameSession() || !state.configured) return;
+        const consent = el('aiProviderConsent')?.checked === true;
+        if (!consent) return notice(translate(
+            'Confirm external AI processing for this request first.',
+            'বাহ্যিক AI-তে পাঠানোর আগে এই অনুরোধের সম্মতি দিন।'), true);
         const sequence = ++state.sequence;
         lock(buttonId, true);
         notice(translate('Generating a draft. Review it before use.', 'খসড়া তৈরি হচ্ছে। ব্যবহারের আগে যাচাই করুন।'));
         try {
-            const data = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+            const data = await api(endpoint, { method: 'POST', body: JSON.stringify({ ...payload, consentToExternalAi: consent }) });
             if (sequence !== state.sequence || !sameSession()) return;
             showOutput(data);
             notice(translate('Draft ready for review.', 'যাচাইয়ের জন্য খসড়া প্রস্তুত।'));

@@ -52,6 +52,13 @@
                             <option value="en-BD" selected="@(!bn ? "selected" : null)">English</option>
                         </select>
                     </div>
+
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input id="aiProviderConsent" class="form-check-input" type="checkbox" required />
+                            <label class="form-check-label small" for="aiProviderConsent">@(bn ? "আমি ব্যক্তিগত তথ্য ছাড়া প্রশ্ন বাহ্যিক AI প্রদানকারীর কাছে পাঠাতে সম্মত।" : "I consent to sending this non-personal prompt to the external AI provider for this request.")</label>
+                        </div>
+                    </div>
                     <div class="col-12">
                         <button id="aiTeacherGenerate" class="btn btn-primary" type="submit">
                             @(bn ? "খসড়া তৈরি করুন" : "Generate draft")
@@ -81,6 +88,13 @@
                         <label for="aiTutorQuestion" class="form-label">@(bn ? "তোমার প্রশ্ন" : "Your question") *</label>
                         <textarea id="aiTutorQuestion" class="form-control" rows="3" minlength="5" maxlength="450"
                                   required placeholder="@(bn ? "যে ধারণা বুঝতে সমস্যা হচ্ছে তা লিখো" : "What concept do you want explained?")"></textarea>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input id="aiProviderConsent" class="form-check-input" type="checkbox" required />
+                            <label class="form-check-label small" for="aiProviderConsent">@(bn ? "আমি ব্যক্তিগত তথ্য ছাড়া প্রশ্ন বাহ্যিক AI প্রদানকারীর কাছে পাঠাতে সম্মত।" : "I consent to sending this non-personal prompt to the external AI provider for this request.")</label>
+                        </div>
                     </div>
                     <div class="col-12">
                         <button id="aiTutorGenerate" class="btn btn-primary" type="submit">
@@ -121,6 +135,10 @@
                         <button id="aiManagementInterpret" class="btn btn-outline-primary ms-2" type="button" disabled>
                             @(bn ? "AI বিশ্লেষণ তৈরি করুন" : "Generate AI interpretation")
                         </button>
+                        <div class="form-check mt-2">
+                            <input id="aiProviderConsent" class="form-check-input" type="checkbox" />
+                            <label class="form-check-label small" for="aiProviderConsent">@(bn ? "আমি অনুমোদিত সারাংশ বাহ্যিক AI প্রদানকারীর কাছে পাঠানোর সম্মতি দিচ্ছি।" : "I consent to sending only the selected aggregate metrics to the external AI provider.")</label>
+                        </div>
                     </div>
                 </form>
                 <div id="aiManagementMetrics" class="mt-3 d-none" aria-live="polite">

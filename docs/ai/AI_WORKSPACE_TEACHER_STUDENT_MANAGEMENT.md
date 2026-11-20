@@ -25,8 +25,10 @@ No new data authority and no new database table. AI-generated responses never sa
 | `EduOsAi__Enabled` | `true` to enable model generation; unset/false disables it |
 | `EduOsAi__ApiKey` | provider secret, **never commit or log** |
 | `EduOsAi__Model` | compatible OpenAI Responses API text model name |
+| `EduOsAi__ApprovedTenantIds` | required comma-separated institution tenant IDs explicitly approved for external AI; empty denies all tenants |
+| `EduOsAi__StudentTutorEnabled` | separate opt-in for student-facing external AI; defaults to false |
 
-The service sends `POST https://api.openai.com/v1/responses` with `max_output_tokens=900` and `store=false`. If the model isn't configured, the Teacher/Tutor buttons are disabled; management verified SQL metrics remain usable. Provider endpoint and credentials cannot be supplied by the browser.
+External provider generation is denied unless BOTH the deployment's tenant allowlist and the current user's per-request unchecked-by-default consent are present. A student tutor requires the extra StudentTutorEnabled switch; guardian/institution data-processing approval and privacy policy remain deployment prerequisites. The deterministic management snapshot remains available without provider approval. The service sends `POST https://api.openai.com/v1/responses` with `max_output_tokens=900` and `store=false`. If the model isn't configured, the Teacher/Tutor buttons are disabled; management verified SQL metrics remain usable. Provider endpoint and credentials cannot be supplied by the browser.
 
 ## API
 
@@ -41,7 +43,7 @@ All writes require the normal antiforgery token. The only POST effects are provi
 
 ## Release gate
 1. `dotnet build EduOS.slnx` and `dotnet test` on the pinned .NET 10 SDK; run `node --test EduOS.Tests/JavaScript/ai-workspace-contract.test.cjs`.
-2. Inspect and validate the environment key/model in staging; test explicitly **disabled** mode. Do not use real pupil data in provider smoke tests.
+2. Inspect and validate the environment key/model in staging; test explicitly **disabled** mode, missing/nonmatching ApprovedTenantIds, unchecked consent, and student mode without StudentTutorEnabled. Never allow an unapproved institution to trigger an outbound call. Do not use real pupil data in provider smoke tests.
 3. Test TenantAdmin, Principal, Teacher, Student and unauthorized users. Validate cross-tenant IDs, campus access revocation, expired/current enrollment, suspended employees, and legacy batchless StudentEnrollment records.
 4. Test 429 limits, provider failures/timeouts, model format changes, session switch, XSS, empty/oversized/PII-bearing prompts, browser assistive access and mobile viewport.
 5. Confirm production privacy notice, processor/data-processing agreement, school approval for external AI services, tenant spend ceilings, observability and rollback owner. No automatic model output posting or publish actions.
