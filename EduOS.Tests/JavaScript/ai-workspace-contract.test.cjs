@@ -63,6 +63,23 @@ test('management report reads tenant-scoped finalized evidence and campus permis
     assert.match(svc, /current\.IsInRole\("Student"\)/);
 });
 
+test('local-first management questions reuse canonical authorized snapshot, without provider calls', () => {
+    const source = file('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
+    const api = file('EduOS.App/Controllers/Api/AiWorkspaceApiController.cs');
+    const mvc = file('EduOS.App/Controllers/AiWorkspaceController.cs');
+    const js = file('EduOS.App/wwwroot/js/ai/workspace.js');
+    const planner = file('EduOS.AI/ManagementQuestionPlanner.cs');
+    assert.match(source, /ManagementQuestionPlanner\.Parse\(question\)/);
+    assert.match(source, /var source = await SnapshotAsync\(campusId, fromDate, toDate, ct\)/);
+    assert.match(api, /HttpPost\("management\/ask"\)/);
+    assert.match(api, /RequirePermission\(PermissionConstants\.Attendance\.View\)/);
+    assert.match(mvc, /RequirePermission\(PermissionConstants\.Attendance\.View\)/);
+    assert.match(js, /aiManagementAsk/);
+    assert.match(js, /management\/ask/);
+    assert.match(planner, /ManagementMetric\.AbsentEntries/);
+    assert.doesNotMatch(planner, /HttpClient|ExecuteSql|SaveChanges/);
+});
+
 test('navigation and DI wiring include all three new workspaces', () => {
     const layout = file('EduOS.App/Views/Shared/_Layout.cshtml');
     const di = file('EduOS.App/Extensions/ApplicationServiceExtensions.cs');

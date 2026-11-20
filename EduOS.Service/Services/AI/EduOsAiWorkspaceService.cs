@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using EduOS.AI;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
@@ -35,6 +36,9 @@ public sealed class StudentTutorRequest
 
 public sealed record AiGeneratedDraft(string Text, string Provider, bool IsOfficial, string Notice);
 public sealed record AiCampusOption(long Id, string Name);
+public sealed record AiVerifiedMetricAnswer(
+    string Metric, string Value, string Explanation, string Source,
+    long CampusId, string CampusName, DateOnly FromDate, DateOnly ToDate);
 public sealed record AiManagementSnapshot(
     long CampusId, string CampusName, DateOnly FromDate, DateOnly ToDate,
     int CurrentActiveEnrollments, int PresentMarks, int AbsentMarks, int LateMarks,
@@ -216,6 +220,60 @@ public sealed class EduOsAiWorkspaceService(
             active, present, absent, late, leave, excused,
             present + absent + late + leave + excused, rate, findings.ToArray());
         return ApiResponse<AiManagementSnapshot>.SuccessResponse(snapshot);
+    }
+
+    // Verified local-first question answering: no model, prompt storage or arbitrary SQL.
+    public async Task<ApiResponse<AiVerifiedMetricAnswer>> AskVerifiedMetricAsync(
+        long campusId, DateOnly fromDate, DateOnly toDate, string? question, CancellationToken ct)
+    {
+        if (!Manager) return Fail<AiVerifiedMetricAnswer>("Management permission required.", 403);
+        var plan = ManagementQuestionPlanner.Parse(question);
+        if (plan.Metric == null)
+            return Fail<AiVerifiedMetricAnswer>(plan.Message ?? "Unsupported metric.");
+        var source = await SnapshotAsync(campusId, fromDate, toDate, ct);
+        if (!source.Success || source.Data == null)
+            return Fail<AiVerifiedMetricAnswer>(source.Message ?? "Metrics unavailable.", source.StatusCode);
+        var s = source.Data;
+        var metric = plan.Metric.Value;
+        string name;
+        string value;
+        string explanation;
+        switch (metric)
+        {
+            case ManagementMetric.ActiveEnrollments:
+                name = "Current active enrollments";
+                value = s.CurrentActiveEnrollments.ToString(CultureInfo.InvariantCulture);
+                explanation = "Current active enrollment records, not the historical count for the selected date range.";
+                break;
+            case ManagementMetric.PresentEntries:
+                name = "Present entries"; value = s.PresentMarks.ToString(CultureInfo.InvariantCulture);
+                explanation = "Finalized Present attendance entries in the selected date range, not distinct pupils."; break;
+            case ManagementMetric.AbsentEntries:
+                name = "Absent entries"; value = s.AbsentMarks.ToString(CultureInfo.InvariantCulture);
+                explanation = "Finalized Absent attendance entries in the selected date range, not distinct pupils."; break;
+            case ManagementMetric.LateEntries:
+                name = "Late entries"; value = s.LateMarks.ToString(CultureInfo.InvariantCulture);
+                explanation = "Finalized Late attendance entries in the selected date range, not distinct pupils."; break;
+            case ManagementMetric.LeaveEntries:
+                name = "Leave entries"; value = s.LeaveMarks.ToString(CultureInfo.InvariantCulture);
+                explanation = "Finalized Leave attendance entries in the selected date range, excluded from the rate."; break;
+            case ManagementMetric.ExcusedEntries:
+                name = "Excused entries"; value = s.ExcusedMarks.ToString(CultureInfo.InvariantCulture);
+                explanation = "Finalized Excused attendance entries in the selected date range, excluded from the rate."; break;
+            case ManagementMetric.FinalizedEntries:
+                name = "Finalized attendance entries"; value = s.FinalizedAttendanceMarks.ToString(CultureInfo.InvariantCulture);
+                explanation = "Sum of finalized Present, Absent, Late, Leave and Excused entries, not unique pupils."; break;
+            default:
+                name = "Attendance rate";
+                value = s.AttendanceRatePercent.HasValue
+                    ? s.AttendanceRatePercent.Value.ToString("0.00", CultureInfo.InvariantCulture) + "%"
+                    : "No data";
+                explanation = "Rate = (Present + Late) / (Present + Late + Absent). Leave and Excused excluded; no denominator means no rate.";
+                break;
+        }
+        return ApiResponse<AiVerifiedMetricAnswer>.SuccessResponse(new AiVerifiedMetricAnswer(
+            name, value, explanation, "EduOS canonical finalized attendance / active enrollment records",
+            s.CampusId, s.CampusName, s.FromDate, s.ToDate));
     }
 
     public async Task<ApiResponse<AiGeneratedDraft>> InterpretAsync(

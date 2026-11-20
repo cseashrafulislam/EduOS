@@ -1,4 +1,5 @@
 using EduOS.App.Authorization;
+using EduOS.Core.Constants;
 using EduOS.Service.Services.AI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,5 +23,6 @@ public sealed class AiWorkspaceController : Controller
     [HttpGet]
     [Authorize(Roles = "Principal,TenantAdmin")]
     [RequireModule("ATTENDANCE")]
+    [RequirePermission(PermissionConstants.Attendance.View)]
     public IActionResult Management() => View("Index", "Management");
 }

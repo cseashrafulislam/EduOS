@@ -46,6 +46,8 @@
         if (el(buttonId)) el(buttonId).disabled = locked;
         if (el('aiManagementInterpret'))
             el('aiManagementInterpret').disabled = locked || !state.configured || !state.snapshot;
+        if (el('aiManagementAsk'))
+            el('aiManagementAsk').disabled = locked || !state.snapshot;
     }
     async function runGenerate(buttonId, endpoint, payload) {
         if (state.busy || !sameSession() || !state.configured) return;
@@ -126,6 +128,8 @@
         state.snapshotKey = null;
         el('aiManagementMetrics').classList.add('d-none');
         el('aiManagementInterpret').disabled = true;
+        el('aiManagementAsk').disabled = true;
+        el('aiOutputPanel').classList.add('d-none');
     }
     async function loadMetrics(event) {
         event.preventDefault();
@@ -152,6 +156,35 @@
             if (sequence === state.sequence) lock('aiManagementLoad', false);
         }
     }
+    async function askVerifiedMetrics() {
+        if (state.busy || !state.snapshot || !sameSession()) return;
+        const current = filters();
+        if (filterKey(current) !== state.snapshotKey)
+            return notice(translate('Reload metrics after changing filters.', 'ফিল্টার বদলালে নতুন করে পরিসংখ্যান লোড করুন।'), true);
+        const question = val('aiManagementQuestion');
+        if (question.length < 3 || question.length > 200)
+            return notice(translate('Enter a short question about one metric.', 'একটি পরিসংখ্যান নিয়ে ছোট প্রশ্ন লিখুন।'), true);
+        const sequence = ++state.sequence;
+        lock('aiManagementAsk', true);
+        try {
+            const data = await api('/api/ai/workspace/management/ask', {
+                method: 'POST', body: JSON.stringify({ ...current, question })
+            });
+            if (sequence !== state.sequence || !sameSession() || filterKey(filters()) !== state.snapshotKey) return;
+            if (typeof data?.metric !== 'string' || typeof data?.value !== 'string' ||
+                typeof data?.explanation !== 'string') throw Error('Invalid verified data response.');
+            showOutput({ text: data.metric + ': ' + data.value + '\n' +
+                data.explanation + '\n' + data.campusName + ' · ' + data.fromDate + ' to ' + data.toDate +
+                '\nSource: ' + data.source,
+                notice: translate('Verified institutional records; no external model call.',
+                    'প্রতিষ্ঠানের যাচাইকৃত তথ্য; কোনো বাহ্যিক AI কল হয়নি।') });
+            notice(translate('Verified answer loaded.', 'যাচাইকৃত উত্তর দেখানো হয়েছে।'));
+        } catch (err) {
+            if (sequence === state.sequence && sameSession()) notice(err.message, true);
+        } finally {
+            if (sequence === state.sequence) lock('aiManagementAsk', false);
+        }
+    }
     async function interpretMetrics() {
         if (state.busy || !state.configured || !state.snapshot || !sameSession()) return;
         const current = filters();
@@ -162,6 +195,7 @@
     async function initManagement() {
         el('aiManagementForm').addEventListener('submit', loadMetrics);
         el('aiManagementInterpret').addEventListener('click', interpretMetrics);
+        el('aiManagementAsk').addEventListener('click', askVerifiedMetrics);
         ['aiCampus', 'aiFrom', 'aiTo'].forEach(id =>
             el(id).addEventListener('change', clearSnapshot));
         const today = new Date();

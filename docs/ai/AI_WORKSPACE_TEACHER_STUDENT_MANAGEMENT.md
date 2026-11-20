@@ -5,7 +5,8 @@ Branch: `Ashraful`. Status: code integrated; production release is NOT approved 
 ## Features
 - **Teacher Copilot** `/AiWorkspace/Teacher` — licensed LMS users with teacher/administrator rights can request a lesson-plan, worksheet or original practice-MCQ **draft** using their own topic, class and duration. Server verifies an active teaching employee for Teacher.
 - **Student Tutor** `/AiWorkspace/Tutor` — enrolled Student can request a concept explanation and a self-check question. This is general tutoring, **not** retrieval of their gradebook, published curriculum evidence or an official answer. Use `/Library/StudyAssistant` for approved quoted/cited study excerpts.
-- **Management Analytics** `/AiWorkspace/Management` — TenantAdmin/Principal reads authorized campus enrollment and finalized attendance **aggregates** from existing SQL tables; a separate, opt-in AI interpretation takes aggregated counts only, not row-level or student data.
+- **Management Analytics** `/AiWorkspace/Management` — TenantAdmin/Principal with Attendance.View permission reads authorized campus enrollment and finalized attendance **aggregates** from existing SQL tables; a separate, opt-in AI interpretation takes aggregated counts only, not row-level or student data.
+- **Ask EduOS verified metrics** `POST /api/ai/workspace/management/ask` — model-free bilingual question parser for exactly one allowlisted campus-scoped enrollment/attendance metric. The server re-executes the authorized SnapshotAsync with the explicit 31-day range. The answer labels enrollment counts as current and attendance values as finalized entries (not distinct students). Unsupported date/class/section/financial requests fail closed. No external AI provider or billing is needed.
 
 No new data authority and no new database table. AI-generated responses never save/post marks, attendance, fees, grades, approval or student records. No automatic app-side prompt/response storage.
 
@@ -37,6 +38,7 @@ External provider generation is denied unless BOTH the deployment's tenant allow
 - `POST /api/ai/workspace/tutor` (active Student + LMS)
 - `GET /api/ai/workspace/management/campuses` (Principal, TenantAdmin + ATTENDANCE)
 - `GET /api/ai/workspace/management/summary?campusId=...&fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD`
+- `POST /api/ai/workspace/management/ask` (authorized local-first metric question; no provider)
 - `POST /api/ai/workspace/management/interpret` (same management permission)
 
 All writes require the normal antiforgery token. The only POST effects are provider calls; they do not mutate ERP state.
