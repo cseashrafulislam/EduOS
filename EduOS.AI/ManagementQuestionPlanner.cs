@@ -44,7 +44,7 @@ public static class ManagementQuestionPlanner
         var enrollment = Word(value, "enrollments?|enrolments?|enrolled|admissions?") ||
                          value.Contains("ভর্তি");
         var rate = Word(value, "rate|percentage|percent") || value.Contains("হার") || value.Contains("শতকরা");
-        var total = Word(value, "total\s+attendance|attendance\s+entries|finalized\s+entries") ||
+        var total = Word(value, @"total\s+attendance|attendance\s+entries|finalized\s+entries") ||
                     value.Contains("মোট হাজিরা");
         if (rate && present && !absent && !late && !leave && !excused && !enrollment)
             present = false;
