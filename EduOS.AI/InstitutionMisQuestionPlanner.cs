@@ -43,6 +43,14 @@ public static class InstitutionMisQuestionPlanner
         ["planned transport trips"] = "planned_trips", ["পরিকল্পিত পরিবহন ট্রিপ"] = "planned_trips"
     };
 
+    // Bengali composed/decomposed letter forms must match identically on both
+    // sides of the alias index; dictionary literals are not normalized by default.
+    private static readonly IReadOnlyDictionary<string, string> NormalizedAliases =
+        Aliases.GroupBy(x =>
+            Regex.Replace(x.Key.Normalize(NormalizationForm.FormKC).Trim().ToLowerInvariant(),
+                @"\s+", " "), StringComparer.Ordinal)
+            .ToDictionary(x => x.Key, x => x.First().Value, StringComparer.Ordinal);
+
     private static readonly string[] Prefixes =
     {
         "how many ", "how much ", "number of ", "count of ", "show ", "please show ",
@@ -79,7 +87,7 @@ public static class InstitutionMisQuestionPlanner
         // role or unrestricted SQL filter from free text.
         for (var i = 0; i < 4; i++)
         {
-            if (Aliases.TryGetValue(text, out var metric)) return metric;
+            if (NormalizedAliases.TryGetValue(text, out var metric)) return metric;
             var prefix = Prefixes.FirstOrDefault(x => text.StartsWith(x, StringComparison.Ordinal));
             if (prefix != null)
             {
@@ -94,6 +102,6 @@ public static class InstitutionMisQuestionPlanner
             }
             break;
         }
-        return Aliases.TryGetValue(text, out var result) ? result : null;
+        return NormalizedAliases.TryGetValue(text, out var result) ? result : null;
     }
 }
