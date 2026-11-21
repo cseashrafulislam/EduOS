@@ -11,7 +11,8 @@ test('external AI uses institution-owned key, explicit consent and durable SQL r
     assert.doesNotMatch(svc,/EduOsAi:ApiKey|ApprovedTenantIds/);
     assert.match(svc,/request\?\.ConsentToExternalAi != true/);
     assert.match(svc,/if \(!consentToExternalAi\)/);
-    assert.match(svc,/quota.TryReserveAsync\(current.TenantId, dailyLimit, ct\)/);
+    assert.match(svc,/quota.ReserveAsync\(current.TenantId, dailyLimit, ct\)/);
+    assert.match(svc,/quota.RecordObservedUsageAsync/);
     assert.match(svc,/DailyCallsPerTenant/);
     assert.match(quota,/db\.CurrentTenantId != tenantId/);
     assert.match(quota,/sp_getapplock/);

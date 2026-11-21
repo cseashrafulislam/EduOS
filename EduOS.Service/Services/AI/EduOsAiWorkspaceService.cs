@@ -348,7 +348,8 @@ public sealed class EduOsAiWorkspaceService(
             var dailyLimit = configuration.GetValue<int?>("EduOsAi:DailyCallsPerTenant") ?? 20;
             if (dailyLimit is < 1 or > 100)
                 return Fail<AiGeneratedDraft>("The institution AI quota is not configured correctly.", 503);
-            if (!await quota.TryReserveAsync(current.TenantId, dailyLimit, ct))
+            var reservation = await quota.ReserveAsync(current.TenantId, dailyLimit, ct);
+            if (reservation == null)
                 return Fail<AiGeneratedDraft>("Daily institution AI call limit reached. Try again tomorrow.", 429);
 
             var body = JsonSerializer.Serialize(new
@@ -389,6 +390,29 @@ public sealed class EduOsAiWorkspaceService(
             var answer = string.Join("\n", pieces).Trim();
             if (answer.Length == 0) return Fail<AiGeneratedDraft>("AI provider returned no usable text.", 503);
             if (answer.Length > 12000) answer = answer[..12000];
+            // Only confirmed provider-reported tokens are observed. Missing usage
+            // remains unknown, never inferred from text length or priced as an invoice.
+            if (document.RootElement.TryGetProperty("usage", out var usage) &&
+                usage.ValueKind == JsonValueKind.Object &&
+                usage.TryGetProperty("input_tokens", out var inputTokenNode) &&
+                usage.TryGetProperty("output_tokens", out var outputTokenNode) &&
+                inputTokenNode.TryGetInt64(out var inputTokens) &&
+                outputTokenNode.TryGetInt64(out var outputTokens) &&
+                inputTokens >= 0 && outputTokens >= 0)
+            {
+                try
+                {
+                    await quota.RecordObservedUsageAsync(
+                        current.TenantId, reservation, inputTokens, outputTokens, ct);
+                }
+                catch (Exception ex) when (ex is DbException or InvalidOperationException)
+                {
+                    // The provider response has already succeeded; do not tell the user
+                    // that no provider call occurred. Operators must reconcile usage.
+                    logger.LogError("AI observed-token telemetry write unavailable ({ExceptionType}).",
+                        ex.GetType().Name);
+                }
+            }
             return ApiResponse<AiGeneratedDraft>.SuccessResponse(new AiGeneratedDraft(
                 answer, "Configured AI model", false,
                 "AI-generated draft. Verify accuracy before teaching, publishing or making decisions."));

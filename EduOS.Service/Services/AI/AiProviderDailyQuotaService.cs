@@ -9,6 +9,8 @@ namespace EduOS.Service.Services.AI;
 /// owns the counter; no app-server cache, MAX()+1, provider call inside the lock,
 /// or in-memory value can authorize a reservation.
 /// </summary>
+public sealed record AiQuotaReservation(DateOnly UsageDateUtc);
+
 public sealed class AiProviderDailyQuotaService(EduOSDbContext db)
 {
     private const string ReserveSql = @"
@@ -44,12 +46,16 @@ BEGIN
     SET @Granted = 1;
 END;
 COMMIT TRANSACTION;
-SELECT @Granted;";
+SELECT @Granted, @Today;";
 
-    public async Task<bool> TryReserveAsync(long tenantId, int dailyLimit, CancellationToken ct)
+    public async Task<bool> TryReserveAsync(long tenantId, int dailyLimit, CancellationToken ct) =>
+        await ReserveAsync(tenantId, dailyLimit, ct) != null;
+
+    /// <summary>Reserve a provider attempt atomically and return its SQL Server UTC day.</summary>
+    public async Task<AiQuotaReservation?> ReserveAsync(long tenantId, int dailyLimit, CancellationToken ct)
     {
         if (tenantId <= 0 || dailyLimit < 1 || dailyLimit > 100 ||
-            db.CurrentTenantId != tenantId) return false;
+            db.CurrentTenantId != tenantId) return null;
 
         var connection = db.Database.GetDbConnection();
         var mustClose = connection.State != ConnectionState.Open;
@@ -65,12 +71,34 @@ SELECT @Granted;";
             var cap = command.CreateParameter();
             cap.ParameterName = "@Limit"; cap.DbType = DbType.Int32; cap.Value = dailyLimit;
             command.Parameters.Add(cap);
-            var result = await command.ExecuteScalarAsync(ct);
-            return result is int granted && granted == 1;
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct) || reader.GetInt32(0) != 1) return null;
+            return new AiQuotaReservation(DateOnly.FromDateTime(reader.GetDateTime(1)));
         }
         finally
         {
             if (mustClose) await db.Database.CloseConnectionAsync();
         }
+    }
+
+    /// <summary>
+    /// A single atomic increment per observed successful response. No retries are
+    /// attempted if the SQL outcome is unknown. Provider billing remains authoritative.
+    /// </summary>
+    public async Task RecordObservedUsageAsync(long tenantId, AiQuotaReservation reservation,
+        long inputTokens, long outputTokens, CancellationToken ct)
+    {
+        if (tenantId <= 0 || db.CurrentTenantId != tenantId || reservation == null ||
+            inputTokens < 0 || outputTokens < 0 ||
+            inputTokens > 100000000L || outputTokens > 100000000L)
+            throw new InvalidOperationException("Invalid AI observation.");
+        var affected = await db.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE dbo.AiProviderDailyUsage SET
+                ObservedInputTokens = ObservedInputTokens + {inputTokens},
+                ObservedOutputTokens = ObservedOutputTokens + {outputTokens},
+                ObservedResponses = ObservedResponses + 1
+            WHERE TenantId = {tenantId} AND UsageDateUtc = {reservation.UsageDateUtc}", ct);
+        if (affected != 1)
+            throw new InvalidOperationException("AI quota reservation not found for usage observation.");
     }
 }

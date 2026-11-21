@@ -37,9 +37,13 @@ public sealed class TenantAiProviderSettingsService(
     {
         public DateOnly UsageDateUtc { get; set; }
         public int ReservedCalls { get; set; }
+        public long ObservedInputTokens { get; set; }
+        public long ObservedOutputTokens { get; set; }
+        public long ObservedResponses { get; set; }
     }
 
     public sealed record UsageSummary(int PeriodDays, int TotalReservedCalls, int DailyLimit,
+        long ObservedInputTokens, long ObservedOutputTokens, long ObservedResponses,
         IReadOnlyList<UsageDayRow> Days, string Notice);
 
     public sealed class SaveRequest
@@ -115,15 +119,18 @@ public sealed class TenantAiProviderSettingsService(
             return ApiResponse<UsageSummary>.ErrorResponse("Choose a range of 1–90 days.", 400);
 
         var rows = await db.Database.SqlQueryRaw<UsageDayRow>(
-            @"SELECT [UsageDateUtc], [ReservedCalls] FROM dbo.AiProviderDailyUsage
+            @"SELECT [UsageDateUtc], [ReservedCalls], [ObservedInputTokens], [ObservedOutputTokens],
+                     [ObservedResponses] FROM dbo.AiProviderDailyUsage
               WHERE [TenantId] = {0} AND [UsageDateUtc] >=
                 DATEADD(day, 1 - {1}, CONVERT(date, SYSUTCDATETIME()))",
             current.TenantId, days).ToListAsync(ct);
         var ordered = rows.OrderByDescending(x => x.UsageDateUtc).ToArray();
         var cap = configuration.GetValue<int?>("EduOsAi:DailyCallsPerTenant") ?? 20;
         return ApiResponse<UsageSummary>.SuccessResponse(new UsageSummary(
-            days, ordered.Sum(x => x.ReservedCalls), cap, ordered,
-            "Reserved provider attempts, including failed/time-out calls; not a token count, invoice or billed cost."));
+            days, ordered.Sum(x => x.ReservedCalls), cap,
+            ordered.Sum(x => x.ObservedInputTokens), ordered.Sum(x => x.ObservedOutputTokens),
+            ordered.Sum(x => x.ObservedResponses), ordered,
+            "Reservations count all attempts; observed tokens are incomplete telemetry, not provider-billed cost."));
     }
 
     public async Task<ApiResponse<PublicSettings>> SaveAsync(SaveRequest? request, CancellationToken ct)
