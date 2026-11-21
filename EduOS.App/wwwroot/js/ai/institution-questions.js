@@ -56,12 +56,15 @@
             if (!response.ok || payload?.success !== true)
                 throw Error(payload?.message || say('The metric is unavailable.', 'তথ্য পাওয়া যায়নি।'));
             const m = payload.data;
-            if (typeof m?.key !== 'string' || typeof m?.value !== 'number' ||
+            if (typeof m?.key !== 'string' || typeof m?.value !== 'string' ||
+                !/^-?\\d+(?:\\.\\d+)?$/.test(m.value) ||
                 !['Count','BDT'].includes(m?.unit) ||
                 typeof m?.definition !== 'string' || typeof m?.source !== 'string')
                 throw Error('Invalid MIS response.');
             el('aiInstitutionMetric').textContent = m.key.replaceAll('_',' ');
-            el('aiInstitutionValue').textContent = m.value.toLocaleString(bn ? 'bn-BD' : 'en-BD') + ' ' + m.unit;
+            // Display invariant decimal text from the server verbatim: never round
+            // financial values via JavaScript's binary floating-point Number.
+            el('aiInstitutionValue').textContent = m.value + ' ' + m.unit;
             el('aiInstitutionDefinition').textContent = m.definition;
             el('aiInstitutionSource').textContent = m.scope + ' · ' + m.source + ' · ' +
                 m.periodFrom + '–' + m.periodTo;

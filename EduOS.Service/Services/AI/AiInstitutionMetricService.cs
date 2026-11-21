@@ -1,4 +1,5 @@
 using EduOS.AI;
+using System.Globalization;
 using EduOS.Core.Common;
 using EduOS.Core.Interfaces.IServices;
 
@@ -6,7 +7,7 @@ namespace EduOS.Service.Services.AI;
 
 public sealed record AiInstitutionMetricAnswer(
     string Key, string Definition, string Source, string Scope, string Unit,
-    decimal Value, DateOnly PeriodFrom, DateOnly PeriodTo, DateTime GeneratedAtUtc);
+    string Value, DateOnly PeriodFrom, DateOnly PeriodTo, DateTime GeneratedAtUtc);
 
 /// <summary>All values originate from the existing authorized Central Institution MIS.</summary>
 public sealed class AiInstitutionMetricService(ICentralInstitutionMisService mis)
@@ -33,7 +34,7 @@ public sealed class AiInstitutionMetricService(ICentralInstitutionMisService mis
                 "This metric is unavailable for the current institution subscription.", 403);
         return ApiResponse<AiInstitutionMetricAnswer>.SuccessResponse(new(
             metric.Key, metric.Definition, metric.Source, metric.Scope,
-            metric.Unit, metric.Value.Value, report.Data.PeriodFrom,
+            metric.Unit, metric.Value.Value.ToString(CultureInfo.InvariantCulture), report.Data.PeriodFrom,
             report.Data.PeriodTo, report.Data.GeneratedAtUtc));
     }
 }
