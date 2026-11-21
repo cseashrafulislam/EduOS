@@ -57,7 +57,7 @@
                 throw Error(payload?.message || say('The metric is unavailable.', 'তথ্য পাওয়া যায়নি।'));
             const m = payload.data;
             if (typeof m?.key !== 'string' || typeof m?.value !== 'string' ||
-                !/^-?\\d+(?:\\.\\d+)?$/.test(m.value) ||
+                !/^-?\d+(?:\.\d+)?$/.test(m.value) ||
                 !['Count','BDT'].includes(m?.unit) ||
                 typeof m?.definition !== 'string' || typeof m?.source !== 'string')
                 throw Error('Invalid MIS response.');
