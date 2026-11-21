@@ -70,7 +70,11 @@ test('route inventory keeps MVC screens distinct from API names, nested controll
     const result = audit();
     assert.equal(result.totals.unresolvedNonPartialRows, 0);
     assert.equal(result.totals.frameworkViewRows, 2);
-    assert.equal(result.totals.partialViewRows, 52);
+    assert.ok(result.totals.partialViewRows >= 52,
+        'existing shared partials remain present as new reusable setup components are added');
+    assert.ok(result.records.some(row =>
+        row.view === 'EduOS.App/Views/Shared/_TenantAiProviderSettings.cshtml'),
+        'shared institute AI settings must be inventoried rather than ignored');
     const academic = result.records.find(row => row.route === '/AcademicInstruction/Index');
     assert.deepEqual(academic.role.controllerRoles, ['TenantAdmin', 'Principal', 'VicePrincipal', 'Teacher']);
     assert.deepEqual(academic.role.modules, ['ACADEMIC']);
