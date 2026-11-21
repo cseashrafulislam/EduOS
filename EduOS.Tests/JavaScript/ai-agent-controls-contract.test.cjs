@@ -1,0 +1,23 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('agent controls are tenant-scoped feature flags, not arbitrary executable agents',()=>{
+    const reg=read('EduOS.AI/TenantAiAgentRegistry.cs');
+    const svc=read('EduOS.Service/Services/AI/TenantAiProviderSettingsService.cs');
+    const migration=read('EduOS.Persistence/Migrations/20261121120000_TenantAiAgentControls.cs');
+    const api=read('EduOS.App/Controllers/Api/TenantAiProviderSettingsController.cs');
+    assert.match(reg,/Teacher Copilot/);
+    assert.match(reg,/General Q&A/);
+    assert.match(reg,/Management Interpretation/);
+    assert.doesNotMatch(reg,/student-tutor|SQL SELECT|HttpClient/);
+    assert.match(svc,/TenantAiAgentRegistry.Supports/);
+    assert.match(svc,/db.CurrentTenantId == current.TenantId/);
+    assert.match(svc,/CentralPrivilegedAccess.HasRoleAsync/);
+    assert.match(svc,/WHERE \[TenantId\] = \{0\} AND \[AgentCode\] = \{1\}/);
+    assert.match(svc,/RowVersion = \{expected\}/);
+    assert.match(migration,/PK_TenantAiAgentControls/);
+    assert.match(migration,/FK_TenantAiAgentControls_Tenants/);
+    assert.match(api,/HttpPut\("agents\/\{code\}"\)/);
+    assert.match(api,/Authorize\(Roles = "TenantAdmin"\)/);
+    assert.match(api,/AutoValidateAntiforgeryToken/);
+});

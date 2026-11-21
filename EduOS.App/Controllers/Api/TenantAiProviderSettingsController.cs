@@ -20,6 +20,22 @@ public sealed class TenantAiProviderSettingsController(TenantAiProviderSettingsS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("agents")]
+    public async Task<IActionResult> Agents(CancellationToken ct)
+    {
+        var result = await service.AgentsAsync(ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    [HttpPut("agents/{code}")]
+    public async Task<IActionResult> SaveAgent(
+        string code, [FromBody] TenantAiProviderSettingsService.SaveAgentRequest request,
+        CancellationToken ct)
+    {
+        var result = await service.SaveAgentAsync(code, request, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpGet("usage")]
     public async Task<IActionResult> Usage([FromQuery] int days = 30, CancellationToken ct = default)
     {

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using EduOS.Core.Common;
+using EduOS.AI;
 using Microsoft.Extensions.Configuration;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
@@ -45,6 +46,22 @@ public sealed class TenantAiProviderSettingsService(
     public sealed record UsageSummary(int PeriodDays, int TotalReservedCalls, int DailyLimit,
         long ObservedInputTokens, long ObservedOutputTokens, long ObservedResponses,
         IReadOnlyList<UsageDayRow> Days, string Notice);
+
+    public sealed class AgentRow
+    {
+        public string AgentCode { get; set; } = "";
+        public bool IsEnabled { get; set; }
+        public byte[] RowVersion { get; set; } = [];
+    }
+
+    public sealed record AgentPolicy(string Code, string Title, string Description,
+        bool IsEnabled, string? RowVersion);
+
+    public sealed class SaveAgentRequest
+    {
+        public bool IsEnabled { get; set; }
+        public string? RowVersion { get; set; }
+    }
 
     public sealed class SaveRequest
     {
@@ -111,6 +128,95 @@ public sealed class TenantAiProviderSettingsService(
     /// Reporting is based on durable SQL reservations, not guessed pricing or billed tokens.
     /// No prompts, student data, request contents, key or cost estimates are returned.
     /// </summary>
+    private Task<List<AgentRow>> GetAgentRowsAsync(CancellationToken ct) =>
+        db.Database.SqlQueryRaw<AgentRow>(
+            @"SELECT [AgentCode], [IsEnabled], [RowVersion] FROM dbo.TenantAiAgentControls
+              WHERE [TenantId] = {0}", current.TenantId).ToListAsync(ct);
+
+    public async Task<bool> AgentEnabledAsync(string agentCode, CancellationToken ct)
+    {
+        if (!Trusted || !TenantAiAgentRegistry.Supports(agentCode)) return false;
+        var row = await db.Database.SqlQueryRaw<AgentRow>(
+            @"SELECT [AgentCode], [IsEnabled], [RowVersion] FROM dbo.TenantAiAgentControls
+              WHERE [TenantId] = {0} AND [AgentCode] = {1}",
+            current.TenantId, agentCode).SingleOrDefaultAsync(ct);
+        // No override means the previously supported feature remains enabled.
+        // Provider enable, per-request consent, role and module access remain mandatory.
+        return row?.IsEnabled ?? true;
+    }
+
+    public async Task<ApiResponse<IReadOnlyList<AgentPolicy>>> AgentsAsync(CancellationToken ct)
+    {
+        if (!await CanManageAsync(ct))
+            return ApiResponse<IReadOnlyList<AgentPolicy>>.ErrorResponse("Tenant administrator required.", 403);
+        var rows = await GetAgentRowsAsync(ct);
+        var byCode = rows.ToDictionary(x => x.AgentCode, StringComparer.Ordinal);
+        var list = TenantAiAgentRegistry.Controllable.Select(d =>
+        {
+            byCode.TryGetValue(d.Code, out var row);
+            return new AgentPolicy(d.Code, d.Title, d.Description,
+                row?.IsEnabled ?? true,
+                row == null ? null : Convert.ToBase64String(row.RowVersion));
+        }).ToArray();
+        return ApiResponse<IReadOnlyList<AgentPolicy>>.SuccessResponse(list);
+    }
+
+    public async Task<ApiResponse<AgentPolicy>> SaveAgentAsync(
+        string? code, SaveAgentRequest? request, CancellationToken ct)
+    {
+        if (!await CanManageAsync(ct))
+            return ApiResponse<AgentPolicy>.ErrorResponse("Tenant administrator required.", 403);
+        if (!TenantAiAgentRegistry.Supports(code) || request == null)
+            return ApiResponse<AgentPolicy>.ErrorResponse("Unknown AI capability.", 400);
+        var descriptor = TenantAiAgentRegistry.Controllable.Single(x => x.Code == code);
+        var old = await db.Database.SqlQueryRaw<AgentRow>(
+            @"SELECT [AgentCode], [IsEnabled], [RowVersion] FROM dbo.TenantAiAgentControls
+              WHERE [TenantId] = {0} AND [AgentCode] = {1}",
+            current.TenantId, code).SingleOrDefaultAsync(ct);
+        byte[]? expected = null;
+        if (old != null)
+        {
+            try { expected = Convert.FromBase64String(request.RowVersion ?? ""); }
+            catch (FormatException)
+            {
+                return ApiResponse<AgentPolicy>.ErrorResponse("Agent settings changed. Reload.", 409);
+            }
+            if (!old.RowVersion.AsSpan().SequenceEqual(expected))
+                return ApiResponse<AgentPolicy>.ErrorResponse("Agent settings changed. Reload.", 409);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.RowVersion))
+            return ApiResponse<AgentPolicy>.ErrorResponse("Agent settings changed. Reload.", 409);
+        try
+        {
+            int updated;
+            if (old == null)
+                updated = await db.Database.ExecuteSqlInterpolatedAsync($@"
+                    INSERT dbo.TenantAiAgentControls
+                        (TenantId, AgentCode, IsEnabled, UpdatedAtUtc, UpdatedByUserId)
+                    VALUES ({current.TenantId}, {code}, {request.IsEnabled}, {DateTime.UtcNow},
+                        {current.UserId})", ct);
+            else
+                updated = await db.Database.ExecuteSqlInterpolatedAsync($@"
+                    UPDATE dbo.TenantAiAgentControls SET IsEnabled = {request.IsEnabled},
+                        UpdatedAtUtc = {DateTime.UtcNow}, UpdatedByUserId = {current.UserId}
+                    WHERE TenantId = {current.TenantId} AND AgentCode = {code}
+                        AND RowVersion = {expected}", ct);
+            if (updated != 1)
+                return ApiResponse<AgentPolicy>.ErrorResponse("Agent settings changed. Reload.", 409);
+            var changed = await db.Database.SqlQueryRaw<AgentRow>(
+                @"SELECT [AgentCode], [IsEnabled], [RowVersion] FROM dbo.TenantAiAgentControls
+                  WHERE [TenantId] = {0} AND [AgentCode] = {1}",
+                current.TenantId, code).SingleAsync(ct);
+            return ApiResponse<AgentPolicy>.SuccessResponse(new AgentPolicy(
+                descriptor.Code, descriptor.Title, descriptor.Description, changed.IsEnabled,
+                Convert.ToBase64String(changed.RowVersion)));
+        }
+        catch (SqlException ex) when (ex.Number is 2601 or 2627)
+        {
+            return ApiResponse<AgentPolicy>.ErrorResponse("Agent settings changed. Reload.", 409);
+        }
+    }
+
     public async Task<ApiResponse<UsageSummary>> UsageAsync(int days, CancellationToken ct)
     {
         if (!await CanManageAsync(ct))
