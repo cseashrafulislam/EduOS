@@ -11,8 +11,12 @@ namespace EduOS.AI;
 public static class GeneralKnowledgeQuestionPolicy
 {
     private const string PrivateEnglish =
-        @"\b(?:my|our|mine|ours|your|school|institution|campus|tenant|database|records?|" +
+        @"\b(?:my|our|mine|ours|your|yours|we|us|school|institution|campus|tenant|database|records?|" +
         @"students?|pupils?|employees?|teachers?|guardians?|parents?|salary|payroll|" +
+        // A question about unrecognized institutional counts cannot bypass local MIS.
+        @"applicants?|applications?|books?|libraries?|library|loans?|" +
+        @"hostels?|dormitories?|transport|buses?|routes?|procurement|requisitions?|" +
+        @"purchase\s+orders?|inventory|timetables?|fees\s+collected|" +
         @"fees?|dues?|invoices?|payments?|transactions?|attendance|admissions?|" +
         @"enrollments?|balances?|expenses?|income|revenue|financial|ledger|" +
         @"grades?|marks?|results?|reports?|accounts?|section|batch|staff|class|" +
@@ -26,7 +30,9 @@ public static class GeneralKnowledgeQuestionPolicy
         "ফি", "বকেয়া", "বকেয়া", "বেতন", "পে-রোল", "ব্যালেন্স", "আয়", "আয়", "ব্যয়", "ব্যয়",
         "হাজিরা", "উপস্থিতি", "ভর্তি", "পরীক্ষা", "ফলাফল", "মার্কস", "রিপোর্ট",
         "লেনদেন", "ইনভয়েস", "ইনভয়েস", "সেকশন", "ব্যাচ",
-        "ব্যাংক", "টাকা", "বাজেট", "স্টক", "মজুত", "পাসওয়ার্ড", "পাসওয়ার্ড", "গোপন", "টোকেন"
+        "ব্যাংক", "টাকা", "বাজেট", "স্টক", "মজুত", "পাসওয়ার্ড", "পাসওয়ার্ড", "গোপন", "টোকেন",
+        "আমরা", "বই", "লাইব্রেরি", "হোস্টেল", "পরিবহন", "বাস", "রুট", "আবেদনকারী",
+        "আবেদনপত্র", "ক্রয় আদেশ", "ক্রয় আদেশ", "রিকুইজিশন", "ইনভেন্টরি"
     };
 
     public static bool IsAllowed(string? question)
