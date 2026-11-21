@@ -25,4 +25,9 @@ public sealed class AiWorkspaceController : Controller
     [RequireModule("ATTENDANCE")]
     [RequirePermission(PermissionConstants.Attendance.View)]
     public IActionResult Management() => View("Index", "Management");
+
+    [HttpGet]
+    [Authorize(Roles = "TenantAdmin")]
+    [RequireModule("REPORTING")]
+    public IActionResult Institution() => View("Institution");
 }

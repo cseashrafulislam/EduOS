@@ -179,6 +179,13 @@
                         <span>@(currentCulture == "bn-BD" ? "AI প্রতিষ্ঠান বিশ্লেষণ" : "Management AI Analytics")</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/AiWorkspace/Institution")" href="/AiWorkspace/Institution">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "Ask EduOS রিপোর্ট" : "Ask EduOS Reports")</span>
+                    </a>
+                }
             </nav>
 
             <hr class="sidebar-divider" />
