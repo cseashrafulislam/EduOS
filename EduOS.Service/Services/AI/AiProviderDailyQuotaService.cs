@@ -17,9 +17,11 @@ SET XACT_ABORT ON;
 DECLARE @Today date = CONVERT(date, SYSUTCDATETIME());
 DECLARE @Granted int = 0;
 DECLARE @LockResult int;
+DECLARE @Resource nvarchar(255) = CONCAT(N'EduOS:AI:', CONVERT(nvarchar(20), @TenantId),
+    N':', CONVERT(char(8), @Today, 112));
 BEGIN TRANSACTION;
 EXEC @LockResult = sys.sp_getapplock
-    @Resource = CONCAT(N'EduOS:AI:', CONVERT(nvarchar(20), @TenantId), N':', CONVERT(char(8), @Today, 112)),
+    @Resource = @Resource,
     @LockMode = N'Exclusive',
     @LockOwner = N'Transaction',
     @LockTimeout = 3000;
