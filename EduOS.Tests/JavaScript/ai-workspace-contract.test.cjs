@@ -29,6 +29,8 @@ test('provider does not leak secrets or mutate canonical ERP tables', () => {
     assert.match(svc, /EduOsAi:ApprovedTenantIds/);
     assert.match(svc, /TenantProviderApproved => Trusted/);
     assert.match(svc, /EduOsAi:StudentTutorEnabled/);
+    assert.match(svc, /EduOsAi:DailyCallsPerTenant/);
+    assert.match(svc, /quota.TryReserveAsync\(current.TenantId, dailyLimit, ct\)/);
     assert.match(svc, /request\?\.ConsentToExternalAi != true/g);
     assert.match(svc, /if \(!consentToExternalAi\)/);
     assert.match(js, /el\('aiProviderConsent'\)\?\.checked === true/);

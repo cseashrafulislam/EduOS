@@ -154,6 +154,7 @@ namespace EduOS.App.Extensions
             s.AddScoped<GroundedStudyAssistantService>();
             s.AddHttpClient<EduOsAiWorkspaceService>(client => client.Timeout = TimeSpan.FromSeconds(30));
             s.AddScoped<AiInstitutionMetricService>();
+            s.AddScoped<AiProviderDailyQuotaService>();
             s.AddScoped<ITeacherResourceService, TeacherResourceService>();
             s.AddScoped<TeacherCpdService>();
             s.AddScoped<AdaptiveStudyService>();

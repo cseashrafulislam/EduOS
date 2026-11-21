@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Data.Common;
 using EduOS.AI;
 using System.Globalization;
 using System.Net.Http.Headers;
@@ -47,7 +48,7 @@ public sealed record AiManagementSnapshot(
 
 public sealed class EduOsAiWorkspaceService(
     EduOSDbContext db, ICurrentUserService current, IConfiguration configuration,
-    HttpClient http, ILogger<EduOsAiWorkspaceService> logger)
+    HttpClient http, AiProviderDailyQuotaService quota, ILogger<EduOsAiWorkspaceService> logger)
 {
     private bool Trusted => current.IsAuthenticated && current.UserId > 0 &&
         current.TenantId > 0 && db.CurrentTenantId == current.TenantId;
@@ -305,6 +306,14 @@ public sealed class EduOsAiWorkspaceService(
             return Fail<AiGeneratedDraft>("AI model is disabled or not configured. Set EduOsAi__Enabled, EduOsAi__ApiKey and EduOsAi__Model on the server.", 503);
         try
         {
+            // One short atomic SQL reservation across all instances before provider egress.
+            // A timed-out provider call may still incur cost; never refund blindly.
+            var dailyLimit = configuration.GetValue<int?>("EduOsAi:DailyCallsPerTenant") ?? 20;
+            if (dailyLimit is < 1 or > 100)
+                return Fail<AiGeneratedDraft>("The institution AI quota is not configured correctly.", 503);
+            if (!await quota.TryReserveAsync(current.TenantId, dailyLimit, ct))
+                return Fail<AiGeneratedDraft>("Daily institution AI call limit reached. Try again tomorrow.", 429);
+
             var body = JsonSerializer.Serialize(new
             {
                 model = configuration["EduOsAi:Model"],
@@ -360,6 +369,11 @@ public sealed class EduOsAiWorkspaceService(
         catch (JsonException)
         {
             return Fail<AiGeneratedDraft>("AI provider response was invalid.", 503);
+        }
+        catch (DbException ex)
+        {
+            logger.LogWarning("EduOS AI daily quota database unavailable ({ExceptionType}).", ex.GetType().Name);
+            return Fail<AiGeneratedDraft>("AI usage limit service is unavailable. No provider call was made.", 503);
         }
     }
 }

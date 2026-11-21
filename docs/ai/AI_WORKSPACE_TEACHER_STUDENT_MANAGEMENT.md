@@ -29,6 +29,7 @@ No new data authority and no new database table. AI-generated responses never sa
 | `EduOsAi__Model` | compatible OpenAI Responses API text model name |
 | `EduOsAi__ApprovedTenantIds` | required comma-separated institution tenant IDs explicitly approved for external AI; empty denies all tenants |
 | `EduOsAi__StudentTutorEnabled` | separate opt-in for student-facing external AI; defaults to false |
+| `EduOsAi__DailyCallsPerTenant` | SQL-backed atomic maximum outbound provider attempts per tenant UTC day; defaults to 20, allowed 1–100 |
 
 External provider generation is denied unless BOTH the deployment's tenant allowlist and the current user's per-request unchecked-by-default consent are present. A student tutor requires the extra StudentTutorEnabled switch; guardian/institution data-processing approval and privacy policy remain deployment prerequisites. The deterministic management snapshot remains available without provider approval. The service sends `POST https://api.openai.com/v1/responses` with `max_output_tokens=900` and `store=false`. If the model isn't configured, the Teacher/Tutor buttons are disabled; management verified SQL metrics remain usable. Provider endpoint and credentials cannot be supplied by the browser.
 
@@ -43,6 +44,9 @@ External provider generation is denied unless BOTH the deployment's tenant allow
 - `POST /api/ai/workspace/management/interpret` (same management permission)
 
 All writes require the normal antiforgery token. The only POST effects are provider calls; they do not mutate ERP state.
+
+## Durable provider call budget (migration required)
+Deploy migration `20261121080000_AiDailyProviderCallBudget` before enabling the external model. `AiProviderDailyUsage` stores only tenant ID, UTC date, reserved call count and timestamp (no prompt, transcript, student or model response). SQL `sp_getapplock` serializes one short per-tenant daily reservation across application instances. The provider is called only if a reservation succeeds. Failed or timed-out calls still consume a reservation, since the provider may charge for them. These counters are **not a token-billing ledger or monetary price cap**; review token usage/model costs separately and disable the provider using `EduOsAi__Enabled=false` if budgets are at risk. The migration blocks destructive rollback while usage rows exist.
 
 ## Release gate
 1. `dotnet build EduOS.slnx` and `dotnet test` on the pinned .NET 10 SDK; run `node --test EduOS.Tests/JavaScript/ai-workspace-contract.test.cjs`.
