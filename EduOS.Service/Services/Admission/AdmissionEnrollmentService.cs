@@ -555,8 +555,11 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             _logger.LogWarning(ex, "Admission conversion integrity conflict for tenant {TenantId}", tenant);
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Conversion conflicts with an existing student or roll.", 409);
         }
-        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number is 1205 or 1222)
+        catch (Exception ex) when (IsSqlAllocationContention(ex))
         {
+            // Deadlock, snapshot update conflict or SQL lock timeout. The unit
+            // of work rolled back the failed transaction. Never report a 500
+            // for recognized concurrent seat-allocation contention.
             _logger.LogWarning(ex, "Admission quota allocation contention for tenant {TenantId}", tenant);
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Admission is busy; reload and retry.", 409);
         }
@@ -565,6 +568,20 @@ public sealed class AdmissionEnrollmentService : IAdmissionEnrollmentService
             _logger.LogError(ex, "Admission conversion failed for tenant {TenantId}", tenant);
             return ApiResponse<AdmittedStudentDto>.ErrorResponse("Applicant could not be admitted.", 500);
         }
+    }
+
+    private static bool IsSqlAllocationContention(Exception exception)
+    {
+        for (Exception? current = exception; current != null; current = current.InnerException)
+        {
+            if (current is Microsoft.Data.SqlClient.SqlException sql)
+                return sql.Number is 1205 or 3960 or 1222;
+            if (current is not InvalidOperationException &&
+                current is not DbUpdateException &&
+                current is not System.Transactions.TransactionAbortedException)
+                return false;
+        }
+        return false;
     }
 
     private sealed class BatchAllocationException(string message) : Exception(message);
