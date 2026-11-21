@@ -210,12 +210,15 @@ async function run(){
         assert(studentView&&studentView.status()===200,'Student quick entry unavailable');
         await page.locator('#runningStudentForm').waitFor();
         await page.locator('#runningStudentName').fill(names.student);
-        await select(page,'runningBatch',batch.id);
+        await select(page,'runningCampus',campus.id);
+        await select(page,'runningYear',year.id);
+        await select(page,'runningLevel',level.id);
         await page.waitForFunction(()=>[...document.querySelectorAll('#runningSection option')]
             .some(x=>x.value&&x.textContent.includes('QA Section A')),null,{timeout:25000});
-        await select(page,'runningSection',
-            await page.locator('#runningSection option').evaluateAll(nodes=>
-                nodes.find(x=>x.value&&x.textContent.includes('QA Section A'))?.value));
+        const sectionId=Number(await page.locator('#runningSection option').evaluateAll(nodes=>
+            nodes.find(x=>x.value&&x.textContent.includes('QA Section A'))?.value));
+        assert(sectionId>0,'Required independent Section is missing');
+        await select(page,'runningSection',sectionId);
         await page.locator('#runningRoll').fill(names.roll);
         await page.locator('#runningAdmissionDate').fill('2027-03-01');
         await page.locator('#runningEnrollDate').fill('2027-03-01');
@@ -235,6 +238,10 @@ async function run(){
         await page.locator('#runningStudentSuccess').waitFor({state:'visible'});
         const body=created.request.postData();
         assert(body&&body.length<7000,'Missing bounded synthetic idempotency payload');
+        const savedPayload=JSON.parse(body);
+        assert.equal(savedPayload.academicBatchId,null,'Current student enrollment must not require a legacy Batch');
+        assert.equal(savedPayload.academicSectionId,sectionId,'Student must retain the selected Section');
+        assert.equal(savedPayload.academicYearId,year.id,'Student must retain the selected Academic Year');
         const token=await page.locator('#runningStudentForm input[name="__RequestVerificationToken"]')
             .inputValue();
         const result=await page.evaluate(async ({body,token})=>{
@@ -262,7 +269,7 @@ async function run(){
                 'section-linked-offering','student-plus-guardian-create',
                 'same-request-id-replay','conflicting-request-id-rejected','sql-proof-next'],
             academicProgramId:programme.id,levelId:level.id,curriculumId:curriculum.id,
-            mappingId:mapping.id,batchId:batch.id,studentCode:created.data.studentCode,
+            mappingId:mapping.id,batchId:batch.id,sectionId,studentCode:created.data.studentCode,
             enrolled:created.data.enrollmentReference,guardianLinked:true
         },null,2));
         console.log('PASS real Student+Guardian+Enrollment+Offering lifecycle and idempotent retry.');

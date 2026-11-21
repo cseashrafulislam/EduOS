@@ -175,7 +175,8 @@ public sealed class StudentReadmissionService : IStudentReadmissionService
                     if(replay.StudentId!=student.Id || replay.AcademicBatchId!=request.TargetAcademicBatchId ||
                         (request.TargetAcademicYearId.HasValue && replay.AcademicYearId!=request.TargetAcademicYearId.Value) ||
                         (request.TargetAcademicLevelId.HasValue && replay.AcademicLevelId!=request.TargetAcademicLevelId.Value) ||
-                        replay.AcademicSectionId!=request.TargetAcademicSectionId ||
+                        (request.TargetAcademicSectionId.HasValue &&
+                            replay.AcademicSectionId!=request.TargetAcademicSectionId.Value) ||
                         replay.RollNo!=roll || replay.Remarks!=note || replay.IsDeleted)
                         return Fail<StudentReadmissionResultDto>("Request ID belongs to different enrollment details.",409);
                     return ApiResponse<StudentReadmissionResultDto>.SuccessResponse(Map(student,replay,true),"Readmission already processed.");
