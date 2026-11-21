@@ -29,7 +29,27 @@ public static class InstitutionMisQuestionPlanner
         ["published result versions"] = "published_result_versions",
         ["প্রকাশিত ফলাফলের সংস্করণ"] = "published_result_versions",
         ["open work orders"] = "open_work_orders", ["খোলা ওয়ার্ক অর্ডার"] = "open_work_orders",
-        ["issued library loans"] = "issued_loans", ["ইস্যুকৃত লাইব্রেরি বই"] = "issued_loans"
+        ["issued library loans"] = "issued_loans", ["ইস্যুকৃত লাইব্রেরি বই"] = "issued_loans",
+        ["submitted requisitions"] = "submitted_requisitions", ["জমা দেওয়া রিকুইজিশন"] = "submitted_requisitions",
+        ["purchase orders awaiting review"] = "purchase_orders_awaiting_review",
+        ["পর্যালোচনার অপেক্ষায় ক্রয় আদেশ"] = "purchase_orders_awaiting_review",
+        ["active assets"] = "active_assets", ["সক্রিয় সম্পদ"] = "active_assets",
+        ["active hostel allocations"] = "active_hostel_allocations",
+        ["সক্রিয় হোস্টেল বরাদ্দ"] = "active_hostel_allocations",
+        ["visitor policy changes awaiting review"] = "visitor_policy_changes_awaiting_review",
+        ["পর্যালোচনার অপেক্ষায় ভিজিটর নীতি"] = "visitor_policy_changes_awaiting_review",
+        ["planned transport trips"] = "planned_trips", ["পরিকল্পিত পরিবহন ট্রিপ"] = "planned_trips"
+    };
+
+    private static readonly string[] Prefixes =
+    {
+        "how many ", "how much ", "number of ", "count of ", "show ", "please show ",
+        "total ", "what is ", "কতজন ", "কতটি ", "কত টাকা ", "মোট ", "দেখাও ", "আমাকে দেখাও "
+    };
+
+    private static readonly string[] Suffixes =
+    {
+        " count", " total", " amount", " কতজন", " কতটি", " কত টাকা", " কত", " সংখ্যা", " দেখাও", " জানাও"
     };
 
     public static string? Parse(string? question)
@@ -38,6 +58,25 @@ public static class InstitutionMisQuestionPlanner
             question.Any(char.IsControl)) return null;
         var text = Regex.Replace(question.Normalize(NormalizationForm.FormKC).Trim(), @"\s+", " ")
             .TrimEnd('?', '？', '।', '.').Trim().ToLowerInvariant();
-        return Aliases.TryGetValue(text, out var metric) ? metric : null;
+        // Strip only known count/display words. Never infer a period, campus, student,
+        // role or unrestricted SQL filter from free text.
+        for (var i = 0; i < 4; i++)
+        {
+            if (Aliases.TryGetValue(text, out var metric)) return metric;
+            var prefix = Prefixes.FirstOrDefault(x => text.StartsWith(x, StringComparison.Ordinal));
+            if (prefix != null)
+            {
+                text = text[prefix.Length..].Trim();
+                continue;
+            }
+            var suffix = Suffixes.FirstOrDefault(x => text.EndsWith(x, StringComparison.Ordinal));
+            if (suffix != null)
+            {
+                text = text[..^suffix.Length].Trim();
+                continue;
+            }
+            break;
+        }
+        return Aliases.TryGetValue(text, out var result) ? result : null;
     }
 }
