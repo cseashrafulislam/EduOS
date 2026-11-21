@@ -9,7 +9,7 @@ Branch: `Ashraful`. Status: code integrated; production release is NOT approved 
 - **Institution-wide Ask EduOS** `/AiWorkspace/Institution` — strictly tenant-admin + REPORTING authorized, bilingual exact-question lookup over canonical `ICentralInstitutionMisService` for fee dues, active employees/students, approved-unposted payroll, posted GL income/expenses/net surplus, finalized attendance, published result-version counts (not distinct exams/students), facilities and library. This preserves its authoritative module entitlements, data-integrity refusal, period/current distinctions and zero-versus-unavailable semantics. No duplicate domain SQL, model calls or AI data tables. `POST /api/ai/institution/ask` checks at most 366 business dates.
 - **Ask EduOS verified metrics** `POST /api/ai/workspace/management/ask` — model-free bilingual question parser for exactly one allowlisted campus-scoped enrollment/attendance metric. The server re-executes the authorized SnapshotAsync with the explicit 31-day range. The answer labels enrollment counts as current and attendance values as finalized entries (not distinct students). Unsupported date/class/section/financial requests fail closed. No external AI provider or billing is needed.
 
-No new data authority and no new database table. AI-generated responses never save/post marks, attendance, fees, grades, approval or student records. No automatic app-side prompt/response storage.
+AI has no new authoritative academic/financial data tables; it adds tenant-scoped credential storage and a SQL provider-attempt quota. AI-generated responses never save/post marks, attendance, fees, grades, approval or student records. No automatic app-side prompt/response storage.
 
 ## Security and boundaries
 - MVC and API endpoints re-enforce authentication, roles, LMS/ATTENDANCE entitlement and tenant scope. Management Principal requires an active `UserCampusAccess` for requested campus; TenantAdmin can see own institution campuses.
@@ -20,18 +20,18 @@ No new data authority and no new database table. AI-generated responses never sa
 - All model calls originate server-side over fixed HTTPS, with no browser key. Requests specify `store: false`; this does not supersede provider contractual retention/privacy policies. No transcript history is persisted by the app.
 - Model call timeout: 30 seconds; output cap 900 tokens; provider errors are sanitized; `AiGenerationPolicy` allows six model calls per authenticated user per ten minutes in a single app instance. Before broad rollout add durable per-tenant spend/quota enforcement and monitor costs (the in-process rate limiter is not distributed).
 
-## Production configuration (server environment or managed secrets only)
+## Production configuration — institute-owned keys
 
-| Name | Value |
+Each TenantAdmin configures the **institution's own** OpenAI API key, model, AI enable switch and separate Student Tutor opt-in in the existing **Account → Gateway Setup** page, beside SMS and Email. Secrets are protected using a tenant-specific Data Protection purpose, never returned after save and never committed to source. This replaces the old shared \`EduOsAi__ApiKey\` and tenant ID allowlist; there is no fallback to a platform-wide provider secret.
+
+| Server setting | Purpose |
 | --- | --- |
-| `EduOsAi__Enabled` | `true` to enable model generation; unset/false disables it |
-| `EduOsAi__ApiKey` | provider secret, **never commit or log** |
-| `EduOsAi__Model` | compatible OpenAI Responses API text model name |
-| `EduOsAi__ApprovedTenantIds` | required comma-separated institution tenant IDs explicitly approved for external AI; empty denies all tenants |
-| `EduOsAi__StudentTutorEnabled` | separate opt-in for student-facing external AI; defaults to false |
-| `EduOsAi__DailyCallsPerTenant` | SQL-backed atomic maximum outbound provider attempts per tenant UTC day; defaults to 20, allowed 1–100 |
+| \`EduOsAi__Enabled\` | deployment-wide emergency disable switch; off by default |
+| \`EduOsAi__DailyCallsPerTenant\` | SQL-backed atomic maximum outbound attempts per UTC day; defaults to 20, range 1–100 |
 
-External provider generation is denied unless BOTH the deployment's tenant allowlist and the current user's per-request unchecked-by-default consent are present. A student tutor requires the extra StudentTutorEnabled switch; guardian/institution data-processing approval and privacy policy remain deployment prerequisites. The deterministic management snapshot remains available without provider approval. The service sends `POST https://api.openai.com/v1/responses` with `max_output_tokens=900` and `store=false`. If the model isn't configured, the Teacher/Tutor buttons are disabled; management verified SQL metrics remain usable. Provider endpoint and credentials cannot be supplied by the browser.
+Release supports **OpenAI Responses API** at a fixed HTTPS endpoint. Other providers require separately reviewed adapters; a custom tenant-supplied URL is not permitted. Per-request consent and role/tenant authorization remain required. No model-generated answer automatically mutates ERP records.
+
+For secret entry, migration, tenant-isolation and rollout rules see [Institute-Owned Provider Credentials](TENANT_OWNED_PROVIDER_CREDENTIALS.md).
 
 ## API
 
@@ -46,14 +46,13 @@ External provider generation is denied unless BOTH the deployment's tenant allow
 All writes require the normal antiforgery token. The only POST effects are provider calls; they do not mutate ERP state.
 
 ## Durable provider call budget (migration required)
-Deploy migration `20261121080000_AiDailyProviderCallBudget` before enabling the external model. `AiProviderDailyUsage` stores only tenant ID, UTC date, reserved call count and timestamp (no prompt, transcript, student or model response). SQL `sp_getapplock` serializes one short per-tenant daily reservation across application instances. The provider is called only if a reservation succeeds. Failed or timed-out calls still consume a reservation, since the provider may charge for them. These counters are **not a token-billing ledger or monetary price cap**; review token usage/model costs separately and disable the provider using `EduOsAi__Enabled=false` if budgets are at risk. The migration blocks destructive rollback while usage rows exist.
+Deploy migrations `20261121080000_AiDailyProviderCallBudget` and `20261121100000_TenantAiProviderCredentials` before enabling the external model. `AiProviderDailyUsage` stores only tenant ID, UTC date, reserved call count and timestamp (no prompt, transcript, student or model response). SQL `sp_getapplock` serializes one short per-tenant daily reservation across application instances. The provider is called only if a reservation succeeds. Failed or timed-out calls still consume a reservation, since the provider may charge for them. These counters are **not a token-billing ledger or monetary price cap**; review token usage/model costs separately and disable the provider using `EduOsAi__Enabled=false` if budgets are at risk. The migration blocks destructive rollback while usage rows exist.
 
 ## Release gate
-1. `dotnet build EduOS.slnx` and `dotnet test` on the pinned .NET 10 SDK; run `node --test EduOS.Tests/JavaScript/ai-workspace-contract.test.cjs`.
-2. Inspect and validate the environment key/model in staging; test explicitly **disabled** mode, missing/nonmatching ApprovedTenantIds, unchecked consent, and student mode without StudentTutorEnabled. Never allow an unapproved institution to trigger an outbound call. Do not use real pupil data in provider smoke tests.
-3. Test TenantAdmin, Principal, Teacher, Student and unauthorized users. Validate cross-tenant IDs, campus access revocation, expired/current enrollment, suspended employees, and legacy batchless StudentEnrollment records.
-4. Test 429 limits, provider failures/timeouts, model format changes, session switch, XSS, empty/oversized/PII-bearing prompts, browser assistive access and mobile viewport.
-5. Confirm production privacy notice, processor/data-processing agreement, school approval for external AI services, tenant spend ceilings, observability and rollback owner. No automatic model output posting or publish actions.
-6. Check CI + SQL data correctness and complete authorized user UAT before enabling feature in production.
+1. Build and test the complete .NET 10 solution, xUnit, Node contracts and EF model snapshot; validate idempotent SQL migrations.
+2. With `EduOsAi__Enabled=false`, verify zero outbound calls. Enable only in disposable/staged environments after secret storage and durable key ring are configured.
+3. Verify two tenants cannot read, replace or use each other's AI credentials; check rotating, clearing, stale versions, mid-session institution switch, permission revocation and failing/decryption errors.
+4. Validate Teacher, Student and Management role/consent, campus access, 429 limits, timeouts, PII guards, provider rejection, browser/mobile UX and language behavior. Existing SMS/Email gateways must remain unaffected.
+5. Approve processor agreements, school consent, model spend monitoring, backup/restore, production deployment and rollback owner.
 
-**Rollback:** Set `EduOsAi__Enabled=false` to disable model calls without data migration. To hide pages, revert this feature's MVC/sidebar changes. No newly created database schema or stored prompt data requires rollback.
+**Rollback:** Disable external provider calls using `EduOsAi__Enabled=false`; never delete stored secrets as an automated rollback. Migrations reject rollback while their data exists.
