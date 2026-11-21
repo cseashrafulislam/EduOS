@@ -2,12 +2,13 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
 
-test('external AI requires tenant allowlist, explicit per-request consent and durable SQL reserve',()=>{
+test('external AI uses institution-owned key, explicit consent and durable SQL reserve',()=>{
     const svc=read('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
     const quota=read('EduOS.Service/Services/AI/AiProviderDailyQuotaService.cs');
     const migration=read('EduOS.Persistence/Migrations/20261121080000_AiDailyProviderCallBudget.cs');
-    assert.match(svc,/EduOsAi:ApprovedTenantIds/);
-    assert.match(svc,/EduOsAi:StudentTutorEnabled/);
+    assert.match(svc,/tenantProvider.ResolveAsync\(ct\)/);
+    assert.match(svc,/providerSettings.StudentTutorEnabled/);
+    assert.doesNotMatch(svc,/EduOsAi:ApiKey|ApprovedTenantIds/);
     assert.match(svc,/request\?\.ConsentToExternalAi != true/);
     assert.match(svc,/if \(!consentToExternalAi\)/);
     assert.match(svc,/quota.TryReserveAsync\(current.TenantId, dailyLimit, ct\)/);

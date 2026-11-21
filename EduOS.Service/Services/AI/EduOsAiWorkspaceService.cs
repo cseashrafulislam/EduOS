@@ -48,24 +48,27 @@ public sealed record AiManagementSnapshot(
 
 public sealed class EduOsAiWorkspaceService(
     EduOSDbContext db, ICurrentUserService current, IConfiguration configuration,
-    HttpClient http, AiProviderDailyQuotaService quota, ILogger<EduOsAiWorkspaceService> logger)
+    HttpClient http, AiProviderDailyQuotaService quota, TenantAiProviderSettingsService tenantProvider,
+    ILogger<EduOsAiWorkspaceService> logger)
 {
     private bool Trusted => current.IsAuthenticated && current.UserId > 0 &&
         current.TenantId > 0 && db.CurrentTenantId == current.TenantId;
     private bool Manager => Trusted && (current.IsTenantAdmin || current.IsInRole("Principal"));
-    // Deny external AI egress by default: deployment approval is scoped to explicit tenant IDs.
-    // No wildcard and no authorization decision based on browser-supplied tenant metadata.
-    private bool TenantProviderApproved => Trusted &&
-        (configuration["EduOsAi:ApprovedTenantIds"] ?? "")
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Any(raw => long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out var id) &&
-                        id == current.TenantId);
-    public bool ProviderReady => TenantProviderApproved &&
-        configuration.GetValue<bool>("EduOsAi:Enabled") &&
-        !string.IsNullOrWhiteSpace(configuration["EduOsAi:ApiKey"]) &&
-        !string.IsNullOrWhiteSpace(configuration["EduOsAi:Model"]);
-    public bool TutorReady => ProviderReady && configuration.GetValue<bool>("EduOsAi:StudentTutorEnabled");
-    public bool CurrentRoleReady => current.IsInRole("Student") ? TutorReady : ProviderReady;
+    // A tenant can use only its own protected key. A server flag is an emergency kill switch.
+    public async Task<bool> IsCurrentRoleReadyAsync(CancellationToken ct)
+    {
+        if (!Trusted || !configuration.GetValue<bool>("EduOsAi:Enabled")) return false;
+        try
+        {
+            var settings = await tenantProvider.ResolveAsync(ct);
+            return settings != null && (!current.IsInRole("Student") || settings.StudentTutorEnabled);
+        }
+        catch (DbException ex)
+        {
+            logger.LogWarning("Institution AI configuration unavailable ({ExceptionType}).", ex.GetType().Name);
+            return false;
+        }
+    }
     private static ApiResponse<T> Fail<T>(string message, int code = 400) =>
         ApiResponse<T>.ErrorResponse(message, code);
     private static bool HasPersonalData(string text) =>
@@ -126,7 +129,7 @@ public sealed class EduOsAiWorkspaceService(
         StudentTutorRequest? request, CancellationToken ct)
     {
         if (!await MayStudyAsync(ct)) return Fail<AiGeneratedDraft>("Active student enrollment required.", 403);
-        if (!TutorReady) return Fail<AiGeneratedDraft>("Student external AI tutoring is not enabled for this institution.", 503);
+        if (!await IsCurrentRoleReadyAsync(ct)) return Fail<AiGeneratedDraft>("Student external AI tutoring is not enabled for this institution.", 503);
         if (request?.ConsentToExternalAi != true)
             return Fail<AiGeneratedDraft>("Explicit consent is required before sending text to an external AI provider.");
         if (request == null || string.IsNullOrWhiteSpace(request.Topic) ||
@@ -302,10 +305,14 @@ public sealed class EduOsAiWorkspaceService(
     private async Task<ApiResponse<AiGeneratedDraft>> GenerateAsync(
         string instructions, string prompt, CancellationToken ct)
     {
-        if (!ProviderReady)
-            return Fail<AiGeneratedDraft>("AI model is disabled or not configured. Set EduOsAi__Enabled, EduOsAi__ApiKey and EduOsAi__Model on the server.", 503);
+        if (!Trusted || !configuration.GetValue<bool>("EduOsAi:Enabled"))
+            return Fail<AiGeneratedDraft>("External AI is disabled by the platform.", 503);
         try
         {
+            var providerSettings = await tenantProvider.ResolveAsync(ct);
+            if (providerSettings == null ||
+                (current.IsInRole("Student") && !providerSettings.StudentTutorEnabled))
+                return Fail<AiGeneratedDraft>("Your institution must configure and enable its own AI provider key.", 503);
             // One short atomic SQL reservation across all instances before provider egress.
             // A timed-out provider call may still incur cost; never refund blindly.
             var dailyLimit = configuration.GetValue<int?>("EduOsAi:DailyCallsPerTenant") ?? 20;
@@ -316,14 +323,14 @@ public sealed class EduOsAiWorkspaceService(
 
             var body = JsonSerializer.Serialize(new
             {
-                model = configuration["EduOsAi:Model"],
+                model = providerSettings.Model,
                 instructions,
                 input = prompt,
                 max_output_tokens = 900,
                 store = false
             });
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", configuration["EduOsAi:ApiKey"]);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", providerSettings.ApiKey);
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             if (!response.IsSuccessStatusCode)

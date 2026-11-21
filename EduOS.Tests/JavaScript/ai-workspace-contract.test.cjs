@@ -26,9 +26,8 @@ test('provider does not leak secrets or mutate canonical ERP tables', () => {
     const svc = file('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
     const js = file('EduOS.App/wwwroot/js/ai/workspace.js');
     assert.match(svc, /EduOsAi:Enabled/);
-    assert.match(svc, /EduOsAi:ApprovedTenantIds/);
-    assert.match(svc, /TenantProviderApproved => Trusted/);
-    assert.match(svc, /EduOsAi:StudentTutorEnabled/);
+    assert.match(svc, /tenantProvider.ResolveAsync\(ct\)/);
+    assert.match(svc, /settings.StudentTutorEnabled|providerSettings.StudentTutorEnabled/);
     assert.match(svc, /EduOsAi:DailyCallsPerTenant/);
     assert.match(svc, /quota.TryReserveAsync\(current.TenantId, dailyLimit, ct\)/);
     assert.match(svc, /request\?\.ConsentToExternalAi != true/g);
@@ -36,9 +35,10 @@ test('provider does not leak secrets or mutate canonical ERP tables', () => {
     assert.match(js, /el\('aiProviderConsent'\)\?\.checked === true/);
     assert.match(js, /consentToExternalAi: consent/);
     assert.match(file('EduOS.App/Views/AiWorkspace/Index.cshtml'), /id="aiProviderConsent"/);
-    assert.match(file('EduOS.App/Controllers/Api/AiWorkspaceApiController.cs'), /service.CurrentRoleReady/);
-    assert.match(svc, /EduOsAi:ApiKey/);
-    assert.match(svc, /EduOsAi:Model/);
+    assert.match(file('EduOS.App/Controllers/Api/AiWorkspaceApiController.cs'), /IsCurrentRoleReadyAsync/);
+    assert.match(svc, /providerSettings.ApiKey/);
+    assert.match(svc, /providerSettings.Model/);
+    assert.doesNotMatch(svc, /EduOsAi:ApiKey|ApprovedTenantIds/);
     assert.match(svc, /https:\/\/api\.openai\.com\/v1\/responses/);
     assert.match(svc, /store = false/);
     assert.match(svc, /max_output_tokens = 900/);

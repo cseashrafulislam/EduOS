@@ -17,10 +17,10 @@ namespace EduOS.App.Controllers.Api;
 public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : ControllerBase
 {
     [HttpGet("status")]
-    public IActionResult Status() => Ok(new
+    public async Task<IActionResult> Status(CancellationToken ct) => Ok(new
     {
         success = true,
-        data = new { modelConfigured = service.CurrentRoleReady, readOnly = true }
+        data = new { modelConfigured = await service.IsCurrentRoleReadyAsync(ct), readOnly = true }
     });
 
     [HttpPost("teacher")]
