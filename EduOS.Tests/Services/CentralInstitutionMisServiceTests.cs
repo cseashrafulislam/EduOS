@@ -190,6 +190,44 @@ public sealed class CentralInstitutionMisServiceTests
             It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task Single_student_metric_avoids_unrelated_finance_queries()
+    {
+        await using var db = Database();
+        SeedAdmin(db);
+        db.Students.Add(new Student { Id = 99, TenantId = 41, StudentCode = "S-99",
+            FullName = "Only Student", StatusCode = "Active" });
+        await db.SaveChangesAsync();
+        var finance = new Mock<IAccountingReportingService>(MockBehavior.Strict);
+        var result = await Service(db, Modules(), finance.Object)
+            .GetMetricAsync("active_students", From, To);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Metrics.Should().ContainSingle();
+        result.Data.Metrics.Single().Key.Should().Be("active_students");
+        result.Data.Metrics.Single().Value.Should().Be(1m);
+        finance.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Single_invoice_metric_does_not_require_gl_finance_summary()
+    {
+        await using var db = Database();
+        SeedAdmin(db);
+        db.StudentInvoices.Add(new StudentInvoice { Id = 101, TenantId = 41,
+            StudentEnrollmentId = 1, InvoiceNumber = "INV-101", InvoiceDate = From, DueDate = To,
+            State = InvoiceState.PartiallyPaid, TotalAmount = 100m,
+            PaidAmount = 10m, DueAmount = 90m });
+        await db.SaveChangesAsync();
+        var finance = new Mock<IAccountingReportingService>(MockBehavior.Strict);
+        var result = await Service(db, Modules(), finance.Object)
+            .GetMetricAsync("outstanding_fee_amount", From, To);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Metrics.Should().ContainSingle();
+        result.Data.Metrics.Single().Key.Should().Be("outstanding_fee_amount");
+        result.Data.Metrics.Single().Value.Should().Be(90m);
+        finance.VerifyNoOtherCalls();
+    }
+
     private static Mock<IAccountingReportingService> Finance(int status = 200)
     {
         var mock = new Mock<IAccountingReportingService>();

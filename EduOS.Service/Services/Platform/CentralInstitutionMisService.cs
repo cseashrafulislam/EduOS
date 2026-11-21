@@ -17,8 +17,16 @@ public sealed class CentralInstitutionMisService(
     EduOSDbContext db, ICurrentUserService user, ITenantModuleService modules,
     IAccountingReportingService finance, TimeProvider clock) : ICentralInstitutionMisService
 {
-    public async Task<ApiResponse<CentralInstitutionMisDto>> GetAsync(
-        DateOnly fromDate, DateOnly toDate, CancellationToken ct = default)
+    public Task<ApiResponse<CentralInstitutionMisDto>> GetAsync(
+        DateOnly fromDate, DateOnly toDate, CancellationToken ct = default) =>
+        BuildAsync(fromDate, toDate, null, ct);
+
+    public Task<ApiResponse<CentralInstitutionMisDto>> GetMetricAsync(
+        string metricKey, DateOnly fromDate, DateOnly toDate, CancellationToken ct = default) =>
+        BuildAsync(fromDate, toDate, metricKey, ct);
+
+    private async Task<ApiResponse<CentralInstitutionMisDto>> BuildAsync(
+        DateOnly fromDate, DateOnly toDate, string? onlyMetricKey, CancellationToken ct)
     {
         if (!user.IsAuthenticated || !user.IsTenantAdmin || user.TenantId <= 0 ||
             user.UserId <= 0 || db.CurrentTenantId != user.TenantId)
@@ -36,9 +44,18 @@ public sealed class CentralInstitutionMisService(
                 "Institution membership or administrator role is no longer active.", 403);
 
         var metrics = new List<CentralInstitutionMisMetricDto>();
+        ApiResponse<CentralInstitutionMisDto> Complete() =>
+            ApiResponse<CentralInstitutionMisDto>.SuccessResponse(
+                new CentralInstitutionMisDto
+                {
+                    GeneratedAtUtc = clock.GetUtcNow().UtcDateTime,
+                    PeriodFrom = fromDate, PeriodTo = toDate, Metrics = metrics
+                });
         async Task Add(string module, string key, string source, string definition,
             string scope, Func<Task<decimal>> value, string unit = "Count")
         {
+            if (onlyMetricKey != null && !string.Equals(key, onlyMetricKey, StringComparison.Ordinal))
+                return;
             var allowed = await modules.IsCurrentTenantModuleAvailableAsync(module);
             var amount = allowed ? await value() : (decimal?)null;
             metrics.Add(new CentralInstitutionMisMetricDto
@@ -121,75 +138,91 @@ public sealed class CentralInstitutionMisService(
                 x.TenantId == tenant && !x.IsDeleted && x.State == "Planned" &&
                 x.OperatingDate >= fromDate && x.OperatingDate <= toDate, ct));
 
+        // Single-metric questions must not scan unrelated modules. A Student count
+        // must still work when Finance has an unrelated integrity issue.
+        var wantsInvoices = onlyMetricKey is null or "outstanding_fee_invoices" or "outstanding_fee_amount";
+        var wantsGl = onlyMetricKey is null or "posted_income" or "posted_expenses" or "net_surplus";
+        if (!wantsInvoices && !wantsGl) return Complete();
+
         var financeAllowed = await modules.IsCurrentTenantModuleAvailableAsync("FINANCE");
         if (financeAllowed)
         {
-            // Operational receivables belong to the canonical StudentInvoice, not the
-            // posted GL income metric. A paid/cancelled/refunded/draft invoice cannot
-            // be counted as an open receivable even if old data has a stale DueAmount.
-            var openInvoices = db.StudentInvoices.AsNoTracking().Where(x =>
-                x.TenantId == tenant && !x.IsDeleted &&
-                (x.State == InvoiceState.Issued || x.State == InvoiceState.PartiallyPaid));
-            if (await openInvoices.AnyAsync(x => x.DueAmount < 0m || x.CurrencyCode != "BDT", ct))
-                return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
-                    "Invalid student receivable amount or currency; reconcile invoices before MIS reporting.", 409);
-            var outstanding = openInvoices.Where(x => x.DueAmount > 0m);
-            metrics.Add(new CentralInstitutionMisMetricDto
+            if (wantsInvoices)
             {
-                Key = "outstanding_fee_invoices", ModuleCode = "FINANCE", Source = "StudentInvoices",
-                Definition = "Issued or partially paid invoices with positive current due; excludes draft, cancelled, paid and refunded invoices.",
-                Scope = "Current", Unit = "Count", Available = true,
-                Value = await outstanding.CountAsync(ct)
-            });
-            metrics.Add(new CentralInstitutionMisMetricDto
+                // Operational receivables are canonical StudentInvoice records,
+                // never the posted GL income or a duplicated payment calculation.
+                var openInvoices = db.StudentInvoices.AsNoTracking().Where(x =>
+                    x.TenantId == tenant && !x.IsDeleted &&
+                    (x.State == InvoiceState.Issued || x.State == InvoiceState.PartiallyPaid));
+                if (await openInvoices.AnyAsync(x => x.DueAmount < 0m || x.CurrencyCode != "BDT", ct))
+                    return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
+                        "Invalid student receivable amount or currency; reconcile invoices before MIS reporting.", 409);
+                var outstanding = openInvoices.Where(x => x.DueAmount > 0m);
+                if (onlyMetricKey is null or "outstanding_fee_invoices")
+                    metrics.Add(new CentralInstitutionMisMetricDto
+                    {
+                        Key = "outstanding_fee_invoices", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                        Definition = "Issued or partially paid invoices with positive current due; excludes draft, cancelled, paid and refunded invoices.",
+                        Scope = "Current", Unit = "Count", Available = true,
+                        Value = await outstanding.CountAsync(ct)
+                    });
+                if (onlyMetricKey is null or "outstanding_fee_amount")
+                    metrics.Add(new CentralInstitutionMisMetricDto
+                    {
+                        Key = "outstanding_fee_amount", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                        Definition = "Current operational invoice receivables, not collected cash or posted GL income.",
+                        Scope = "Current", Unit = "BDT", Available = true,
+                        Value = await outstanding.Select(x => (decimal?)x.DueAmount).SumAsync(ct) ?? 0m
+                    });
+            }
+            if (wantsGl)
             {
-                Key = "outstanding_fee_amount", ModuleCode = "FINANCE", Source = "StudentInvoices",
-                Definition = "Current operational invoice receivables, not collected cash or posted GL income.",
-                Scope = "Current", Unit = "BDT", Available = true,
-                Value = await outstanding.Select(x => (decimal?)x.DueAmount).SumAsync(ct) ?? 0m
-            });
-            var totals = await finance.GetInstitutionalIncomeExpenseTotalsAsync(fromDate, toDate, ct);
-            if (!totals.Success || totals.Data == null)
-                return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
-                    totals.Message, totals.StatusCode);
-            AddFinance("posted_income", "Posted GL income account credits minus debits.",
-                totals.Data.TotalIncome);
-            AddFinance("posted_expenses", "Posted GL expense account debits minus credits.",
-                totals.Data.TotalExpenses);
-            AddFinance("net_surplus", "Posted GL income minus expenses, including reversals.",
-                totals.Data.NetSurplus);
+                var totals = await finance.GetInstitutionalIncomeExpenseTotalsAsync(fromDate, toDate, ct);
+                if (!totals.Success || totals.Data == null)
+                    return ApiResponse<CentralInstitutionMisDto>.ErrorResponse(
+                        totals.Message, totals.StatusCode);
+                AddFinance("posted_income", "Posted GL income account credits minus debits.",
+                    totals.Data.TotalIncome);
+                AddFinance("posted_expenses", "Posted GL expense account debits minus credits.",
+                    totals.Data.TotalExpenses);
+                AddFinance("net_surplus", "Posted GL income minus expenses, including reversals.",
+                    totals.Data.NetSurplus);
+            }
         }
         else
         {
-            metrics.Add(new CentralInstitutionMisMetricDto
+            if (onlyMetricKey is null or "outstanding_fee_invoices")
+                metrics.Add(new CentralInstitutionMisMetricDto
+                {
+                    Key = "outstanding_fee_invoices", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                    Definition = "Issued or partially paid invoices with positive current due; excludes draft, cancelled, paid and refunded invoices.",
+                    Scope = "Current", Unit = "Count", Available = false
+                });
+            if (onlyMetricKey is null or "outstanding_fee_amount")
+                metrics.Add(new CentralInstitutionMisMetricDto
+                {
+                    Key = "outstanding_fee_amount", ModuleCode = "FINANCE", Source = "StudentInvoices",
+                    Definition = "Current operational invoice receivables, not collected cash or posted GL income.",
+                    Scope = "Current", Unit = "BDT", Available = false
+                });
+            if (wantsGl)
             {
-                Key = "outstanding_fee_invoices", ModuleCode = "FINANCE", Source = "StudentInvoices",
-                Definition = "Issued or partially paid invoices with positive current due; excludes draft, cancelled, paid and refunded invoices.",
-                Scope = "Current", Unit = "Count", Available = false
-            });
-            metrics.Add(new CentralInstitutionMisMetricDto
-            {
-                Key = "outstanding_fee_amount", ModuleCode = "FINANCE", Source = "StudentInvoices",
-                Definition = "Current operational invoice receivables, not collected cash or posted GL income.",
-                Scope = "Current", Unit = "BDT", Available = false
-            });
-            AddFinance("posted_income", "Posted GL income account credits minus debits.", null);
-            AddFinance("posted_expenses", "Posted GL expense account debits minus credits.", null);
-            AddFinance("net_surplus", "Posted GL income minus expenses, including reversals.", null);
+                AddFinance("posted_income", "Posted GL income account credits minus debits.", null);
+                AddFinance("posted_expenses", "Posted GL expense account debits minus credits.", null);
+                AddFinance("net_surplus", "Posted GL income minus expenses, including reversals.", null);
+            }
         }
-        void AddFinance(string key, string definition, decimal? value) => metrics.Add(
-            new CentralInstitutionMisMetricDto
+        void AddFinance(string key, string definition, decimal? value)
+        {
+            if (onlyMetricKey != null && key != onlyMetricKey) return;
+            metrics.Add(new CentralInstitutionMisMetricDto
             {
                 Key = key, ModuleCode = "FINANCE", Source = "Journals/JournalLines/Accounts",
                 Definition = definition, Scope = "Period", Unit = "BDT",
                 Available = financeAllowed, Value = value
             });
+        }
 
-        return ApiResponse<CentralInstitutionMisDto>.SuccessResponse(
-            new CentralInstitutionMisDto
-            {
-                GeneratedAtUtc = clock.GetUtcNow().UtcDateTime,
-                PeriodFrom = fromDate, PeriodTo = toDate, Metrics = metrics
-            });
+        return Complete();
     }
 }

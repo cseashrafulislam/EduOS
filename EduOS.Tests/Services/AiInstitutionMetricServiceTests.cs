@@ -34,21 +34,21 @@ public sealed class AiInstitutionMetricServiceTests
     public async Task Value_is_exact_canonical_decimal_text_and_scope_is_not_reinterpreted()
     {
         var m = new Mock<ICentralInstitutionMisService>();
-        m.Setup(x => x.GetAsync(From, To, It.IsAny<CancellationToken>())).ReturnsAsync(Report());
+        m.Setup(x => x.GetMetricAsync("outstanding_fee_amount", From, To, It.IsAny<CancellationToken>())).ReturnsAsync(Report());
         var result = await new AiInstitutionMetricService(m.Object)
             .AskAsync("বকেয়া ফি", From, To, CancellationToken.None);
         Assert.Equal(200, result.StatusCode);
         Assert.Equal("123456789012345.67", result.Data!.Value);
         Assert.Equal("Current", result.Data.Scope);
         Assert.Equal("StudentInvoices", result.Data.Source);
-        m.Verify(x => x.GetAsync(From, To, It.IsAny<CancellationToken>()), Times.Once);
+        m.Verify(x => x.GetMetricAsync("outstanding_fee_amount", From, To, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task Disabled_module_is_unavailable_not_zero()
     {
         var m = new Mock<ICentralInstitutionMisService>();
-        m.Setup(x => x.GetAsync(From, To, It.IsAny<CancellationToken>())).ReturnsAsync(Report(false));
+        m.Setup(x => x.GetMetricAsync("outstanding_fee_amount", From, To, It.IsAny<CancellationToken>())).ReturnsAsync(Report(false));
         var result = await new AiInstitutionMetricService(m.Object)
             .AskAsync("outstanding fee amount", From, To, CancellationToken.None);
         Assert.Equal(403, result.StatusCode);
@@ -70,7 +70,7 @@ public sealed class AiInstitutionMetricServiceTests
     public async Task Canonical_mis_integrity_failure_is_preserved()
     {
         var m = new Mock<ICentralInstitutionMisService>();
-        m.Setup(x => x.GetAsync(From, To, It.IsAny<CancellationToken>()))
+        m.Setup(x => x.GetMetricAsync("posted_income", From, To, It.IsAny<CancellationToken>()))
             .ReturnsAsync(ApiResponse<CentralInstitutionMisDto>.ErrorResponse("GL integrity error", 409));
         var result = await new AiInstitutionMetricService(m.Object)
             .AskAsync("posted income", From, To, CancellationToken.None);

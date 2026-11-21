@@ -23,7 +23,7 @@ public sealed class AiInstitutionMetricService(ICentralInstitutionMisService mis
             toDate.DayNumber - fromDate.DayNumber >= 366)
             return ApiResponse<AiInstitutionMetricAnswer>.ErrorResponse(
                 "Select a valid MIS period of at most 366 days.", 400);
-        var report = await mis.GetAsync(fromDate, toDate, ct);
+        var report = await mis.GetMetricAsync(metricKey, fromDate, toDate, ct);
         if (!report.Success || report.Data is null)
             return ApiResponse<AiInstitutionMetricAnswer>.ErrorResponse(
                 report.Message ?? "Institution MIS unavailable.", report.StatusCode);

@@ -8,7 +8,7 @@ test('Ask EduOS institution metrics reuse canonical MIS under its original tenan
     const api=read('EduOS.App/Controllers/Api/AiInstitutionQueryController.cs');
     const mvc=read('EduOS.App/Controllers/AiWorkspaceController.cs');
     assert.match(svc, /ICentralInstitutionMisService/);
-    assert.match(svc, /mis.GetAsync\(fromDate, toDate, ct\)/);
+    assert.match(svc, /mis.GetMetricAsync\(metricKey, fromDate, toDate, ct\)/);
     assert.match(svc, /!metric.Available \|\| !metric.Value.HasValue/);
     assert.doesNotMatch(svc, /SaveChanges|ExecuteSql|HttpClient|StudentInvoices/);
     assert.match(api, /Authorize\(Roles = "TenantAdmin"\)/);
