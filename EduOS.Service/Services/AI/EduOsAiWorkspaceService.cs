@@ -64,10 +64,24 @@ public sealed class EduOsAiWorkspaceService(
         {
             var settings = await tenantProvider.ResolveAsync(ct);
             if (settings == null) return false;
+            // Readiness must not advertise an unavailable capability for another
+            // role. The action endpoints still independently enforce permissions.
             if (current.IsInRole("Student"))
-                return settings.StudentTutorEnabled && (capability is null or "tutor");
+                return settings.StudentTutorEnabled && (capability is null or "tutor") &&
+                    await MayStudyAsync(ct);
             if (capability == null) return true;
-            return await tenantProvider.AgentEnabledAsync(capability, ct);
+            return capability switch
+            {
+                "general" => current.IsTenantAdmin &&
+                    await CentralPrivilegedAccess.HasRoleAsync(
+                        db, current, new[] { "TENANTADMIN" }, ct) &&
+                    await tenantProvider.AgentEnabledAsync(capability, ct),
+                "teacher" => await MayTeachAsync(ct) &&
+                    await tenantProvider.AgentEnabledAsync(capability, ct),
+                "management" => Manager &&
+                    await tenantProvider.AgentEnabledAsync(capability, ct),
+                _ => false
+            };
         }
         catch (DbException ex)
         {

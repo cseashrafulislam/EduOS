@@ -8,6 +8,9 @@
 - An unsupported question may optionally route to `POST /api/ai/institution/general` for a general learning concept **only if** a private institute-owned OpenAI key exists, provider is enabled, general capability is enabled, and the user explicitly consents for that request. The server applies an allowlisted general-question policy, rate limit and tenant SQL daily attempt quota. No institution table rows, secrets, fee/marks/attendance/student records or account details are sent. Model text is an **unverified draft**.
 - Known/local module unavailable, GL integrity errors, invalid date, forbidden request, or any other refusal: do **not** fall back to a generative answer. Never invent institutional figures.
 
+## Additional question grammar and readiness hardening
+The reviewed parser now accepts common English and Bengali count/show question forms, alternative spellings, and optional politeness words without changing the underlying metric, scope or selected date. Unauthorized identifiers, campus filters embedded in prose, date expressions, and arbitrary SQL remain unsupported. Provider readiness is evaluated against caller role and active student/teacher eligibility, not only whether a tenant has saved an API key.
+
 ## Performance and reporting integrity
 `GetMetricAsync` and the existing full-report `GetAsync` reuse the SAME canonical definitions and server permissions. Single-metric questions avoid querying unrelated Student, Attendance, Finance, Payroll and GL sources; fee-invoice operational due does not require a full GL income calculation. The full MIS report and its API remain unchanged. No LLM-generated SQL and no arbitrary table, tenant or date selection.
 

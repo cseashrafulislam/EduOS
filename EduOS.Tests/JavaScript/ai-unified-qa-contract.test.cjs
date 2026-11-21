@@ -48,3 +48,15 @@ test('model-free institution API stays compatible; only provider action has bill
     assert.match(provider,/CentralPrivilegedAccess\.HasRoleAsync/);
     assert.match(provider,/await GenerateAsync\(instructions, question!\.Trim\(\), ct, "general"\)/);
 });
+
+test('readiness is scoped to actual caller role and student/teacher enrollment, not merely a tenant API key',()=>{
+    const source=read('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
+    const readiness=source.slice(source.indexOf('public async Task<bool> IsCurrentRoleReadyAsync'),
+        source.indexOf('private static ApiResponse<T> Fail<T>'));
+    assert.match(readiness,/await MayStudyAsync\(ct\)/);
+    assert.match(readiness,/await MayTeachAsync\(ct\)/);
+    assert.match(readiness,/CentralPrivilegedAccess.HasRoleAsync/);
+    assert.match(readiness,/"general" => current.IsTenantAdmin/);
+    assert.match(readiness,/"management" => Manager/);
+    assert.match(readiness,/_ => false/);
+});
