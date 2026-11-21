@@ -101,7 +101,7 @@ public sealed class TenantAiProviderSettingsService(
             string.IsNullOrWhiteSpace(request.Model) ||
             !Regex.IsMatch(request.Model, @"^[A-Za-z0-9][A-Za-z0-9._-]{1,99}$") ||
             (request.ApiKey != null && request.ApiKey.Length > 0 &&
-             (request.ApiKey.Length is < 20 or > 2000 || Regex.IsMatch(request.ApiKey, @"\s"))) ||
+             !Regex.IsMatch(request.ApiKey, @"^[\x21-\x7E]{20,2000}$")) ||
             (request.ClearApiKey && !string.IsNullOrEmpty(request.ApiKey)) ||
             (request.ClearApiKey && request.IsEnabled) ||
             (request.StudentTutorEnabled && !request.IsEnabled))
