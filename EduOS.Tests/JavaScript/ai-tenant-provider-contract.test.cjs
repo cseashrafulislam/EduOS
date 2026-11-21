@@ -3,13 +3,18 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
 test('institute setup renders its own AI key without exposing stored secret',()=>{
     const v=read('EduOS.App/Views/Account/GatewaySetup.cshtml');
-    const js=read('EduOS.App/wwwroot/js/account/gateway-setup.js');
-    for(const id of ['smsApiKey','smtpPassword','aiProviderApiKey','aiProviderEnabled',
-        'aiStudentTutorEnabled','saveAiGatewayBtn','aiClearApiKey'])assert.ok(v.includes('id="'+id+'"'),id);
-    assert.match(v,/type="password" id="aiProviderApiKey"/);
+    const js=read('EduOS.App/wwwroot/js/ai/provider-settings.js');
+    const shared=read('EduOS.App/Views/Shared/_TenantAiProviderSettings.cshtml');
+    assert.match(v,/partial name="_TenantAiProviderSettings"/);
+    assert.match(read('EduOS.App/Views/CommunicationAdministration/Index.cshtml'),/partial name="_TenantAiProviderSettings"/);
+    for(const id of ['smsApiKey','smtpPassword'])assert.ok(v.includes('id="'+id+'"'),id);
+    for(const id of ['aiProviderApiKey','aiProviderEnabled','aiStudentTutorEnabled',
+        'saveAiGatewayBtn','aiClearApiKey','aiUsageSummary'])assert.ok(shared.includes('id="'+id+'"'),id);
+    assert.match(shared,/type="password" id="aiProviderApiKey"/);
     assert.match(js,/aiApiRoot = '\/api\/ai\/provider-settings'/);
     assert.match(js,/rowVersion: aiSettings\?\.rowVersion/);
     assert.match(js,/config.hasApiKey/);
+    assert.match(js,/\/usage\?days=30/);
     assert.doesNotMatch(js,/localStorage|sessionStorage/);
     new Function(js);
 });

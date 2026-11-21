@@ -2,7 +2,6 @@
     'use strict';
 
     const apiRoot = '/api/communication-admin/gateways';
-    const aiApiRoot = '/api/ai/provider-settings';
     const stringsNode = document.getElementById('gatewaySetupStrings');
     const i18n = stringsNode ? JSON.parse(stringsNode.textContent || '{}') : {};
     const alertContainer = document.getElementById('alertContainer');
@@ -12,21 +11,10 @@
     let gatewaysLoaded = false;
     let onboarding = null;
     let saving = false;
-    let aiSaving = false;
-    let aiSettings = null;
-    let aiLoaded = false;
-    const tenantSession = [document.body?.dataset.authTenantId || '',
-        document.body?.dataset.authSessionReference || ''];
-    const sameSession = () => tenantSession[0] === (document.body?.dataset.authTenantId || '') &&
-        tenantSession[1] === (document.body?.dataset.authSessionReference || '') &&
-        window.EduOSSessionTransitionPending?.() !== true;
 
     document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('smsForm')?.addEventListener('submit', saveSms);
         document.getElementById('emailForm')?.addEventListener('submit', saveEmail);
-        document.getElementById('aiGatewayForm')?.addEventListener('submit', saveAiGateway);
-        document.getElementById('aiProviderEnabled')?.addEventListener('change', updateAiRequired);
-        document.getElementById('aiClearApiKey')?.addEventListener('change', updateAiRequired);
         document.getElementById('smsEnabled')?.addEventListener('change', updateRequiredFields);
         document.getElementById('emailEnabled')?.addEventListener('change', updateRequiredFields);
         document.getElementById('smsProvider')?.addEventListener('change', () => {
@@ -39,8 +27,7 @@
             if (button) button.dataset.idleLabel = button.textContent.trim();
         });
         setFormEnabled(false);
-        setAiFormEnabled(false);
-        await Promise.all([loadGateways(), loadOnboardingState(), loadAiGateway()]);
+        await Promise.all([loadGateways(), loadOnboardingState()]);
         updateRequiredFields();
         updateActions();
     }, { once: true });
@@ -204,102 +191,8 @@
     }
 
 
-    async function loadAiGateway() {
-        aiLoaded = false;
-        setAiFormEnabled(false);
-        try {
-            const config = await api(aiApiRoot);
-            if (!sameSession()) return false;
-            if (!config || config.providerCode !== 'OpenAI') throw Error('Invalid AI provider settings.');
-            aiSettings = config;
-            setValue('aiProviderModel', config.model || 'gpt-4.1-mini');
-            setChecked('aiProviderEnabled', config.isEnabled);
-            setChecked('aiStudentTutorEnabled', config.studentTutorEnabled);
-            setChecked('aiClearApiKey', false);
-            setValue('aiProviderApiKey', '');
-            document.getElementById('aiProviderApiKey').placeholder = config.hasApiKey ? '********' : '';
-            document.getElementById('aiGatewayStatus').textContent = config.hasApiKey
-                ? 'API key saved securely' : 'No provider key saved';
-            aiLoaded = true;
-            return true;
-        } catch {
-            if (sameSession())
-                document.getElementById('aiGatewayStatus').textContent = 'AI settings unavailable. Reload to retry.';
-            return false;
-        } finally {
-            setAiFormEnabled(aiLoaded && sameSession());
-        }
-    }
-
-    function setAiFormEnabled(enabled) {
-        for (const id of ['aiProviderModel', 'aiProviderApiKey', 'aiProviderEnabled',
-            'aiStudentTutorEnabled', 'aiClearApiKey', 'saveAiGatewayBtn']) {
-            const element = document.getElementById(id);
-            if (element) element.disabled = !enabled;
-        }
-        updateAiRequired();
-    }
-
-    function updateAiRequired() {
-        const enabled = aiLoaded && isChecked('aiProviderEnabled');
-        const key = document.getElementById('aiProviderApiKey');
-        const tutor = document.getElementById('aiStudentTutorEnabled');
-        const clear = document.getElementById('aiClearApiKey');
-        if (!key || !tutor || !clear) return;
-        if (!enabled) {
-            tutor.checked = false;
-            tutor.disabled = true;
-        } else {
-            tutor.disabled = aiSaving;
-            clear.checked = false;
-        }
-        clear.disabled = !aiLoaded || aiSaving || enabled;
-        key.required = enabled && !aiSettings?.hasApiKey;
-        key.disabled = !aiLoaded || aiSaving || clear.checked;
-        const submit = document.getElementById('saveAiGatewayBtn');
-        if (submit) submit.disabled = !aiLoaded || aiSaving || !sameSession();
-    }
-
-    async function saveAiGateway(event) {
-        event.preventDefault();
-        const form = document.getElementById('aiGatewayForm');
-        if (!aiLoaded || aiSaving || saving || !sameSession() || !form.reportValidity()) return;
-        const enabled = isChecked('aiProviderEnabled');
-        const clear = !enabled && isChecked('aiClearApiKey');
-        const dto = {
-            providerCode: 'OpenAI',
-            model: valueOf('aiProviderModel'),
-            apiKey: clear ? null : enteredSecret('aiProviderApiKey'),
-            isEnabled: enabled,
-            studentTutorEnabled: enabled && isChecked('aiStudentTutorEnabled'),
-            clearApiKey: clear,
-            rowVersion: aiSettings?.rowVersion || null
-        };
-        aiSaving = true;
-        updateAiRequired();
-        try {
-            const settings = await api(aiApiRoot, 'PUT', dto);
-            if (!sameSession()) return;
-            aiSettings = settings;
-            setValue('aiProviderApiKey', '');
-            setChecked('aiClearApiKey', false);
-            document.getElementById('aiProviderApiKey').placeholder = settings.hasApiKey ? '********' : '';
-            document.getElementById('aiGatewayStatus').textContent = 'AI provider settings saved securely.';
-            showAlert('success', 'Institution AI settings saved securely.');
-        } catch (error) {
-            if (sameSession()) {
-                document.getElementById('aiGatewayStatus').textContent =
-                    'AI settings not saved. Review and retry.';
-                showAlert('danger', error.message || 'Could not save AI settings.');
-            }
-        } finally {
-            aiSaving = false;
-            if (sameSession()) updateAiRequired();
-        }
-    }
-
     async function finishOnboarding(skipped) {
-        if (saving || aiSaving) return;
+        if (saving || window.EduOSAiProviderSaving === true) return;
         if (onboarding?.isComplete) {
             window.location.assign('/Dashboard/Index');
             return;
