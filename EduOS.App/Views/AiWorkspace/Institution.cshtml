@@ -54,9 +54,19 @@
                 <p id="aiInstitutionMode" class="small text-muted mt-1 mb-0" role="status" aria-live="polite"></p>
             </div>
             <div class="col-12">
-                <button id="aiInstitutionAsk" type="submit" class="btn btn-primary">
-                    @(bn ? "উত্তর দেখুন" : "Get answer")
-                </button>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <button id="aiInstitutionAsk" type="submit" class="btn btn-primary">
+                        @(bn ? "উত্তর দেখুন" : "Get answer")
+                    </button>
+                    <button id="aiInstitutionSpeak" type="button" class="btn btn-outline-secondary" hidden
+                            aria-label="@(bn ? "ভয়েস দিয়ে প্রশ্ন লিখুন" : "Dictate a question")">
+                        <span aria-hidden="true">🎙</span> @(bn ? "ভয়েস প্রশ্ন" : "Voice question")
+                    </button>
+                </div>
+                <p id="aiInstitutionSpeechNote" class="small text-muted mt-2 mb-0">
+                    @(bn ? "ভয়েস থাকলে ব্রাউজারের Speech Recognition ব্যবহার হবে; অডিও প্রসেসিং ব্রাউজার/প্রোভাইডার নিয়ন্ত্রণ করতে পারে। লেখা দেখে নিজে Submit করুন।" :
+                        "Optional browser speech recognition may use browser/vendor services. Review the transcript and submit manually; EduOS does not auto-submit audio.")
+                </p>
             </div>
         </form>
         <div id="aiInstitutionNotice" class="small mt-2" role="status" aria-live="polite"></div>

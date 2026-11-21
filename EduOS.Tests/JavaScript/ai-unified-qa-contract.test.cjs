@@ -7,6 +7,9 @@ test('Ask EduOS presents one Q&A form for free canonical MIS and optional AI fal
     const js=read('EduOS.App/wwwroot/js/ai/institution-questions.js');
     assert.equal((view.match(/id="aiInstitutionForm"/g)||[]).length,1);
     assert.match(view,/id="aiInstitutionConsent"/);
+    assert.match(view,/id="aiInstitutionSpeak"/);
+    assert.match(js,/SpeechRecognition \|\| window.webkitSpeechRecognition/);
+    assert.match(js,/input.dispatchEvent\(new Event\('input'/);
     assert.match(view,/Ask EduOS — Q&A/);
     assert.match(js,/\/api\/ai\/institution\/ask/);
     assert.match(js,/\/api\/ai\/institution\/catalog/);

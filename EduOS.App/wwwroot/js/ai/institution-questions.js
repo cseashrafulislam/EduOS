@@ -142,6 +142,64 @@
     }
     void loadCatalog();
 
+    // Browser-managed microphone is optional. No audio is uploaded by EduOS,
+    // recognition never submits a query or accepts AI-processing consent.
+    function initVoiceQuestion() {
+        const button = el('aiInstitutionSpeak');
+        const Recognizer = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!button || !Recognizer) return;
+        button.hidden = false;
+        let active = null;
+        button.addEventListener('click', () => {
+            if (!sameSession()) return;
+            if (active) { active.abort(); active = null; button.disabled = false; return; }
+            const recognition = new Recognizer();
+            recognition.lang = bn ? 'bn-BD' : 'en-BD';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            active = recognition;
+            button.disabled = true;
+            notice.textContent = say('Listening. Review the transcript before asking.',
+                'শোনা হচ্ছে। প্রশ্ন পাঠানোর আগে লেখা যাচাই করুন।');
+            recognition.onresult = event => {
+                if (!sameSession() || active !== recognition) return;
+                const text = String(event.results?.[0]?.[0]?.transcript || '')
+                    .replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 200);
+                if (text.length < 3) return;
+                const input = el('aiInstitutionQuestion');
+                input.value = text;
+                // Invalidates stale answers; does not grant consent or submit.
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+                notice.textContent = say('Transcript ready. Review and press Get answer.',
+                    'প্রশ্নের লেখা এসেছে। যাচাই করে উত্তর দেখুন চাপুন।');
+            };
+            recognition.onerror = () => {
+                if (sameSession()) notice.textContent = say(
+                    'Speech recognition unavailable. Type your question instead.',
+                    'ভয়েস কাজ করছে না। প্রশ্ন লিখে দিন।');
+            };
+            recognition.onend = () => {
+                if (active === recognition) {
+                    active = null;
+                    button.disabled = false;
+                }
+            };
+            try { recognition.start(); }
+            catch {
+                active = null;
+                button.disabled = false;
+                notice.textContent = say('Speech recognition could not start.',
+                    'ভয়েস চালু করা যায়নি।');
+            }
+        });
+        window.addEventListener('pagehide', () => {
+            if (active) active.abort();
+            active = null;
+        });
+    }
+    initVoiceQuestion();
+
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (!sameSession() || !form.reportValidity() || submit.disabled) return;
