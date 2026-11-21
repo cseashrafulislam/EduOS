@@ -199,12 +199,34 @@ async function run(){
         await select(page,'offeringSection',
             await page.locator('#offeringSection option').evaluateAll(nodes=>
                 nodes.find(x=>x.value&&x.textContent.includes('QA Section A'))?.value));
+        const sectionId=Number(await page.locator('#offeringSection').inputValue());
+        assert(sectionId>0,'Section offering requires a valid academic section');
         await select(page,'offeringCurriculumSubject',mapping.id);
         await page.locator('#offeringCapacity').fill('20');
         const offerResponse=await postResult(page,'/api/academic-setup/offerings',
             ()=>page.locator('#offeringSave').click());
         assert(offerResponse.data,'Offering response must return a persisted entity');
         await page.locator('#offeringRows tr').filter({hasText:names.subject}).first().waitFor();
+        // Preserve the legacy Batch-linked UI offering; a batchless enrollment
+        // must instead reserve an independent Year/Section offering. Create that
+        // prerequisite through the authenticated, antiforgery-protected API.
+        const sectionOffering=await postResult(page,'/api/academic-setup/offerings',()=>
+            page.evaluate(async args=>window.eduosAcademicManagement.api(
+                '/api/academic-setup/offerings',{
+                    method:'POST',
+                    body:JSON.stringify({
+                        clientRequestId:crypto.randomUUID(),academicBatchId:null,
+                        academicYearId:args.yearId,academicSectionId:args.sectionId,
+                        academicTermId:null,curriculumSubjectId:args.mappingId,
+                        code:args.code,capacity:20,deliveryMode:1,isActive:true
+                    })
+                }),{
+                    yearId:year.id,sectionId,mappingId:mapping.id,
+                    code:'QA-SEC-'+env.GITHUB_SHA.slice(0,12)
+                }));
+        assert(sectionOffering.data?.academicBatchId==null &&
+            sectionOffering.data?.academicSectionId===sectionId,
+            'Required Section-only subject offering was not persisted');
         console.log('[QA student journey] Save Student + Guardian through real UI');
         const studentView=await page.goto(origin+'/Students/Create',{waitUntil:'domcontentloaded'});
         assert(studentView&&studentView.status()===200,'Student quick entry unavailable');
@@ -215,10 +237,10 @@ async function run(){
         await select(page,'runningLevel',level.id);
         await page.waitForFunction(()=>[...document.querySelectorAll('#runningSection option')]
             .some(x=>x.value&&x.textContent.includes('QA Section A')),null,{timeout:25000});
-        const sectionId=Number(await page.locator('#runningSection option').evaluateAll(nodes=>
+        const chosenSectionId=Number(await page.locator('#runningSection option').evaluateAll(nodes=>
             nodes.find(x=>x.value&&x.textContent.includes('QA Section A'))?.value));
-        assert(sectionId>0,'Required independent Section is missing');
-        await select(page,'runningSection',sectionId);
+        assert.equal(chosenSectionId,sectionId,'Student must use the same independently offered Section');
+        await select(page,'runningSection',chosenSectionId);
         await page.locator('#runningRoll').fill(names.roll);
         await page.locator('#runningAdmissionDate').fill('2027-03-01');
         await page.locator('#runningEnrollDate').fill('2027-03-01');

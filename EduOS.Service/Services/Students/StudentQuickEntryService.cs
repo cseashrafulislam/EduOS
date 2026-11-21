@@ -204,7 +204,7 @@ public sealed class StudentQuickEntryService(
                         RollNo = roll, GuardianLinked = request.Guardian != null
                     }
                 };
-            }, IsolationLevel.ReadCommitted, ct);
+            }, IsolationLevel.Serializable, ct);
         }
         catch (RejectEntry ex)
         {
