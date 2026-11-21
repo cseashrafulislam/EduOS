@@ -26,6 +26,8 @@ public static class InstitutionMisQuestionPlanner
         ["finalized attendance sessions"] = "finalized_attendance_sessions",
         ["চূড়ান্ত অনুপস্থিতি"] = "finalized_student_absences",
         ["চূড়ান্ত হাজিরা সেশন"] = "finalized_attendance_sessions",
+        ["published result versions"] = "published_result_versions",
+        ["প্রকাশিত ফলাফলের সংস্করণ"] = "published_result_versions",
         ["open work orders"] = "open_work_orders", ["খোলা ওয়ার্ক অর্ডার"] = "open_work_orders",
         ["issued library loans"] = "issued_loans", ["ইস্যুকৃত লাইব্রেরি বই"] = "issued_loans"
     };

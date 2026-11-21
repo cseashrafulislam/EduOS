@@ -16,6 +16,8 @@ public sealed class InstitutionMisQuestionPlannerTests
     [InlineData("active students", "active_students")]
     [InlineData("finalized attendance sessions", "finalized_attendance_sessions")]
     [InlineData("approved unposted payroll", "approved_unposted_payroll_runs")]
+    [InlineData("published result versions", "published_result_versions")]
+    [InlineData("প্রকাশিত ফলাফলের সংস্করণ", "published_result_versions")]
     public void Recognized_question_maps_to_canonical_mis(string question, string key) =>
         Assert.Equal(key, InstitutionMisQuestionPlanner.Parse(question));
 

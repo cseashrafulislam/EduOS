@@ -68,6 +68,13 @@ public sealed class CentralInstitutionMisService(
                       s.AttendanceDate >= fromDate && s.AttendanceDate <= toDate &&
                       a.State == AttendanceState.Absent
                 select a.Id).CountAsync(ct));
+        // Publication version records are not unique exams or students; withdrawn
+        // versions are excluded and no private marks or unpublished grades are read.
+        await Add("EXAM", "published_result_versions", "ResultPublications",
+            "Current result-publication versions with State=Published (not unique assessments, students, or grades).",
+            "Current", async () => await db.ResultPublications.AsNoTracking().CountAsync(x =>
+                x.TenantId == tenant && !x.IsDeleted &&
+                x.State == ResultPublicationState.Published, ct));
         await Add("HR", "active_employees", "Employees",
             "Current tenant employees with State=Active.", "Current",
             async () => await db.Employees.AsNoTracking().CountAsync(x =>
