@@ -39,6 +39,10 @@
         for (const field of candidates) {
             if (targets.length >= 40) break;
             if (!visible(field)) continue;
+            // Sensitive, identity, money, date and browser-native controls are not
+            // eligible for server-reviewed voice metadata, even for focus actions.
+            if (['password','email','tel','number','date','datetime-local','file',
+                'checkbox','radio','hidden'].includes(String(field.type || '').toLowerCase())) continue;
             const shown = labels(field, doc);
             if (shown.length === 0 || unsafe.test([field.id, field.name, ...shown].join(' '))) continue;
             const tag = String(field.tagName || '').toUpperCase();
