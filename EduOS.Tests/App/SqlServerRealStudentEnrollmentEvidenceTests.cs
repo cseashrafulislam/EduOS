@@ -9,7 +9,7 @@ namespace EduOS.Tests.App;
 public sealed class SqlServerRealStudentEnrollmentEvidenceTests
 {
     [Fact]
-    public async Task Browser_student_batch_offering_and_guardian_persist_once_without_cross_tenant_leakage()
+    public async Task Browser_student_section_offering_and_guardian_persist_once_without_cross_tenant_leakage()
     {
         var conn=Environment.GetEnvironmentVariable("EDUOS_SQL_REAL_QA_CONNECTION");
         var studentName=Environment.GetEnvironmentVariable("QA_STUDENT_NAME");
@@ -45,8 +45,13 @@ public sealed class SqlServerRealStudentEnrollmentEvidenceTests
         var mapping=await db.CurriculumSubjects.IgnoreQueryFilters().AsNoTracking()
             .SingleAsync(x=>x.TenantId==tenant.Id&&x.AcademicCurriculumId==curriculum.Id&&
                 x.AcademicLevelId==batch.AcademicLevelId&&!x.IsDeleted);
-        var offering=await db.SubjectOfferings.IgnoreQueryFilters().AsNoTracking()
+        var legacyOffering=await db.SubjectOfferings.IgnoreQueryFilters().AsNoTracking()
             .SingleAsync(x=>x.TenantId==tenant.Id&&x.AcademicBatchId==batch.Id&&
+                x.CurriculumSubjectId==mapping.Id&&!x.IsDeleted);
+        var sectionOffering=await db.SubjectOfferings.IgnoreQueryFilters().AsNoTracking()
+            .SingleAsync(x=>x.TenantId==tenant.Id&&x.AcademicBatchId==null&&
+                x.AcademicYearId==batch.AcademicYearId&&
+                x.AcademicSectionId==enrollment.AcademicSectionId&&
                 x.CurriculumSubjectId==mapping.Id&&!x.IsDeleted);
         var registration=await db.StudentSubjectRegistrations.IgnoreQueryFilters().AsNoTracking()
             .SingleAsync(x=>x.TenantId==tenant.Id&&x.StudentEnrollmentId==enrollment.Id&&!x.IsDeleted);
@@ -56,20 +61,25 @@ public sealed class SqlServerRealStudentEnrollmentEvidenceTests
             .SingleAsync(x=>x.TenantId==tenant.Id&&x.Id==link.GuardianId&&!x.IsDeleted);
         Assert.StartsWith("STU-",student.StudentCode);
         Assert.Equal(student.Id,enrollment.StudentId);
-        Assert.Equal(batch.Id,enrollment.AcademicBatchId);
+        Assert.Null(enrollment.AcademicBatchId);
+        Assert.Equal(batch.AcademicYearId,enrollment.AcademicYearId);
         Assert.Equal(curriculum.Id,enrollment.AcademicCurriculumId);
-        Assert.Equal(offering.AcademicSectionId,enrollment.AcademicSectionId);
+        Assert.Equal(sectionOffering.AcademicSectionId,enrollment.AcademicSectionId);
+        Assert.Equal(legacyOffering.AcademicSectionId,enrollment.AcademicSectionId);
         Assert.Equal(roll,enrollment.RollNo);
         Assert.True(enrollment.IsCurrent);
         Assert.True(curriculum.IsCurrent);
         Assert.True(mapping.IsActive&&!mapping.IsOptional);
-        Assert.True(offering.IsActive);
-        Assert.Equal(offering.Id,registration.SubjectOfferingId);
+        Assert.True(legacyOffering.IsActive);
+        Assert.True(sectionOffering.IsActive);
+        Assert.Equal(sectionOffering.Id,registration.SubjectOfferingId);
+        Assert.NotEqual(legacyOffering.Id,registration.SubjectOfferingId);
         Assert.Equal(guardianName,guardian.FullName);
         Assert.True(link.IsPrimary);
         Assert.Equal(new DateOnly(2027,3,1),enrollment.EnrollmentDate);
         Assert.Equal(25,batch.Capacity);
-        Assert.Equal(20,offering.Capacity);
+        Assert.Equal(20,legacyOffering.Capacity);
+        Assert.Equal(20,sectionOffering.Capacity);
         // The UI replay and changed-payload 409 checks must not create
         // second Student, Person, Enrollment, Guardian or subject reservation.
         Assert.Equal(1,await db.StudentEnrollments.IgnoreQueryFilters().AsNoTracking()
