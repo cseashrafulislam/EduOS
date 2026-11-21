@@ -20,6 +20,13 @@ public sealed class TenantAiProviderSettingsController(TenantAiProviderSettingsS
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpGet("usage")]
+    public async Task<IActionResult> Usage([FromQuery] int days = 30, CancellationToken ct = default)
+    {
+        var result = await service.UsageAsync(days, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPut]
     [RequestSizeLimit(8192)]
     public async Task<IActionResult> Save(

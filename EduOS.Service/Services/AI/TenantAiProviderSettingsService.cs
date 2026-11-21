@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using EduOS.Core.Common;
+using Microsoft.Extensions.Configuration;
 using EduOS.Core.Interfaces;
 using EduOS.Persistence.Context;
 using EduOS.Service.Services.Platform;
@@ -14,7 +15,7 @@ namespace EduOS.Service.Services.AI;
 /// <summary>A single source of truth for each institution's own AI provider key.</summary>
 public sealed class TenantAiProviderSettingsService(
     EduOSDbContext db, ICurrentUserService current, IDataProtectionProvider protection,
-    ILogger<TenantAiProviderSettingsService> logger)
+    ILogger<TenantAiProviderSettingsService> logger, IConfiguration configuration)
 {
     public sealed class SettingRow
     {
@@ -31,6 +32,15 @@ public sealed class TenantAiProviderSettingsService(
         bool StudentTutorEnabled, bool HasApiKey, string? RowVersion);
 
     public sealed record ResolvedSettings(string Model, string ApiKey, bool StudentTutorEnabled);
+
+    public sealed class UsageDayRow
+    {
+        public DateOnly UsageDateUtc { get; set; }
+        public int ReservedCalls { get; set; }
+    }
+
+    public sealed record UsageSummary(int PeriodDays, int TotalReservedCalls, int DailyLimit,
+        IReadOnlyList<UsageDayRow> Days, string Notice);
 
     public sealed class SaveRequest
     {
@@ -91,6 +101,29 @@ public sealed class TenantAiProviderSettingsService(
             logger.LogError("Tenant AI provider credential cannot be decrypted; check the durable Data Protection key ring.");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Reporting is based on durable SQL reservations, not guessed pricing or billed tokens.
+    /// No prompts, student data, request contents, key or cost estimates are returned.
+    /// </summary>
+    public async Task<ApiResponse<UsageSummary>> UsageAsync(int days, CancellationToken ct)
+    {
+        if (!await CanManageAsync(ct))
+            return ApiResponse<UsageSummary>.ErrorResponse("Tenant administrator required.", 403);
+        if (days is < 1 or > 90)
+            return ApiResponse<UsageSummary>.ErrorResponse("Choose a range of 1–90 days.", 400);
+
+        var rows = await db.Database.SqlQueryRaw<UsageDayRow>(
+            @"SELECT [UsageDateUtc], [ReservedCalls] FROM dbo.AiProviderDailyUsage
+              WHERE [TenantId] = {0} AND [UsageDateUtc] >=
+                DATEADD(day, 1 - {1}, CONVERT(date, SYSUTCDATETIME()))",
+            current.TenantId, days).ToListAsync(ct);
+        var ordered = rows.OrderByDescending(x => x.UsageDateUtc).ToArray();
+        var cap = configuration.GetValue<int?>("EduOsAi:DailyCallsPerTenant") ?? 20;
+        return ApiResponse<UsageSummary>.SuccessResponse(new UsageSummary(
+            days, ordered.Sum(x => x.ReservedCalls), cap, ordered,
+            "Reserved provider attempts, including failed/time-out calls; not a token count, invoice or billed cost."));
     }
 
     public async Task<ApiResponse<PublicSettings>> SaveAsync(SaveRequest? request, CancellationToken ct)
