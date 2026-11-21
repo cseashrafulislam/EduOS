@@ -11,11 +11,13 @@ test('enrollment, admission, promotion, readmission and import do not silently l
         ['EduOS.Service/Services/Academic/AcademicEnrollmentService.cs', 'AcademicSectionId = sectionId'],
         ['EduOS.Service/Services/Admission/AdmissionEnrollmentService.cs', 'AcademicSectionId = sectionPlacement.SectionId'],
         ['EduOS.Service/Services/Students/StudentPromotionService.cs', 'AcademicSectionId = sectionPlacement.SectionId'],
-        ['EduOS.Service/Services/Students/StudentReadmissionService.cs', 'AcademicSectionId=sectionPlacement.SectionId'],
+        ['EduOS.Service/Services/Students/StudentReadmissionService.cs', 'AcademicSectionId=sectionId'],
         ['EduOS.Service/Services/Students/StudentImportExecutionService.cs', 'AcademicSectionId = importSections[batch.Id]']
     ];
     for (const [file, expected] of workflows)
         assert.ok(read(file).includes(expected), file);
+    const readmission = read('EduOS.Service/Services/Students/StudentReadmissionService.cs');
+    assert.match(readmission, /sectionId=sectionPlacement\.SectionId\.Value/);
     const policy = read('EduOS.Service/Services/Academic/AcademicSectionPlacementPolicy.cs');
     assert.match(policy, /Select a specific academic section/);
     assert.match(policy, /x.TenantId == tenantId && x.CampusId == campusId && x.AcademicLevelId == academicLevelId/);

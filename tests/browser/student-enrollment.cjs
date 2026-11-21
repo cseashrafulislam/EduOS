@@ -32,15 +32,21 @@ async function run() {
                     fullName: 'Test Student', studentCode: 'STU-2026-001', status: 'Active' }],
                 totalPages: 1
             });
+            if (url.pathname === '/api/institution-onboarding/campus-list')
+                return respond(200, [{ id: 3, name: 'Main Campus', isActive: true }]);
+            if (url.pathname === '/api/institution-onboarding/academic-years')
+                return respond(200, [{ id: 66, name: 'Academic Year 2026', campusId: 3, isActive: true }]);
             if (url.pathname === '/api/academic-setup/catalog') return respond(200, {
-                batches: [{ id: 80, name: 'Grade Nine A', code: 'G9-A',
-                    academicProgramId: 25, academicLevelId: 9,
-                    startDate: '2026-01-01', endDate: '2026-12-31',
-                    capacity: 40, isActive: true }]
+                programs: [{ id: 25, name: 'Secondary', campusIds: [3] }],
+                levels: [{ id: 9, name: 'Grade Nine', academicProgramId: 25, isActive: true }]
+            });
+            if (url.pathname === '/api/academic-sections') return respond(200, {
+                items: [{ id: 80, name: 'Grade Nine A', code: 'G9-A', campusId: 3,
+                    academicLevelId: 9, capacity: 40, isActive: true }]
             });
             if (url.pathname.includes('/students/') && url.pathname.endsWith('/current'))
                 return respond(404, null, 'No enrollment');
-            if (url.pathname === '/api/academic-enrollments/batches/80/curricula')
+            if (url.pathname === '/api/academic-enrollments/sections/80/curricula')
                 return respond(200, [{ id: 70, name: 'Secondary Curriculum', code: 'SEC-2026',
                     academicProgramId: 25, isActive: true, isCurrent: true }]);
             if (url.pathname === '/api/academic-enrollments' && request.method() === 'POST') {
@@ -59,8 +65,8 @@ async function run() {
         await page.locator('#enrollmentStudentResults button').first().click();
         await page.waitForFunction(() =>
             document.querySelector('#enrollmentCurrent')?.textContent.includes('No current enrollment'));
-        await page.locator('#enrollmentBatch option[value="80"]').waitFor({ state: 'attached' });
-        await page.locator('#enrollmentBatch').selectOption('80');
+        await page.locator('#enrollmentSection option[value="80"]').waitFor({ state: 'attached' });
+        await page.locator('#enrollmentSection').selectOption('80');
         await page.locator('#enrollmentDate').fill('2026-09-21');
         await page.locator('#enrollmentRoll').fill('09');
         await page.locator('#enrollmentCurriculum option[value="70"]').waitFor({ state: 'attached' });
@@ -74,7 +80,9 @@ async function run() {
         assert.equal(posts.length, 2);
         assert.equal(posts[0].clientRequestId, posts[1].clientRequestId,
             'Retry must preserve original idempotency token.');
-        assert.equal(posts[1].academicBatchId, 80);
+        assert.equal(posts[1].academicBatchId, null);
+        assert.equal(posts[1].academicSectionId, 80);
+        assert.equal(posts[1].academicYearId, 66);
         assert.equal(posts[1].academicCurriculumId, 70);
         assert.equal(posts[1].rollNo, '09');
         assert.equal(await page.locator('#enrollmentSubmit').isDisabled(), true);
