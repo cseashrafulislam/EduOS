@@ -93,6 +93,13 @@ test('every current sidebar destination belongs to a named task group, not a gen
     }
 });
 
+test('institution AI reporting appears in the authorized setup work center', () => {
+    const { groupFor, categoryFor } = require('../../EduOS.App/wwwroot/js/sidebar-navigation.js');
+    assert.equal(groupFor('setup', '/AiWorkspace/Institution'), 'work-center');
+    assert.equal(categoryFor('setup', 'work-center', '/AiWorkspace/Institution'), 'operations');
+    assert.match(layout, /href="\/AiWorkspace\/Institution"/);
+});
+
 test('role portal remains server entitlement/role gated; inventory cannot grant a link', () => {
     assert.match(portals, /availableModules\.Contains\(module\)/);
     assert.match(portals, /roles\.Any\(user\.IsInRole\)/);

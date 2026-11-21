@@ -16,7 +16,7 @@
             ['institution', 'Institution & Settings', 'প্রতিষ্ঠান ও সেটিংস', ['/InstitutionManagement', '/TenantDomains', '/TenantTerminology', '/TenantSettings', '/SmartSetup', '/NumberSeries', '/TenantModules', '/IntegrationAdministration']],
             ['subscription', 'Subscription & Usage', 'সাবস্ক্রিপশন ও ব্যবহার', ['/SubscriptionBilling', '/UsageHistory']],
             ['enrollment', 'Student Administration', 'শিক্ষার্থী ব্যবস্থাপনা', ['/StudentLifecycle', '/StudentDocuments', '/StudentGuardians', '/StudentTransferRequests', '/EnrollmentManagement', '/StudentImports', '/StudentReadmissions', '/StudentProgressions']],
-            ['work-center', 'Work Center', 'কাজ ও অনুমোদন', ['/CentralWorkCenter', '/AiWorkspace/Management']],
+            ['work-center', 'Work Center', 'কাজ ও অনুমোদন', ['/CentralWorkCenter', '/AiWorkspace/Management', '/AiWorkspace/Institution']],
             ['academic-setup', 'Academic Management', 'একাডেমিক ব্যবস্থাপনা', ['/AcademicManagement']]
         ],
         academics: [
@@ -72,7 +72,7 @@
             ['reports', 'Reports', 'রিপোর্ট', ['/UsageHistory']]
         ],
         'setup:work-center': [
-            ['operations', 'Operations', 'কার্যক্রম', ['/CentralWorkCenter', '/AiWorkspace/Management']]
+            ['operations', 'Operations', 'কার্যক্রম', ['/CentralWorkCenter', '/AiWorkspace/Management', '/AiWorkspace/Institution']]
         ],
         'setup:enrollment': [
             ['settings', 'Settings', 'সেটিংস', ['/StudentGuardians', '/StudentDocuments']],

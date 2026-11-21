@@ -24,12 +24,15 @@ test('directory, Student 360 and enrollment history expose separate Batch and Se
     assert.match(enroll, /'batchName', 'sectionName'/);
     assert.match(read('EduOS.Core/DTOs/Students/StudentDirectoryDtos.cs'), /AcademicSectionName/);
 });
-test('Admission batch dropdown is not mislabeled Section', () => {
+test('Admission enrollment requires Section and keeps Academic Batch optional', () => {
     const view = read('EduOS.App/Views/Admissions/Index.cshtml');
     const js = read('EduOS.App/wwwroot/js/admissions/index.js');
-    assert.match(view, /id="enrollmentBatchId"/);
-    assert.doesNotMatch(view, /id="enrollmentSectionId"/);
-    assert.match(js, /enrollmentBatchId/);
-    assert.doesNotMatch(js, /enrollmentSectionId/);
-    assert.match(read('EduOS.App/Views/Attendance/Index.cshtml'), /for="sectionId">.*Academic batch/);
+    assert.match(view, /id="enrollmentSectionId"[^>]*required/);
+    assert.match(view, /for="enrollmentSectionId">Academic section/);
+    assert.doesNotMatch(view, /id="enrollmentBatchId"/);
+    assert.match(js, /academicSectionId:\s*positiveInteger\(valueOf\('enrollmentSectionId'\)\)/);
+    assert.match(js, /academicBatchId:\s*state\.enrollmentOfferBatchId\s*\?\?\s*null/);
+    const attendance = read('EduOS.App/Views/Attendance/Index.cshtml');
+    assert.match(attendance, /for="attendanceAcademicSection"/);
+    assert.match(attendance, /id="attendanceAcademicSection"/);
 });
