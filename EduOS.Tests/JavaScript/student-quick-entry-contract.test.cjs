@@ -9,7 +9,9 @@ const file = name => fs.readFileSync(path.join(root, name), 'utf8');
 test('running student entry uses existing academic enrollment and transactional guardian link', () => {
     const source = file('EduOS.Service/Services/Students/StudentQuickEntryService.cs');
     assert.match(source, /ExecuteInTransactionAsync/);
-    assert.match(source, /IsolationLevel\.ReadCommitted/);
+    assert.match(source, /IsolationLevel\.Serializable/);
+    const section = file('EduOS.Service/Services/Academic/AcademicEnrollmentService.SectionOnly.cs');
+    assert.match(section, /enroll directly into section[\s\S]*IsolationLevel\.Serializable/);
     assert.match(source, /academicEnrollments\.EnrollAsync/);
     assert.match(source, /if \(!enrolled\.Success[^\n]+/);
     assert.match(source, /throw new RejectEntry/);
