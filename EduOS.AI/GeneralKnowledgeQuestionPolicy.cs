@@ -15,7 +15,9 @@ public static class GeneralKnowledgeQuestionPolicy
         @"students?|pupils?|employees?|teachers?|guardians?|parents?|salary|payroll|" +
         @"fees?|dues?|invoices?|payments?|transactions?|attendance|admissions?|" +
         @"enrollments?|balances?|expenses?|income|revenue|financial|ledger|" +
-        @"grades?|marks?|results?|reports?|accounts?|section|batch|staff|class)\b";
+        @"grades?|marks?|results?|reports?|accounts?|section|batch|staff|class|" +
+        @"finance|cash|budget|bank|stocks?|payables?|receivables?|assets?|" +
+        @"passwords?|secrets?|tokens?|api\s+keys?|credentials?|otps?|pins?)\b";
 
     private static readonly string[] PrivateBangla =
     {
@@ -23,7 +25,8 @@ public static class GeneralKnowledgeQuestionPolicy
         "ক্যাম্পাস", "শিক্ষার্থী", "ছাত্র", "ছাত্রী", "শিক্ষক", "কর্মচারী", "অভিভাবক",
         "ফি", "বকেয়া", "বকেয়া", "বেতন", "পে-রোল", "ব্যালেন্স", "আয়", "আয়", "ব্যয়", "ব্যয়",
         "হাজিরা", "উপস্থিতি", "ভর্তি", "পরীক্ষা", "ফলাফল", "মার্কস", "রিপোর্ট",
-        "লেনদেন", "ইনভয়েস", "ইনভয়েস", "সেকশন", "ব্যাচ"
+        "লেনদেন", "ইনভয়েস", "ইনভয়েস", "সেকশন", "ব্যাচ",
+        "ব্যাংক", "টাকা", "বাজেট", "স্টক", "মজুত", "পাসওয়ার্ড", "পাসওয়ার্ড", "গোপন", "টোকেন"
     };
 
     public static bool IsAllowed(string? question)
