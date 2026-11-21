@@ -1,39 +1,35 @@
-# EduOS — Institute-Owned AI, SMS and Email Credentials
+# EduOS — institute-owned AI, SMS and Email credentials
 
-## Where an institute enters credentials
-TenantAdmin opens **Account → Gateway Setup** (`/Account/GatewaySetup`). Existing SMS provider API URL, sender ID and password/key, and Email SMTP host, login and app password are unchanged. A new **AI Provider** section supports **OpenAI Responses API only** for this release (other AI providers are not advertised as compatible).
+## Setup and day-2 administration
+- **Onboarding:** `/Account/GatewaySetup`.
+- **Later changes:** `/CommunicationAdministration/Index`.
+- Both views reuse `EduOS.App/Views/Shared/_TenantAiProviderSettings.cshtml` and `wwwroot/js/ai/provider-settings.js`. The existing independently-owned SMS gateway API key and Email SMTP account/password flows are unchanged.
+- TenantAdmin can configure a **private OpenAI Responses API key**, model, provider enable switch, and a separate **Student Tutor** opt-in. There is **no shared `EduOsAi__ApiKey` fallback**, no trusted tenant ID from a browser payload, and no tenant-supplied arbitrary provider endpoint.
+- `GET /api/ai/provider-settings` returns provider, model, enabled flags, `hasApiKey` and rowversion; never plaintext, ciphertext or partial secret. Empty edit retains current key. Update rotates key. Disable+clear deletes saved key.
+- Key ciphertext uses ASP.NET Core Data Protection with a tenant-bound purpose. All instances must share a durable **encrypted and backed-up** key ring. Loss of key ring causes providers to fail closed, not expose a fallback key.
+- `PUT /api/ai/provider-settings` requires verified live TenantAdmin membership, CSRF token and bounded input. Existing rows require matching rowversion; first-create uniqueness and database rowversion prevent lost updates. Role, tenant and permission checks remain server-side.
 
-Each institute enters:
-- AI model name and its own OpenAI API key; optionally enables AI and separately enables Student Tutor.
-- Its own SMS API key and provider parameters (already implemented).
-- Its own SMTP login and password (already implemented).
+## Tenant-owned AI capabilities
+The reviewed, code-owned registry is extensible without a fixed platform agent count. Current optional external capabilities:
+- `general`: optional unverified general-knowledge Q&A explanation.
+- `teacher`: Teacher Copilot draft lesson/worksheet/practice questions.
+- `management`: interpreted aggregate management data.
 
-The AI section is optional and cannot block existing onboarding completion or SMS/Email configuration. The provider bills the institute's own API account. EduOS currently reserves up to 20 attempts/day/tenant by default; this counter is NOT monetary spend or token billing.
+`GET /api/ai/provider-settings/agents` and `PUT /api/ai/provider-settings/agents/{code}` allow a TenantAdmin to enable/disable reviewed capabilities with optimistic concurrency. No arbitrary executable agent code, SQL, prompt definitions or tools can be created by tenant input. Student Tutor's **single** authoritative enable switch remains `StudentTutorEnabled` under provider settings. Local canonical MIS Q&A remains available regardless of provider key, agent toggles or model outage.
 
-## Security and data ownership
-- GET `/api/ai/provider-settings` returns provider, model, `hasApiKey`, flags and rowversion only. It **never returns the key, ciphertext, key suffix or unmasked password**. The key input is blank after a successful save; blank during edit retains the existing key.
-- PUT `/api/ai/provider-settings` is TenantAdmin-only, active tenant membership verified by the server, CSRF-protected, rate-limited, no-store and limited to 8 KB. The server derives TenantId from the authenticated session, never the JSON payload.
-- A unique TenantId PK, tenant-scoped query, and mandatory rowversion for update prevent cross-tenant access and lost updates. First-time concurrent creation returns a 409 conflict.
-- The provider secret is encrypted with ASP.NET Core Data Protection, using a separate tenant-specific purpose. The production key ring must persist securely and be backed up. Do not store raw secrets in Git, browser storage, audit details, API responses or logs.
-- Key rotation: enter a new key and save. Key removal: disable AI, choose remove key and save. Existing key is preserved on ordinary edits.
-- Fixed outgoing HTTPS endpoint `https://api.openai.com/v1/responses`; no tenant-controlled AI URL, DNS or proxy destination. Only the configured model identifier is tenant-controlled.
-- Platform feature kill switch `EduOsAi__Enabled=false` stops external AI even for institutions with keys. When enabled, generation resolves only the **authenticated tenant's** encrypted key: there is **no shared EduOsAi__ApiKey fallback** and no global tenant ID allowlist. Student Tutor requires both tenant opt-in and per-request consent. All previous tenant/campus/role checks, server-side request consent, SQL usage quota and non-write rules remain.
-- Authentication/recovery emails sent by the EduOS platform may still use separate platform-level operational SMTP configuration. Institution messaging gateway settings are not a replacement for the platform's own auth infrastructure.
+## Usage and token observations — not a billing ledger
+- `GET /api/ai/provider-settings/usage?days=30` shows tenant-scoped SQL reservations and **provider-observed** input/output tokens for 1–90 UTC days; the shared settings UI displays last 30 days.
+- The server reserves at most `EduOsAi__DailyCallsPerTenant` model attempts per UTC day using `sp_getapplock` and a short transaction. Default 20; allowed 1–100. The SQL Server UTC day returned by the reservation is reused for provider-observed token telemetry, even if local time differs.
+- Provider non-200, timeouts, missing usage JSON and SQL recording failures can omit billed tokens. Counts are **not** provider charges, a monetary hard cap or an invoice. Review the institute's actual provider dashboard before budgeting/settlement. Do not estimate money using floating-point JavaScript.
+- Prompt text, speech transcripts, model answers, student details and raw keys are **not persisted** in the AI quota/telemetry tables.
 
-## Deployment and verification
-1. On the feature branch, run the full .NET 10 build, xUnit, JavaScript contracts, AI language gate and EF snapshot verification. Do not merge merely because source checks pass.
-2. Apply additive migration `20261121100000_TenantAiProviderCredentials` **after** `20261121080000_AiDailyProviderCallBudget` to a disposable and then staged SQL Server. Check idempotent migration, backup and rollback strategy. The new table is not included as a tracked EF entity; it is a dedicated SQL settings store, like the existing provider quota.
-3. Keep `EduOsAi__Enabled=false` during migration. Configure durable Data Protection keys consistently across all app instances. Only then enable the deployment flag on staging.
-4. For two test institutions A and B, verify A saves key A, B saves key B, and neither reads or invokes with the other's key. Test ordinary edit retains key, rotation, removal, stale rowversion 409, duplicate first create 409, revoked TenantAdmin 403, switching institution mid-save, and missing/damaged key fail-closed without provider request.
-5. Validate SMS and Email forms still save/retain secrets independently; AI database failure must not break SMS/Email setup. Test Teacher/Student/Management AI with explicit consent, disabled provider, Student Tutor denied, provider 401/429/timeout, quota limit and concurrency.
-6. Inspect privacy review, school/guardian permissions for learner use, real provider billing limits, and backup/restore of secrets. Production merge/cutover requires operator approval.
+## Schema / deployment
+Apply **additive** migrations in order:
+1. `20261121080000_AiDailyProviderCallBudget`
+2. `20261121100000_TenantAiProviderCredentials`
+3. `20261121110000_AiObservedTokenTelemetry`
+4. `20261121120000_TenantAiAgentControls`
 
-### Code map
-- Migration: `EduOS.Persistence/Migrations/20261121100000_TenantAiProviderCredentials.cs`
-- Credential service: `EduOS.Service/Services/AI/TenantAiProviderSettingsService.cs`
-- API: `EduOS.App/Controllers/Api/TenantAiProviderSettingsController.cs`
-- Page: `EduOS.App/Views/Account/GatewaySetup.cshtml`
-- Browser: `EduOS.App/wwwroot/js/account/gateway-setup.js`
-- External generation: `EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs`
+The PR includes `.github/workflows/ai-tenant-sql-qa.yml` and `EduOS.Tests/App/AiTenantSqlMigrationTests.cs` to apply all migrations and verify schema on a disposable SQL Server. Use staging backup/restore and institute A/B negative access and provider smoke tests **before** any production migration. Keep `EduOsAi__Enabled=false` during rollout. No production release is approved just because CI passes.
 
-**Release status**: Code under review in the AI feature branch, not merged/deployed and not considered production-ready before all gates above.
+**Rollback:** Platform switch `EduOsAi__Enabled=false` stops outbound model calls without deleting credentials. Migrations guard rollback with data; do not drop tables containing tenant secrets, observability history or agent preferences.

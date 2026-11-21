@@ -1,40 +1,33 @@
-# EduOS AI Integration — release gate (2026-11-21)
+# EduOS AI — release gate and QA evidence (updated 2026-11-21)
 
-Branch `feature/ask-eduos-ai-hardening-20261120` → Draft PR #140 → `Ashraful`.
+## Target and change scope
+Target **draft PR #140**, branch `feature/ask-eduos-ai-hardening-20261120` into `Ashraful`. Do not approve production deployment based solely on source/CI success. Verify the *exact final PR HEAD SHA* after every fix and before merge.
 
-## Changes implemented in source
-- Explicit tenant allowlist `EduOsAi__ApprovedTenantIds` and per-request user consent for any outbound Teacher/Tutor/Management generation. Student Tutor needs a second opt-in `EduOsAi__StudentTutorEnabled=true`.
-- New SQL-backed tenant UTC-day model-call attempt ceiling: migration `20261121080000_AiDailyProviderCallBudget` and short transactional `sp_getapplock` counter update; default 20/day (config `EduOsAi__DailyCallsPerTenant`, valid 1–100). No prompts/student data in quota table. Fail-closed if DB quota unavailable.
-- Tenant/campus/permission-controlled local Management questions for finalized attendance entries and current enrollment; no provider calls, no claims of distinct students in attendance marks.
-- TenantAdmin-only, REPORTING-entitled Institution Ask EduOS page. Exact bilingual queries map to the existing `ICentralInstitutionMisService`, not bespoke finance/HR/fee SQL. MIS includes current published exam *result-version record* count, not unique exam/learner success metrics. Monetary values travel to browser as exact decimal strings.
-- Existing global on-device speech Page Assistant now offers a separate explicit Review command against the existing, authenticated, anti-CSRF shared page-intent preview endpoint. Localized field/filter drafts are opt-in and require confirmation, without submission. Select previews focus only; no auto-changing dependent controls.
+Implemented code covers one local-first Q&A UI, single-metric canonical MIS, Bengali query catalogue, optional institute-owned OpenAI fallback, Teacher/Student/Management workflows, encrypted TenantAdmin provider key UI in onboarding + day-2 settings, optional Q&A browser dictation, controlled external AI capability switches, SQL UTC-day attempt cap and observed token telemetry. The actual supported local metric catalogue is reviewed and finite, not millions of separately implemented questions.
 
-## Acceptance evidence and blockers
-- Source and executable JS syntax smoke checks performed on changed browser scripts; structural assertions passed in review. This is **not** a substitute for .NET compilation, API functional tests or real browser UAT.
-- GitHub PR checks (CI and AI product-language gate) currently end in failure with no job steps returned for the observed runs. The cause is unverified, and these checks must be diagnosed in GitHub Actions before code release. Do not assume an application compile failure or QA pass.
-- No production database migration, provider-key activation, actual user acceptance, mobile/assistive accessibility testing or tenant stress test has been performed here.
+## Required test gates
+1. **CI**: exact-head .NET 10 solution build, EF snapshot, all JavaScript contracts, xUnit, idempotent SQL script and publish. GitHub Actions workflow `ci.yml`.
+2. **AI Product Language Gate**: exact-head language and content policy source checks `ai-product-language-gate.yml`.
+3. **AI Tenant SQL QA**: isolated SQL Server 2022, disposable database `EduOS_AiSqlQa`, complete EF migrations, checks for all four AI migrations, tenant PK/FK, rowversion and token columns, plus idempotent migration script `ai-tenant-sql-qa.yml`. This workflow never targets the production database.
+4. **Unified Full QA, Real Data Entry QA, SQL Server Migration Smoke**: current workflows target `Ashraful` by dispatch/push; if this PR changes release branch, run these on the exact merged release SHA before deployment. A green old `Ashraful` run does NOT prove new AI branch.
+5. **Manual API+browser UAT**: TenantAdmin, Principal, Teacher, Student, denied roles, disabled LMS/REPORTING, expired memberships, two institute A/B sessions and keys, mid-session switch, role revoke, key rotate/clear, stale rowversion conflict, duplicate first create, 403/409 data refusal, negative invoice/currency integrity and current/period finance semantics. Browser viewport 360/390/768/1280, Bengali/English, keyboard/screen reader, microphone unsupported/error, transcript review and anti-CSRF.
 
-## Mandatory release commands (run on the exact PR HEAD)
-```bash
-dotnet restore EduOS.slnx
-dotnet build EduOS.slnx -c Release --no-restore
-dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build --filter "FullyQualifiedName~InstitutionMisQuestionPlannerTests|FullyQualifiedName~AiInstitutionMetricServiceTests|FullyQualifiedName~ManagementQuestionPlannerTests|FullyQualifiedName~CentralInstitutionMisServiceTests|FullyQualifiedName~ReviewedVoicePageIntentCompilerTests"
-node --test EduOS.Tests/JavaScript/ai-workspace-contract.test.cjs EduOS.Tests/JavaScript/ai-institution-contract.test.cjs EduOS.Tests/JavaScript/ai-page-intent-review.test.cjs EduOS.Tests/JavaScript/ai-provider-budget-contract.test.cjs
-dotnet ef migrations has-pending-model-changes --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext
-dotnet ef migrations script --idempotent --project EduOS.Persistence --startup-project EduOS.App --context EduOSDbContext --output /tmp/eduos-ai-migration.sql
-```
+## Controlled provider smoke testing
+In a test institute with non-real learner data and managed encrypted keys:
+- `EduOsAi__Enabled=false`, key missing, disabled general/teacher/management capability, Student Tutor disabled and consent unchecked must each cause **zero** provider egress.
+- Correct institute key + general learning question + consent may call the fixed provider endpoint; local supported metric must always stay model-free even when key is present. A forbidden/integrity/unsupported institution metric must never be guessed by external AI.
+- Verify provider 401, 429, invalid response, partial response, timeout and SQL quota unavailable; response messages must never leak a credential.
+- Simulate two application instances and concurrent provider attempts: each tenant/day must never exceed SQL limit. Observed token telemetry need not equal actual billed usage; missing/timeout response cannot be assigned a fake zero cost.
+- Check encrypted Data Protection key ring persistence across application restarts/nodes and backup/restore.
 
-## SQL, security and operations acceptance
-1. On a disposable database, back up and restore before/after applying the idempotent migration. Confirm `AiProviderDailyUsage` composite PK, FK, check constraint; verify safe reverse migration refusal when rows exist.
-2. Simulate 100 concurrent requests across **two** application instances at the same tenant+UTC day: successful reservations must never exceed the configured cap, no duplicate per-day row; check independent tenants. Repeat across day boundary and when SQL is unavailable.
-3. Verify ModelOff, no/mismatching ApprovedTenantIds, unchecked consent, disabled StudentTutorEnabled, missing quota migration and exhausted calls cause **zero** outbound requests. Verify timeout/error handling and anonymized provider logs. Test duplicate HTTP retry conservatively consumes capacity and cannot exceed it.
-4. TenantAdmin, Principal, Student, Teacher, Accountant and unentitled roles across two seeded tenants and campuses: unauthorized routes must return 403/404. Cross-tenant enrollment, finance and assessment data must never be visible.
-5. Verify current vs historical semantics; `ResultPublicationState.Published` version count; unavailable module stays null/unavailable; decimals match canonical original report without Javascript Number conversion; GL integrity 409 fails closed.
-6. Browser Chromium phone/tablet/desktop, bn-BD/en-BD, local speech installed/unavailable, keyboard/screen reader, session rotation, stale abort, malicious transcript, controls with dependent selections. No page or business mutation before explicit confirmation, and never a posting/approval endpoint.
-7. Production approval: institution/legal consent for third-party AI (especially minors), secrets in environment only, model-token monetary spend monitoring and alerting, max 900 output tokens, versioned prompts, access logs without request content. The daily call counter is **not** an actual monetary spend ledger.
+## Data migration, deployment and rollback
+1. Back up production DB, secrets storage and Data Protection key ring. Apply migrations in disposable and staging SQL with `EduOsAi__Enabled=false`.
+2. Verify additive deployment order: `20261121080000_AiDailyProviderCallBudget`, `20261121100000_TenantAiProviderCredentials`, `20261121110000_AiObservedTokenTelemetry`, `20261121120000_TenantAiAgentControls`.
+3. Approve platform/student processor privacy notices, institute/provider ToS, model spend alert thresholds and reconciliation; enable only for explicitly prepared institutes with their own credentials. Optional free local Q&A should work when all AI keys are absent.
+4. After exact merged-SHA CI/SQL/role/browser QA, authorize staging then production rollout with limited users; monitor outbound attempt rate, provider errors, verified-report response time, model token observations, missing observation coverage and user support.
+5. Emergency stop: `EduOsAi__Enabled=false`. Do **not** drop nonempty tenant credential or usage tables to roll back; retain audit and restore plan.
 
-## Remaining restrictions
-- Natural language support is intentionally a reviewed, finite grammar. Arbitrary ERP SQL, unknown metrics, prompts that try to change tenant/campus/date scope, official mark generation and AI-driven auto-posting are not supported.
-- Exam question output in Teacher Copilot is an unapproved practice draft; it must not silently enter the official assessment question bank.
-- Per-page Voice field edits are limited to opted-in low-risk controls. Full all-page/role/locale integration cannot be certified until the route-by-route matrix and UAT passes.
-- Provider-ready status depends on actual server config. Do not enable external AI in production prior to privacy approval, migration and QA.
+## Evidence status
+- CI/AI gate results must be read from the latest GitHub Actions runs for PR #140, not reused from older commits.
+- Disposable SQL QA tests schema/migration, **not** actual cross-tenant authenticated API isolation or provider billing. Passing it is necessary but insufficient.
+- Real browser UAT, staging provider smoke, production migrations and final merge/deploy are **not yet certified**.
