@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Accounting;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Auth;
@@ -42,6 +43,10 @@ public sealed class CentralInstitutionMisServiceTests
             FullName = "Inactive learner", StatusCode = "Inactive" });
         db.Employees.Add(new Employee { Id = 3, TenantId = 41, FullName = "Teacher",
             EmployeeCode = "E-3", State = EmployeeState.Active });
+        db.ResultPublications.Add(new ResultPublication { Id = 22, TenantId = 41,
+            AssessmentId = 1, State = ResultPublicationState.Published, VersionNo = 1 });
+        db.ResultPublications.Add(new ResultPublication { Id = 23, TenantId = 41,
+            AssessmentId = 1, State = ResultPublicationState.Withdrawn, VersionNo = 2 });
         db.ProcurementRequisitions.Add(new ProcurementRequisition { Id = 5, TenantId = 41,
             CampusId = 10, RequestNumber = "R-5", Purpose = "Office", StateCode = "Submitted" });
         db.ProcurementPurchaseOrders.Add(new ProcurementPurchaseOrder { Id = 15, TenantId = 41,
@@ -77,6 +82,8 @@ public sealed class CentralInstitutionMisServiceTests
         var metrics = result.Data!.Metrics.ToDictionary(x => x.Key);
         metrics["active_students"].Value.Should().Be(1m);
         metrics["active_employees"].Value.Should().Be(1m);
+        metrics["published_result_versions"].Value.Should().Be(1m);
+        metrics["published_result_versions"].Scope.Should().Be("Current");
         metrics["submitted_requisitions"].Value.Should().Be(1m);
         metrics["purchase_orders_awaiting_review"].Value.Should().Be(1m);
         metrics["visitor_policy_changes_awaiting_review"].Value.Should().Be(1m);
