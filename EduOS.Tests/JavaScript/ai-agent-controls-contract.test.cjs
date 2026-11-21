@@ -18,6 +18,8 @@ test('agent controls are tenant-scoped feature flags, not arbitrary executable a
     assert.match(migration,/PK_TenantAiAgentControls/);
     assert.match(migration,/FK_TenantAiAgentControls_Tenants/);
     assert.match(api,/HttpPut\("agents\/\{code\}"\)/);
+    assert.match(read('EduOS.App/Views/Shared/_TenantAiProviderSettings.cshtml'),/id="aiAgentRows"/);
+    assert.match(read('EduOS.App/wwwroot/js/ai/provider-settings.js'),/\/agents/);
     assert.match(api,/Authorize\(Roles = "TenantAdmin"\)/);
     assert.match(api,/AutoValidateAntiforgeryToken/);
 });

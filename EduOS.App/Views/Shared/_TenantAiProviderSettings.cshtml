@@ -47,6 +47,14 @@
             </div>
             <p class="text-muted small mb-0 mt-2">@(bn ? "AI ব্যবহারের খরচ সংশ্লিষ্ট প্রতিষ্ঠানের API প্রদানকারীর হিসাবে যাবে। প্রতিটি AI অনুরোধে ব্যবহারকারীর সম্মতি ও প্ল্যাটফর্মের নিরাপত্তা নীতি কার্যকর থাকবে।" : "Provider charges are billed to the institution's provider account. Per-request consent and platform safety controls still apply.")</p>
         </form>
+        <details class="mt-3" id="aiAgentDetails">
+            <summary class="fw-semibold small">@(bn ? "AI সহকারীর অনুমতি" : "AI capability controls")</summary>
+            <p class="small text-muted mt-2 mb-1">@(bn ?
+                "শুধু অনুমোদিত AI সক্ষমতা বন্ধ/চালু করা যায়। Local MIS সবসময় key-free; Student Tutor-এর অনুমতি উপরের সুইচেই নিয়ন্ত্রিত।" :
+                "Toggle only reviewed AI capabilities. Local MIS remains available without a key; Student Tutor uses the opt-in switch above.")</p>
+            <div id="aiAgentRows" class="d-grid gap-2"></div>
+            <p id="aiAgentNotice" class="small text-muted mt-2 mb-0" role="status" aria-live="polite"></p>
+        </details>
         <details class="mt-3" id="aiUsageDetails">
             <summary class="fw-semibold small">@(bn ? "AI API ব্যবহার (সর্বশেষ ৩০ দিন)" : "AI API usage (last 30 days)")</summary>
             <p id="aiUsageSummary" class="text-muted small mt-2 mb-1" role="status">@(bn ? "ব্যবহারের তথ্য লোড হচ্ছে…" : "Loading usage…")</p>

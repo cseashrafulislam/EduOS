@@ -146,6 +146,78 @@
     }
 
 
+    async function loadAgents() {
+        const host = document.getElementById('aiAgentRows');
+        const notice = document.getElementById('aiAgentNotice');
+        if (!host || !notice) return;
+        try {
+            const rows = await api(aiApiRoot + '/agents');
+            if (!sameSession() || !Array.isArray(rows)) return;
+            host.replaceChildren();
+            for (const policy of rows) {
+                if (!policy || typeof policy.code !== 'string' ||
+                    typeof policy.title !== 'string' ||
+                    typeof policy.isEnabled !== 'boolean') continue;
+                const row = document.createElement('div');
+                row.className = 'border rounded p-2 d-flex align-items-center justify-content-between gap-2 flex-wrap';
+                const text = document.createElement('div');
+                const title = document.createElement('strong');
+                title.className = 'small';
+                title.textContent = policy.title;
+                const desc = document.createElement('div');
+                desc.className = 'text-muted small';
+                desc.textContent = policy.description || '';
+                text.append(title, desc);
+                const controls = document.createElement('div');
+                controls.className = 'd-flex align-items-center gap-2';
+                const label = document.createElement('label');
+                label.className = 'small d-flex align-items-center gap-2 mb-0';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = policy.isEnabled;
+                checkbox.setAttribute('aria-label', policy.title + ' enabled');
+                const name = document.createElement('span');
+                name.textContent = 'Enabled';
+                label.append(checkbox, name);
+                const save = document.createElement('button');
+                save.type = 'button';
+                save.className = 'btn btn-outline-primary btn-sm';
+                save.textContent = 'Save';
+                save.disabled = true;
+                checkbox.addEventListener('change', () => {
+                    save.disabled = !sameSession() || checkbox.checked === policy.isEnabled;
+                });
+                save.addEventListener('click', async () => {
+                    if (!sameSession() || save.disabled || window.EduOSAiProviderSaving) return;
+                    save.disabled = true;
+                    checkbox.disabled = true;
+                    window.EduOSAiProviderSaving = true;
+                    try {
+                        await api(aiApiRoot + '/agents/' + encodeURIComponent(policy.code), 'PUT',
+                            { isEnabled: checkbox.checked, rowVersion: policy.rowVersion });
+                        if (sameSession()) {
+                            notice.textContent = 'AI capability updated.';
+                            await loadAgents();
+                        }
+                    } catch (error) {
+                        if (sameSession()) {
+                            notice.textContent = error.message || 'AI capability update failed.';
+                            await loadAgents();
+                        }
+                    } finally {
+                        window.EduOSAiProviderSaving = false;
+                    }
+                });
+                controls.append(label, save);
+                row.append(text, controls);
+                host.append(row);
+            }
+            notice.textContent = rows.length ? '' : 'No configurable AI capabilities.';
+        } catch {
+            if (sameSession()) notice.textContent = 'AI capability settings unavailable.';
+        }
+    }
+
     async function loadUsage() {
         const node = document.getElementById('aiUsageSummary');
         const rows = document.getElementById('aiUsageRows');
@@ -184,6 +256,6 @@
         document.getElementById('aiProviderEnabled')?.addEventListener('change', updateAiRequired);
         document.getElementById('aiClearApiKey')?.addEventListener('change', updateAiRequired);
         setAiFormEnabled(false);
-        await Promise.all([loadAiGateway(), loadUsage()]);
+        await Promise.all([loadAiGateway(), loadUsage(), loadAgents()]);
     }, { once: true });
 })();

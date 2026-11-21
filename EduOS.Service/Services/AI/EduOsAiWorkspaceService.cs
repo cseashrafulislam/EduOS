@@ -65,7 +65,7 @@ public sealed class EduOsAiWorkspaceService(
             var settings = await tenantProvider.ResolveAsync(ct);
             if (settings == null) return false;
             if (current.IsInRole("Student"))
-                return settings.StudentTutorEnabled && capability is null or "tutor";
+                return settings.StudentTutorEnabled && (capability is null or "tutor");
             if (capability == null) return true;
             return await tenantProvider.AgentEnabledAsync(capability, ct);
         }
