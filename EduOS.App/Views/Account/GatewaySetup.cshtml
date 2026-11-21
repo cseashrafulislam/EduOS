@@ -1,6 +1,7 @@
 @{
     ViewData["Title"] = "GatewaySetupTitle";
     Layout = "_OnboardingLayout";
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
     var pageStrings = new
     {
         loadFailed = T["GatewayLoadFailed"].Value,
@@ -120,6 +121,57 @@
                 </div>
             </div>
             <div><button type="submit" class="btn btn-outline-primary" id="saveEmailBtn" data-idle-label="@T["SaveEmailSettings"]">@T["SaveEmailSettings"]</button></div>
+        </form>
+    </section>
+
+
+    <section class="setup-section gateway-card" aria-labelledby="aiGatewayTitle" id="aiGatewaySection">
+        <div class="gateway-header">
+            <div class="setup-section-heading mb-0">
+                <h3 id="aiGatewayTitle">@(bn ? "AI প্রদানকারী" : "AI Provider")</h3>
+                <p>@(bn ? "প্রতিটি প্রতিষ্ঠান নিজের API কী ব্যবহার করবে। এই কী অন্য প্রতিষ্ঠানে ব্যবহার বা দেখানো হবে না।" : "Each institution supplies its own provider API key. It is never shared with other institutions.")</p>
+            </div>
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="aiProviderEnabled" disabled />
+                <label class="form-check-label" for="aiProviderEnabled">@(bn ? "চালু" : "Enable")</label>
+            </div>
+        </div>
+        <form id="aiGatewayForm" class="setup-form mt-3" autocomplete="off">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="aiProviderCode">@(bn ? "প্রদানকারী" : "Provider")</label>
+                    <select id="aiProviderCode" class="form-select" disabled>
+                        <option value="OpenAI">OpenAI (Responses API)</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label" for="aiProviderModel">@(bn ? "AI মডেল" : "AI model")</label>
+                    <input class="form-control" id="aiProviderModel" maxlength="100" required placeholder="gpt-4.1-mini" disabled />
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="aiProviderApiKey">@(bn ? "প্রতিষ্ঠানের নিজস্ব API কী" : "Institution-owned API key")</label>
+                    <input class="form-control" type="password" id="aiProviderApiKey" maxlength="2000"
+                           autocomplete="new-password" spellcheck="false" disabled />
+                    <small class="text-muted">@(bn ? "আগের কী রাখতে ফাঁকা রাখুন। কী এনক্রিপ্ট করে রাখা হয় এবং সংরক্ষণের পরে আর দেখানো হয় না।" : "Leave blank to keep the existing key. The key is encrypted at rest and never returned after saving.")</small>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" id="aiStudentTutorEnabled" type="checkbox" disabled />
+                        <label class="form-check-label" for="aiStudentTutorEnabled">@(bn ? "এই প্রতিষ্ঠানের শিক্ষার্থীদের বাহ্যিক AI Tutor ব্যবহারের অনুমতি দিন" : "Allow this institution's students to use external AI Tutor")</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" id="aiClearApiKey" type="checkbox" disabled />
+                        <label class="form-check-label" for="aiClearApiKey">@(bn ? "AI বন্ধ রেখে সংরক্ষিত API কী মুছুন" : "Remove saved API key while AI is disabled")</label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-2">
+                <button type="submit" id="saveAiGatewayBtn" class="btn btn-outline-primary" disabled>@(bn ? "AI সেটিংস সংরক্ষণ" : "Save AI settings")</button>
+                <span id="aiGatewayStatus" class="small text-muted ms-2" role="status"></span>
+            </div>
+            <p class="text-muted small mb-0 mt-2">@(bn ? "AI ব্যবহারের খরচ সংশ্লিষ্ট প্রতিষ্ঠানের API প্রদানকারীর হিসাবে যাবে। প্রতিটি AI অনুরোধে ব্যবহারকারীর সম্মতি ও প্ল্যাটফর্মের নিরাপত্তা নীতি কার্যকর থাকবে।" : "Provider charges are billed to the institution's provider account. Per-request consent and platform safety controls still apply.")</p>
         </form>
     </section>
 
