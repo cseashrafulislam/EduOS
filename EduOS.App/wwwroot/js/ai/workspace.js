@@ -231,7 +231,9 @@
                 'কপি করা যাচ্ছে না। লেখাটি নির্বাচন করে কপি করুন।'), true);
         }
     });
-    api('/api/ai/workspace/status').then(data => {
+    const aiCapability = mode === 'Teacher' ? 'teacher' :
+        mode === 'Tutor' ? 'tutor' : 'management';
+    api('/api/ai/workspace/status?capability=' + aiCapability).then(data => {
         if (!sameSession()) return;
         state.configured = Boolean(data?.modelConfigured);
         if (!state.configured) {

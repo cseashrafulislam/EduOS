@@ -56,13 +56,18 @@ public sealed class EduOsAiWorkspaceService(
         current.TenantId > 0 && db.CurrentTenantId == current.TenantId;
     private bool Manager => Trusted && (current.IsTenantAdmin || current.IsInRole("Principal"));
     // A tenant can use only its own protected key. A server flag is an emergency kill switch.
-    public async Task<bool> IsCurrentRoleReadyAsync(CancellationToken ct)
+    public async Task<bool> IsCurrentRoleReadyAsync(
+        CancellationToken ct, string? capability = null)
     {
         if (!Trusted || !configuration.GetValue<bool>("EduOsAi:Enabled")) return false;
         try
         {
             var settings = await tenantProvider.ResolveAsync(ct);
-            return settings != null && (!current.IsInRole("Student") || settings.StudentTutorEnabled);
+            if (settings == null) return false;
+            if (current.IsInRole("Student"))
+                return settings.StudentTutorEnabled && capability is null or "tutor";
+            if (capability == null) return true;
+            return await tenantProvider.AgentEnabledAsync(capability, ct);
         }
         catch (DbException ex)
         {
@@ -123,7 +128,7 @@ public sealed class EduOsAiWorkspaceService(
             "Do not invent sources or students. Output is a draft for teacher review, never official marks or records.";
         var prompt = $"Draft type: {request.OutputType}. Class: {request.ClassLevel}. Topic: {request.Topic}. " +
             $"Duration: {request.DurationMinutes} minutes. {task}";
-        return await GenerateAsync(instruction, prompt, ct);
+        return await GenerateAsync(instruction, prompt, ct, "teacher");
     }
 
     public async Task<ApiResponse<AiGeneratedDraft>> TutorAsync(
@@ -146,7 +151,7 @@ public sealed class EduOsAiWorkspaceService(
             "quiz answers or unpublished assessments. Encourage learning rather than solving live graded tests. " +
             "When uncertain say so; never fabricate source citations. Provide one short self-check question.";
         return await GenerateAsync(instruction,
-            $"Subject/topic: {request.Topic}. Student question: {request.Question}", ct);
+            $"Subject/topic: {request.Topic}. Student question: {request.Question}", ct, "tutor");
     }
 
     public async Task<ApiResponse<IReadOnlyList<AiCampusOption>>> CampusesAsync(
@@ -300,7 +305,7 @@ public sealed class EduOsAiWorkspaceService(
             $"leave {source.LeaveMarks}, excused {source.ExcusedMarks}. " +
             $"Attendance rate (present+late)/(present+late+absent): {source.AttendanceRatePercent?.ToString("0.00") ?? "unavailable"}%. " +
             "Do not speculate about missing dates, individuals or other campuses.";
-        return await GenerateAsync(instructions, text, ct);
+        return await GenerateAsync(instructions, text, ct, "management");
     }
 
 
@@ -329,11 +334,11 @@ public sealed class EduOsAiWorkspaceService(
             "accounts or live ERP records were provided. Do not invent school-specific metrics or " +
             "claim access to EduOS databases. Reply in the question's language. Do not fabricate citations. " +
             "This answer is a non-official draft that a person must review.";
-        return await GenerateAsync(instructions, question!.Trim(), ct);
+        return await GenerateAsync(instructions, question!.Trim(), ct, "general");
     }
 
     private async Task<ApiResponse<AiGeneratedDraft>> GenerateAsync(
-        string instructions, string prompt, CancellationToken ct)
+        string instructions, string prompt, CancellationToken ct, string agentCode)
     {
         if (!Trusted || !configuration.GetValue<bool>("EduOsAi:Enabled"))
             return Fail<AiGeneratedDraft>("External AI is disabled by the platform.", 503);
@@ -343,6 +348,11 @@ public sealed class EduOsAiWorkspaceService(
             if (providerSettings == null ||
                 (current.IsInRole("Student") && !providerSettings.StudentTutorEnabled))
                 return Fail<AiGeneratedDraft>("Your institution must configure and enable its own AI provider key.", 503);
+            // Capability switches never grant role/module access; they only restrict.
+            // Student Tutor has one authoritative opt-in in provider settings.
+            if (agentCode != "tutor" &&
+                !await tenantProvider.AgentEnabledAsync(agentCode, ct))
+                return Fail<AiGeneratedDraft>("This AI capability is disabled by your institution.", 503);
             // One short atomic SQL reservation across all instances before provider egress.
             // A timed-out provider call may still incur cost; never refund blindly.
             var dailyLimit = configuration.GetValue<int?>("EduOsAi:DailyCallsPerTenant") ?? 20;

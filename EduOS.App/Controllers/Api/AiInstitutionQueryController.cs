@@ -49,7 +49,7 @@ public sealed class AiInstitutionQueryController(AiInstitutionMetricService serv
         data = new
         {
             verifiedLocalAvailable = true,
-            generalAiAvailable = await provider.IsCurrentRoleReadyAsync(ct)
+            generalAiAvailable = await provider.IsCurrentRoleReadyAsync(ct, "general")
         }
     });
 

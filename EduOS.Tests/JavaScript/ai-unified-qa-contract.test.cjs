@@ -43,5 +43,5 @@ test('model-free institution API stays compatible; only provider action has bill
     assert.match(paid,/AiGenerationPolicy/);
     assert.match(provider,/GeneralKnowledgeQuestionPolicy\.IsAllowed\(question\)/);
     assert.match(provider,/CentralPrivilegedAccess\.HasRoleAsync/);
-    assert.match(provider,/await GenerateAsync\(instructions, question!\.Trim\(\), ct\)/);
+    assert.match(provider,/await GenerateAsync\(instructions, question!\.Trim\(\), ct, "general"\)/);
 });
