@@ -26,8 +26,20 @@ test('provider does not leak secrets or mutate canonical ERP tables', () => {
     const svc = file('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
     const js = file('EduOS.App/wwwroot/js/ai/workspace.js');
     assert.match(svc, /EduOsAi:Enabled/);
-    assert.match(svc, /EduOsAi:ApiKey/);
-    assert.match(svc, /EduOsAi:Model/);
+    assert.match(svc, /tenantProvider.ResolveAsync\(ct\)/);
+    assert.match(svc, /settings.StudentTutorEnabled|providerSettings.StudentTutorEnabled/);
+    assert.match(svc, /EduOsAi:DailyCallsPerTenant/);
+    assert.match(svc, /quota.ReserveAsync\(current.TenantId, dailyLimit, ct\)/);
+    assert.match(svc, /quota.RecordObservedUsageAsync/);
+    assert.match(svc, /request\?\.ConsentToExternalAi != true/g);
+    assert.match(svc, /if \(!consentToExternalAi\)/);
+    assert.match(js, /el\('aiProviderConsent'\)\?\.checked === true/);
+    assert.match(js, /consentToExternalAi: consent/);
+    assert.match(file('EduOS.App/Views/AiWorkspace/Index.cshtml'), /id="aiProviderConsent"/);
+    assert.match(file('EduOS.App/Controllers/Api/AiWorkspaceApiController.cs'), /IsCurrentRoleReadyAsync/);
+    assert.match(svc, /providerSettings.ApiKey/);
+    assert.match(svc, /providerSettings.Model/);
+    assert.doesNotMatch(svc, /EduOsAi:ApiKey|ApprovedTenantIds/);
     assert.match(svc, /https:\/\/api\.openai\.com\/v1\/responses/);
     assert.match(svc, /store = false/);
     assert.match(svc, /max_output_tokens = 900/);
@@ -52,6 +64,23 @@ test('management report reads tenant-scoped finalized evidence and campus permis
     assert.match(svc, /Only aggregate numbers travel to the model/);
     assert.match(svc, /await db\.Employees\.AsNoTracking\(\)/);
     assert.match(svc, /current\.IsInRole\("Student"\)/);
+});
+
+test('local-first management questions reuse canonical authorized snapshot, without provider calls', () => {
+    const source = file('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
+    const api = file('EduOS.App/Controllers/Api/AiWorkspaceApiController.cs');
+    const mvc = file('EduOS.App/Controllers/AiWorkspaceController.cs');
+    const js = file('EduOS.App/wwwroot/js/ai/workspace.js');
+    const planner = file('EduOS.AI/ManagementQuestionPlanner.cs');
+    assert.match(source, /ManagementQuestionPlanner\.Parse\(question\)/);
+    assert.match(source, /var source = await SnapshotAsync\(campusId, fromDate, toDate, ct\)/);
+    assert.match(api, /HttpPost\("management\/ask"\)/);
+    assert.match(api, /RequirePermission\(PermissionConstants\.Attendance\.View\)/);
+    assert.match(mvc, /RequirePermission\(PermissionConstants\.Attendance\.View\)/);
+    assert.match(js, /aiManagementAsk/);
+    assert.match(js, /management\/ask/);
+    assert.match(planner, /ManagementMetric\.AbsentEntries/);
+    assert.doesNotMatch(planner, /HttpClient|ExecuteSql|SaveChanges/);
 });
 
 test('navigation and DI wiring include all three new workspaces', () => {

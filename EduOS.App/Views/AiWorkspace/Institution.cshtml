@@ -1,0 +1,83 @@
+@{
+    var bn = System.Globalization.CultureInfo.CurrentUICulture.Name == "bn-BD";
+    ViewData["Title"] = bn ? "Ask EduOS — প্রশ্নোত্তর" : "Ask EduOS — Q&A";
+}
+<section id="aiInstitutionWorkspace" class="container-fluid py-2" data-lang="@(bn ? "bn" : "en")">
+    @Html.AntiForgeryToken()
+    <header class="mb-3">
+        <h1 class="h4 mb-1">@ViewData["Title"]</h1>
+        <p class="text-muted small mb-0">@(bn ?
+            "প্রথমে বিনামূল্যে প্রতিষ্ঠানের যাচাইকৃত MIS থেকে উত্তর দেওয়া হয়। শুধু সাধারণ জ্ঞানের প্রশ্নে প্রতিষ্ঠানের API কী ও সম্মতি থাকলে বাইরের AI ব্যবহার হবে।" :
+            "One Q&A page: verified institutional answers come from local MIS without any API key. Optional external AI handles general learning questions only, with institute key and consent.")</p>
+    </header>
+    <div class="card border-0 shadow-sm"><div class="card-body">
+        <form id="aiInstitutionForm" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label for="aiInstitutionFrom" class="form-label">@(bn ? "শুরু" : "From")</label>
+                <input id="aiInstitutionFrom" type="date" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+                <label for="aiInstitutionTo" class="form-label">@(bn ? "শেষ" : "To")</label>
+                <input id="aiInstitutionTo" type="date" class="form-control" required />
+            </div>
+            <div class="col-md-6">
+                <label for="aiInstitutionQuestion" class="form-label">@(bn ? "কোন তথ্য জানতে চান?" : "Ask one metric")</label>
+                <input id="aiInstitutionQuestion" type="text" list="aiInstitutionSuggestions"
+                       maxlength="200" minlength="3" class="form-control" required
+                       placeholder="@(bn ? "যেমন: বকেয়া ফি / সালোকসংশ্লেষণ কী?" : "e.g. fee dues / What is photosynthesis?")" />
+                <datalist id="aiInstitutionSuggestions">
+                    <option value="@(bn ? "বকেয়া ফি" : "outstanding fee amount")"></option>
+                    <option value="@(bn ? "বকেয়া ফি ইনভয়েস" : "outstanding fee invoices")"></option>
+                    <option value="@(bn ? "সক্রিয় শিক্ষার্থী" : "active students")"></option>
+                    <option value="@(bn ? "সক্রিয় কর্মচারী" : "active employees")"></option>
+                    <option value="@(bn ? "চূড়ান্ত অনুপস্থিতি" : "finalized absences")"></option>
+                    <option value="@(bn ? "প্রকাশিত ফলাফলের সংস্করণ" : "published result versions")"></option>
+                    <option value="@(bn ? "পোস্টেড আয়" : "posted income")"></option>
+                    <option value="@(bn ? "পোস্টেড ব্যয়" : "posted expenses")"></option>
+                    <option value="@(bn ? "নিট উদ্বৃত্ত" : "net surplus")"></option>
+                    <option value="@(bn ? "চূড়ান্ত হাজিরা সেশন" : "finalized attendance sessions")"></option>
+                    <option value="@(bn ? "খোলা ওয়ার্ক অর্ডার" : "open work orders")"></option>
+                    <option value="@(bn ? "সক্রিয় সম্পদ" : "active assets")"></option>
+                    <option value="@(bn ? "জমা দেওয়া রিকুইজিশন" : "submitted requisitions")"></option>
+                    <option value="@(bn ? "পরিকল্পিত পরিবহন ট্রিপ" : "planned transport trips")"></option>
+                    <option value="@(bn ? "ইস্যুকৃত লাইব্রেরি বই" : "issued library loans")"></option>
+                    <option value="@(bn ? "সালোকসংশ্লেষণ কী?" : "What is photosynthesis?")"></option>
+                </datalist>
+            </div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input id="aiInstitutionConsent" class="form-check-input" type="checkbox" />
+                    <label class="form-check-label small" for="aiInstitutionConsent">@(bn ?
+                        "শুধু Local MIS-এ উত্তর না পাওয়া সাধারণ জ্ঞানের প্রশ্ন হলে আমার লেখাটি প্রতিষ্ঠানের AI প্রদানকারীর কাছে পাঠাতে সম্মত।" :
+                        "For general knowledge questions only, I consent to sending this request to the institution's external AI provider when no verified local answer exists.")</label>
+                </div>
+                <p id="aiInstitutionMode" class="small text-muted mt-1 mb-0" role="status" aria-live="polite"></p>
+            </div>
+            <div class="col-12">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <button id="aiInstitutionAsk" type="submit" class="btn btn-primary">
+                        @(bn ? "উত্তর দেখুন" : "Get answer")
+                    </button>
+                    <button id="aiInstitutionSpeak" type="button" class="btn btn-outline-secondary" hidden
+                            aria-label="@(bn ? "ভয়েস দিয়ে প্রশ্ন লিখুন" : "Dictate a question")">
+                        <span aria-hidden="true">🎙</span> @(bn ? "ভয়েস প্রশ্ন" : "Voice question")
+                    </button>
+                </div>
+                <p id="aiInstitutionSpeechNote" class="small text-muted mt-2 mb-0">
+                    @(bn ? "ভয়েস থাকলে ব্রাউজারের Speech Recognition ব্যবহার হবে; অডিও প্রসেসিং ব্রাউজার/প্রোভাইডার নিয়ন্ত্রণ করতে পারে। লেখা দেখে নিজে Submit করুন।" :
+                        "Optional browser speech recognition may use browser/vendor services. Review the transcript and submit manually; EduOS does not auto-submit audio.")
+                </p>
+            </div>
+        </form>
+        <div id="aiInstitutionNotice" class="small mt-2" role="status" aria-live="polite"></div>
+        <div id="aiInstitutionAnswer" class="border rounded mt-3 p-3 d-none" aria-live="polite">
+            <div id="aiInstitutionMetric" class="h6 mb-1"></div>
+            <div id="aiInstitutionValue" class="h4 mb-2"></div>
+            <p id="aiInstitutionDefinition" class="small mb-2" style="white-space:pre-wrap"></p>
+            <p id="aiInstitutionSource" class="small text-muted mb-0"></p>
+        </div>
+    </div></div>
+</section>
+@section Scripts {
+    <script src="~/js/ai/institution-questions.js" asp-append-version="true"></script>
+}

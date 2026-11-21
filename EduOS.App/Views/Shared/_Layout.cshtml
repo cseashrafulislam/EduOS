@@ -179,6 +179,13 @@
                         <span>@(currentCulture == "bn-BD" ? "AI প্রতিষ্ঠান বিশ্লেষণ" : "Management AI Analytics")</span>
                     </a>
                 }
+                @if (User?.IsInRole("TenantAdmin") == true)
+                {
+                    <a class="nav-link @ActiveFor("/AiWorkspace/Institution")" href="/AiWorkspace/Institution">
+                        <svg class="edu-icon"><use href="/images/eduos-icons.svg#reports" /></svg>
+                        <span>@(currentCulture == "bn-BD" ? "Ask EduOS প্রশ্নোত্তর" : "Ask EduOS Q&A")</span>
+                    </a>
+                }
             </nav>
 
             <hr class="sidebar-divider" />
@@ -1184,6 +1191,9 @@
                         <input class="form-control" id="pageAssistantQuery" type="search" maxlength="512"
                                autocomplete="off" placeholder="@(currentCulture == "bn-BD" ? "যেমন: অভিভাবকের নাম" : "e.g. Guardian name")" />
                         <button type="button" class="btn btn-primary" id="pageAssistantFind">@(currentCulture == "bn-BD" ? "খুঁজুন" : "Find")</button>
+                        <button type="button" class="btn btn-outline-secondary" id="pageAssistantServerReview">
+                            @(currentCulture == "bn-BD" ? "নির্দেশ যাচাই" : "Review command")
+                        </button>
                         <button type="button" class="btn btn-outline-primary page-assistant-voice" id="pageAssistantVoice"
                                 aria-pressed="false" aria-label="@(currentCulture == "bn-BD" ? "শুধু ডিভাইসে ভয়েস ইনপুট চালু বা বন্ধ করুন" : "Start or stop on-device voice input")">
                             <svg class="edu-icon" aria-hidden="true"><use href="/images/eduos-icons.svg#microphone" /></svg>
@@ -1192,6 +1202,7 @@
                     </div>
                     <p id="pageAssistantVoiceStatus" class="page-assistant-voice-status" role="status" aria-live="polite"></p>
                     <div id="pageAssistantResult" class="page-assistant-result" role="status" aria-live="polite"></div>
+                    <div id="pageAssistantServerResult" class="page-assistant-result mt-2" role="status" aria-live="polite"></div>
                     <details class="page-assistant-ai mt-3" id="pageAssistantAiPanel">
                         <summary>@(currentCulture == "bn-BD" ? "Ask EduOS — হাজিরা প্রশ্ন যাচাই (শুধু পড়ার জন্য)" : "Ask EduOS — Attendance question preview (read-only)")</summary>
                         <div class="page-assistant-ai-controls mt-2">
@@ -1301,6 +1312,7 @@
     <script src="~/js/platform/page-assistant-filter-draft.js" asp-append-version="true"></script>
     <script src="~/js/platform/page-assistant-field-draft.js" asp-append-version="true"></script>
     <script src="~/js/platform/ai-voice-attendance-preview.js" asp-append-version="true"></script>
+    <script src="~/js/platform/ai-page-intent-review.js" asp-append-version="true"></script>
     <script src="~/js/platform/session-context-guard.js" asp-append-version="true"></script>
     <script src="~/js/platform/feature-discovery.js" asp-append-version="true"></script>
     <script src="~/js/platform/institution-switch.js" asp-append-version="true"></script>

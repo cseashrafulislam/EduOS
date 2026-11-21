@@ -123,6 +123,9 @@
         </form>
     </section>
 
+
+    <partial name="_TenantAiProviderSettings" />
+
     <div class="setup-guidance" role="note">@T["GatewayOptionalNote"]</div>
     <footer class="setup-actions">
         <button type="button" class="btn btn-outline-secondary" id="skipBtn">@T["SkipAndFinish"]</button>
@@ -132,3 +135,4 @@
 
 <script id="gatewaySetupStrings" type="application/json">@Html.Raw(pageJson)</script>
 <script src="~/js/account/gateway-setup.js" asp-append-version="true"></script>
+<script src="~/js/ai/provider-settings.js" asp-append-version="true"></script>

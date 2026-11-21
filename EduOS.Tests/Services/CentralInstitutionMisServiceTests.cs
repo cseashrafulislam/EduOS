@@ -1,6 +1,7 @@
 using EduOS.Core.Common;
 using EduOS.Core.DTOs.Accounting;
 using EduOS.Core.Entities.Accounting;
+using EduOS.Core.Entities.Assessment;
 using EduOS.Core.Entities.Academic;
 using EduOS.Core.Entities.Attendance;
 using EduOS.Core.Entities.Auth;
@@ -42,6 +43,10 @@ public sealed class CentralInstitutionMisServiceTests
             FullName = "Inactive learner", StatusCode = "Inactive" });
         db.Employees.Add(new Employee { Id = 3, TenantId = 41, FullName = "Teacher",
             EmployeeCode = "E-3", State = EmployeeState.Active });
+        db.ResultPublications.Add(new ResultPublication { Id = 22, TenantId = 41,
+            AssessmentId = 1, State = ResultPublicationState.Published, VersionNo = 1 });
+        db.ResultPublications.Add(new ResultPublication { Id = 23, TenantId = 41,
+            AssessmentId = 1, State = ResultPublicationState.Withdrawn, VersionNo = 2 });
         db.ProcurementRequisitions.Add(new ProcurementRequisition { Id = 5, TenantId = 41,
             CampusId = 10, RequestNumber = "R-5", Purpose = "Office", StateCode = "Submitted" });
         db.ProcurementPurchaseOrders.Add(new ProcurementPurchaseOrder { Id = 15, TenantId = 41,
@@ -77,6 +82,8 @@ public sealed class CentralInstitutionMisServiceTests
         var metrics = result.Data!.Metrics.ToDictionary(x => x.Key);
         metrics["active_students"].Value.Should().Be(1m);
         metrics["active_employees"].Value.Should().Be(1m);
+        metrics["published_result_versions"].Value.Should().Be(1m);
+        metrics["published_result_versions"].Scope.Should().Be("Current");
         metrics["submitted_requisitions"].Value.Should().Be(1m);
         metrics["purchase_orders_awaiting_review"].Value.Should().Be(1m);
         metrics["visitor_policy_changes_awaiting_review"].Value.Should().Be(1m);
@@ -181,6 +188,44 @@ public sealed class CentralInstitutionMisServiceTests
             .StatusCode.Should().Be(409);
         finance.Verify(x => x.GetInstitutionalIncomeExpenseTotalsAsync(
             It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Single_student_metric_avoids_unrelated_finance_queries()
+    {
+        await using var db = Database();
+        SeedAdmin(db);
+        db.Students.Add(new Student { Id = 99, TenantId = 41, StudentCode = "S-99",
+            FullName = "Only Student", StatusCode = "Active" });
+        await db.SaveChangesAsync();
+        var finance = new Mock<IAccountingReportingService>(MockBehavior.Strict);
+        var result = await Service(db, Modules(), finance.Object)
+            .GetMetricAsync("active_students", From, To);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Metrics.Should().ContainSingle();
+        result.Data.Metrics.Single().Key.Should().Be("active_students");
+        result.Data.Metrics.Single().Value.Should().Be(1m);
+        finance.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task Single_invoice_metric_does_not_require_gl_finance_summary()
+    {
+        await using var db = Database();
+        SeedAdmin(db);
+        db.StudentInvoices.Add(new StudentInvoice { Id = 101, TenantId = 41,
+            StudentEnrollmentId = 1, InvoiceNumber = "INV-101", InvoiceDate = From, DueDate = To,
+            State = InvoiceState.PartiallyPaid, TotalAmount = 100m,
+            PaidAmount = 10m, DueAmount = 90m });
+        await db.SaveChangesAsync();
+        var finance = new Mock<IAccountingReportingService>(MockBehavior.Strict);
+        var result = await Service(db, Modules(), finance.Object)
+            .GetMetricAsync("outstanding_fee_amount", From, To);
+        result.StatusCode.Should().Be(200);
+        result.Data!.Metrics.Should().ContainSingle();
+        result.Data.Metrics.Single().Key.Should().Be("outstanding_fee_amount");
+        result.Data.Metrics.Single().Value.Should().Be(90m);
+        finance.VerifyNoOtherCalls();
     }
 
     private static Mock<IAccountingReportingService> Finance(int status = 200)

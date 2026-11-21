@@ -190,8 +190,9 @@
         }
     }
 
+
     async function finishOnboarding(skipped) {
-        if (saving) return;
+        if (saving || window.EduOSAiProviderSaving === true) return;
         if (onboarding?.isComplete) {
             window.location.assign('/Dashboard/Index');
             return;

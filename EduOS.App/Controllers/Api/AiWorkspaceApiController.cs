@@ -1,4 +1,6 @@
 using EduOS.App.Authorization;
+using EduOS.Core.Constants;
+using System.ComponentModel.DataAnnotations;
 using EduOS.Service.Services.AI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,10 +17,10 @@ namespace EduOS.App.Controllers.Api;
 public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : ControllerBase
 {
     [HttpGet("status")]
-    public IActionResult Status() => Ok(new
+    public async Task<IActionResult> Status([FromQuery] string? capability, CancellationToken ct) => Ok(new
     {
         success = true,
-        data = new { modelConfigured = service.ProviderReady, readOnly = true }
+        data = new { modelConfigured = await service.IsCurrentRoleReadyAsync(ct, capability), readOnly = true }
     });
 
     [HttpPost("teacher")]
@@ -46,6 +48,7 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
     [HttpGet("management/campuses")]
     [Authorize(Roles = "Principal,TenantAdmin")]
     [RequireModule("ATTENDANCE")]
+    [RequirePermission(PermissionConstants.Attendance.View)]
     public async Task<IActionResult> Campuses([FromQuery] string? search, CancellationToken ct)
     {
         var result = await service.CampusesAsync(search, ct);
@@ -55,6 +58,7 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
     [HttpGet("management/summary")]
     [Authorize(Roles = "Principal,TenantAdmin")]
     [RequireModule("ATTENDANCE")]
+    [RequirePermission(PermissionConstants.Attendance.View)]
     public async Task<IActionResult> Summary([FromQuery] long campusId,
         [FromQuery] DateOnly fromDate, [FromQuery] DateOnly toDate, CancellationToken ct)
     {
@@ -62,20 +66,42 @@ public sealed class AiWorkspaceApiController(EduOsAiWorkspaceService service) : 
         return StatusCode(result.StatusCode, result);
     }
 
+    [HttpPost("management/ask")]
+    [Authorize(Roles = "Principal,TenantAdmin")]
+    [RequireModule("ATTENDANCE")]
+    [RequirePermission(PermissionConstants.Attendance.View)]
+    public async Task<IActionResult> Ask([FromBody] AiManagementAskRequest request, CancellationToken ct)
+    {
+        if (!ModelState.IsValid || request == null) return ValidationProblem(ModelState);
+        var result = await service.AskVerifiedMetricAsync(
+            request.CampusId, request.FromDate, request.ToDate, request.Question, ct);
+        return StatusCode(result.StatusCode, result);
+    }
+
     [HttpPost("management/interpret")]
     [EnableRateLimiting("AiGenerationPolicy")]
     [Authorize(Roles = "Principal,TenantAdmin")]
     [RequireModule("ATTENDANCE")]
+    [RequirePermission(PermissionConstants.Attendance.View)]
     public async Task<IActionResult> Interpret([FromBody] AiManagementInterpretRequest request, CancellationToken ct)
     {
         if (!ModelState.IsValid) return ValidationProblem(ModelState);
-        var result = await service.InterpretAsync(request.CampusId, request.FromDate, request.ToDate, ct);
+        var result = await service.InterpretAsync(request.CampusId, request.FromDate, request.ToDate, request.ConsentToExternalAi, ct);
         return StatusCode(result.StatusCode, result);
     }
 }
 
+public sealed class AiManagementAskRequest
+{
+    [Range(1, long.MaxValue)] public long CampusId { get; set; }
+    public DateOnly FromDate { get; set; }
+    public DateOnly ToDate { get; set; }
+    [Required, StringLength(200, MinimumLength = 3)] public string Question { get; set; } = "";
+}
+
 public sealed class AiManagementInterpretRequest
 {
+    public bool ConsentToExternalAi { get; set; }
     [System.ComponentModel.DataAnnotations.Range(1, long.MaxValue)]
     public long CampusId { get; set; }
     public DateOnly FromDate { get; set; }

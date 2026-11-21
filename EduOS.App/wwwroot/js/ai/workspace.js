@@ -46,14 +46,20 @@
         if (el(buttonId)) el(buttonId).disabled = locked;
         if (el('aiManagementInterpret'))
             el('aiManagementInterpret').disabled = locked || !state.configured || !state.snapshot;
+        if (el('aiManagementAsk'))
+            el('aiManagementAsk').disabled = locked || !state.snapshot;
     }
     async function runGenerate(buttonId, endpoint, payload) {
         if (state.busy || !sameSession() || !state.configured) return;
+        const consent = el('aiProviderConsent')?.checked === true;
+        if (!consent) return notice(translate(
+            'Confirm external AI processing for this request first.',
+            'বাহ্যিক AI-তে পাঠানোর আগে এই অনুরোধের সম্মতি দিন।'), true);
         const sequence = ++state.sequence;
         lock(buttonId, true);
         notice(translate('Generating a draft. Review it before use.', 'খসড়া তৈরি হচ্ছে। ব্যবহারের আগে যাচাই করুন।'));
         try {
-            const data = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+            const data = await api(endpoint, { method: 'POST', body: JSON.stringify({ ...payload, consentToExternalAi: consent }) });
             if (sequence !== state.sequence || !sameSession()) return;
             showOutput(data);
             notice(translate('Draft ready for review.', 'যাচাইয়ের জন্য খসড়া প্রস্তুত।'));
@@ -118,10 +124,13 @@
         el('aiManagementMetrics').classList.remove('d-none');
     }
     function clearSnapshot() {
+        // Invalidate pending question/report/model replies when date/campus changes.
+        state.sequence++;
         state.snapshot = null;
         state.snapshotKey = null;
         el('aiManagementMetrics').classList.add('d-none');
-        el('aiManagementInterpret').disabled = true;
+        el('aiOutputPanel').classList.add('d-none');
+        lock('aiManagementLoad', false);
     }
     async function loadMetrics(event) {
         event.preventDefault();
@@ -148,6 +157,35 @@
             if (sequence === state.sequence) lock('aiManagementLoad', false);
         }
     }
+    async function askVerifiedMetrics() {
+        if (state.busy || !state.snapshot || !sameSession()) return;
+        const current = filters();
+        if (filterKey(current) !== state.snapshotKey)
+            return notice(translate('Reload metrics after changing filters.', 'ফিল্টার বদলালে নতুন করে পরিসংখ্যান লোড করুন।'), true);
+        const question = val('aiManagementQuestion');
+        if (question.length < 3 || question.length > 200)
+            return notice(translate('Enter a short question about one metric.', 'একটি পরিসংখ্যান নিয়ে ছোট প্রশ্ন লিখুন।'), true);
+        const sequence = ++state.sequence;
+        lock('aiManagementAsk', true);
+        try {
+            const data = await api('/api/ai/workspace/management/ask', {
+                method: 'POST', body: JSON.stringify({ ...current, question })
+            });
+            if (sequence !== state.sequence || !sameSession() || filterKey(filters()) !== state.snapshotKey) return;
+            if (typeof data?.metric !== 'string' || typeof data?.value !== 'string' ||
+                typeof data?.explanation !== 'string') throw Error('Invalid verified data response.');
+            showOutput({ text: data.metric + ': ' + data.value + '\n' +
+                data.explanation + '\n' + data.campusName + ' · ' + data.fromDate + ' to ' + data.toDate +
+                '\nSource: ' + data.source,
+                notice: translate('Verified institutional records; no external model call.',
+                    'প্রতিষ্ঠানের যাচাইকৃত তথ্য; কোনো বাহ্যিক AI কল হয়নি।') });
+            notice(translate('Verified answer loaded.', 'যাচাইকৃত উত্তর দেখানো হয়েছে।'));
+        } catch (err) {
+            if (sequence === state.sequence && sameSession()) notice(err.message, true);
+        } finally {
+            if (sequence === state.sequence) lock('aiManagementAsk', false);
+        }
+    }
     async function interpretMetrics() {
         if (state.busy || !state.configured || !state.snapshot || !sameSession()) return;
         const current = filters();
@@ -158,6 +196,9 @@
     async function initManagement() {
         el('aiManagementForm').addEventListener('submit', loadMetrics);
         el('aiManagementInterpret').addEventListener('click', interpretMetrics);
+        el('aiManagementAsk').addEventListener('click', askVerifiedMetrics);
+        el('aiManagementQuestion').addEventListener('input', () =>
+            el('aiOutputPanel').classList.add('d-none'));
         ['aiCampus', 'aiFrom', 'aiTo'].forEach(id =>
             el(id).addEventListener('change', clearSnapshot));
         const today = new Date();
@@ -190,7 +231,9 @@
                 'কপি করা যাচ্ছে না। লেখাটি নির্বাচন করে কপি করুন।'), true);
         }
     });
-    api('/api/ai/workspace/status').then(data => {
+    const aiCapability = mode === 'Teacher' ? 'teacher' :
+        mode === 'Tutor' ? 'tutor' : 'management';
+    api('/api/ai/workspace/status?capability=' + aiCapability).then(data => {
         if (!sameSession()) return;
         state.configured = Boolean(data?.modelConfigured);
         if (!state.configured) {
