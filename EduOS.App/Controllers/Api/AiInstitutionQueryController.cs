@@ -16,7 +16,7 @@ public sealed class AiInstitutionGeneralRequest
 
 public sealed class AiInstitutionAskRequest
 {
-    [Required, StringLength(120, MinimumLength = 3)]
+    [Required, StringLength(200, MinimumLength = 3)]
     public string Question { get; set; } = string.Empty;
     public DateOnly FromDate { get; set; }
     public DateOnly ToDate { get; set; }
