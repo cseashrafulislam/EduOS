@@ -117,6 +117,30 @@
         }
     }
     void loadStatus();
+    async function loadCatalog() {
+        try {
+            const response = await fetch('/api/ai/institution/catalog', {
+                credentials: 'same-origin', cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+            const result = await response.json().catch(() => null);
+            if (!response.ok || result?.success !== true || !Array.isArray(result.data) ||
+                !sameSession()) return;
+            const datalist = el('aiInstitutionSuggestions');
+            const options = result.data.filter(row => typeof row?.question === 'string' &&
+                row.question.length >= 3 && row.question.length <= 120);
+            if (!options.length) return;
+            datalist.replaceChildren();
+            for (const item of options) {
+                const option = document.createElement('option');
+                option.value = item.question;
+                datalist.append(option);
+            }
+        } catch {
+            // Keep the local fallback suggestions if the catalogue endpoint is unavailable.
+        }
+    }
+    void loadCatalog();
 
     form.addEventListener('submit', async event => {
         event.preventDefault();

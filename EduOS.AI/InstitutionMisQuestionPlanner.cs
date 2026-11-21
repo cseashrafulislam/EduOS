@@ -3,7 +3,9 @@ using System.Text.RegularExpressions;
 
 namespace EduOS.AI;
 
-/// <summary>Exact bilingual question-to-metric routing. No user SQL, tenant, campus or date inference.</summary>
+/// <summary>Strict bilingual question-to-metric routing; catalogue contains only public metadata, never tenant data.</summary>
+public sealed record InstitutionQuestionSuggestion(string Question, string MetricKey);
+
 public static class InstitutionMisQuestionPlanner
 {
     private static readonly IReadOnlyDictionary<string, string> Aliases = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -51,6 +53,21 @@ public static class InstitutionMisQuestionPlanner
     {
         " count", " total", " amount", " কতজন", " কতটি", " কত টাকা", " কত", " সংখ্যা", " দেখাও", " জানাও"
     };
+
+    /// <summary>Metadata-only suggestions. Real values still require authenticated, authorized MIS calls.</summary>
+    public static IReadOnlyList<InstitutionQuestionSuggestion> Suggestions(string? search = null)
+    {
+        if (search?.Length > 80 || search?.Any(char.IsControl) == true)
+            return Array.Empty<InstitutionQuestionSuggestion>();
+        var filter = (search ?? "").Normalize(NormalizationForm.FormKC).Trim().ToLowerInvariant();
+        return Aliases
+            .Where(x => filter.Length == 0 || x.Key.Contains(filter, StringComparison.Ordinal) ||
+                x.Value.Contains(filter, StringComparison.Ordinal))
+            .OrderBy(x => x.Key, StringComparer.Ordinal)
+            .Take(100)
+            .Select(x => new InstitutionQuestionSuggestion(x.Key, x.Value))
+            .ToArray();
+    }
 
     public static string? Parse(string? question)
     {

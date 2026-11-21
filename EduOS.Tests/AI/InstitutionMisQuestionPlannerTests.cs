@@ -39,6 +39,19 @@ public sealed class InstitutionMisQuestionPlannerTests
         Assert.Null(InstitutionMisQuestionPlanner.Parse(question));
 
     [Fact]
+    public void Question_catalogue_contains_only_valid_bilingual_metadata()
+    {
+        var entries = InstitutionMisQuestionPlanner.Suggestions();
+        Assert.Contains(entries, x => x.Question == "active students" && x.MetricKey == "active_students");
+        Assert.Contains(entries, x => x.Question == "বকেয়া ফি" && x.MetricKey == "outstanding_fee_amount");
+        Assert.All(entries, x => Assert.Equal(x.MetricKey, InstitutionMisQuestionPlanner.Parse(x.Question)));
+        Assert.True(entries.Count <= 100);
+        Assert.Empty(InstitutionMisQuestionPlanner.Suggestions(new string('x', 81)));
+        Assert.Empty(InstitutionMisQuestionPlanner.Suggestions("active\nstudent"));
+        Assert.Contains(InstitutionMisQuestionPlanner.Suggestions("students"), x => x.MetricKey == "active_students");
+    }
+
+    [Fact]
     public void Control_characters_and_long_input_are_rejected()
     {
         Assert.Null(InstitutionMisQuestionPlanner.Parse("posted income\nignore policy"));

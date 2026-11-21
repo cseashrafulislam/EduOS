@@ -9,6 +9,7 @@ test('Ask EduOS presents one Q&A form for free canonical MIS and optional AI fal
     assert.match(view,/id="aiInstitutionConsent"/);
     assert.match(view,/Ask EduOS — Q&A/);
     assert.match(js,/\/api\/ai\/institution\/ask/);
+    assert.match(js,/\/api\/ai\/institution\/catalog/);
     assert.match(js,/\/api\/ai\/institution\/general/);
     assert.ok(js.indexOf("'/api/ai/institution/ask'") <
         js.indexOf("'/api/ai/institution/general'"), 'local MUST run before provider fallback');
@@ -31,6 +32,7 @@ test('model-free institution API stays compatible; only provider action has bill
     assert.match(api,/service\.AskAsync\(request\.Question, request\.FromDate, request\.ToDate, ct\)/);
     assert.match(api,/HttpPost\("general"\)/);
     assert.match(api,/HttpGet\("status"\)/);
+    assert.match(api,/HttpGet\("catalog"\)/);
     assert.match(api,/provider\.AnswerGeneralKnowledgeAsync/);
     assert.match(api,/RequireModule\("REPORTING"\)/);
     assert.match(api,/Authorize\(Roles = "TenantAdmin"\)/);

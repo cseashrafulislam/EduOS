@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using EduOS.App.Authorization;
+using EduOS.AI;
 using EduOS.Service.Services.AI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -32,6 +33,15 @@ public sealed class AiInstitutionAskRequest
 public sealed class AiInstitutionQueryController(AiInstitutionMetricService service,
     EduOsAiWorkspaceService provider) : ControllerBase
 {
+    [HttpGet("catalog")]
+    public IActionResult Catalog([FromQuery] string? search)
+    {
+        if (search?.Length > 80 || search?.Any(char.IsControl) == true)
+            return BadRequest(new { success = false, message = "Invalid catalogue search." });
+        // Public question metadata only, never tenant data or disabled-module values.
+        return Ok(new { success = true, data = InstitutionMisQuestionPlanner.Suggestions(search) });
+    }
+
     [HttpGet("status")]
     public async Task<IActionResult> Status(CancellationToken ct) => Ok(new
     {
