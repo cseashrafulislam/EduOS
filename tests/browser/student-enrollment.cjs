@@ -65,6 +65,13 @@ async function run() {
         await page.locator('#enrollmentStudentResults button').first().click();
         await page.waitForFunction(() =>
             document.querySelector('#enrollmentCurrent')?.textContent.includes('No current enrollment'));
+        // Choosing a student resets the form; reselect the real academic scope.
+        await page.locator('#enrollmentCampus option[value="3"]').waitFor({ state: 'attached' });
+        await page.locator('#enrollmentCampus').selectOption('3');
+        await page.locator('#enrollmentYear option[value="66"]').waitFor({ state: 'attached' });
+        await page.locator('#enrollmentYear').selectOption('66');
+        await page.locator('#enrollmentLevel option[value="9"]').waitFor({ state: 'attached' });
+        await page.locator('#enrollmentLevel').selectOption('9');
         await page.locator('#enrollmentSection option[value="80"]').waitFor({ state: 'attached' });
         await page.locator('#enrollmentSection').selectOption('80');
         await page.locator('#enrollmentDate').fill('2026-09-21');
