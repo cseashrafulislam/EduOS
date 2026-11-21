@@ -15,6 +15,8 @@ test('institute setup renders its own AI key without exposing stored secret',()=
     assert.match(js,/rowVersion: aiSettings\?\.rowVersion/);
     assert.match(js,/config.hasApiKey/);
     assert.match(js,/\/usage\?days=30/);
+    assert.match(js,/data.observedInputTokens/);
+    assert.match(shared,/Observed input tokens/);
     assert.doesNotMatch(js,/localStorage|sessionStorage/);
     new Function(js);
 });

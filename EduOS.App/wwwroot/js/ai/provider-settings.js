@@ -154,7 +154,10 @@
             const data = await api(aiApiRoot + '/usage?days=30');
             if (!sameSession() || !data || !Array.isArray(data.days)) return;
             node.textContent = 'Last ' + data.periodDays + ' UTC days: ' +
-                data.totalReservedCalls + ' reserved attempts · daily limit ' + data.dailyLimit;
+                data.totalReservedCalls + ' reserved attempts · ' +
+                data.observedInputTokens + ' observed input tokens · ' +
+                data.observedOutputTokens + ' observed output tokens · daily limit ' +
+                data.dailyLimit + ' · actual provider charges not available here.';
             rows.replaceChildren();
             for (const entry of data.days) {
                 if (!entry || typeof entry.usageDateUtc !== 'string' ||
@@ -164,7 +167,11 @@
                 date.textContent = entry.usageDateUtc;
                 const attempts = document.createElement('td');
                 attempts.textContent = String(entry.reservedCalls);
-                tr.append(date, attempts);
+                const input = document.createElement('td');
+                input.textContent = String(entry.observedInputTokens ?? 0);
+                const output = document.createElement('td');
+                output.textContent = String(entry.observedOutputTokens ?? 0);
+                tr.append(date, attempts, input, output);
                 rows.append(tr);
             }
         } catch {

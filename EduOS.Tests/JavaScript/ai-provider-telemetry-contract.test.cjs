@@ -1,0 +1,23 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(root,p),'utf8');
+test('daily quota reservation returns server-UTC date, tokens are observations not billing',()=>{
+    const quota=read('EduOS.Service/Services/AI/AiProviderDailyQuotaService.cs');
+    const svc=read('EduOS.Service/Services/AI/EduOsAiWorkspaceService.cs');
+    const admin=read('EduOS.Service/Services/AI/TenantAiProviderSettingsService.cs');
+    const migration=read('EduOS.Persistence/Migrations/20261121110000_AiObservedTokenTelemetry.cs');
+    assert.match(quota,/SELECT @Granted, @Today/);
+    assert.match(quota,/new AiQuotaReservation\(DateOnly.FromDateTime/);
+    assert.match(quota,/WHERE TenantId = \{tenantId\} AND UsageDateUtc = \{reservation.UsageDateUtc\}/);
+    assert.match(quota,/db.CurrentTenantId != tenantId/);
+    assert.match(quota,/ObservedResponses = ObservedResponses \+ 1/);
+    assert.match(svc,/inputTokenNode.ValueKind == JsonValueKind.Number/);
+    assert.match(svc,/outputTokenNode.ValueKind == JsonValueKind.Number/);
+    assert.match(svc,/quota.RecordObservedUsageAsync/);
+    assert.match(admin,/CanManageAsync\(ct\)/);
+    assert.match(admin,/UsageAsync\(int days, CancellationToken ct\)/);
+    assert.match(migration,/ObservedInputTokens/);
+    assert.match(migration,/ObservedOutputTokens/);
+    assert.match(migration,/CK_AiProviderDailyUsage_ObservedTokens/);
+    assert.doesNotMatch(admin,/SaveChangesAsync|HttpClient|api.openai.com/);
+});

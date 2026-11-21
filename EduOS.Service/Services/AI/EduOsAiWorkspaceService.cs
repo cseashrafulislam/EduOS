@@ -396,6 +396,8 @@ public sealed class EduOsAiWorkspaceService(
                 usage.ValueKind == JsonValueKind.Object &&
                 usage.TryGetProperty("input_tokens", out var inputTokenNode) &&
                 usage.TryGetProperty("output_tokens", out var outputTokenNode) &&
+                inputTokenNode.ValueKind == JsonValueKind.Number &&
+                outputTokenNode.ValueKind == JsonValueKind.Number &&
                 inputTokenNode.TryGetInt64(out var inputTokens) &&
                 outputTokenNode.TryGetInt64(out var outputTokens) &&
                 inputTokens >= 0 && outputTokens >= 0)

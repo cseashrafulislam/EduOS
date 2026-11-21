@@ -55,11 +55,13 @@
                     <thead><tr>
                         <th scope="col">@(bn ? "UTC তারিখ" : "UTC date")</th>
                         <th scope="col">@(bn ? "সংরক্ষিত API কল" : "Reserved API attempts")</th>
+                        <th scope="col">@(bn ? "ইনপুট টোকেন (পর্যবেক্ষিত)" : "Observed input tokens")</th>
+                        <th scope="col">@(bn ? "আউটপুট টোকেন (পর্যবেক্ষিত)" : "Observed output tokens")</th>
                     </tr></thead>
                     <tbody id="aiUsageRows"></tbody>
                 </table>
             </div>
-            <p class="small text-muted mb-0">@(bn ? "এটি API কলের সংখ্যা, AI token বা provider-এর প্রকৃত বিল নয়। ব্যর্থ/timeout কলও গণনায় থাকতে পারে।" : "These are reserved attempts, not model tokens or provider-billed cost. Failed and timed-out attempts may be included.")</p>
+            <p class="small text-muted mb-0">@(bn ? "সংরক্ষিত কলের সঙ্গে সফল provider response-এর পর্যবেক্ষিত token দেখানো হচ্ছে। Timeout/ব্যর্থ কলের token অনুপস্থিত থাকতে পারে। প্রকৃত বিল provider dashboard-এ দেখুন।" : "Observed token counts may exclude failed/time-out calls. Reservations are not a provider invoice; see your provider dashboard for actual charges.")</p>
         </details>
     </section>
 
