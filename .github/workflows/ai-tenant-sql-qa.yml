@@ -1,0 +1,75 @@
+name: EduOS AI Tenant SQL QA
+on:
+  pull_request:
+    branches: [Ashraful]
+    paths:
+      - ".github/workflows/ai-tenant-sql-qa.yml"
+      - "EduOS.AI/**"
+      - "EduOS.Service/Services/AI/**"
+      - "EduOS.App/Controllers/Api/TenantAiProviderSettingsController.cs"
+      - "EduOS.Persistence/Migrations/20261121*"
+      - "EduOS.Tests/App/AiTenantSqlMigrationTests.cs"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: eduos-ai-sql-${{ github.sha }}
+  cancel-in-progress: true
+jobs:
+  disposable-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Restore and build
+        run: |
+          dotnet restore EduOS.slnx
+          dotnet build EduOS.slnx -c Release --no-restore
+          dotnet tool install --global dotnet-ef --version 10.0.14
+      - name: Start isolated SQL Server 2022
+        shell: bash
+        run: |
+          set -euo pipefail
+          password="Ai_$(openssl rand -hex 20)_aA9!"
+          echo "::add-mask::$password"
+          echo "AI_SQL_PASSWORD=$password" >> "$GITHUB_ENV"
+          docker run --rm -d --name eduos-ai-test-sql -p 127.0.0.1:14333:1433 \
+            -e ACCEPT_EULA=Y -e MSSQL_PID=Developer \
+            -e MSSQL_SA_PASSWORD="$password" mcr.microsoft.com/mssql/server:2022-latest
+          for i in $(seq 1 90); do
+            if docker logs eduos-ai-test-sql 2>&1 | grep -q 'SQL Server is now ready for client connections'; then exit 0; fi
+            test "$(docker inspect -f '{{.State.Running}}' eduos-ai-test-sql)" = "true"
+            sleep 2
+          done
+          exit 1
+      - name: Apply AI and all other migrations on disposable SQL Server
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ConnectionStrings__DefaultConnection="Server=127.0.0.1,14333;Database=EduOS_AiSqlQa;User Id=sa;Password=$AI_SQL_PASSWORD;Encrypt=True;TrustServerCertificate=True;Connect Timeout=30"
+          export DatabaseInitialization__Enabled=false
+          export DatabaseInitialization__ApplyMigrations=false
+          dotnet ef database update --project EduOS.Persistence --startup-project EduOS.App \
+            --context EduOSDbContext --configuration Release --no-build
+          export EDUOS_AI_SQL_QA_CONNECTION="$ConnectionStrings__DefaultConnection"
+          dotnet test EduOS.Tests/EduOS.Tests.csproj -c Release --no-build \
+            --filter FullyQualifiedName~AiTenantSqlMigrationTests --logger "console;verbosity=normal"
+      - name: Verify idempotent migration output
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet ef migrations script --idempotent --project EduOS.Persistence \
+            --startup-project EduOS.App --context EduOSDbContext \
+            --configuration Release --no-build --output "$RUNNER_TEMP/ai-idempotent.sql"
+          test -s "$RUNNER_TEMP/ai-idempotent.sql"
+          grep -q "TenantAiProviderSettings" "$RUNNER_TEMP/ai-idempotent.sql"
+          grep -q "TenantAiAgentControls" "$RUNNER_TEMP/ai-idempotent.sql"
+          grep -q "ObservedInputTokens" "$RUNNER_TEMP/ai-idempotent.sql"
+      - name: Stop isolated SQL
+        if: always()
+        run: docker rm -f eduos-ai-test-sql || true
