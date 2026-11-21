@@ -67,6 +67,9 @@ without an action. Only exact reviewed labels/options match; no fuzzy lookup.
    entity lookup, finance or other business action MUST call the existing
    module/permission/record-authorized API and validate tenant/campus again.
 
+## Shared frontend integration (feature branch)
+The authenticated shared Page Assistant now exposes **Review command** beside the existing Find/local-only Voice controls. This calls the existing `POST /api/ai/voice/page/preview` only after explicit click, sends *only current eligible visible control labels* (never values/audio), compares the page/field/option snapshot and tenant/session before preview and again on confirmation. Existing `EduOSFieldDraft` and `EduOSFilterDraft` adapters perform only opt-in plain-text draft actions. Dropdown suggestions cause focus only; the user selects manually to avoid hidden autosave/dependent-value writes. All original submit/approval/posting APIs remain unchanged. This is global shared integration, not proof that each individual page has a voice-editable field. Per-route browser role/accessibility/mobile/UAT matrix remains mandatory.
+
 ## Acceptance status
 
 The pure compiler has deterministic xUnit cases for bn/en commands, ambiguous
